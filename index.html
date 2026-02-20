@@ -6,42 +6,43 @@
 
 <style>
 body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #0f2a33;
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #0f2a33;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
 }
 
 .box {
-    text-align: center;
+  text-align: center;
 }
 
 h1 {
-    font-size: 48px;
-    margin-bottom: 10px;
+  font-size: 48px;
+  margin-bottom: 10px;
 }
 
 p {
-    opacity: 0.8;
+  opacity: 0.8;
 }
 
 button {
-    margin-top: 25px;
-    padding: 12px 24px;
-    font-size: 16px;
-    background:#00c48c;
-    border:none;
-    border-radius:8px;
-    color:white;
-    cursor:pointer;
+  margin-top: 25px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  background-color: #2ecc71;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  transition: 0.2s;
 }
 
 button:hover {
-    background:#00a876;
+  background-color: #27ae60;
 }
 </style>
 </head>
@@ -49,20 +50,16 @@ button:hover {
 <body>
 
 <div class="box">
-    <h1>URBIS</h1>
-    <p>Ambiente inicial ativo ✅</p>
-    <p>MVP em construção</p>
+  <h1>URBIS</h1>
+  <p>Ambiente inicial ativo ✅</p>
+  <p>MVP em construção</p>
 
-    <button onclick="entrarSistema()">
-        Entrar no URBIS
-    </button>
+  <!-- BOTÃO QUE ABRE O PAINEL -->
+  <a href="painel.html" style="text-decoration:none;">
+    <button>Entrar no URBIS</button>
+  </a>
+
 </div>
-
-<script>
-function entrarSistema() {
-    alert("Bem-vindo ao URBIS 🚀\nSistema em evolução.");
-}
-</script>
 
 </body>
 </html>
