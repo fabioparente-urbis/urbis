@@ -1,39 +1,68 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>URBIS</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #0f2a33;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
+<meta charset="UTF-8">
+<title>URBIS</title>
 
-    .box {
-      text-align: center;
-    }
+<style>
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #0f2a33;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+}
 
-    h1 {
-      font-size: 48px;
-      margin-bottom: 10px;
-    }
+.box {
+    text-align: center;
+}
 
-    p {
-      opacity: 0.8;
-    }
-  </style>
+h1 {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+p {
+    opacity: 0.8;
+}
+
+button {
+    margin-top: 25px;
+    padding: 12px 24px;
+    font-size: 16px;
+    background:#00c48c;
+    border:none;
+    border-radius:8px;
+    color:white;
+    cursor:pointer;
+}
+
+button:hover {
+    background:#00a876;
+}
+</style>
 </head>
+
 <body>
-  <div class="box">
+
+<div class="box">
     <h1>URBIS</h1>
     <p>Ambiente inicial ativo ✅</p>
     <p>MVP em construção</p>
-  </div>
+
+    <button onclick="entrarSistema()">
+        Entrar no URBIS
+    </button>
+</div>
+
+<script>
+function entrarSistema() {
+    alert("Bem-vindo ao URBIS 🚀\nSistema em evolução.");
+}
+</script>
+
 </body>
 </html>
