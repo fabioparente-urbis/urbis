@@ -1,0 +1,370 @@
+#!/bin/bash
+
+BASE="/Users/fabiomartinssantos/lip-interface"
+
+echo "Instalando Timeline v2..."
+
+mkdir -p "$BASE/app/api/processos"
+
+# ─── API COMPLETA ────────────────────────────────────────────
+cat > "$BASE/app/api/processos/route.ts" << 'ENDOFFILE'
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const busca = searchParams.get("busca") || "";
+    const tipo = searchParams.get("tipo") || "";
+    const status = searchParams.get("status") || "";
+    const analista = searchParams.get("analista") || "";
+
+    let query = supabase
+      .from("processos")
+      .select("id, codigo, numero_sei, tipo_processo, status, criado_em, atualizado_em, dados, analista_id")
+      .order("atualizado_em", { ascending: false })
+      .limit(200);
+
+    if (busca) query = query.or(`codigo.ilike.%${busca}%,numero_sei.ilike.%${busca}%`);
+    if (tipo) query = query.eq("tipo_processo", tipo);
+    if (status) query = query.eq("status", status);
+    if (analista) query = query.eq("analista_id", analista);
+
+    const { data, error } = await query;
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true, data: data ?? [] });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const { id, status, analista_id } = await req.json();
+    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+
+    const atualizacao: any = { atualizado_em: new Date().toISOString() };
+    if (status !== undefined) atualizacao.status = status;
+    if (analista_id !== undefined) atualizacao.analista_id = analista_id;
+
+    const { error } = await supabase.from("processos").update(atualizacao).eq("id", id);
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { id } = await req.json();
+    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    const { error } = await supabase.from("processos").delete().eq("id", id);
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  }
+}
+ENDOFFILE
+
+echo "API criada"
+
+# ─── PÁGINA TIMELINE ─────────────────────────────────────────
+cat > "$BASE/app/processos/page.tsx" << 'ENDOFFILE'
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+type Processo = {
+  id: string;
+  codigo: string;
+  numero_sei: string;
+  tipo_processo: string;
+  status: string;
+  criado_em: string;
+  atualizado_em: string;
+  analista_id: string | null;
+  dados?: Record<string, any>;
+};
+
+type Usuario = {
+  id: string;
+  nome: string;
+  perfil: string;
+};
+
+const STATUS_OPCOES = [
+  "cadastrado", "em_analise", "concluido", "pendente",
+  "cancelado", "arquivado_duplicado", "aguardando_assinaturas"
+];
+
+const STATUS_COR: Record<string, string> = {
+  em_analise: "bg-blue-900 text-blue-300",
+  concluido: "bg-green-900 text-green-300",
+  pendente: "bg-yellow-900 text-yellow-300",
+  cancelado: "bg-red-900 text-red-300",
+  cadastrado: "bg-slate-700 text-slate-300",
+  arquivado_duplicado: "bg-orange-900 text-orange-300",
+  aguardando_assinaturas: "bg-purple-900 text-purple-300",
+};
+
+const TIPO_COR: Record<string, string> = {
+  Regularizacao: "bg-purple-900 text-purple-300",
+  REGULARIZACAO: "bg-purple-900 text-purple-300",
+  Aceite: "bg-cyan-900 text-cyan-300",
+  ACEITE: "bg-cyan-900 text-cyan-300",
+  Aprovacao: "bg-orange-900 text-orange-300",
+  APROVACAO: "bg-orange-900 text-orange-300",
+};
+
+function formatar(dataStr: string | null) {
+  if (!dataStr) return "—";
+  return new Date(dataStr).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+export default function ProcessosPage() {
+  const router = useRouter();
+  const [processos, setProcessos] = useState<Processo[]>([]);
+  const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [busca, setBusca] = useState("");
+  const [tipo, setTipo] = useState("");
+  const [status, setStatus] = useState("");
+  const [analista, setAnalista] = useState("");
+  const [deletando, setDeletando] = useState<string | null>(null);
+  const [editando, setEditando] = useState<Processo | null>(null);
+  const [novoStatus, setNovoStatus] = useState("");
+  const [novoAnalista, setNovoAnalista] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  async function carregar() {
+    try {
+      setCarregando(true);
+      const params = new URLSearchParams();
+      if (busca) params.set("busca", busca);
+      if (tipo) params.set("tipo", tipo);
+      if (status) params.set("status", status);
+      if (analista) params.set("analista", analista);
+      const res = await fetch(`/api/processos?${params}`);
+      const json = await res.json();
+      if (json.ok) setProcessos(json.data);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  async function carregarUsuarios() {
+    const res = await fetch("/api/admin/usuarios");
+    const json = await res.json();
+    if (json.ok) setUsuarios(json.data);
+  }
+
+  useEffect(() => { carregarUsuarios(); }, []);
+  useEffect(() => { carregar(); }, [busca, tipo, status, analista]);
+
+  async function deletar(p: Processo) {
+    const num = p.codigo || p.numero_sei;
+    if (!confirm(`Apagar o processo ${num}? Esta acao nao pode ser desfeita.`)) return;
+    setDeletando(p.id);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: p.id }),
+      });
+      const json = await res.json();
+      if (json.ok) await carregar();
+      else alert("Erro ao apagar: " + json.erro);
+    } finally {
+      setDeletando(null);
+    }
+  }
+
+  function abrirEditar(p: Processo) {
+    setEditando(p);
+    setNovoStatus(p.status || "");
+    setNovoAnalista(p.analista_id || "");
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return;
+    setSalvando(true);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editando.id,
+          status: novoStatus || undefined,
+          analista_id: novoAnalista || null,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) { setEditando(null); await carregar(); }
+      else alert("Erro: " + json.erro);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  function abrirProcesso(p: Processo) {
+    const id = p.codigo || p.numero_sei;
+    router.push(`/processo/${encodeURIComponent(id)}`);
+  }
+
+  function nomeAnalista(id: string | null) {
+    if (!id) return "—";
+    return usuarios.find((u) => u.id === id)?.nome || "—";
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
+      {/* CABEÇALHO */}
+      <div className="flex items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/")}
+            className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🏠 Home
+          </button>
+          <div>
+            <h1 className="text-2xl font-bold">📋 Processos</h1>
+            <p className="text-slate-400 text-sm">Todos os processos cadastrados no URBIS</p>
+          </div>
+        </div>
+        <span className="text-slate-500 text-sm">{processos.length} processo(s)</span>
+      </div>
+
+      {/* FILTROS */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <input value={busca} onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por numero SEI ou codigo..."
+          className="flex-1 min-w-[200px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select value={tipo} onChange={(e) => setTipo(e.target.value)}
+          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todos os tipos</option>
+          <option value="Regularizacao">Regularizacao</option>
+          <option value="Aceite">Aceite</option>
+          <option value="Aprovacao">Aprovacao</option>
+        </select>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}
+          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todos os status</option>
+          {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+        </select>
+        <select value={analista} onChange={(e) => setAnalista(e.target.value)}
+          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          <option value="">Todos os analistas</option>
+          {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </select>
+      </div>
+
+      {/* LISTA */}
+      {carregando ? (
+        <div className="text-slate-400 text-sm text-center py-12">Carregando...</div>
+      ) : processos.length === 0 ? (
+        <div className="text-slate-500 text-sm text-center py-12">Nenhum processo encontrado.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {processos.map((p) => {
+            const proprietario = p.dados?.proprietario?.valor || "—";
+            const numero = p.codigo || p.numero_sei || "—";
+            return (
+              <div key={p.id} className="bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 flex items-center gap-4 transition-all">
+                {/* Clicavel */}
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
+                  <p className="font-mono text-yellow-400 font-semibold text-sm">{numero}</p>
+                  <p className="text-slate-300 text-sm mt-0.5 truncate">{proprietario}</p>
+                  <p className="text-slate-500 text-xs mt-0.5">{nomeAnalista(p.analista_id)}</p>
+                </div>
+
+                {/* Tipo */}
+                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-slate-700 text-slate-300"}`}>
+                  {p.tipo_processo || "—"}
+                </span>
+
+                {/* Status */}
+                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${STATUS_COR[p.status] || "bg-slate-700 text-slate-300"}`}>
+                  {p.status?.replace(/_/g, " ") || "—"}
+                </span>
+
+                {/* Data */}
+                <p className="text-slate-500 text-xs whitespace-nowrap hidden lg:block">{formatar(p.atualizado_em)}</p>
+
+                {/* Ações */}
+                <div className="flex gap-2">
+                  <button onClick={() => abrirEditar(p)}
+                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">
+                    ✏️
+                  </button>
+                  <button onClick={() => deletar(p)} disabled={deletando === p.id}
+                    className="bg-red-900 hover:bg-red-800 disabled:opacity-50 text-red-300 text-xs px-2 py-1 rounded transition-colors">
+                    {deletando === p.id ? "..." : "🗑️"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* MODAL EDITAR */}
+      {editando && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-white font-bold text-lg">Editar Processo</h2>
+              <button onClick={() => setEditando(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <p className="text-yellow-400 font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
+
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Status</label>
+                <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Manter atual</option>
+                  {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Atribuir Analista</label>
+                <select value={novoAnalista} onChange={(e) => setNovoAnalista(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Sem analista</option>
+                  {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} — {u.perfil}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={salvarEdicao} disabled={salvando}
+                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                {salvando ? "Salvando..." : "💾 Salvar"}
+              </button>
+              <button onClick={() => setEditando(null)}
+                className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+ENDOFFILE
+
+echo "Pagina criada"
+echo ""
+echo "Timeline v2 instalada com sucesso!"
