@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const ROTAS_PUBLICAS = ["/login"];
 const ROTAS_ADMIN = ["/admin"];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (ROTAS_PUBLICAS.some((r) => pathname.startsWith(r))) {
