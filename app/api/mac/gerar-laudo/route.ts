@@ -72,31 +72,31 @@ export async function POST(req: NextRequest) {
       levantamentoArquitetonico:  v("levantamento"),
       laudoTecnico:               v("laudo"),
       areaBemTombado:             v("tombado"),
-      certidaoRememDesm:          null,
-      areaAeroportuaria:          null,
+      certidaoRememDesm:          undefined,
+      areaAeroportuaria:          undefined,
       vistoriaFiscalFotografica:  v("vistoria"),
       embargo:                    v("embargo"),
       dataEmbargo:                v("dataEmb"),
       outorgaOnerosa:             v("onerosa"),
       despachoCheadvDoc:          v("despacho"),
-      imagemGoogleEarth:          null,
+      imagemGoogleEarth:          undefined,
 
       // Uso do Solo
       numUsoSolo:         v("usoSolo"),
       tipoUsoSolo:        v("tipoUso"),
-      unidadeTerritorial: null,
-      certCorredorViario: null,
+      unidadeTerritorial: undefined,
+      certCorredorViario: undefined,
       cnae1:              v("cnae1"),
-      descCnae1:          null,
+      descCnae1:          undefined,
       cnae2:              v("cnae2"),
-      descCnae2:          null,
+      descCnae2:          undefined,
       corredorViario:     v("corredor"),
-      obsCorredorViario:  null,
+      obsCorredorViario:  undefined,
 
       // Poço de Infiltração
       areaConstruida:         v("areaTotal"),
       pocoInfiltracao:        sn(v("caixa")),
-      indiceCaptacao:         null,
+      indiceCaptacao:         undefined,
       areaImpermeabilizada:   v("areaImpermeavel"),
       volumeCaixas:           v("volAt"),
       numCaixas:              v("caixas"),
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
       areaTotalConstrucao:    v("areaTotal"),
       numPavimentos:          v("pav"),
       numUnidades:            v("unid"),
-      areaAtividadeEconomica: null,
+      areaAtividadeEconomica: undefined,
 
       // Da Análise — Checkboxes
       edificacaoEstruturalDef: sn(mac?.itens?.edificacaoEstruturalDef),
@@ -128,14 +128,14 @@ export async function POST(req: NextRequest) {
       lancaAguasPluviais:          sn(mac?.itens?.lancaAguasPluviais),
 
       // ANAC / Exército
-      flAnac:     mac?.itens?.flAnac ?? null,
-      flExercito: mac?.itens?.flExercito ?? null,
+      flAnac:     mac?.itens?.flAnac ?? undefined,
+      flExercito: mac?.itens?.flExercito ?? undefined,
 
       // Taxa de Regularização
       areaTotalRegularizar:   v("areaTotal"),
       areaMultaRecuoFrontal:  v("areaRecuo"),
       areaMultaVertical:      v("areaVertical"),
-      areaMultaGeral:         null,
+      areaMultaGeral:         undefined,
 
       // Rodapé
       areaTerreno:          v("areaTerreno"),
@@ -144,17 +144,17 @@ export async function POST(req: NextRequest) {
       areaTotalConstruida:  v("areaTotal"),
 
       // Emissão
-      nomeAnalista: null,
+      nomeAnalista: "",
       dataEmissao:  new Date(),
 
-      observacoesFinais: mac?.observacoes ?? null,
+      observacoesFinais: mac?.observacoes ?? undefined,
     };
 
     const buffer = await gerarLaudo(dados);
 
     const nomeArquivo = `Laudo_${p.codigo.replace(/[/\\]/g, "-")}.xlsx`;
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

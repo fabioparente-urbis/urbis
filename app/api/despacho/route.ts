@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       buffer = await gerarArquivamento({ processo, interessado });
     }
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="despacho_${processo}_${tipo}.docx"`,
