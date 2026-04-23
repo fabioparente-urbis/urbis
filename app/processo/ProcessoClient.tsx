@@ -36,6 +36,10 @@ const CAMPOS_LIP: Partial<Record<string, string>> = {
   areaImpermeavel: "Área Impermeável", tipoUso: "Tipo de Uso do Solo",
   usoDefinido: "Uso sem definição", corredor: "Corredor Viário",
   despacho: "Despacho CHEADV",
+  seiCheadv: "Nº SEI Análise Documental CHEADV",
+  areaAprovada: "Área Aprovada",
+  seiProcuracao: "Nº SEI Procuração",
+  seiEmbargo: "Nº SEI Embargo",
   pav: "Nº de Pavimentos", unid: "Nº de Unidades",
   cnae1: "CNAE 1", cnae2: "CNAE 2", cnae3: "CNAE 3", cnae4: "CNAE 4", cnae5: "CNAE 5",
   caixa: "Caixa de Recarga", faixa: "Faixa de Ampliação",
@@ -47,18 +51,42 @@ const CAMPOS_LIP: Partial<Record<string, string>> = {
   outro: "Outro processo", qualOutro: "Nº outro processo",
   embargo: "Embargo", existente: "Área Existente Aprovada",
   tombado: "Área tombada", procuracao: "Procuração", onerosa: "Onerosa",
+  // Vistoria e Uso
+  vistoriaAreaComercial: "Área ocup. pela Ativ. Comer.",
+  vistoriaMais12m: "Mais de 12m de altura?",
+  vistoriaOcupaRecuo: "Ocupa Recuo Frontal?",
+  vistoriaEstruturaConcluida: "Estrutura e telhado concluído?",
+  vistoriaAltMax21m: "Alt máx de 21m? (ter até cob)",
+  vistoriaOcupaPublica: "Ocupa área pública?",
+  vistoriaAreaAeroportuaria: "Área aeroportuária?",
+  vistoriaAreaMilitar: "Área militar?",
+  vistoriaAguasPluviais: "Lança águas pluviais interna?",
+  vistoriaEsquadriaDivisa: "Abert. de esquadrias na divisa?",
+  vistoriaCalcadas: "Vistoria: respeita calçadas?",
+  vistoriaLevante: "Levante confere com Vistoria?",
+  vistoriaUnidadeTerritorial: "Unidade Territorial",
+  vistoriaMultaVerticalizacao: "Multa de Verticalização?",
+  vistoriaMultaRecuo: "Multa de Recuo Frontal?",
+  vistoriaMax7Pav: "Máximo 7 pavimentos?",
 };
 
 const CAMPO_ABA: Partial<Record<string, number>> = {
   proprietario: 0, logradouro: 0, quadra: 0, lote: 0, bairro: 0, iptu: 0,
   areaTotal: 1, areaForaFrontal: 1, areaRecuo: 1, areaTerreno: 1, areaImpermeavel: 1,
-  despacho: 2, tipoUso: 2, usoDefinido: 2, numeroUso: 2, corredor: 2,
+  despacho: 2, seiCheadv: 2, tipoUso: 2, usoDefinido: 2, numeroUso: 2, corredor: 2,
   cnae1: 2, cnae2: 2, cnae3: 2, cnae4: 2, cnae5: 2,
   faixa: 3, caixa: 3, volMin: 3, volAt: 3, caixas: 3,
-  pav: 4, unid: 4, existente: 4,
+  pav: 4, unid: 4, existente: 4, areaAprovada: 4,
   outro: 5, qualOutro: 5, embargo: 5, tombado: 5, procuracao: 5, onerosa: 5,
+  seiProcuracao: 5, seiEmbargo: 5,
   certidao: 6, levantamento: 6, artLev: 6, artCx: 6,
   laudo: 6, vistoria: 6, usoSolo: 6, foto: 6,
+  vistoriaAreaComercial: 7, vistoriaMais12m: 7, vistoriaOcupaRecuo: 7,
+  vistoriaEstruturaConcluida: 7, vistoriaAltMax21m: 7, vistoriaOcupaPublica: 7,
+  vistoriaAreaAeroportuaria: 7, vistoriaAreaMilitar: 7, vistoriaAguasPluviais: 7,
+  vistoriaEsquadriaDivisa: 7, vistoriaCalcadas: 7, vistoriaLevante: 7,
+  vistoriaUnidadeTerritorial: 7, vistoriaMultaVerticalizacao: 7,
+  vistoriaMultaRecuo: 7, vistoriaMax7Pav: 7,
 };
 
 const CORES_DIA = [
@@ -130,18 +158,38 @@ export default function ProcessoClient() {
     quadra: padrao(""), lote: padrao(""), bairro: padrao(""), iptu: padrao(""),
     areaTotal: padrao(""), areaForaFrontal: padrao(""), areaVertical: padrao("0"),
     areaRecuo: padrao(""), areaTerreno: padrao(""), areaImpermeavel: padrao(""),
-    despacho: padrao(""), tipoUso: padrao("APROVAÇÃO DE PROJETO"),
+    despacho: padrao(""), seiCheadv: padrao(""),
+    tipoUso: padrao("APROVAÇÃO DE PROJETO"),
     usoDefinido: padrao("Não"), numeroUso: padrao(""),
     cnae1: padrao("NP"), cnae2: padrao("NP"), cnae3: padrao("NP"),
     cnae4: padrao("NP"), cnae5: padrao("NP"),
     corredor: padrao("Não"), faixa: padrao("NP"), caixa: padrao("Não"),
     volMin: padrao("NP"), volAt: padrao("NP"), caixas: padrao("NP"),
     pav: padrao(""), unid: padrao(""), existente: padrao("Não"),
+    areaAprovada: padrao("NP"),
     outro: padrao("Não"), qualOutro: padrao("NP"), pag: base(),
     embargo: padrao("Não"), dataEmb: padrao("NP"), tombado: padrao("NP"),
-    procuracao: padrao("Não"), onerosa: padrao("Não"),
+    procuracao: padrao("Não"), seiProcuracao: padrao("NP"),
+    seiEmbargo: padrao("NP"), onerosa: padrao("Não"),
     certidao: padrao(""), levantamento: padrao(""), artLev: padrao(""), artCx: padrao(""),
     laudo: padrao(""), vistoria: padrao(""), usoSolo: padrao(""), foto: padrao(""),
+    // Vistoria e Uso
+    vistoriaAreaComercial: padrao(""),
+    vistoriaMais12m: padrao("Não"),
+    vistoriaOcupaRecuo: padrao("Não"),
+    vistoriaEstruturaConcluida: padrao("Sim"),
+    vistoriaAltMax21m: padrao("Sim"),
+    vistoriaOcupaPublica: padrao("Não"),
+    vistoriaAreaAeroportuaria: padrao("Não"),
+    vistoriaAreaMilitar: padrao("Não"),
+    vistoriaAguasPluviais: padrao("Não"),
+    vistoriaEsquadriaDivisa: padrao("Não"),
+    vistoriaCalcadas: padrao("Sim"),
+    vistoriaLevante: padrao("Sim"),
+    vistoriaUnidadeTerritorial: padrao(""),
+    vistoriaMultaVerticalizacao: padrao("Não"),
+    vistoriaMultaRecuo: padrao("Não"),
+    vistoriaMax7Pav: padrao("Sim"),
   };
 
   const [d, setD] = useState(estadoInicial);
@@ -504,14 +552,149 @@ export default function ProcessoClient() {
     );
   }
 
+  const SN = ["Sim", "Não"];
+  const SNP = ["Sim", "Não", "NP"];
+
   const abas = [
-    { nome: "1. Identificação", dica: "Ver no carimbo do projeto e no Uso do Solo", render: () => (<><AvisoLip indiceAba={0} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("proprietario","Proprietário","Ver no carimbo do projeto")}{I("logradouro","Logradouro","Ver no carimbo do projeto")}{I("processo","Processo Nº","Ver no Uso do Solo")}<div className="grid grid-cols-2 gap-2">{I("quadra","Quadra (Qd.)","Ver no carimbo")}{I("lote","Lote (Lt.)","Ver no carimbo")}</div>{I("bairro","Bairro","Ver no carimbo do projeto")}{I("iptu","IPTU","Ver no Uso do Solo")}</div></>) },
-    { nome: "2. Áreas", dica: "Ver no carimbo do projeto", render: () => (<><AvisoLip indiceAba={1} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("areaTotal","Á. a ser Regularizada TOTAL","Ver no carimbo")}{I("areaForaFrontal","Á. a ser Regularizada fora do frontal","Ver no carimbo")}{I("areaVertical","Á. a ser Regularizada em Ed. Vertical","0 se não houver")}{I("areaRecuo","Á. Construída em Recuo Frontal","Ver no carimbo")}{I("areaTerreno","Área do Terreno","Ver no carimbo")}{I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}</div></>) },
-    { nome: "3. Uso do Solo", dica: "Ver no documento de Uso do Solo e Despacho da CHEADV", render: () => (<><AvisoLip indiceAba={2} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("despacho","Despacho CHEADV","Ver no despacho")}{I("tipoUso","Tipo de Uso do Solo","Ver no Uso do Solo")}{S("usoDefinido","Uso de Solo sem uso definido?",["Sim","Não"])}{I("numeroUso","Nº Uso para Aprovação","Ver no Uso do Solo")}<div className="md:col-span-2 border-t pt-4"><p className="text-xs text-gray-400 mb-3 font-semibold uppercase">CNAEs — se não houver, preencher NP</p><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("cnae1","Descrição CNAE 1","Se não houver: NP")}{I("cnae2","Descrição CNAE 2","Se não houver: NP")}{I("cnae3","Descrição CNAE 3","Se não houver: NP")}{I("cnae4","Descrição CNAE 4","Se não houver: NP")}{I("cnae5","Descrição CNAE 5","Se não houver: NP")}</div></div></div></>) },
-    { nome: "4. Urbanístico", dica: "Ver no Uso do Solo e projeto", render: () => (<><AvisoLip indiceAba={3} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{S("corredor","Corredor Viário?",["Sim","Não"])}{I("faixa","Faixa de Ampliação?","Se não houver: NP")}{S("caixa","Caixa de Recarga?",["Sim","Não"])}{I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}{I("volMin","Vol. Mínimo da Caixa","Se não houver: NP")}{I("volAt","Vol. Atendido da Caixa","Se não houver: NP")}{I("caixas","Nº de Caixas","Se não houver: NP")}</div></>) },
-    { nome: "5. Edificação", dica: "Ver no carimbo do projeto", render: () => (<><AvisoLip indiceAba={4} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("pav","Número de Pavimentos","Ver no carimbo")}{I("unid","Número de Unidades","Ver no carimbo")}{S("existente","Área Existente Aprovada?",["Sim","Não"])}</div></>) },
-    { nome: "6. Processo", dica: "Ver no SEI e histórico do processo", render: () => (<><AvisoLip indiceAba={5} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{S("outro","Existe outro processo?",["Sim","Não"])}{I("qualOutro","Qual o nº do outro processo?","Se não houver: NP")}{I("pag","Pág. do SEI (Busca Arq.)","")}{S("embargo","Tem Embargo?",["Sim","Não"])}{I("dataEmb","Data do Embargo","Se não houver: NP")}{I("tombado","É área tombada?","Se não houver: NP")}{S("procuracao","Tem Procuração?",["Sim","Não","NP"])}{S("onerosa","Onerosa?",["Sim","Não","NP"])}</div></>) },
-    { nome: "7. Documentos", dica: "Ver número do documento no SEI", render: () => (<><AvisoLip indiceAba={6} /><div className="grid grid-cols-1 md:grid-cols-2 gap-4">{I("certidao","Certidão de Matrícula","Nº SEI")}{I("levantamento","Levantamento / Arquitetura","Nº SEI")}{I("artLev","ART/RRT de Levantamento","Nº SEI")}{I("artCx","ART/RRT da Caixa de Recarga","Nº SEI")}{I("laudo","Laudo Técnico","Nº SEI")}{I("vistoria","Vistoria Fiscal e Laudo Reg.","Nº SEI")}{I("usoSolo","Uso do Solo para Aprovação","Nº SEI")}{I("foto","Foto do Google","Nº SEI")}</div></>) },
+    {
+      nome: "1. Identificação", dica: "Ver no carimbo do projeto e no Uso do Solo",
+      render: () => (
+        <><AvisoLip indiceAba={0} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("proprietario","Proprietário","Ver no carimbo do projeto")}
+          {I("logradouro","Logradouro","Ver no carimbo do projeto")}
+          {I("processo","Processo Nº","Ver no Uso do Solo")}
+          <div className="grid grid-cols-2 gap-2">
+            {I("quadra","Quadra (Qd.)","Ver no carimbo")}
+            {I("lote","Lote (Lt.)","Ver no carimbo")}
+          </div>
+          {I("bairro","Bairro","Ver no carimbo do projeto")}
+          {I("iptu","IPTU","Ver no Uso do Solo")}
+        </div></>
+      )
+    },
+    {
+      nome: "2. Áreas", dica: "Ver no carimbo do projeto",
+      render: () => (
+        <><AvisoLip indiceAba={1} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("areaTotal","Á. a ser Regularizada TOTAL","Ver no carimbo")}
+          {I("areaForaFrontal","Á. a ser Regularizada fora do frontal","Ver no carimbo")}
+          {I("areaVertical","Á. a ser Regularizada em Ed. Vertical","0 se não houver")}
+          {I("areaRecuo","Á. Construída em Recuo Frontal","Ver no carimbo")}
+          {I("areaTerreno","Área do Terreno","Ver no carimbo")}
+          {I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}
+        </div></>
+      )
+    },
+    {
+      nome: "3. Uso do Solo", dica: "Ver no documento de Uso do Solo e Despacho da CHEADV",
+      render: () => (
+        <><AvisoLip indiceAba={2} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("despacho","Despacho CHEADV","Ver no despacho")}
+          {I("seiCheadv","Nº SEI — Análise Documental CHEADV","Nº SEI do documento")}
+          {I("tipoUso","Tipo de Uso do Solo","Ver no Uso do Solo")}
+          {S("usoDefinido","Uso de Solo sem uso definido?",SN)}
+          {I("numeroUso","Nº Uso para Aprovação","Ver no Uso do Solo")}
+          <div className="md:col-span-2 border-t pt-4">
+            <p className="text-xs text-gray-400 mb-3 font-semibold uppercase">CNAEs — se não houver, preencher NP</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {I("cnae1","Descrição CNAE 1","Se não houver: NP")}
+              {I("cnae2","Descrição CNAE 2","Se não houver: NP")}
+              {I("cnae3","Descrição CNAE 3","Se não houver: NP")}
+              {I("cnae4","Descrição CNAE 4","Se não houver: NP")}
+              {I("cnae5","Descrição CNAE 5","Se não houver: NP")}
+            </div>
+          </div>
+        </div></>
+      )
+    },
+    {
+      nome: "4. Urbanístico", dica: "Ver no Uso do Solo e projeto",
+      render: () => (
+        <><AvisoLip indiceAba={3} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {S("corredor","Corredor Viário?",SN)}
+          {I("faixa","Faixa de Ampliação?","Se não houver: NP")}
+          {S("caixa","Caixa de Recarga?",SN)}
+          {I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}
+          {I("volMin","Vol. Mínimo da Caixa","Se não houver: NP")}
+          {I("volAt","Vol. Atendido da Caixa","Se não houver: NP")}
+          {I("caixas","Nº de Caixas","Se não houver: NP")}
+        </div></>
+      )
+    },
+    {
+      nome: "5. Edificação", dica: "Ver no carimbo do projeto",
+      render: () => (
+        <><AvisoLip indiceAba={4} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("pav","Número de Pavimentos","Ver no carimbo")}
+          {I("unid","Número de Unidades","Ver no carimbo")}
+          {S("existente","Área Existente Aprovada?",SN)}
+          {I("areaAprovada","Área Aprovada (se existir)","Se não houver: NP")}
+        </div></>
+      )
+    },
+    {
+      nome: "6. Processo", dica: "Ver no SEI e histórico do processo",
+      render: () => (
+        <><AvisoLip indiceAba={5} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {S("outro","Existe outro processo?",SN)}
+          {I("qualOutro","Qual o nº do outro processo?","Se não houver: NP")}
+          {I("pag","Pág. do SEI (Busca Arq.)","Nº da página")}
+          {S("embargo","Tem Embargo?",SN)}
+          {I("seiEmbargo","Nº SEI do Embargo","Se não houver: NP")}
+          {I("dataEmb","Data do Embargo","Se não houver: NP")}
+          {I("tombado","É área tombada?","Se não houver: NP")}
+          {S("procuracao","Tem Procuração?",SNP)}
+          {I("seiProcuracao","Nº SEI da Procuração","Se não houver: NP")}
+          {S("onerosa","Onerosa?",SNP)}
+        </div></>
+      )
+    },
+    {
+      nome: "7. Documentos", dica: "Ver número do documento no SEI",
+      render: () => (
+        <><AvisoLip indiceAba={6} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("certidao","Certidão de Matrícula","Nº SEI")}
+          {I("levantamento","Levantamento / Arquitetura","Nº SEI")}
+          {I("artLev","ART/RRT de Levantamento","Nº SEI")}
+          {I("artCx","ART/RRT da Caixa de Recarga","Nº SEI")}
+          {I("laudo","Laudo Técnico","Nº SEI")}
+          {I("vistoria","Vistoria Fiscal e Laudo Reg.","Nº SEI")}
+          {I("usoSolo","Uso do Solo para Aprovação","Nº SEI")}
+          {I("foto","Foto do Google","Nº SEI")}
+        </div></>
+      )
+    },
+    {
+      nome: "8. Vistoria e Uso", dica: "Preencher após vistoria fiscal",
+      render: () => (
+        <><AvisoLip indiceAba={7} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {I("vistoriaAreaComercial","Área ocup. pela Ativ. Comercial (m²)","m²")}
+          {I("vistoriaUnidadeTerritorial","Unidade Territorial","Ver no Uso do Solo")}
+          {S("vistoriaMais12m","Mais de 12m de altura?",SN)}
+          {S("vistoriaOcupaRecuo","Ocupa Recuo Frontal?",SN)}
+          {S("vistoriaEstruturaConcluida","Estrutura e telhado concluído?",SN)}
+          {S("vistoriaAltMax21m","Alt máx de 21m? (ter até cob)",SN)}
+          {S("vistoriaOcupaPublica","Ocupa área pública?",SN)}
+          {S("vistoriaAreaAeroportuaria","Área aeroportuária?",SN)}
+          {S("vistoriaAreaMilitar","Área militar?",SN)}
+          {S("vistoriaAguasPluviais","Lança águas pluviais interna?",SN)}
+          {S("vistoriaEsquadriaDivisa","Abertura de esquadrias na divisa?",SN)}
+          {S("vistoriaCalcadas","Vistoria: respeita calçadas?",SN)}
+          {S("vistoriaLevante","Levante confere com Vistoria?",SN)}
+          {S("vistoriaMultaVerticalizacao","Multa de Verticalização?",SN)}
+          {S("vistoriaMultaRecuo","Multa de Recuo Frontal?",SN)}
+          {S("vistoriaMax7Pav","Máximo 7 pavimentos?",SN)}
+        </div></>
+      )
+    },
   ];
 
   const atual = abas[aba];
@@ -540,9 +723,9 @@ export default function ProcessoClient() {
             🚪 Sair
           </button>
           <button onClick={() => router.push(`/analise/${encodeURIComponent(idUrl)}`)}
-  className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1">
-  🔍 MAC
-</button>
+            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1">
+            🔍 MAC
+          </button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 Cadastro de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
