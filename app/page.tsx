@@ -101,6 +101,10 @@ export default function Home() {
             className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
             👥 Gestão de usuários
           </button>
+          <button onClick={() => router.push("/admin/checklists")}
+            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
+            📋 Gerenciar Checklists
+          </button>
         </div>
       </aside>
 

@@ -11,6 +11,7 @@ type Usuario = {
 };
 
 const PERFIS = ["Analista", "Gerente", "Diretor", "Administrador"];
+const ADMIN_FIXO = "Fábio Parente Martins Santos";
 const vazio = () => ({ nome: "", cpf: "", email: "", matricula: "", telefone: "", cargo: "", perfil: "Analista", status: "Ativo" });
 
 export default function UsuariosPage() {
@@ -69,6 +70,18 @@ export default function UsuariosPage() {
     alert(json.ok ? "✅ Email enviado!" : "❌ Erro: " + json.erro);
   }
 
+  async function excluir(u: Usuario) {
+    if (!confirm(`Excluir permanentemente "${u.nome}"? Esta ação não pode ser desfeita.`)) return;
+    const res = await fetch("/api/admin/usuarios", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: u.id }),
+    });
+    const json = await res.json();
+    if (json.ok) await carregar();
+    else alert("❌ Erro: " + json.erro);
+  }
+
   function f(campo: string, valor: string) { setForm((prev) => ({ ...prev, [campo]: valor })); }
 
   function formatar(dataStr: string | null) {
@@ -81,6 +94,8 @@ export default function UsuariosPage() {
     u.email.toLowerCase().includes(busca.toLowerCase()) ||
     (u.matricula || "").toLowerCase().includes(busca.toLowerCase())
   );
+
+  const isAdminFixo = (u: Usuario) => u.perfil === "Administrador" && u.nome === ADMIN_FIXO;
 
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
@@ -133,6 +148,9 @@ export default function UsuariosPage() {
                     <div className="flex gap-2">
                       <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
                       <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
+                      {!isAdminFixo(u) && (
+                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
+                      )}
                     </div>
                   </td>
                 </tr>
