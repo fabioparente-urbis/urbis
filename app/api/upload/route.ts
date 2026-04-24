@@ -1,4 +1,3 @@
-cat > ~/lip-interface/app/api/upload/route.ts << 'EOF'
 import { NextRequest, NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 
@@ -35,4 +34,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Erro no upload' }, { status: 500 })
   }
 }
-EOF
