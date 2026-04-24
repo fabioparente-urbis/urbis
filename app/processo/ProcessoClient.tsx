@@ -30,6 +30,7 @@ type AbaDB = {
   nome: string;
   dica: string;
   ordem: number;
+  ativo: boolean;
   lip_campos: CampoDB[];
 };
 
@@ -117,7 +118,6 @@ export default function ProcessoClient() {
     setToast({ msg, tipo });
   }
 
-  // Carrega abas e campos do banco
   useEffect(() => {
     async function carregarAbas() {
       setCarregandoAbas(true);
@@ -125,14 +125,12 @@ export default function ProcessoClient() {
       const json = await res.json();
       if (json.ok) {
         setAbasDB(json.data);
-        // Inicializa estado com valores padrão
         const estadoInicial: Record<string, Campo> = {};
         for (const aba of json.data) {
           for (const campo of aba.lip_campos) {
             estadoInicial[campo.chave] = padrao(campo.valor_padrao || "");
           }
         }
-        // Campo processo é especial
         estadoInicial["processo"] = base();
         estadoInicial["pag"] = base();
         setD(estadoInicial);
@@ -151,7 +149,6 @@ export default function ProcessoClient() {
     } catch {}
   }
 
-  // Carrega dados do processo após abas carregadas
   useEffect(() => {
     if (!idUrl || carregandoAbas) return;
     async function carregar() {
@@ -244,29 +241,45 @@ export default function ProcessoClient() {
     setNovoProcesso("");
   }
 
-  async function lerLip(arquivo: File) {
+  async function lerLip(arquivos: File[]) {
     try {
       setLendoLip(true);
-      const formData = new FormData();
-      formData.append("pdf", arquivo);
-      const res = await fetch("/api/lip/analisar", { method: "POST", body: formData });
-      const json = await res.json();
-      if (!json.ok) { mostrarToast("Erro ao ler LIP: " + json.erro, "erro"); return; }
-      const c = json.campos;
+      mostrarToast(`📄 Processando ${arquivos.length} arquivo(s)...`, "info");
+
+      const resultados = await Promise.all(
+        arquivos.map(async (arquivo) => {
+          const formData = new FormData();
+          formData.append("pdf", arquivo);
+          const res = await fetch("/api/lip/analisar", { method: "POST", body: formData });
+          const json = await res.json();
+          if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
+          return json.campos;
+        })
+      );
+
+      const mesclado: Record<string, { valor: string; fonte: string }> = {};
+      for (const campos of resultados) {
+        for (const chave of Object.keys(campos)) {
+          if (!mesclado[chave]?.valor && campos[chave]?.valor) {
+            mesclado[chave] = campos[chave];
+          }
+        }
+      }
+
       setD((prev) => {
         const novo = { ...prev };
-        function aplicar(chave: string, itemLip: { valor: string; fonte: string } | null | undefined) {
-          if (!itemLip?.valor) return;
+        Object.keys(mesclado).forEach((chave) => {
+          const item = mesclado[chave];
+          if (!item?.valor) return;
           if (novo[chave]?.origem === "manual" && novo[chave]?.valor.trim() !== "") return;
-          novo[chave] = { valor: itemLip.valor, origem: "original", fonte: itemLip.fonte };
-        }
-        // Mapeia campos do LIP para as chaves dinâmicas
-        Object.keys(c).forEach((chave) => {
-          if (novo[chave] !== undefined) aplicar(chave, c[chave]);
+          if (novo[chave] !== undefined) {
+            novo[chave] = { valor: item.valor, origem: "original", fonte: item.fonte };
+          }
         });
         return novo;
       });
-      mostrarToast("✅ LIP lido com sucesso! Confira os campos.", "sucesso");
+
+      mostrarToast(`✅ ${arquivos.length} arquivo(s) lido(s) com sucesso!`, "sucesso");
     } catch (e: any) {
       mostrarToast("Erro: " + e.message, "erro");
     } finally {
@@ -338,7 +351,6 @@ export default function ProcessoClient() {
 
   const totalPadrao = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length;
 
-  // Renderiza campo dinamicamente
   function renderCampo(campo: CampoDB) {
     const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
     const isPadrao = val.origem === "padrao";
@@ -456,16 +468,29 @@ export default function ProcessoClient() {
       </div>
 
       {/* BLOCO LIP */}
-      <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 mb-4 flex items-center gap-4">
-        <div>
-          <p className="text-sm font-bold text-white">📄 Leitura Inteligente do LIP</p>
-          <p className="text-xs text-slate-400 mt-0.5">Faça upload do PDF e os campos serão preenchidos automaticamente</p>
+      <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 mb-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-bold text-white">📄 Leitura Inteligente do LIP</p>
+            <p className="text-xs text-slate-400 mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-white"}`}>
+              {lendoLip ? "⏳ Lendo..." : "📎 1 arquivo"}
+              <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
+            </label>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white"}`}>
+              {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
+              <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (files.length > 0) lerLip(files);
+                  e.target.value = "";
+                }} />
+            </label>
+          </div>
         </div>
-        <label className={`ml-auto cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-white"}`}>
-          {lendoLip ? "⏳ Lendo..." : "📎 Upload PDF"}
-          <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip(f); e.target.value = ""; }} />
-        </label>
       </div>
 
       {carregando && <div className="bg-yellow-900 border border-yellow-500 text-yellow-300 px-4 py-2 rounded mb-4 text-sm">⏳ Carregando dados do processo...</div>}
