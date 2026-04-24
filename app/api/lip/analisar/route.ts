@@ -33,6 +33,7 @@ REGRAS GERAIS:
 - areaRecuo: buscar "ÁREA A SER REGULARIZADA QUE OCUPA RECUO FRONTAL"
 - areaTerreno: buscar "ÁREA DO LOTE" ou "ÁREA DO TERRENO ORIGINAL" (só o número)
 - areaImpermeavel: buscar "ÁREA IMPERMEÁVEL" (só o número em m²)
+- areaAprovada: área existente já aprovada anteriormente, se houver
 
 CORREDOR E CAIXA:
 - corredor: "Sim" se mencionar corredor viário, "Não" se "NÃO POSSUI CORREDOR"
@@ -54,68 +55,77 @@ USO DO SOLO (buscar no documento "Parecer" ou "Informação de Uso do Solo - COM
 
 DOCUMENTOS SEI — retornar APENAS o número de 7 dígitos entre parênteses:
 - certidao: número SEI da "Certidão" no índice
-- levantamento: número SEI do "Projeto" no índice — ex: "Projeto (6017781)"
+- levantamento: número SEI do "Projeto" no índice
 - artLev: número SEI da "ART" ou "RRT" de levantamento no índice
 - artCx: número SEI da ART/RRT da Caixa, ou "NP"
-- laudo: número SEI do "Laudo Técnico" no índice — ex: "Laudo Técnico (9319938)"
-- vistoria: número SEI da "Vistoria Simples" no índice — ex: "Vistoria Simples (6017725)"
-- foto: número SEI da "Fotografia" no índice — ex: "Fotografia (6017752)"
+- laudo: número SEI do "Laudo Técnico" no índice
+- vistoria: número SEI da "Vistoria Simples" no índice
+- foto: número SEI da "Fotografia" no índice
+- usoSolo: número SEI do documento de Uso do Solo no índice
 
-PROCESSO:
-- despacho: número SEI do "Despacho" da CHEADV — ex: "Despacho 1165 - CHEADV (5167060)" → retornar "5167060"
+PROCESSO E SEIs ESPECÍFICOS:
+- despacho: número SEI do "Despacho" da CHEADV
+- seiCheadv: número SEI da "Análise Documental" ou "CHEADV" no índice
+- seiProcuracao: número SEI da "Procuração" no índice, ou "NP"
+- seiEmbargo: número SEI do "Embargo" no índice, ou "NP"
 - outro: "Sim" se há outro processo vinculado, "Não" se não
 - qualOutro: número do outro processo ou "NP"
 - embargo: "Sim" ou "Não"
 - dataEmb: data do embargo ou "NP"
-- tombado: "Sim" se área tombada, "Não" se não (nunca retornar NP para este campo)
-- procuracao: número SEI da Procuração se houver — ex: "Procuração (7849040)" → retornar "7849040", ou "NP"
-- onerosa: "Sim" ou "Não" — buscar no Uso do Solo ou despacho
+- tombado: "Sim" se área tombada, "Não" se não
+- procuracao: "Sim" se há procuração, "Não" se não, "NP" se não aplicável
+- onerosa: "Sim" ou "Não"
 
 RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
 {
-  "proprietario":    {"valor": null, "fonte": null},
-  "logradouro":      {"valor": null, "fonte": null},
-  "quadra":          {"valor": null, "fonte": null},
-  "lote":            {"valor": null, "fonte": null},
-  "bairro":          {"valor": null, "fonte": null},
-  "iptu":            {"valor": null, "fonte": null},
-  "areaTotal":       {"valor": null, "fonte": null},
-  "areaForaFrontal": {"valor": null, "fonte": null},
-  "areaRecuo":       {"valor": null, "fonte": null},
-  "areaTerreno":     {"valor": null, "fonte": null},
-  "areaImpermeavel": {"valor": null, "fonte": null},
-  "tipoUso":         {"valor": null, "fonte": null},
-  "usoDefinido":     {"valor": null, "fonte": null},
-  "numeroUso":       {"valor": null, "fonte": null},
-  "corredor":        {"valor": null, "fonte": null},
-  "faixa":           {"valor": null, "fonte": null},
-  "cnae1":           {"valor": null, "fonte": null},
-  "cnae2":           {"valor": null, "fonte": null},
-  "cnae3":           {"valor": null, "fonte": null},
-  "cnae4":           {"valor": null, "fonte": null},
-  "cnae5":           {"valor": null, "fonte": null},
-  "caixa":           {"valor": null, "fonte": null},
-  "volMin":          {"valor": null, "fonte": null},
-  "volAt":           {"valor": null, "fonte": null},
-  "caixas":          {"valor": null, "fonte": null},
-  "pav":             {"valor": null, "fonte": null},
-  "unid":            {"valor": null, "fonte": null},
-  "existente":       {"valor": null, "fonte": null},
-  "despacho":        {"valor": null, "fonte": null},
-  "outro":           {"valor": null, "fonte": null},
-  "qualOutro":       {"valor": null, "fonte": null},
-  "embargo":         {"valor": null, "fonte": null},
-  "dataEmb":         {"valor": null, "fonte": null},
-  "tombado":         {"valor": null, "fonte": null},
-  "procuracao":      {"valor": null, "fonte": null},
-  "onerosa":         {"valor": null, "fonte": null},
-  "certidao":        {"valor": null, "fonte": null},
-  "levantamento":    {"valor": null, "fonte": null},
-  "artLev":          {"valor": null, "fonte": null},
-  "artCx":           {"valor": null, "fonte": null},
-  "laudo":           {"valor": null, "fonte": null},
-  "vistoria":        {"valor": null, "fonte": null},
-  "foto":            {"valor": null, "fonte": null}
+  "proprietario":            {"valor": null, "fonte": null},
+  "logradouro":              {"valor": null, "fonte": null},
+  "quadra":                  {"valor": null, "fonte": null},
+  "lote":                    {"valor": null, "fonte": null},
+  "bairro":                  {"valor": null, "fonte": null},
+  "iptu":                    {"valor": null, "fonte": null},
+  "areaTotal":               {"valor": null, "fonte": null},
+  "areaForaFrontal":         {"valor": null, "fonte": null},
+  "areaRecuo":               {"valor": null, "fonte": null},
+  "areaTerreno":             {"valor": null, "fonte": null},
+  "areaImpermeavel":         {"valor": null, "fonte": null},
+  "areaAprovada":            {"valor": null, "fonte": null},
+  "tipoUso":                 {"valor": null, "fonte": null},
+  "usoDefinido":             {"valor": null, "fonte": null},
+  "numeroUso":               {"valor": null, "fonte": null},
+  "corredor":                {"valor": null, "fonte": null},
+  "faixa":                   {"valor": null, "fonte": null},
+  "cnae1":                   {"valor": null, "fonte": null},
+  "cnae2":                   {"valor": null, "fonte": null},
+  "cnae3":                   {"valor": null, "fonte": null},
+  "cnae4":                   {"valor": null, "fonte": null},
+  "cnae5":                   {"valor": null, "fonte": null},
+  "caixa":                   {"valor": null, "fonte": null},
+  "volMin":                  {"valor": null, "fonte": null},
+  "volAt":                   {"valor": null, "fonte": null},
+  "caixas":                  {"valor": null, "fonte": null},
+  "pav":                     {"valor": null, "fonte": null},
+  "unid":                    {"valor": null, "fonte": null},
+  "existente":               {"valor": null, "fonte": null},
+  "despacho":                {"valor": null, "fonte": null},
+  "seiCheadv":               {"valor": null, "fonte": null},
+  "seiProcuracao":           {"valor": null, "fonte": null},
+  "seiEmbargo":              {"valor": null, "fonte": null},
+  "outro":                   {"valor": null, "fonte": null},
+  "qualOutro":               {"valor": null, "fonte": null},
+  "embargo":                 {"valor": null, "fonte": null},
+  "dataEmb":                 {"valor": null, "fonte": null},
+  "tombado":                 {"valor": null, "fonte": null},
+  "procuracao":              {"valor": null, "fonte": null},
+  "onerosa":                 {"valor": null, "fonte": null},
+  "certidao":                {"valor": null, "fonte": null},
+  "levantamento":            {"valor": null, "fonte": null},
+  "artLev":                  {"valor": null, "fonte": null},
+  "artCx":                   {"valor": null, "fonte": null},
+  "laudo":                   {"valor": null, "fonte": null},
+  "vistoria":                {"valor": null, "fonte": null},
+  "usoSolo":                 {"valor": null, "fonte": null},
+  "foto":                    {"valor": null, "fonte": null}
 }
 
 TRECHO (janela ${numero}/${total}):
@@ -198,7 +208,8 @@ export async function POST(req: NextRequest) {
     const mesclado = mesclar(resultados);
 
     const camposNP = ["cnae1","cnae2","cnae3","cnae4","cnae5","faixa",
-      "volMin","volAt","caixas","qualOutro","dataEmb","artCx","foto","despacho"];
+      "volMin","volAt","caixas","qualOutro","dataEmb","artCx","foto",
+      "despacho","seiCheadv","seiProcuracao","seiEmbargo","areaAprovada","usoSolo"];
 
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
     for (const chave of Object.keys(mesclado)) {
