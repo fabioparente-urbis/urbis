@@ -105,6 +105,10 @@ export default function Home() {
             className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
             📋 Gerenciar Checklists
           </button>
+          <button onClick={() => router.push("/admin/lip")}
+            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
+            🏗️ Gerenciar LIP
+          </button>
         </div>
       </aside>
 
