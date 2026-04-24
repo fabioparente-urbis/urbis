@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/api/lip/analisar/route.ts": {
+      "maxDuration": 60
+    }
+  }
+}
