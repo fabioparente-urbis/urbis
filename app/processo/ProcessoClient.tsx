@@ -12,8 +12,26 @@ type EventoHistorico = {
   campos: { campo: string; de: string; para: string }[];
   snapshot: Record<string, Campo> | null;
 };
-
 type TipoProcesso = "Regularização" | "Aceite" | "Aprovação";
+
+type CampoDB = {
+  id: string;
+  chave: string;
+  label: string;
+  tipo: string;
+  opcoes: string[] | null;
+  placeholder: string;
+  valor_padrao: string;
+  ordem: number;
+};
+
+type AbaDB = {
+  id: string;
+  nome: string;
+  dica: string;
+  ordem: number;
+  lip_campos: CampoDB[];
+};
 
 function base(valor = ""): Campo { return { valor, origem: "original" }; }
 function padrao(valor: string): Campo { return { valor, origem: "padrao" }; }
@@ -28,66 +46,12 @@ function borderCor(origem: Origem, valor: string) {
   return "border-gray-300";
 }
 
-const CAMPOS_LIP: Partial<Record<string, string>> = {
-  proprietario: "Proprietário", logradouro: "Logradouro", quadra: "Quadra",
-  lote: "Lote", bairro: "Bairro", iptu: "IPTU",
-  areaTotal: "Área Total", areaForaFrontal: "Área fora do Frontal",
-  areaRecuo: "Área em Recuo", areaTerreno: "Área do Terreno",
-  areaImpermeavel: "Área Impermeável", tipoUso: "Tipo de Uso do Solo",
-  usoDefinido: "Uso sem definição", corredor: "Corredor Viário",
-  despacho: "Despacho CHEADV",
-  seiCheadv: "Nº SEI Análise Documental CHEADV",
-  areaAprovada: "Área Aprovada",
-  seiProcuracao: "Nº SEI Procuração",
-  seiEmbargo: "Nº SEI Embargo",
-  pav: "Nº de Pavimentos", unid: "Nº de Unidades",
-  cnae1: "CNAE 1", cnae2: "CNAE 2", cnae3: "CNAE 3", cnae4: "CNAE 4", cnae5: "CNAE 5",
-  caixa: "Caixa de Recarga", faixa: "Faixa de Ampliação",
-  numeroUso: "Nº Uso para Aprovação",
-  usoSolo: "Uso do Solo (nº SEI)", certidao: "Certidão de Matrícula",
-  levantamento: "Levantamento / Arquitetura", artLev: "ART/RRT de Levantamento",
-  artCx: "ART/RRT da Caixa", laudo: "Laudo Técnico",
-  vistoria: "Vistoria Fiscal", foto: "Foto do Google",
-  outro: "Outro processo", qualOutro: "Nº outro processo",
-  embargo: "Embargo", existente: "Área Existente Aprovada",
-  tombado: "Área tombada", procuracao: "Procuração", onerosa: "Onerosa",
-  // Vistoria e Uso
-  vistoriaAreaComercial: "Área ocup. pela Ativ. Comer.",
-  vistoriaMais12m: "Mais de 12m de altura?",
-  vistoriaOcupaRecuo: "Ocupa Recuo Frontal?",
-  vistoriaEstruturaConcluida: "Estrutura e telhado concluído?",
-  vistoriaAltMax21m: "Alt máx de 21m? (ter até cob)",
-  vistoriaOcupaPublica: "Ocupa área pública?",
-  vistoriaAreaAeroportuaria: "Área aeroportuária?",
-  vistoriaAreaMilitar: "Área militar?",
-  vistoriaAguasPluviais: "Lança águas pluviais interna?",
-  vistoriaEsquadriaDivisa: "Abert. de esquadrias na divisa?",
-  vistoriaCalcadas: "Vistoria: respeita calçadas?",
-  vistoriaLevante: "Levante confere com Vistoria?",
-  vistoriaUnidadeTerritorial: "Unidade Territorial",
-  vistoriaMultaVerticalizacao: "Multa de Verticalização?",
-  vistoriaMultaRecuo: "Multa de Recuo Frontal?",
-  vistoriaMax7Pav: "Máximo 7 pavimentos?",
-};
-
-const CAMPO_ABA: Partial<Record<string, number>> = {
-  proprietario: 0, logradouro: 0, quadra: 0, lote: 0, bairro: 0, iptu: 0,
-  areaTotal: 1, areaForaFrontal: 1, areaRecuo: 1, areaTerreno: 1, areaImpermeavel: 1,
-  despacho: 2, seiCheadv: 2, tipoUso: 2, usoDefinido: 2, numeroUso: 2, corredor: 2,
-  cnae1: 2, cnae2: 2, cnae3: 2, cnae4: 2, cnae5: 2,
-  faixa: 3, caixa: 3, volMin: 3, volAt: 3, caixas: 3,
-  pav: 4, unid: 4, existente: 4, areaAprovada: 4,
-  outro: 5, qualOutro: 5, embargo: 5, tombado: 5, procuracao: 5, onerosa: 5,
-  seiProcuracao: 5, seiEmbargo: 5,
-  certidao: 6, levantamento: 6, artLev: 6, artCx: 6,
-  laudo: 6, vistoria: 6, usoSolo: 6, foto: 6,
-  vistoriaAreaComercial: 7, vistoriaMais12m: 7, vistoriaOcupaRecuo: 7,
-  vistoriaEstruturaConcluida: 7, vistoriaAltMax21m: 7, vistoriaOcupaPublica: 7,
-  vistoriaAreaAeroportuaria: 7, vistoriaAreaMilitar: 7, vistoriaAguasPluviais: 7,
-  vistoriaEsquadriaDivisa: 7, vistoriaCalcadas: 7, vistoriaLevante: 7,
-  vistoriaUnidadeTerritorial: 7, vistoriaMultaVerticalizacao: 7,
-  vistoriaMultaRecuo: 7, vistoriaMax7Pav: 7,
-};
+function formatarDataCompleta(dataStr: string) {
+  return new Date(dataStr).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
 
 const CORES_DIA = [
   { bg: "bg-yellow-400", border: "border-yellow-400", text: "text-yellow-400" },
@@ -110,13 +74,6 @@ function opacidadeEvento(indice: number, total: number): number {
   return 1 - (indice / (total - 1)) * 0.7;
 }
 
-function formatarDataCompleta(dataStr: string) {
-  return new Date(dataStr).toLocaleString("pt-BR", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-}
-
 function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" | "info"; onClose: () => void }) {
   const bg = tipo === "sucesso" ? "bg-green-700 border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-blue-500";
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
@@ -136,10 +93,13 @@ export default function ProcessoClient() {
   const [aba, setAba] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
-  const [carregando, setCarregando] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
-  const [bloqueadosLip, setBloqueadosLip] = useState<string[]>([]);
+
+  const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
+  const [d, setD] = useState<Record<string, Campo>>({});
 
   const [historico, setHistorico] = useState<EventoHistorico[]>([]);
   const [eventoAberto, setEventoAberto] = useState<string | null>(null);
@@ -151,52 +111,37 @@ export default function ProcessoClient() {
 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const snapRef = useRef<typeof estadoInicial | null>(null);
-
-  const estadoInicial = {
-    proprietario: padrao(""), logradouro: padrao(""), processo: base(),
-    quadra: padrao(""), lote: padrao(""), bairro: padrao(""), iptu: padrao(""),
-    areaTotal: padrao(""), areaForaFrontal: padrao(""), areaVertical: padrao("0"),
-    areaRecuo: padrao(""), areaTerreno: padrao(""), areaImpermeavel: padrao(""),
-    despacho: padrao(""), seiCheadv: padrao(""),
-    tipoUso: padrao("APROVAÇÃO DE PROJETO"),
-    usoDefinido: padrao("Não"), numeroUso: padrao(""),
-    cnae1: padrao("NP"), cnae2: padrao("NP"), cnae3: padrao("NP"),
-    cnae4: padrao("NP"), cnae5: padrao("NP"),
-    corredor: padrao("Não"), faixa: padrao("NP"), caixa: padrao("Não"),
-    volMin: padrao("NP"), volAt: padrao("NP"), caixas: padrao("NP"),
-    pav: padrao(""), unid: padrao(""), existente: padrao("Não"),
-    areaAprovada: padrao("NP"),
-    outro: padrao("Não"), qualOutro: padrao("NP"), pag: base(),
-    embargo: padrao("Não"), dataEmb: padrao("NP"), tombado: padrao("NP"),
-    procuracao: padrao("Não"), seiProcuracao: padrao("NP"),
-    seiEmbargo: padrao("NP"), onerosa: padrao("Não"),
-    certidao: padrao(""), levantamento: padrao(""), artLev: padrao(""), artCx: padrao(""),
-    laudo: padrao(""), vistoria: padrao(""), usoSolo: padrao(""), foto: padrao(""),
-    // Vistoria e Uso
-    vistoriaAreaComercial: padrao(""),
-    vistoriaMais12m: padrao("Não"),
-    vistoriaOcupaRecuo: padrao("Não"),
-    vistoriaEstruturaConcluida: padrao("Sim"),
-    vistoriaAltMax21m: padrao("Sim"),
-    vistoriaOcupaPublica: padrao("Não"),
-    vistoriaAreaAeroportuaria: padrao("Não"),
-    vistoriaAreaMilitar: padrao("Não"),
-    vistoriaAguasPluviais: padrao("Não"),
-    vistoriaEsquadriaDivisa: padrao("Não"),
-    vistoriaCalcadas: padrao("Sim"),
-    vistoriaLevante: padrao("Sim"),
-    vistoriaUnidadeTerritorial: padrao(""),
-    vistoriaMultaVerticalizacao: padrao("Não"),
-    vistoriaMultaRecuo: padrao("Não"),
-    vistoriaMax7Pav: padrao("Sim"),
-  };
-
-  const [d, setD] = useState(estadoInicial);
+  const snapRef = useRef<Record<string, Campo> | null>(null);
 
   function mostrarToast(msg: string, tipo: "sucesso"|"erro"|"info" = "info") {
     setToast({ msg, tipo });
   }
+
+  // Carrega abas e campos do banco
+  useEffect(() => {
+    async function carregarAbas() {
+      setCarregandoAbas(true);
+      const res = await fetch("/api/admin/lip");
+      const json = await res.json();
+      if (json.ok) {
+        setAbasDB(json.data);
+        // Inicializa estado com valores padrão
+        const estadoInicial: Record<string, Campo> = {};
+        for (const aba of json.data) {
+          for (const campo of aba.lip_campos) {
+            estadoInicial[campo.chave] = padrao(campo.valor_padrao || "");
+          }
+        }
+        // Campo processo é especial
+        estadoInicial["processo"] = base();
+        estadoInicial["pag"] = base();
+        setD(estadoInicial);
+        snapRef.current = estadoInicial;
+      }
+      setCarregandoAbas(false);
+    }
+    carregarAbas();
+  }, []);
 
   async function carregarHistorico() {
     try {
@@ -206,8 +151,9 @@ export default function ProcessoClient() {
     } catch {}
   }
 
+  // Carrega dados do processo após abas carregadas
   useEffect(() => {
-    if (!idUrl) return;
+    if (!idUrl || carregandoAbas) return;
     async function carregar() {
       try {
         setCarregando(true);
@@ -224,14 +170,9 @@ export default function ProcessoClient() {
         setD((prev) => {
           const atualizado = { ...prev };
           for (const chave in atualizado) {
-            const key = chave as keyof typeof atualizado;
-            const salvo = dadosSalvos[key];
+            const salvo = dadosSalvos[chave];
             if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
-              atualizado[key] = {
-                valor: salvo.valor ?? "",
-                origem: salvo.origem ?? "manual",
-                fonte: salvo.fonte,
-              };
+              atualizado[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
             }
           }
           atualizado.processo = { valor: idUrl, origem: "urbis" };
@@ -247,15 +188,15 @@ export default function ProcessoClient() {
     }
     carregar();
     carregarHistorico();
-  }, [idUrl]);
+  }, [idUrl, carregandoAbas]);
 
-  const autoSalvar = useCallback((estado: typeof d) => {
+  const autoSalvar = useCallback((estado: Record<string, Campo>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const temPadrao = Object.values(estado).some((c) => c.origem === "padrao" && c.valor.trim() === "");
       if (temPadrao) return;
       const iguais = snapRef.current && Object.keys(estado).every(
-        (k) => estado[k as keyof typeof estado].valor === snapRef.current![k as keyof typeof estado].valor
+        (k) => estado[k]?.valor === snapRef.current![k]?.valor
       );
       if (iguais) return;
       try {
@@ -278,18 +219,18 @@ export default function ProcessoClient() {
     }, 2000);
   }, [idUrl]);
 
-  function u(campo: keyof typeof d, valor: string) {
+  function u(chave: string, valor: string) {
     setD((prev) => {
-      const novo = { ...prev, [campo]: { valor, origem: "manual" as Origem } };
+      const novo = { ...prev, [chave]: { valor, origem: "manual" as Origem } };
       autoSalvar(novo);
       return novo;
     });
   }
 
-  function confirmar(campo: keyof typeof d) {
-    if (d[campo].origem === "padrao") {
+  function confirmar(chave: string) {
+    if (d[chave]?.origem === "padrao") {
       setD((prev) => {
-        const novo = { ...prev, [campo]: { valor: prev[campo].valor, origem: "manual" as Origem } };
+        const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
         autoSalvar(novo);
         return novo;
       });
@@ -303,98 +244,29 @@ export default function ProcessoClient() {
     setNovoProcesso("");
   }
 
-  function limparBloqueadosEReler() {
-    setD((prev) => {
-      const novo = { ...prev };
-      for (const campo of bloqueadosLip) novo[campo as keyof typeof novo] = base();
-      return novo;
-    });
-    setBloqueadosLip([]);
-    inputFileRef.current?.click();
-  }
-
   async function lerLip(arquivo: File) {
     try {
-      setLendoLip(true); setBloqueadosLip([]);
+      setLendoLip(true);
       const formData = new FormData();
       formData.append("pdf", arquivo);
       const res = await fetch("/api/lip/analisar", { method: "POST", body: formData });
       const json = await res.json();
-      if (!json.ok) {
-        mostrarToast("Erro ao ler LIP: " + json.erro, "erro");
-        return;
-      }
+      if (!json.ok) { mostrarToast("Erro ao ler LIP: " + json.erro, "erro"); return; }
       const c = json.campos;
-      const bloqueados: string[] = [];
-
       setD((prev) => {
         const novo = { ...prev };
-
-        function aplicar(campo: keyof typeof novo, itemLip: { valor: string; fonte: string } | null | undefined) {
+        function aplicar(chave: string, itemLip: { valor: string; fonte: string } | null | undefined) {
           if (!itemLip?.valor) return;
-          if (novo[campo].origem === "manual" && novo[campo].valor.trim() !== "") {
-            bloqueados.push(campo as string); return;
-          }
-          if (novo[campo].origem === "padrao" || novo[campo].origem === "original" || novo[campo].valor.trim() === "") {
-            novo[campo] = { valor: itemLip.valor, origem: "original", fonte: itemLip.fonte };
-          }
+          if (novo[chave]?.origem === "manual" && novo[chave]?.valor.trim() !== "") return;
+          novo[chave] = { valor: itemLip.valor, origem: "original", fonte: itemLip.fonte };
         }
-
-        aplicar("proprietario",    c.proprietario);
-        aplicar("logradouro",      c.logradouro);
-        aplicar("quadra",          c.quadra);
-        aplicar("lote",            c.lote);
-        aplicar("bairro",          c.bairro);
-        aplicar("iptu",            c.iptu);
-        aplicar("areaTotal",       c.areaTotal);
-        aplicar("areaForaFrontal", c.areaForaFrontal);
-        aplicar("areaRecuo",       c.areaRecuo);
-        aplicar("areaTerreno",     c.areaTerreno);
-        aplicar("areaImpermeavel", c.areaImpermeavel);
-        aplicar("tipoUso",         c.tipoUso);
-        aplicar("usoDefinido",     c.usoDefinido);
-        aplicar("numeroUso",       c.numeroUso);
-        aplicar("despacho",        c.despacho);
-        aplicar("cnae1",           c.cnae1);
-        aplicar("cnae2",           c.cnae2);
-        aplicar("cnae3",           c.cnae3);
-        aplicar("cnae4",           c.cnae4);
-        aplicar("cnae5",           c.cnae5);
-        aplicar("corredor",        c.corredor);
-        aplicar("faixa",           c.faixa);
-        aplicar("caixa",           c.caixa);
-        aplicar("volMin",          c.volMin);
-        aplicar("volAt",           c.volAt);
-        aplicar("caixas",          c.caixas);
-        aplicar("pav",             c.pav);
-        aplicar("unid",            c.unid);
-        aplicar("existente",       c.existente);
-        aplicar("outro",           c.outro);
-        aplicar("qualOutro",       c.qualOutro);
-        aplicar("embargo",         c.embargo);
-        aplicar("dataEmb",         c.dataEmb);
-        aplicar("tombado",         c.tombado);
-        aplicar("procuracao",      c.procuracao);
-        aplicar("onerosa",         c.onerosa);
-        aplicar("usoSolo",         c.numeroUso);
-        aplicar("certidao",        c.certidao);
-        aplicar("levantamento",    c.levantamento);
-        aplicar("artLev",          c.artLev);
-        aplicar("artCx",           c.artCx);
-        aplicar("laudo",           c.laudo);
-        aplicar("vistoria",        c.vistoria);
-        aplicar("foto",            c.foto);
-
+        // Mapeia campos do LIP para as chaves dinâmicas
+        Object.keys(c).forEach((chave) => {
+          if (novo[chave] !== undefined) aplicar(chave, c[chave]);
+        });
         return novo;
       });
-
-      setBloqueadosLip(bloqueados);
-
-      if (bloqueados.length === 0) {
-        mostrarToast("✅ LIP lido com sucesso! Confira os campos em preto.", "sucesso");
-      } else {
-        mostrarToast(`LIP lido. ${bloqueados.length} campo(s) com preenchimento manual — verifique os avisos nas abas.`, "info");
-      }
+      mostrarToast("✅ LIP lido com sucesso! Confira os campos.", "sucesso");
     } catch (e: any) {
       mostrarToast("Erro: " + e.message, "erro");
     } finally {
@@ -442,10 +314,9 @@ export default function ProcessoClient() {
       setD((prev) => {
         const novo = { ...prev };
         for (const chave in novo) {
-          const key = chave as keyof typeof novo;
-          const salvo = json.dados[key];
+          const salvo = json.dados[chave];
           if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
-            novo[key] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
+            novo[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
           }
         }
         novo.processo = { valor: idUrl, origem: "urbis" };
@@ -467,238 +338,42 @@ export default function ProcessoClient() {
 
   const totalPadrao = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length;
 
-  function bloqueadosDaAba(i: number) { return bloqueadosLip.filter((c) => CAMPO_ABA[c] === i); }
-  function temConflitosNaAba(i: number) { return bloqueadosDaAba(i).length > 0; }
+  // Renderiza campo dinamicamente
+  function renderCampo(campo: CampoDB) {
+    const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
+    const isPadrao = val.origem === "padrao";
+    const fonte = val.fonte;
 
-  function AvisoLip({ indiceAba }: { indiceAba: number }) {
-    const bloqueados = bloqueadosDaAba(indiceAba);
-    const naoEncontrados = Object.entries(CAMPO_ABA)
-      .filter(([, aba]) => aba === indiceAba)
-      .map(([campo]) => campo)
-      .filter((campo) => {
-        const c = d[campo as keyof typeof d];
-        return c?.origem === "padrao" && c?.valor.trim() === "";
-      });
-
-    if (bloqueados.length === 0 && naoEncontrados.length === 0) return null;
+    if (campo.tipo === "select" && campo.opcoes && campo.opcoes.length > 0) {
+      return (
+        <div key={campo.id} className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+            {campo.label}{isPadrao && val.valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          </label>
+          <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`}>
+            <option value="">— selecione —</option>
+            {campo.opcoes.map((op) => <option key={op} value={op}>{op}</option>)}
+          </select>
+          {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
+        </div>
+      );
+    }
 
     return (
-      <>
-        {bloqueados.length > 0 && (
-          <div className="mb-4 bg-blue-50 border border-blue-300 rounded-lg p-3 flex flex-col gap-2">
-            <p className="text-sm text-blue-800 font-semibold">
-              📋 O LIP encontrou dados para: <span className="font-normal">{bloqueados.map((c) => CAMPOS_LIP[c] ?? c).join(", ")}</span>
-            </p>
-            <p className="text-xs text-blue-700">Esses campos não foram atualizados pois possuem preenchimento manual.</p>
-            <button onClick={limparBloqueadosEReler}
-              className="self-start bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
-              🗑️ Limpar campos e reler PDF
-            </button>
-          </div>
-        )}
-        {naoEncontrados.length > 0 && (
-          <div className="mb-4 bg-amber-950 border border-amber-600 rounded-xl p-3">
-            <p className="text-xs font-bold text-amber-300 mb-1">🔍 Verificar manualmente:</p>
-            <ul className="space-y-0.5">
-              {naoEncontrados.map((campo) => (
-                <li key={campo} className="text-xs text-amber-200 flex gap-2">
-                  <span className="text-amber-400">•</span>
-                  <span>{CAMPOS_LIP[campo] ?? campo} — não encontrado</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </>
-    );
-  }
-
-  function I(campo: keyof typeof d, label: string, placeholder?: string) {
-    const isPadrao = d[campo].origem === "padrao";
-    const fonte = d[campo].fonte;
-    return (
-      <div className="flex flex-col gap-1">
+      <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-          {label}{isPadrao && d[campo].valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          {campo.label}{isPadrao && val.valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
         </label>
-        <input value={d[campo].valor} onChange={(e) => u(campo, e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && confirmar(campo)}
-          placeholder={placeholder ?? label}
-          className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(d[campo].origem)} ${borderCor(d[campo].origem, d[campo].valor)}`} />
-        {fonte && d[campo].origem === "original" && (
-          <span className="text-xs text-gray-400 italic">📍 {fonte}</span>
-        )}
+        <input value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
+          placeholder={campo.placeholder || campo.label}
+          className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+        {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
       </div>
     );
   }
 
-  function S(campo: keyof typeof d, label: string, opcoes: string[]) {
-    const isPadrao = d[campo].origem === "padrao";
-    const fonte = d[campo].fonte;
-    return (
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-          {label}{isPadrao && d[campo].valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
-        </label>
-        <select value={d[campo].valor} onChange={(e) => u(campo, e.target.value)}
-          className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(d[campo].origem)} ${borderCor(d[campo].origem, d[campo].valor)}`}>
-          <option value="">— selecione —</option>
-          {opcoes.map((op) => <option key={op} value={op}>{op}</option>)}
-        </select>
-        {fonte && d[campo].origem === "original" && (
-          <span className="text-xs text-gray-400 italic">📍 {fonte}</span>
-        )}
-      </div>
-    );
-  }
-
-  const SN = ["Sim", "Não"];
-  const SNP = ["Sim", "Não", "NP"];
-
-  const abas = [
-    {
-      nome: "1. Identificação", dica: "Ver no carimbo do projeto e no Uso do Solo",
-      render: () => (
-        <><AvisoLip indiceAba={0} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("proprietario","Proprietário","Ver no carimbo do projeto")}
-          {I("logradouro","Logradouro","Ver no carimbo do projeto")}
-          {I("processo","Processo Nº","Ver no Uso do Solo")}
-          <div className="grid grid-cols-2 gap-2">
-            {I("quadra","Quadra (Qd.)","Ver no carimbo")}
-            {I("lote","Lote (Lt.)","Ver no carimbo")}
-          </div>
-          {I("bairro","Bairro","Ver no carimbo do projeto")}
-          {I("iptu","IPTU","Ver no Uso do Solo")}
-        </div></>
-      )
-    },
-    {
-      nome: "2. Áreas", dica: "Ver no carimbo do projeto",
-      render: () => (
-        <><AvisoLip indiceAba={1} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("areaTotal","Á. a ser Regularizada TOTAL","Ver no carimbo")}
-          {I("areaForaFrontal","Á. a ser Regularizada fora do frontal","Ver no carimbo")}
-          {I("areaVertical","Á. a ser Regularizada em Ed. Vertical","0 se não houver")}
-          {I("areaRecuo","Á. Construída em Recuo Frontal","Ver no carimbo")}
-          {I("areaTerreno","Área do Terreno","Ver no carimbo")}
-          {I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}
-        </div></>
-      )
-    },
-    {
-      nome: "3. Uso do Solo", dica: "Ver no documento de Uso do Solo e Despacho da CHEADV",
-      render: () => (
-        <><AvisoLip indiceAba={2} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("despacho","Despacho CHEADV","Ver no despacho")}
-          {I("seiCheadv","Nº SEI — Análise Documental CHEADV","Nº SEI do documento")}
-          {I("tipoUso","Tipo de Uso do Solo","Ver no Uso do Solo")}
-          {S("usoDefinido","Uso de Solo sem uso definido?",SN)}
-          {I("numeroUso","Nº Uso para Aprovação","Ver no Uso do Solo")}
-          <div className="md:col-span-2 border-t pt-4">
-            <p className="text-xs text-gray-400 mb-3 font-semibold uppercase">CNAEs — se não houver, preencher NP</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {I("cnae1","Descrição CNAE 1","Se não houver: NP")}
-              {I("cnae2","Descrição CNAE 2","Se não houver: NP")}
-              {I("cnae3","Descrição CNAE 3","Se não houver: NP")}
-              {I("cnae4","Descrição CNAE 4","Se não houver: NP")}
-              {I("cnae5","Descrição CNAE 5","Se não houver: NP")}
-            </div>
-          </div>
-        </div></>
-      )
-    },
-    {
-      nome: "4. Urbanístico", dica: "Ver no Uso do Solo e projeto",
-      render: () => (
-        <><AvisoLip indiceAba={3} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {S("corredor","Corredor Viário?",SN)}
-          {I("faixa","Faixa de Ampliação?","Se não houver: NP")}
-          {S("caixa","Caixa de Recarga?",SN)}
-          {I("areaImpermeavel","Área Impermeável","Área do Lote menos Área Permeável")}
-          {I("volMin","Vol. Mínimo da Caixa","Se não houver: NP")}
-          {I("volAt","Vol. Atendido da Caixa","Se não houver: NP")}
-          {I("caixas","Nº de Caixas","Se não houver: NP")}
-        </div></>
-      )
-    },
-    {
-      nome: "5. Edificação", dica: "Ver no carimbo do projeto",
-      render: () => (
-        <><AvisoLip indiceAba={4} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("pav","Número de Pavimentos","Ver no carimbo")}
-          {I("unid","Número de Unidades","Ver no carimbo")}
-          {S("existente","Área Existente Aprovada?",SN)}
-          {I("areaAprovada","Área Aprovada (se existir)","Se não houver: NP")}
-        </div></>
-      )
-    },
-    {
-      nome: "6. Processo", dica: "Ver no SEI e histórico do processo",
-      render: () => (
-        <><AvisoLip indiceAba={5} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {S("outro","Existe outro processo?",SN)}
-          {I("qualOutro","Qual o nº do outro processo?","Se não houver: NP")}
-          {I("pag","Pág. do SEI (Busca Arq.)","Nº da página")}
-          {S("embargo","Tem Embargo?",SN)}
-          {I("seiEmbargo","Nº SEI do Embargo","Se não houver: NP")}
-          {I("dataEmb","Data do Embargo","Se não houver: NP")}
-          {I("tombado","É área tombada?","Se não houver: NP")}
-          {S("procuracao","Tem Procuração?",SNP)}
-          {I("seiProcuracao","Nº SEI da Procuração","Se não houver: NP")}
-          {S("onerosa","Onerosa?",SNP)}
-        </div></>
-      )
-    },
-    {
-      nome: "7. Documentos", dica: "Ver número do documento no SEI",
-      render: () => (
-        <><AvisoLip indiceAba={6} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("certidao","Certidão de Matrícula","Nº SEI")}
-          {I("levantamento","Levantamento / Arquitetura","Nº SEI")}
-          {I("artLev","ART/RRT de Levantamento","Nº SEI")}
-          {I("artCx","ART/RRT da Caixa de Recarga","Nº SEI")}
-          {I("laudo","Laudo Técnico","Nº SEI")}
-          {I("vistoria","Vistoria Fiscal e Laudo Reg.","Nº SEI")}
-          {I("usoSolo","Uso do Solo para Aprovação","Nº SEI")}
-          {I("foto","Foto do Google","Nº SEI")}
-        </div></>
-      )
-    },
-    {
-      nome: "8. Vistoria e Uso", dica: "Preencher após vistoria fiscal",
-      render: () => (
-        <><AvisoLip indiceAba={7} />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {I("vistoriaAreaComercial","Área ocup. pela Ativ. Comercial (m²)","m²")}
-          {I("vistoriaUnidadeTerritorial","Unidade Territorial","Ver no Uso do Solo")}
-          {S("vistoriaMais12m","Mais de 12m de altura?",SN)}
-          {S("vistoriaOcupaRecuo","Ocupa Recuo Frontal?",SN)}
-          {S("vistoriaEstruturaConcluida","Estrutura e telhado concluído?",SN)}
-          {S("vistoriaAltMax21m","Alt máx de 21m? (ter até cob)",SN)}
-          {S("vistoriaOcupaPublica","Ocupa área pública?",SN)}
-          {S("vistoriaAreaAeroportuaria","Área aeroportuária?",SN)}
-          {S("vistoriaAreaMilitar","Área militar?",SN)}
-          {S("vistoriaAguasPluviais","Lança águas pluviais interna?",SN)}
-          {S("vistoriaEsquadriaDivisa","Abertura de esquadrias na divisa?",SN)}
-          {S("vistoriaCalcadas","Vistoria: respeita calçadas?",SN)}
-          {S("vistoriaLevante","Levante confere com Vistoria?",SN)}
-          {S("vistoriaMultaVerticalizacao","Multa de Verticalização?",SN)}
-          {S("vistoriaMultaRecuo","Multa de Recuo Frontal?",SN)}
-          {S("vistoriaMax7Pav","Máximo 7 pavimentos?",SN)}
-        </div></>
-      )
-    },
-  ];
-
-  const atual = abas[aba];
-  const isUltimaAba = aba === abas.length - 1;
   const legenda = [
     { cor: "bg-black", label: "Original (documento)" },
     { cor: "bg-red-600", label: "Urbis (automático)" },
@@ -706,24 +381,34 @@ export default function ProcessoClient() {
     { cor: "bg-orange-500", label: "Padrão (conferir!)" },
   ];
 
+  if (carregandoAbas) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <p className="text-slate-400">Carregando estrutura do formulário...</p>
+      </div>
+    );
+  }
+
+  const abaAtual = abasDB[aba];
+  const isUltimaAba = aba === abasDB.length - 1;
+
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
-
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
 
       {/* CABEÇALHO */}
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="flex items-start gap-3">
           <button onClick={() => router.push("/")}
-            className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1">
+            className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🏠 Home
           </button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
-            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1">
+            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
           <button onClick={() => router.push(`/analise/${encodeURIComponent(idUrl)}`)}
-            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors flex items-center gap-1">
+            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
           <div>
@@ -754,27 +439,18 @@ export default function ProcessoClient() {
       {/* NAVEGAÇÃO */}
       <div className="bg-slate-800 border border-slate-600 rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
         <span className="text-slate-400 text-sm whitespace-nowrap">🔍 Ir para processo:</span>
-        <input
-          value={novoProcesso}
-          onChange={(e) => setNovoProcesso(e.target.value)}
+        <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
           placeholder="Ex: 25.5.000082553-3"
-          className="flex-1 min-w-[180px] bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <select
-          value={tipoNavegacao}
-          onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
-          className="bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
+          className="flex-1 min-w-[180px] bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
+          className="bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="Regularização">Regularização</option>
           <option value="Aceite">Aceite</option>
           <option value="Aprovação">Aprovação</option>
         </select>
-        <button
-          onClick={navegarParaProcesso}
-          disabled={!novoProcesso.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap"
-        >
+        <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
+          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
           Abrir →
         </button>
       </div>
@@ -798,31 +474,34 @@ export default function ProcessoClient() {
 
       {/* ABAS */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {abas.map((a, i) => (
-          <button key={i} onClick={() => setAba(i)}
-            className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${aba === i ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}>
+        {abasDB.map((a, i) => (
+          <button key={a.id} onClick={() => setAba(i)}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${aba === i ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}>
             {a.nome}
-            {temConflitosNaAba(i) && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-blue-400 rounded-full border border-slate-900" />}
           </button>
         ))}
       </div>
 
       {/* FORMULÁRIO */}
-      <div className="bg-white text-black p-5 rounded-xl shadow-lg space-y-4">
-        <div className="flex items-start justify-between mb-2">
-          <div>
-            <h2 className="text-lg font-bold text-slate-800">{atual.nome}</h2>
-            <p className="text-xs text-slate-400 mt-0.5">💡 {atual.dica}</p>
+      {abaAtual && (
+        <div className="bg-white text-black p-5 rounded-xl shadow-lg space-y-4">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">{abaAtual.nome}</h2>
+              {abaAtual.dica && <p className="text-xs text-slate-400 mt-0.5">💡 {abaAtual.dica}</p>}
+            </div>
+            <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">{aba + 1} / {abasDB.length}</span>
           </div>
-          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">{aba + 1} / {abas.length}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {abaAtual.lip_campos.map((campo) => renderCampo(campo))}
+          </div>
         </div>
-        {atual.render()}
-      </div>
+      )}
 
       {/* NAVEGAÇÃO ABAS */}
       <div className="flex items-center gap-3 mt-4">
         <button onClick={() => setAba((a) => a - 1)} disabled={aba === 0}
-          className="bg-slate-600 hover:bg-slate-500 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2 rounded font-medium text-sm transition-colors">
+          className="bg-slate-600 hover:bg-slate-500 disabled:opacity-40 px-4 py-2 rounded font-medium text-sm transition-colors">
           ← Voltar
         </button>
         {!isUltimaAba && (
@@ -832,7 +511,7 @@ export default function ProcessoClient() {
           </button>
         )}
         <button onClick={salvar} disabled={salvando}
-          className="ml-auto bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-2 rounded font-bold text-black text-sm transition-colors">
+          className="ml-auto bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 px-6 py-2 rounded font-bold text-black text-sm transition-colors">
           {salvando ? "Salvando..." : "💾 Salvar"}
         </button>
       </div>
@@ -840,11 +519,11 @@ export default function ProcessoClient() {
       {/* PROGRESSO */}
       <div className="mt-4">
         <div className="flex justify-between text-xs text-slate-400 mb-1">
-          <span>Progresso</span><span>{aba + 1} de {abas.length} abas</span>
+          <span>Progresso</span><span>{aba + 1} de {abasDB.length} abas</span>
         </div>
         <div className="w-full bg-slate-700 rounded-full h-1.5">
           <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-            style={{ width: `${((aba + 1) / abas.length) * 100}%` }} />
+            style={{ width: `${((aba + 1) / abasDB.length) * 100}%` }} />
         </div>
       </div>
 
@@ -865,18 +544,14 @@ export default function ProcessoClient() {
                 const esteRestaurando = restaurando === ev.id;
                 return (
                   <div key={ev.id} className="relative flex items-start gap-4 pl-10">
-                    <div
-                      className={`absolute left-2 w-5 h-5 rounded-full border-2 ${cores.border} cursor-pointer transition-transform hover:scale-125 flex items-center justify-center`}
+                    <div className={`absolute left-2 w-5 h-5 rounded-full border-2 ${cores.border} cursor-pointer transition-transform hover:scale-125 flex items-center justify-center`}
                       style={{ opacity: opacidade }}
-                      onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}
-                    >
+                      onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}>
                       <div className={`w-2.5 h-2.5 rounded-full ${cores.bg}`} />
                     </div>
                     <div className="flex-1" style={{ opacity: opacidade }}>
-                      <button
-                        onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}
-                        className={`text-xs font-mono ${cores.text} hover:underline`}
-                      >
+                      <button onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}
+                        className={`text-xs font-mono ${cores.text} hover:underline`}>
                         {formatarDataCompleta(ev.criado_em)} — {ev.campos.length > 0 ? `${ev.campos.length} campo(s) alterado(s)` : ev.operacao}
                       </button>
                       {aberto && (

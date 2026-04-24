@@ -22,30 +22,20 @@ export default function Home() {
 
   function validar() {
     const tipoNumero = identificarTipoNumero(numero);
-
     if (tipoNumero === "INVALIDO") {
       setErro("O número informado não corresponde a um formato válido do URBIS.");
       return;
     }
-
     if (tipo === "APROVACAO" && tipoNumero === "SEI") {
       setErro("Número SEI não é compatível com aprovação de projeto.");
       return;
     }
-
-    if (
-      (tipo === "ACEITE" || tipo === "REGULARIZACAO") &&
-      (tipoNumero === "OS" || tipoNumero === "PROJETO")
-    ) {
+    if ((tipo === "ACEITE" || tipo === "REGULARIZACAO") && (tipoNumero === "OS" || tipoNumero === "PROJETO")) {
       setErro("Número de projeto ou ordem de serviço não pode ser usado neste fluxo.");
       return;
     }
-
     setErro("");
-
-    // Navega para o processo
-    const id = encodeURIComponent(numero.trim());
-    router.push(`/processo/${id}`);
+    router.push(`/processo/${encodeURIComponent(numero.trim())}`);
   }
 
   function getPlaceholder() {
@@ -60,76 +50,36 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-gray-100">
+
+      {/* SIDEBAR ESQUERDA — Tipos de processo */}
       <aside className="w-56 bg-slate-950 text-white flex flex-col p-4">
         <h1 className="text-sm font-semibold mb-6 text-gray-400 uppercase tracking-wider">
           PROJETO:
         </h1>
-
         <button
-          className={`p-3 text-left rounded mb-2 transition ${
-            tipo === "ACEITE" ? "bg-slate-700" : "hover:bg-slate-800"
-          }`}
-          onClick={() => { setTipo("ACEITE"); setErro(""); }}
-        >
+          className={`p-3 text-left rounded mb-2 transition ${tipo === "ACEITE" ? "bg-slate-700" : "hover:bg-slate-800"}`}
+          onClick={() => { setTipo("ACEITE"); setErro(""); }}>
           Aceite
         </button>
-
         <button
-          className={`p-3 text-left rounded mb-2 transition ${
-            tipo === "REGULARIZACAO" ? "bg-slate-700" : "hover:bg-slate-800"
-          }`}
-          onClick={() => { setTipo("REGULARIZACAO"); setErro(""); }}
-        >
+          className={`p-3 text-left rounded mb-2 transition ${tipo === "REGULARIZACAO" ? "bg-slate-700" : "hover:bg-slate-800"}`}
+          onClick={() => { setTipo("REGULARIZACAO"); setErro(""); }}>
           Regularização
         </button>
-
         <button
-          className={`p-3 text-left rounded transition ${
-            tipo === "APROVACAO" ? "bg-slate-700" : "hover:bg-slate-800"
-          }`}
-          onClick={() => { setTipo("APROVACAO"); setErro(""); }}
-        >
+          className={`p-3 text-left rounded transition ${tipo === "APROVACAO" ? "bg-slate-700" : "hover:bg-slate-800"}`}
+          onClick={() => { setTipo("APROVACAO"); setErro(""); }}>
           Aprovação de projeto
         </button>
-
-        <div className="mt-auto pt-4 border-t border-slate-800">
-          <button onClick={() => router.push("/processos")}
-            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
-            📋 Ver todos os processos
-          </button>
-          <button onClick={() => router.push("/admin/usuarios")}
-            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
-            👥 Gestão de usuários
-          </button>
-          <button onClick={() => router.push("/admin/checklists")}
-            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
-            📋 Gerenciar Checklists
-          </button>
-          <button onClick={() => router.push("/admin/lip")}
-            className="w-full p-3 text-left rounded transition hover:bg-slate-800 text-slate-400 hover:text-white text-sm">
-            🏗️ Gerenciar LIP
-          </button>
-        </div>
       </aside>
 
-      <main className="flex-1 flex items-center justify-center relative">
-  <div className="absolute top-4 right-4">
-    <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
-      className="bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-      🚪 Sair
-    </button>
-  </div>
+      {/* CENTRO */}
+      <main className="flex-1 flex items-center justify-center">
         <div className="bg-white p-10 rounded shadow w-full max-w-md text-center">
-          <img
-            src="/logo_urbis.png"
-            alt="URBIS"
-            className="mx-auto mb-6 w-44 h-auto"
-          />
-
+          <img src="/logo_urbis.png" alt="URBIS" className="mx-auto mb-6 w-44 h-auto" />
           <h2 className="text-3xl font-semibold text-gray-700 mb-4">
             Digite o número do processo
           </h2>
-
           <input
             type="text"
             value={numero}
@@ -138,18 +88,12 @@ export default function Home() {
             placeholder={getPlaceholder()}
             className="w-full border border-gray-300 p-3 rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700"
           />
-
           <p className="text-sm text-gray-500 mb-4">{getAjuda()}</p>
-
           {erro && <p className="text-red-600 text-sm mb-4">{erro}</p>}
-
-          <button
-            onClick={validar}
-            className="w-full bg-blue-600 text-white p-3 rounded font-semibold hover:bg-blue-700 transition"
-          >
+          <button onClick={validar}
+            className="w-full bg-blue-600 text-white p-3 rounded font-semibold hover:bg-blue-700 transition">
             ENTRAR
           </button>
-
           <div className="mt-6 pt-4 border-t border-gray-200 text-center">
             <p className="text-xs text-gray-400">by Fábio Parente</p>
             <p className="text-xs text-gray-500 font-medium">Sistema de Análise de Projetos</p>
@@ -157,6 +101,37 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* SIDEBAR DIREITA — Admin + Sair */}
+      <aside className="w-56 bg-slate-950 text-white flex flex-col p-4">
+        <h1 className="text-sm font-semibold mb-6 text-gray-400 uppercase tracking-wider">
+          ADMIN:
+        </h1>
+        <button onClick={() => router.push("/processos")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          📋 Ver todos os processos
+        </button>
+        <button onClick={() => router.push("/admin/usuarios")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          👥 Gestão de usuários
+        </button>
+        <button onClick={() => router.push("/admin/checklists")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          ✅ Gerenciar Checklists
+        </button>
+        <button onClick={() => router.push("/admin/lip")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          🏗️ Gerenciar LIP
+        </button>
+
+        <div className="mt-auto pt-4 border-t border-slate-800">
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            className="w-full p-3 text-left rounded transition hover:bg-red-900 text-red-400 hover:text-white text-sm font-medium">
+            🚪 Sair
+          </button>
+        </div>
+      </aside>
+
     </div>
   );
 }
