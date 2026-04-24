@@ -270,7 +270,7 @@ export default function AdminLipPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Nome do campo</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Descrição do campo</label>
                 <input value={formCampo.label} onChange={(e) => setFormCampo((p) => ({ ...p, label: e.target.value }))}
                   placeholder="Ex: Nome do Proprietário"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -294,7 +294,7 @@ export default function AdminLipPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Texto de ajuda</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Como preencher</label>
                 <input value={formCampo.placeholder} onChange={(e) => setFormCampo((p) => ({ ...p, placeholder: e.target.value }))}
                   placeholder="Ex: Ver no carimbo do projeto"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
