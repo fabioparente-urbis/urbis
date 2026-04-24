@@ -157,7 +157,7 @@ export default function AdminLipPage() {
       await fetch("/api/admin/lip", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "campo", id: editandoCampo.id, ...formCampo, opcoes }),
+        body: JSON.stringify({ tipo: "campo", id: editandoCampo.id, label: formCampo.label, tipo_campo: formCampo.tipo, opcoes, placeholder: formCampo.placeholder, valor_padrao: formCampo.valor_padrao }),
       });
       mostrarToast("Campo atualizado!");
     } else {
@@ -165,7 +165,7 @@ export default function AdminLipPage() {
       await fetch("/api/admin/lip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "campo", aba_id: abaSelecionada!.id, ...formCampo, chave, opcoes }),
+        body: JSON.stringify({ tipo: "campo", aba_id: abaSelecionada!.id, chave, label: formCampo.label, tipo_campo: formCampo.tipo, opcoes, placeholder: formCampo.placeholder, valor_padrao: formCampo.valor_padrao }),
       });
       mostrarToast("Campo criado!");
     }
