@@ -32,12 +32,10 @@ export default function AdminLipPage() {
   const [carregando, setCarregando] = useState(true);
   const [toast, setToast] = useState("");
 
-  // Modal campo
   const [modalCampo, setModalCampo] = useState(false);
   const [editandoCampo, setEditandoCampo] = useState<Campo | null>(null);
   const [formCampo, setFormCampo] = useState({ chave: "", label: "", tipo: "texto", opcoes: "", placeholder: "", valor_padrao: "" });
 
-  // Modal aba
   const [modalAba, setModalAba] = useState(false);
   const [editandoAba, setEditandoAba] = useState<Aba | null>(null);
   const [formAba, setFormAba] = useState({ nome: "", dica: "" });
@@ -65,7 +63,6 @@ export default function AdminLipPage() {
 
   useEffect(() => { carregar(); }, []);
 
-  // — ABAS —
   function abrirNovaAba() {
     setEditandoAba(null);
     setFormAba({ nome: "", dica: "" });
@@ -127,7 +124,6 @@ export default function AdminLipPage() {
     await carregar();
   }
 
-  // — CAMPOS —
   function abrirNovoCampo() {
     setEditandoCampo(null);
     setFormCampo({ chave: "", label: "", tipo: "texto", opcoes: "", placeholder: "", valor_padrao: "" });
@@ -234,7 +230,7 @@ export default function AdminLipPage() {
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Dica (opcional)</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Dica para o analista (opcional)</label>
                 <input value={formAba.dica} onChange={(e) => setFormAba((p) => ({ ...p, dica: e.target.value }))}
                   placeholder="Ex: Ver no carimbo do projeto"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
@@ -243,7 +239,7 @@ export default function AdminLipPage() {
             <div className="flex gap-3 mt-6">
               <button onClick={salvarAba} disabled={!formAba.nome.trim()}
                 className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {editandoAba ? "Salvar" : "Criar aba"}
+                {editandoAba ? "Salvar alterações" : "Criar aba"}
               </button>
               <button onClick={() => setModalAba(false)}
                 className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
@@ -266,7 +262,7 @@ export default function AdminLipPage() {
               {!editandoCampo && (
                 <div>
                   <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">
-                    Chave interna <span className="text-slate-500 font-normal normal-case">(deixe vazio para gerar automaticamente)</span>
+                    Identificador interno <span className="text-slate-500 font-normal normal-case">(deixe vazio para gerar automaticamente)</span>
                   </label>
                   <input value={formCampo.chave} onChange={(e) => setFormCampo((p) => ({ ...p, chave: e.target.value }))}
                     placeholder="Ex: nomeProprietario"
@@ -274,23 +270,23 @@ export default function AdminLipPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Label (nome visível)</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Nome do campo</label>
                 <input value={formCampo.label} onChange={(e) => setFormCampo((p) => ({ ...p, label: e.target.value }))}
                   placeholder="Ex: Nome do Proprietário"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Tipo</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Tipo de campo</label>
                 <select value={formCampo.tipo} onChange={(e) => setFormCampo((p) => ({ ...p, tipo: e.target.value }))}
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="texto">Texto livre</option>
-                  <option value="select">Lista de opções (select)</option>
+                  <option value="select">Lista de opções</option>
                 </select>
               </div>
               {formCampo.tipo === "select" && (
                 <div>
                   <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">
-                    Opções <span className="text-slate-500 font-normal normal-case">(separadas por vírgula)</span>
+                    Opções <span className="text-slate-500 font-normal normal-case">(separe por vírgula — ex: Sim, Não)</span>
                   </label>
                   <input value={formCampo.opcoes} onChange={(e) => setFormCampo((p) => ({ ...p, opcoes: e.target.value }))}
                     placeholder="Ex: Sim, Não, NP"
@@ -298,9 +294,9 @@ export default function AdminLipPage() {
                 </div>
               )}
               <div>
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Placeholder</label>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide block mb-1">Texto de ajuda</label>
                 <input value={formCampo.placeholder} onChange={(e) => setFormCampo((p) => ({ ...p, placeholder: e.target.value }))}
-                  placeholder="Ex: Ver no carimbo"
+                  placeholder="Ex: Ver no carimbo do projeto"
                   className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
@@ -313,7 +309,7 @@ export default function AdminLipPage() {
             <div className="flex gap-3 mt-6">
               <button onClick={salvarCampo} disabled={!formCampo.label.trim()}
                 className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {editandoCampo ? "Salvar" : "Criar campo"}
+                {editandoCampo ? "Salvar alterações" : "Criar campo"}
               </button>
               <button onClick={() => setModalCampo(false)}
                 className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
@@ -333,7 +329,7 @@ export default function AdminLipPage() {
               ← Home
             </button>
             <div>
-              <h1 className="text-xl font-bold">📋 Gerenciar Campos do LIP</h1>
+              <h1 className="text-xl font-bold">🏗️ Gerenciar Campos do LIP</h1>
               <p className="text-slate-400 text-sm">Abas e campos do Cadastro de Processo</p>
             </div>
           </div>
@@ -345,7 +341,7 @@ export default function AdminLipPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* SIDEBAR — ABAS */}
+        {/* SIDEBAR */}
         <div className="w-64 bg-slate-800 border-r border-slate-700 p-4 flex flex-col gap-2 overflow-y-auto">
           <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide mb-2">Abas do LIP</p>
           {abas.map((aba, idx) => (
@@ -376,7 +372,7 @@ export default function AdminLipPage() {
           ))}
         </div>
 
-        {/* CONTEÚDO — CAMPOS */}
+        {/* CONTEÚDO */}
         <div className="flex-1 overflow-y-auto p-6">
           {abaSelecionada ? (
             <>
@@ -407,18 +403,18 @@ export default function AdminLipPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-semibold text-white">{campo.label}</p>
                         <span className={`text-xs px-2 py-0.5 rounded font-bold ${campo.tipo === "select" ? "bg-purple-900 text-purple-300" : "bg-slate-700 text-slate-300"}`}>
-                          {campo.tipo === "select" ? "select" : "texto"}
+                          {campo.tipo === "select" ? "Lista de opções" : "Texto livre"}
                         </span>
                         {campo.valor_padrao && (
                           <span className="text-xs text-orange-400">padrão: {campo.valor_padrao}</span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-500 mt-0.5">chave: <span className="font-mono text-slate-400">{campo.chave}</span></p>
+                      <p className="text-xs text-slate-500 mt-0.5">identificador: <span className="font-mono text-slate-400">{campo.chave}</span></p>
                       {campo.opcoes && (
                         <p className="text-xs text-slate-400 mt-0.5">opções: {campo.opcoes.join(", ")}</p>
                       )}
                       {campo.placeholder && (
-                        <p className="text-xs text-slate-500 mt-0.5">placeholder: {campo.placeholder}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">ajuda: {campo.placeholder}</p>
                       )}
                     </div>
                     <div className="flex gap-2 shrink-0">
