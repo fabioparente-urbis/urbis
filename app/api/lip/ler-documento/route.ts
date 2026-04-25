@@ -1,67 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { lerPdf } from "@/lib/lerPdf";
-import { extrairDadosBasicos } from "@/lib/extrairDadosBasicos";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const BUCKET_DOCUMENTOS = "documentos";
+const R2 = new S3Client({
+  region: "auto",
+  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
+  },
+});
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const processo_id = body.processo_id;
 
-    console.log("PROCESSO_ID RECEBIDO:", processo_id);
-
     if (!processo_id) {
-      return NextResponse.json(
-        { error: "processo_id é obrigatório" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "processo_id é obrigatório" }, { status: 400 });
     }
 
     const { data: documentos, error: erroBusca } = await supabase
       .from("documentos_processo")
       .select("*");
 
-    console.log("ERRO BUSCA:", erroBusca);
-    console.log("DOCUMENTOS ENCONTRADOS:", documentos);
-
-    if (erroBusca) {
-      return NextResponse.json(
-        {
-          error: "Erro ao buscar documentos do processo",
-          detalhes: erroBusca.message,
-        },
-        { status: 500 }
-      );
-    }
-
-    if (!documentos || documentos.length === 0) {
-      return NextResponse.json(
-        { error: "Nenhum documento encontrado no banco" },
-        { status: 404 }
-      );
+    if (erroBusca || !documentos?.length) {
+      return NextResponse.json({ error: "Erro ao buscar documentos" }, { status: 500 });
     }
 
     const docsDoProcesso = documentos.filter(
       (d) => String(d.processo_id) === String(processo_id)
     );
 
-    console.log("DOCS DO PROCESSO:", docsDoProcesso);
-
-    if (!docsDoProcesso || docsDoProcesso.length === 0) {
-      return NextResponse.json(
-        {
-          error: "Nenhum documento encontrado para esse processo (filtro manual)",
-          processo_id_recebido: processo_id,
-        },
-        { status: 404 }
-      );
+    if (!docsDoProcesso?.length) {
+      return NextResponse.json({ error: "Nenhum documento encontrado" }, { status: 404 });
     }
 
     const documento =
@@ -69,73 +49,81 @@ export async function POST(req: NextRequest) {
         String(d.nome_arquivo || "").toUpperCase().includes("PROJETO")
       ) || docsDoProcesso[0];
 
-    console.log("DOCUMENTO ESCOLHIDO:", documento);
-
     if (!documento.caminho_storage) {
-      return NextResponse.json(
-        {
-          error: "Documento sem caminho_storage",
-          documento,
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Documento sem caminho_storage" }, { status: 500 });
     }
 
+    // Baixa do Supabase
     const { data: arquivo, error: erroDownload } = await supabase.storage
-      .from(BUCKET_DOCUMENTOS)
+      .from("documentos")
       .download(documento.caminho_storage);
 
-    console.log("ERRO DOWNLOAD:", erroDownload);
-    console.log("CAMINHO STORAGE:", documento.caminho_storage);
-
     if (erroDownload || !arquivo) {
-      return NextResponse.json(
-        {
-          error: "Erro ao baixar arquivo do storage",
-          detalhes: erroDownload?.message ?? null,
-          bucket: BUCKET_DOCUMENTOS,
-          caminho_storage: documento.caminho_storage,
-          nome_arquivo: documento.nome_arquivo,
-        },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Erro ao baixar arquivo" }, { status: 500 });
     }
 
-    const buffer = await arquivo.arrayBuffer();
-    const resultado = await lerPdf(new Uint8Array(buffer));
-    const dadosBasicos = extrairDadosBasicos(resultado.texto || "");
+    // Envia para R2
+    const buffer = Buffer.from(await arquivo.arrayBuffer());
+    const r2Key = `lip/${Date.now()}-${documento.nome_arquivo}`;
 
-    const { error: erroSalvarResultado } = await supabase
+    await R2.send(new PutObjectCommand({
+      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+      Key: r2Key,
+      Body: buffer,
+      ContentType: "application/pdf",
+    }));
+
+    // Gemini lê o PDF direto
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: "application/pdf",
+          data: buffer.toString("base64"),
+        },
+      },
+      {
+        text: `Você é um auditor de obras municipais. Extraia do PDF as seguintes informações em JSON:
+- proprietario (nome do proprietário)
+- endereco (endereço completo)
+- area_construida (em m²)
+- area_terreno (em m²)
+- uso (residencial/comercial/misto)
+- numero_pavimentos
+- numero_sei (número do processo SEI)
+- observacoes (outras informações relevantes)
+Responda APENAS com o JSON, sem texto adicional.`,
+      },
+    ]);
+
+    const texto = result.response.text();
+    let dadosBasicos = {};
+    try {
+      const clean = texto.replace(/```json|```/g, "").trim();
+      dadosBasicos = JSON.parse(clean);
+    } catch {
+      dadosBasicos = { raw: texto };
+    }
+
+    const { error: erroSalvar } = await supabase
       .from("lip_resultados")
       .insert({
         processo_id: String(processo_id),
         documento_id: String(documento.id),
         nome_arquivo: documento.nome_arquivo,
-        paginas: resultado.paginas,
         dados: dadosBasicos,
       });
-
-    console.log("ERRO SALVAR RESULTADO:", erroSalvarResultado);
 
     return NextResponse.json({
       sucesso: true,
       documento_id: documento.id,
       nome_arquivo: documento.nome_arquivo,
-      paginas: resultado.paginas,
-      preview: resultado.texto.slice(0, 800),
       dadosBasicos,
-      salvo_no_banco: !erroSalvarResultado,
-      erro_salvar_resultado: erroSalvarResultado?.message ?? null,
+      salvo_no_banco: !erroSalvar,
     });
   } catch (e: any) {
     console.error("ERRO INTERNO LIP:", e);
-
-    return NextResponse.json(
-      {
-        error: "Erro interno no LIP",
-        detalhes: e.message,
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro interno", detalhes: e.message }, { status: 500 });
   }
 }
