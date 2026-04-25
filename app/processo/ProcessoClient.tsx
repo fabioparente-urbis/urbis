@@ -247,25 +247,37 @@ export default function ProcessoClient() {
       mostrarToast(`📄 Processando ${arquivos.length} arquivo(s)...`, "info");
 
       const resultados = await Promise.all(
-  arquivos.map(async (arquivo) => {
-    // 1. Envia para R2
-    const formData = new FormData();
-    formData.append("file", arquivo);
-    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
-    const uploadJson = await uploadRes.json();
-    if (!uploadJson.url) throw new Error("Erro no upload para R2");
+        arquivos.map(async (arquivo) => {
+          // 1. Gera URL assinada no servidor
+          const presignRes = await fetch("/api/upload/presign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: arquivo.name, contentType: arquivo.type }),
+          });
+          const presignJson = await presignRes.json();
+          if (!presignJson.url) throw new Error("Erro ao gerar URL de upload");
 
-    // 2. Chama analisar só com a URL
-    const res = await fetch("/api/lip/analisar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: uploadJson.url, key: uploadJson.key }),
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
-    return json.campos;
-  })
-);
+          // 2. Upload direto do browser para o R2 (sem passar pelo servidor)
+          const uploadRes = await fetch(presignJson.url, {
+            method: "PUT",
+            headers: { "Content-Type": arquivo.type },
+            body: arquivo,
+          });
+          if (!uploadRes.ok) throw new Error("Erro ao enviar arquivo para o R2");
+
+          const fileUrl = presignJson.url.split("?")[0];
+
+          // 3. Chama analisar só com a URL
+          const res = await fetch("/api/lip/analisar", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: fileUrl, key: presignJson.key }),
+          });
+          const json = await res.json();
+          if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
+          return json.campos;
+        })
+      );
 
       const mesclado: Record<string, { valor: string; fonte: string }> = {};
       for (const campos of resultados) {
