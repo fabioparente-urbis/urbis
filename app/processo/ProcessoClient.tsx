@@ -247,15 +247,25 @@ export default function ProcessoClient() {
       mostrarToast(`📄 Processando ${arquivos.length} arquivo(s)...`, "info");
 
       const resultados = await Promise.all(
-        arquivos.map(async (arquivo) => {
-          const formData = new FormData();
-          formData.append("pdf", arquivo);
-          const res = await fetch("/api/lip/analisar", { method: "POST", body: formData });
-          const json = await res.json();
-          if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
-          return json.campos;
-        })
-      );
+  arquivos.map(async (arquivo) => {
+    // 1. Envia para R2
+    const formData = new FormData();
+    formData.append("file", arquivo);
+    const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+    const uploadJson = await uploadRes.json();
+    if (!uploadJson.url) throw new Error("Erro no upload para R2");
+
+    // 2. Chama analisar só com a URL
+    const res = await fetch("/api/lip/analisar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: uploadJson.url, key: uploadJson.key }),
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
+    return json.campos;
+  })
+);
 
       const mesclado: Record<string, { valor: string; fonte: string }> = {};
       for (const campos of resultados) {

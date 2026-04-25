@@ -186,12 +186,15 @@ function mesclar(resultados: Record<string, any>[]): Record<string, any> {
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const arquivo = formData.get("pdf") as File | null;
-    if (!arquivo) return NextResponse.json({ ok: false, erro: "Nenhum arquivo enviado" }, { status: 400 });
+    const body = await req.json();
+const { url } = body;
+if (!url) return NextResponse.json({ ok: false, erro: "URL não informada" }, { status: 400 });
 
-    const buffer = new Uint8Array(await arquivo.arrayBuffer());
-    const { texto, paginas } = await lerPdf(buffer);
+const pdfRes = await fetch(url);
+if (!pdfRes.ok) return NextResponse.json({ ok: false, erro: "Erro ao baixar PDF do R2" }, { status: 500 });
+
+const buffer = new Uint8Array(await pdfRes.arrayBuffer());
+const { texto, paginas } = await lerPdf(buffer);
 
     if (!texto || texto.trim().length < 50) {
       return NextResponse.json({ ok: false, erro: "PDF sem texto extraível." }, { status: 422 });
