@@ -5,11 +5,5 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
-  api: {
-    bodyParser: {
-      sizeLimit: "50mb",
-    },
-    responseLimit: "50mb",
-  },
 };
 export default nextConfig;
