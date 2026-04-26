@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       .from("processos")
       .select("dados")
       .eq("codigo", processo)
-      .single();
+      .maybeSingle();
 
     const dados = proc?.dados || {};
     const interessado = dados?.proprietario?.valor || processo;

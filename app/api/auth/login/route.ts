@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       .from("usuarios")
       .select("id, nome, perfil, status")
       .eq("email", email)
-      .single();
+      .maybeSingle();
     if (userError || !usuario) {
       return NextResponse.json({ ok: false, erro: "Usuário não encontrado no sistema" }, { status: 403 });
     }

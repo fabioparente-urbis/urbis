@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
       .from('auditoria_log')
       .select('dados_antes, registro_id')
       .eq('id', auditoria_id)
-      .single()
+      .maybeSingle()
 
     if (erroEvento || !evento) {
       return NextResponse.json(

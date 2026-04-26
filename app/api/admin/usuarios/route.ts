@@ -58,7 +58,7 @@ export async function PUT(req: NextRequest) {
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
 
     // Regra: não permite remover/alterar o admin fixo
-    const { data: atual } = await supabase.from("usuarios").select("perfil, nome").eq("id", id).single();
+    const { data: atual } = await supabase.from("usuarios").select("perfil, nome").eq("id", id).maybeSingle();
     if (atual?.perfil === "Administrador" && atual?.nome === ADMIN_FIXO) {
       if (perfil !== "Administrador")
         return NextResponse.json({ ok: false, erro: "Não é permitido alterar o perfil do Administrador fixo." }, { status: 400 });
@@ -78,7 +78,7 @@ export async function PUT(req: NextRequest) {
     if (dbError) return NextResponse.json({ ok: false, erro: dbError.message }, { status: 500 });
 
     if (senha) {
-      const { data: userData } = await supabase.from("usuarios").select("email").eq("id", id).single();
+      const { data: userData } = await supabase.from("usuarios").select("email").eq("id", id).maybeSingle();
       if (userData?.email) {
         const { data: authUser } = await supabase.auth.admin.listUsers();
         const user = authUser?.users?.find((u) => u.email === userData.email);
@@ -99,7 +99,7 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
 
     // Protege o admin fixo
-    const { data: usuario } = await supabase.from("usuarios").select("perfil, nome, email").eq("id", id).single();
+    const { data: usuario } = await supabase.from("usuarios").select("perfil, nome, email").eq("id", id).maybeSingle();
     if (usuario?.perfil === "Administrador" && usuario?.nome === ADMIN_FIXO)
       return NextResponse.json({ ok: false, erro: "O Administrador fixo não pode ser excluído." }, { status: 400 });
 

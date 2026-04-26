@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     .from("usuarios")
     .select("id, nome, email, perfil, cargo, matricula")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
     return NextResponse.json({ ok: false, erro: "Usuário não encontrado" }, { status: 404 });

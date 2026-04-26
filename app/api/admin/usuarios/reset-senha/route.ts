@@ -9,7 +9,7 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
   try {
     const { id } = await req.json();
-    const { data: usuario } = await supabase.from("usuarios").select("email").eq("id", id).single();
+    const { data: usuario } = await supabase.from("usuarios").select("email").eq("id", id).maybeSingle();
     if (!usuario?.email) return NextResponse.json({ ok: false, erro: "Usuário não encontrado" }, { status: 404 });
 
     const { error } = await supabase.auth.resetPasswordForEmail(usuario.email, {

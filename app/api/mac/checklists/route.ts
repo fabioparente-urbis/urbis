@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from("mac_checklist_modelos")
     .insert({ nome, tipo_processo: tipo_processo || null, dono_id: dono_id || null, criado_por: dono_id || null })
     .select()
-    .single();
+    .maybeSingle();
 
   if (em) return NextResponse.json({ ok: false, erro: em.message }, { status: 500 });
 

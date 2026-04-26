@@ -34,13 +34,13 @@ export async function POST(req: NextRequest) {
       .select("ordem")
       .order("ordem", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const { data, error } = await supabase
       .from("lip_abas")
       .insert({ nome: body.nome, dica: body.dica || "", ordem: (ultima?.ordem ?? -1) + 1 })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, data });
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
       .eq("aba_id", body.aba_id)
       .order("ordem", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     const { data, error } = await supabase
       .from("lip_campos")
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
         ordem: (ultimo?.ordem ?? -1) + 1,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, data });

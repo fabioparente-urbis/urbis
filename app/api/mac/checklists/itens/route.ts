@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     .from("mac_checklist_itens")
     .insert({ modelo_id, grupo, texto, ref: ref || null, ordem: ordem || 0 })
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data });
@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest) {
     .update(campos)
     .eq("id", id)
     .select()
-    .single();
+    .maybeSingle();
 
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data });
