@@ -14,6 +14,7 @@
     "@aws-sdk/s3-request-presigner": "^3.507.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.97.0",
+    "aws4fetch": "^1.0.20",
     "docx": "^9.6.1",
     "exceljs": "^4.4.0",
     "lucide-react": "^1.8.0",

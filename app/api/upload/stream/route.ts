@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
-
-const R2 = new S3Client({
-  region: 'auto',
-  endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: {
-    accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
-  },
-})
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,23 +12,34 @@ export async function POST(req: NextRequest) {
     const key = `lip/${Date.now()}-${file.name}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    await R2.send(new PutObjectCommand({
-      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
-      Key: key,
-      Body: buffer,
-      ContentType: file.type || 'application/pdf',
-    }))
+    const accountId = process.env.CLOUDFLARE_ACCOUNT_ID!
+    const bucketName = process.env.CLOUDFLARE_R2_BUCKET_NAME!
+    const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!
+    const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!
 
-    const url = await getSignedUrl(
-      R2,
-      new GetObjectCommand({
-        Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
-        Key: key,
-      }),
-      { expiresIn: 3600 }
-    )
+    // Upload via fetch direto para API S3 do R2
+    const endpoint = `https://${accountId}.r2.cloudflarestorage.com/${bucketName}/${key}`
 
-    return NextResponse.json({ ok: true, key, url })
+    const { AwsClient } = await import('aws4fetch')
+    const aws = new AwsClient({
+      accessKeyId,
+      secretAccessKey,
+      region: 'auto',
+      service: 's3',
+    })
+
+    const res = await aws.fetch(endpoint, {
+      method: 'PUT',
+      body: buffer,
+      headers: { 'Content-Type': file.type || 'application/pdf' },
+    })
+
+    if (!res.ok) {
+      const txt = await res.text()
+      throw new Error(`R2 retornou ${res.status}: ${txt}`)
+    }
+
+    return NextResponse.json({ ok: true, key, url: endpoint })
   } catch (error: any) {
     console.error('Erro no upload:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
