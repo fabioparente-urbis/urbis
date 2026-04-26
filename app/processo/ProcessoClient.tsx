@@ -248,17 +248,24 @@ export default function ProcessoClient() {
 
       const resultados = await Promise.all(
         arquivos.map(async (arquivo) => {
-          // 1. Upload via servidor Railway -> R2 (sem CORS)
-          const uploadRes = await fetch("/api/upload/stream", {
+          // 1. Gera URL assinada
+          const presignRes = await fetch("/api/upload/presign", {
             method: "POST",
-            body: arquivo,
-            headers: {
-              "Content-Type": arquivo.type || "application/pdf",
-              "x-filename": arquivo.name,
-            },
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: arquivo.name, contentType: arquivo.type }),
           });
-          const uploadJson = await uploadRes.json();
-          if (!uploadJson.ok) throw new Error("Erro ao enviar arquivo: " + (uploadJson.error || ""));
+          const presignJson = await presignRes.json();
+          if (!presignJson.url) throw new Error("Erro ao gerar URL de upload");
+
+          // 2. Upload direto para R2
+          const uploadRes = await fetch(presignJson.url, {
+            method: "PUT",
+            headers: { "Content-Type": arquivo.type || "application/pdf" },
+            body: arquivo,
+          });
+          if (!uploadRes.ok) throw new Error("Erro ao enviar arquivo para o R2");
+
+          const uploadJson = { ok: true, key: presignJson.key, url: presignJson.getUrl };
 
           // 2. Chama analisar com key e url
           const res = await fetch("/api/lip/analisar", {
