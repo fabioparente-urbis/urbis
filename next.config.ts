@@ -5,5 +5,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "100mb",
     },
   },
+  middlewareClientMaxBodySize: "100mb",
 };
 export default nextConfig;

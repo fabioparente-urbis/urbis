@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const res = await aws.fetch(endpoint, {
       method: 'PUT',
       body: buffer,
-      headers: { 'Content-Type': contentType },
+      headers: { 'Content-Type': contentType, 'Content-Length': String(buffer.length) },
     })
 
     if (!res.ok) {
