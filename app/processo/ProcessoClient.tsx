@@ -249,11 +249,13 @@ export default function ProcessoClient() {
       const resultados = await Promise.all(
         arquivos.map(async (arquivo) => {
           // 1. Upload via servidor Railway -> R2 (sem CORS)
-          const uploadForm = new FormData();
-          uploadForm.append("file", arquivo);
           const uploadRes = await fetch("/api/upload/stream", {
             method: "POST",
-            body: uploadForm,
+            body: arquivo,
+            headers: {
+              "Content-Type": arquivo.type || "application/pdf",
+              "x-filename": arquivo.name,
+            },
           });
           const uploadJson = await uploadRes.json();
           if (!uploadJson.ok) throw new Error("Erro ao enviar arquivo: " + (uploadJson.error || ""));
