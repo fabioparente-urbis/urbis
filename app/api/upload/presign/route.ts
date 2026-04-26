@@ -24,8 +24,12 @@ export async function POST(req: NextRequest) {
         Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
         Key: key,
         ContentType: contentType,
+        ChecksumAlgorithm: undefined,
       }),
-      { expiresIn: 300 }
+      { 
+        expiresIn: 300,
+        unhoistableHeaders: new Set(['x-amz-checksum-crc32']),
+      }
     )
 
     return NextResponse.json({ url, key })
