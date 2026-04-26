@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { Upload } from '@aws-sdk/lib-storage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -24,17 +23,12 @@ export async function POST(req: NextRequest) {
     const key = `lip/${Date.now()}-${file.name}`
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    const upload = new Upload({
-      client: R2,
-      params: {
-        Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
-        Key: key,
-        Body: buffer,
-        ContentType: file.type || 'application/pdf',
-      },
-    })
-
-    await upload.done()
+    await R2.send(new PutObjectCommand({
+      Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
+      Key: key,
+      Body: buffer,
+      ContentType: file.type || 'application/pdf',
+    }))
 
     const url = await getSignedUrl(
       R2,
@@ -47,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, key, url })
   } catch (error: any) {
-    console.error('Erro no upload stream:', error)
+    console.error('Erro no upload:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
