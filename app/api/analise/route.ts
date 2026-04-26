@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
         modelo_id: body.modelo_id || null,
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, data });
