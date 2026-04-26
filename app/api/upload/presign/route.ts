@@ -11,27 +11,23 @@ const R2 = new S3Client({
     accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY!,
   },
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 })
 
 export async function POST(req: NextRequest) {
   try {
     const { filename, contentType } = await req.json()
     const key = `lip/${Date.now()}-${filename}`
-
     const url = await getSignedUrl(
       R2,
       new PutObjectCommand({
         Bucket: process.env.CLOUDFLARE_R2_BUCKET_NAME!,
         Key: key,
         ContentType: contentType,
-        ChecksumAlgorithm: undefined,
       }),
-      { 
-        expiresIn: 300,
-        unhoistableHeaders: new Set(['x-amz-checksum-crc32']),
-      }
+      { expiresIn: 300 }
     )
-
     return NextResponse.json({ url, key })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
