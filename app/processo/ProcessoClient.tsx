@@ -535,6 +535,18 @@ export default function ProcessoClient() {
         </div>
       </div>
 
+      {progresso > 0 && (
+        <div className="bg-slate-800 border border-slate-600 rounded-xl p-3 mb-4">
+          <div className="flex justify-between text-xs text-slate-300 mb-1">
+            <span>🤖 Lendo PDF com IA...</span>
+            <span>{progresso}%</span>
+          </div>
+          <div className="w-full bg-slate-700 rounded-full h-2">
+            <div className="bg-purple-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
+          </div>
+        </div>
+      )}
+
       {carregando && <div className="bg-yellow-900 border border-yellow-500 text-yellow-300 px-4 py-2 rounded mb-4 text-sm">⏳ Carregando dados do processo...</div>}
       {totalPadrao > 0 && <div className="bg-orange-900 border border-orange-500 text-orange-200 px-4 py-2 rounded mb-4 text-sm">⚠️ <strong>{totalPadrao} campo(s)</strong> em laranja precisam ser conferidos. Pressione <strong>Enter</strong> para confirmar.</div>}
       {erroCampos && <div className="bg-red-900 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm">❌ Confira todos os campos em laranja antes de salvar!</div>}
