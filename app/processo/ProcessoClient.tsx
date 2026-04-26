@@ -248,30 +248,21 @@ export default function ProcessoClient() {
 
       const resultados = await Promise.all(
         arquivos.map(async (arquivo) => {
-          // 1. Gera URL assinada no servidor
-          const presignRes = await fetch("/api/upload/presign", {
+          // 1. Upload via servidor Railway -> R2 (sem CORS)
+          const uploadForm = new FormData();
+          uploadForm.append("file", arquivo);
+          const uploadRes = await fetch("/api/upload/stream", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: arquivo.name, contentType: arquivo.type }),
+            body: uploadForm,
           });
-          const presignJson = await presignRes.json();
-          if (!presignJson.url) throw new Error("Erro ao gerar URL de upload");
+          const uploadJson = await uploadRes.json();
+          if (!uploadJson.ok) throw new Error("Erro ao enviar arquivo: " + (uploadJson.error || ""));
 
-          // 2. Upload direto do browser para o R2 (sem passar pelo servidor)
-          const uploadRes = await fetch(presignJson.url, {
-            method: "PUT",
-            headers: { "Content-Type": arquivo.type },
-            body: arquivo,
-          });
-          if (!uploadRes.ok) throw new Error("Erro ao enviar arquivo para o R2");
-
-          const fileUrl = presignJson.url.split("?")[0];
-
-          // 3. Chama analisar só com a URL
+          // 2. Chama analisar com key e url
           const res = await fetch("/api/lip/analisar", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: fileUrl, key: presignJson.key }),
+            body: JSON.stringify({ url: uploadJson.url, key: uploadJson.key }),
           });
           const json = await res.json();
           if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
