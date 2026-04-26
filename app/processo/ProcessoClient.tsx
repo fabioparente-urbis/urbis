@@ -111,6 +111,8 @@ export default function ProcessoClient() {
   const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
+  const [progresso, setProgresso] = useState(0);
+  const progressoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapRef = useRef<Record<string, Campo> | null>(null);
 
@@ -241,9 +243,26 @@ export default function ProcessoClient() {
     setNovoProcesso("");
   }
 
+  function iniciarProgresso() {
+    setProgresso(0);
+    let p = 0;
+    progressoRef.current = setInterval(() => {
+      p += Math.random() * 3;
+      if (p >= 80) { p = 80; if (progressoRef.current) clearInterval(progressoRef.current); }
+      setProgresso(Math.round(p));
+    }, 300);
+  }
+
+  function finalizarProgresso() {
+    if (progressoRef.current) clearInterval(progressoRef.current);
+    setProgresso(100);
+    setTimeout(() => setProgresso(0), 1500);
+  }
+
   async function lerLip(arquivos: File[]) {
     try {
       setLendoLip(true);
+      iniciarProgresso();
       mostrarToast(`📄 Processando ${arquivos.length} arquivo(s)...`, "info");
 
       const resultados = await Promise.all(
@@ -306,6 +325,7 @@ export default function ProcessoClient() {
       mostrarToast("Erro: " + e.message, "erro");
     } finally {
       setLendoLip(false);
+      finalizarProgresso();
     }
   }
 
