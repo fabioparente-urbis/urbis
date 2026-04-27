@@ -312,11 +312,10 @@ export default function ProcessoClient() {
         Object.keys(mesclado).forEach((chave) => {
           const item = mesclado[chave];
           if (!item?.valor) return;
-          if (novo[chave]?.origem === "manual" && novo[chave]?.valor.trim() !== "") return;
-          if (novo[chave] !== undefined) {
-            novo[chave] = { valor: item.valor, origem: "original", fonte: item.fonte };
-          }
+          if (novo[chave] === undefined) return;
+          novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
         });
+        autoSalvar(novo);
         return novo;
       });
 
