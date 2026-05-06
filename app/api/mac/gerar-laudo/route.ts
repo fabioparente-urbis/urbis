@@ -111,21 +111,21 @@ export async function POST(req: NextRequest) {
       areaAtividadeEconomica: undefined,
 
       // Da Análise — Checkboxes
-      edificacaoEstruturalDef: sn(mac?.itens?.edificacaoEstruturalDef),
-      ultrapassaAltura12m:     sn(mac?.itens?.ultrapassaAltura12m),
-      ocupaRecuoFrontal:       sn(mac?.itens?.ocupaRecuoFrontal),
-      maxSetePavimentos:       sn(mac?.itens?.maxSetePavimentos),
-      alturaMaxima21m:         sn(mac?.itens?.alturaMaxima21m),
-      naoObstruiAreaPublica:   sn(mac?.itens?.naoObstruiAreaPublica),
+      edificacaoEstruturalDef: sn(v("vistoriaEstruturaConcluida")),
+      ultrapassaAltura12m:     sn(v("vistoriaMais12m")),
+      ocupaRecuoFrontal:       sn(v("vistoriaOcupaRecuo")),
+      maxSetePavimentos:       sn(v("vistoriaMax7Pav")),
+      alturaMaxima21m:         sn(v("vistoriaAltMax21m")),
+      naoObstruiAreaPublica:   sn(v("vistoriaOcupaPublica")) === "SIM" ? "NAO" : "SIM",
 
       // Vistoria Fiscal
-      levantamentoConferido:       sn(mac?.itens?.levantamentoConferido),
-      aberturaPortasRespeita:      sn(mac?.itens?.aberturaPortasRespeita),
-      respeitaPasPublicoVizinhos:  sn(mac?.itens?.respeitaPasPublicoVizinhos),
-      apresentaCalcadaRegular:     sn(mac?.itens?.apresentaCalcadaRegular),
-      apresentaPocoRecarga:        sn(mac?.itens?.apresentaPocoRecarga),
-      aberturaPortasNaDivisa:      sn(mac?.itens?.aberturaPortasNaDivisa),
-      lancaAguasPluviais:          sn(mac?.itens?.lancaAguasPluviais),
+      levantamentoConferido:       sn(v("vistoriaLevante")),
+      aberturaPortasRespeita:      sn(v("vistoriaEsquadriaDivisa")) === "SIM" ? "NAO" : "SIM",
+      respeitaPasPublicoVizinhos:  sn(v("vistoriaCalcadas")),
+      apresentaCalcadaRegular:     sn(v("vistoriaCalcadas")),
+      apresentaPocoRecarga:        sn(v("caixa")),
+      aberturaPortasNaDivisa:      sn(v("vistoriaEsquadriaDivisa")) === "SIM" ? "NAO" : "SIM",
+      lancaAguasPluviais:          sn(v("vistoriaAguasPluviais")),
 
       // ANAC / Exército
       flAnac:     mac?.itens?.flAnac ?? undefined,
@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
       areaTotalRegularizar:   v("areaTotal"),
       areaMultaRecuoFrontal:  v("areaRecuo"),
       areaMultaVertical:      v("areaVertical"),
-      areaMultaGeral:         undefined,
+      areaMultaGeral:         v("areaForaFrontal"),
 
       // Rodapé
       areaTerreno:          v("areaTerreno"),
