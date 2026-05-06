@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     // ── Montar DadosLaudo ───────────────────────────────────
     const dados: DadosLaudo = {
       // Identificação
-      numeroProcesso:   p.codigo,
+      numeroProcesso:   p.codigo + (v("processoFisico") ? " E " + v("processoFisico") : ""),
       proprietario:     v("proprietario"),
       logradouro:       v("logradouro"),
       quadra:           v("quadra"),
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
       // Despacho CHEADV
       numDespachoCheadv:  v("despacho"),
-      pagDespachoCheadv:  v("pag"),
+      pagDespachoCheadv:  v("seiCheadv"),
 
       // Documentação
       certidaoRegistro:           v("certidao"),
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       // Uso do Solo
       numUsoSolo:         v("usoSolo"),
       tipoUsoSolo:        v("tipoUso"),
-      unidadeTerritorial: undefined,
+      unidadeTerritorial: v("vistoriaUnidadeTerritorial"),
       certCorredorViario: undefined,
       cnae1:              v("cnae1"),
       descCnae1:          undefined,

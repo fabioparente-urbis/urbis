@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       .from("processos")
       .select("id, codigo")
       .eq("codigo", id)
-      .maybeSingle();
+      .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
 
     if (erroBusca) {
       return NextResponse.json({ ok: false, erro: erroBusca.message }, { status: 500 });

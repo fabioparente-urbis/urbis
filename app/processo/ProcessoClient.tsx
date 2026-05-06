@@ -329,8 +329,6 @@ export default function ProcessoClient() {
   }
 
   async function salvar() {
-    const totalPadrao = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length;
-    if (totalPadrao > 0) { setErroCampos(true); return; }
     setErroCampos(false);
     try {
       setSalvando(true); setStatusSalvo("salvando");
@@ -460,7 +458,7 @@ export default function ProcessoClient() {
             className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
-          <button onClick={() => router.push(`/analise/${encodeURIComponent(idUrl)}`)}
+          <button onClick={async () => { const t = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length; if (t > 0) { setErroCampos(true); return; } await salvar(); router.push(`/analise/${encodeURIComponent(idUrl)}`); }}
             className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
