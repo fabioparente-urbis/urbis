@@ -262,47 +262,68 @@ export default function ProcessoClient() {
   async function lerLip(arquivos: File[]) {
     try {
       setLendoLip(true);
-      iniciarProgresso();
-      mostrarToast(`📄 Processando ${arquivos.length} arquivo(s)...`, "info");
+      setProgresso(5);
+      mostrarToast(`📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`, "info");
 
       const resultados = await Promise.all(
         arquivos.map(async (arquivo) => {
-          // 1. Gera URL assinada
-          const presignRes = await fetch("/api/upload/presign", {
+          // 1. Converter para base64
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve((reader.result as string).split(",")[1]);
+            reader.onerror = () => reject(new Error("Erro ao ler arquivo"));
+            reader.readAsDataURL(arquivo);
+          });
+
+          // 2. S1 — Upload para Gemini File API
+          setProgresso(20);
+          mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
+          const formData = new FormData();
+          formData.append("pdfBase64", base64);
+          const s1Res = await fetch("/api/lip/s1", { method: "POST", body: formData });
+          const s1Data = await s1Res.json();
+          if (!s1Data.ok) throw new Error("S1: " + (s1Data.erro || "Erro ao enviar PDF"));
+          const { fileUri } = s1Data;
+
+          // 3. S2 — Mapa de documentos
+          setProgresso(45);
+          mostrarToast("🗂 S2: Mapeando documentos do processo...", "info");
+          const s2Res = await fetch("/api/lip/s2", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: arquivo.name, contentType: arquivo.type }),
+            body: JSON.stringify({ fileUri }),
           });
-          const presignJson = await presignRes.json();
-          if (!presignJson.url) throw new Error("Erro ao gerar URL de upload");
+          const s2Data = await s2Res.json();
+          const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
 
-          // 2. Upload direto para R2
-          const uploadRes = await fetch(presignJson.url, {
-            method: "PUT",
-            headers: { "Content-Type": arquivo.type || "application/pdf" },
-            body: arquivo,
-          });
-          if (!uploadRes.ok) throw new Error("Erro ao enviar arquivo para o R2");
-
-          const uploadJson = { ok: true, key: presignJson.key, url: presignJson.getUrl };
-
-          // 2. Chama analisar com key e url
-          const res = await fetch("/api/lip/analisar", {
+          // 4. S3 — Extração inteligente do LIP
+          setProgresso(70);
+          mostrarToast("🧠 S3: Preenchendo LIP com IA...", "info");
+          const s3Res = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: uploadJson.url, key: uploadJson.key }),
+            body: JSON.stringify({ fileUri, documentos }),
           });
-          const json = await res.json();
-          if (!json.ok) throw new Error(json.erro || "Erro ao ler arquivo");
-          return json.campos;
+          const s3Data = await s3Res.json();
+          if (!s3Data.ok) throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
+
+          return {
+            campos: s3Data.campos ?? {},
+            alertasMAC: s3Data.alertasMAC ?? [],
+            validacoes: s3Data.validacoes ?? {},
+            pendencias: s3Data.pendencias ?? [],
+          };
         })
       );
 
+      setProgresso(90);
+
       const mesclado: Record<string, { valor: string; fonte: string }> = {};
-      for (const campos of resultados) {
+      for (const { campos } of resultados) {
         for (const chave of Object.keys(campos)) {
-          if (!mesclado[chave]?.valor && campos[chave]?.valor) {
-            mesclado[chave] = campos[chave];
+          const item = campos[chave];
+          if (!mesclado[chave]?.valor && item?.valor && item.valor !== "NP") {
+            mesclado[chave] = item;
           }
         }
       }
@@ -319,9 +340,10 @@ export default function ProcessoClient() {
         return novo;
       });
 
-      mostrarToast(`✅ ${arquivos.length} arquivo(s) lido(s) com sucesso!`, "sucesso");
+      const preenchidos = Object.values(mesclado).filter((v: any) => v?.valor && v.valor !== "NP").length;
+      mostrarToast(`✅ LIP preenchido! ${preenchidos} campos extraídos.`, "sucesso");
     } catch (e: any) {
-      mostrarToast("Erro: " + e.message, "erro");
+      mostrarToast("❌ Erro: " + e.message, "erro");
     } finally {
       setLendoLip(false);
       finalizarProgresso();
