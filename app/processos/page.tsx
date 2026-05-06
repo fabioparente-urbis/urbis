@@ -205,7 +205,7 @@ export default function ProcessosPage() {
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
                   <p className="font-mono text-yellow-400 font-semibold text-sm">{numero}</p>
                   <p className="text-slate-300 text-sm mt-0.5 truncate">{proprietario}</p>
-                  <p className="text-slate-500 text-xs mt-0.5">{nomeAnalista(p.analista_id)}</p>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-500 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
                 </div>
 
                 {/* Tipo */}

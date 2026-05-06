@@ -154,6 +154,9 @@ export async function POST(req: NextRequest) {
 
     const nomeArquivo = `Laudo_${p.codigo.replace(/[/\\]/g, "-")}.xlsx`;
 
+    // Registrar último documento emitido
+    await supabase.from("processos").update({ dados: { ...(p.dados || {}), ultimo_documento: "Laudo" }, atualizado_em: new Date().toISOString() }).eq("codigo", processoId);
+
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
