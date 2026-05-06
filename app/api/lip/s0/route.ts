@@ -16,16 +16,18 @@ type TipoDoc = "indice" | "matricula" | "uso_solo" | "laudo_tecnico" |
 
 function classificarPagina(texto: string): TipoDoc {
   const t = texto.toLowerCase();
-  if (texto.trim().length < 100) return "planta";
-  if (t.includes("matrícula") || t.includes("registro geral") || t.includes("ofício de registro")) return "matricula";
+  const chars = texto.trim().length;
+  if (chars < 100) return "planta";
+  if (t.includes("laudo técnico") || t.includes("laudo de vistoria") || t.includes("laudo de regularização") || t.includes("laudo técnico de regularização") || (t.includes("laudo") && t.includes("regularização")) || (t.includes("laudo") && t.includes("construção"))) return "laudo_tecnico";
+  if (t.includes("matrícula") || t.includes("registro geral") || t.includes("ofício de registro") || t.includes("certidão de matrícula")) return "matricula";
   if (t.includes("uso do solo") || t.includes("comtec") || t.includes("cnae") || t.includes("tipo de uso")) return "uso_solo";
-  if (t.includes("laudo técnico") || t.includes("laudo de vistoria") || t.includes("laudo de regularização")) return "laudo_tecnico";
-  if (t.includes("art ") || t.includes("rrt ") || t.includes("anotação de responsabilidade")) return "art_rrt";
-  if (t.includes("vistoria") || t.includes("auto de vistoria")) return "vistoria";
-  if (t.includes("procuração") || t.includes("outorgante")) return "procuracao";
-  if (t.includes("cheadv") || t.includes("análise documental") || t.includes("despacho")) return "cheadv";
-  if (t.includes("índice") || t.includes("autuação") || t.includes("lista de documentos")) return "indice";
+  if (t.includes("art ") || t.includes("rrt ") || t.includes("anotação de responsabilidade") || t.includes("registro de responsabilidade técnica")) return "art_rrt";
+  if (t.includes("vistoria") || t.includes("auto de vistoria") || t.includes("vistoria fiscal")) return "vistoria";
+  if (t.includes("procuração") || t.includes("outorgante") || t.includes("outorgado")) return "procuracao";
+  if (t.includes("cheadv") || t.includes("análise documental") || t.includes("despacho") || t.includes("informação n")) return "cheadv";
+  if (t.includes("índice") || t.includes("autuação") || t.includes("lista de documentos") || t.includes("tipo do documento")) return "indice";
   if (t.includes("embargo") || t.includes("auto de embargo")) return "embargo";
+  if (chars < 400 && (t.includes("foto") || t.includes("imagem") || t.includes("fotografia"))) return "planta";
   return "outros";
 }
 
