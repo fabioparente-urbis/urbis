@@ -22,9 +22,7 @@ export async function POST(req: NextRequest) {
           "X-Goog-Upload-Header-Content-Length": contentLength,
           "X-Goog-Upload-Header-Content-Type": "application/pdf",
         },
-        body: req.body,
-        // @ts-ignore
-        duplex: "half",
+        body: Buffer.from(await req.arrayBuffer()),
       }
     );
 
