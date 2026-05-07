@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
-    const { pdfBase64 } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey)
+      return NextResponse.json({ ok: false, erro: "GEMINI_API_KEY não configurada" }, { status: 500 });
 
-    if (!pdfBase64) return NextResponse.json({ ok: false, erro: "PDF não enviado" }, { status: 400 });
-    if (!apiKey) return NextResponse.json({ ok: false, erro: "GEMINI_API_KEY não configurada" }, { status: 500 });
+    const contentLength = req.headers.get("x-file-size") || "0";
+    const fileName = req.headers.get("x-file-name") || "processo.pdf";
 
-    const pdfBuffer = Buffer.from(pdfBase64, "base64");
+    console.log(`[S1] Streaming: ${fileName} (${(parseInt(contentLength) / 1024 / 1024).toFixed(2)} MB)`);
 
-    // Upload para Gemini File API
     const uploadRes = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
       {
@@ -20,10 +19,12 @@ export async function POST(req: NextRequest) {
         headers: {
           "Content-Type": "application/pdf",
           "X-Goog-Upload-Command": "upload, finalize",
-          "X-Goog-Upload-Header-Content-Length": pdfBuffer.length.toString(),
+          "X-Goog-Upload-Header-Content-Length": contentLength,
           "X-Goog-Upload-Header-Content-Type": "application/pdf",
         },
-        body: pdfBuffer,
+        body: req.body,
+        // @ts-ignore
+        duplex: "half",
       }
     );
 
@@ -34,20 +35,18 @@ export async function POST(req: NextRequest) {
 
     const uploadData = await uploadRes.json();
     const fileUri = uploadData.file?.uri;
-    const fileName = uploadData.file?.name;
+    const filName = uploadData.file?.name;
     const state = uploadData.file?.state;
 
-    console.log(`[S1] Upload concluído: ${fileName} | state: ${state}`);
-    console.log(`[S1] URI: ${fileUri}`);
+    console.log(`[S1] Concluído: ${filName} | state: ${state} | URI: ${fileUri}`);
 
     return NextResponse.json({
       ok: true,
       fileUri,
-      fileName,
+      fileName: filName,
       state,
-      tamanhoMB: (pdfBuffer.length / 1024 / 1024).toFixed(2),
+      tamanhoMB: (parseInt(contentLength) / 1024 / 1024).toFixed(2),
     });
-
   } catch (e: any) {
     console.error("[S1] Erro:", e?.message);
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });

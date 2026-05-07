@@ -268,21 +268,17 @@ export default function ProcessoClient() {
 
       const resultados = await Promise.all(
         arquivos.map(async (arquivo) => {
-          // 1. Converter para base64
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve((reader.result as string).split(",")[1]);
-            reader.onerror = () => reject(new Error("Erro ao ler arquivo"));
-            reader.readAsDataURL(arquivo);
-          });
-
-          // 2. S1 — Upload para Gemini File API
+          // 2. S1 — Upload para Gemini File API (streaming direto)
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
           const s1Res = await fetch("/api/lip/s1", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ pdfBase64: base64 }),
+            headers: {
+              "Content-Type": "application/pdf",
+              "X-File-Size": arquivo.size.toString(),
+              "X-File-Name": arquivo.name,
+            },
+            body: arquivo,
           });
           const s1Data = await s1Res.json();
           if (!s1Data.ok) throw new Error("S1: " + (s1Data.erro || "Erro ao enviar PDF"));
