@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase } from "@/lib/supabaseClient";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,21 +27,38 @@ export async function POST(req: NextRequest) {
     console.log(`[S3] Prompt versão ${promptData.versao} carregado.`);
 
     const ctxDocs = documentos
-      ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2 (use como guia de localização):\n${JSON.stringify(documentos, null, 2)}\n---`
+      ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-
     const promptFinal = promptData.conteudo + ctxDocs;
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-    console.log("[S3] Enviando para Gemini...");
-    const result = await model.generateContent([
-      { fileData: { mimeType: "application/pdf", fileUri } },
-      { text: promptFinal },
-    ]);
+    let resultado: any = null;
+    for (let tentativa = 1; tentativa <= 4; tentativa++) {
+      try {
+        console.log(`[S3] Enviando para Gemini... (tentativa ${tentativa}/4)`);
+        const result = await model.generateContent([
+          { fileData: { mimeType: "application/pdf", fileUri } },
+          { text: promptFinal },
+        ]);
+        resultado = result;
+        break;
+      } catch (err: any) {
+        const is503 = err?.message?.includes("503") || err?.message?.includes("503 Service Unavailable");
+        const is429 = err?.message?.includes("429");
+        if ((is503 || is429) && tentativa < 4) {
+          const espera = tentativa * 8000;
+          console.log(`[S3] Tentativa ${tentativa} falhou (${is503 ? "503" : "429"}). Aguardando ${espera / 1000}s...`);
+          await delay(espera);
+        } else {
+          throw err;
+        }
+      }
+    }
 
-    const texto = result.response.text().trim();
+    const texto = resultado.response.text().trim();
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
 
     const clean = texto.replace(/```json|```/g, "").trim();
@@ -55,7 +72,6 @@ export async function POST(req: NextRequest) {
     ];
 
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
-
     if (dados.campos) {
       for (const [chave, item] of Object.entries(dados.campos as Record<string, any>)) {
         const val = item?.valor?.toString().trim();
@@ -87,7 +103,6 @@ export async function POST(req: NextRequest) {
       validacoes: dados.validacoes ?? {},
       pendencias: dados.pendencias ?? [],
     });
-
   } catch (e: any) {
     console.error("[S3] Erro:", e?.message);
     return NextResponse.json(
