@@ -100,6 +100,7 @@ export default function ProcessoClient() {
   const [lendoLip, setLendoLip] = useState(false);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
+  const [mostrarPendentes, setMostrarPendentes] = useState(false);
   const [d, setD] = useState<Record<string, Campo>>({});
 
   const [historico, setHistorico] = useState<EventoHistorico[]>([]);
@@ -333,7 +334,7 @@ export default function ProcessoClient() {
         Object.keys(mesclado).forEach((chave) => {
           const item = mesclado[chave];
           if (!item?.valor) return;
-          if (novo[chave] === undefined) return;
+
           novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
         });
         autoSalvar(novo);
@@ -567,7 +568,40 @@ export default function ProcessoClient() {
       )}
 
       {carregando && <div className="bg-yellow-900 border border-yellow-500 text-yellow-300 px-4 py-2 rounded mb-4 text-sm">⏳ Carregando dados do processo...</div>}
-      {totalPadrao > 0 && <div className="bg-orange-900 border border-orange-500 text-orange-200 px-4 py-2 rounded mb-4 text-sm">⚠️ <strong>{totalPadrao} campo(s)</strong> em laranja precisam ser conferidos. Pressione <strong>Enter</strong> para confirmar.</div>}
+      {totalPadrao > 0 && (
+        <div className="mb-4">
+          <div
+            className="bg-orange-900 border border-orange-500 text-orange-200 px-4 py-2 rounded text-sm cursor-pointer flex items-center justify-between hover:bg-orange-800 transition-colors"
+            onClick={() => setMostrarPendentes(!mostrarPendentes)}
+          >
+            <span>⚠️ <strong>{totalPadrao} campo(s)</strong> em laranja precisam ser conferidos. Pressione <strong>Enter</strong> para confirmar.</span>
+            <span className="ml-4 text-orange-300">{mostrarPendentes ? "▲ Fechar" : "▼ Ver campos"}</span>
+          </div>
+          {mostrarPendentes && (
+            <div className="bg-orange-950 border border-orange-500 border-t-0 rounded-b px-4 py-3 text-sm">
+              {abasDB.map((a, i) => {
+                const pendentes = a.lip_campos.filter(c => d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === "");
+                if (pendentes.length === 0) return null;
+                return (
+                  <div key={a.id} className="mb-2">
+                    <button
+                      onClick={() => { setAba(i); setMostrarPendentes(false); }}
+                      className="text-orange-300 font-semibold hover:text-orange-100 underline text-xs mb-1"
+                    >
+                      {a.nome} →
+                    </button>
+                    <ul className="ml-3 list-disc list-inside">
+                      {pendentes.map(c => (
+                        <li key={c.chave} className="text-orange-200 text-xs">{c.label}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
       {erroCampos && <div className="bg-red-900 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm">❌ Confira todos os campos em laranja antes de salvar!</div>}
 
       {/* ABAS */}
