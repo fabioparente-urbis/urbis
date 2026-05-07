@@ -279,9 +279,11 @@ export default function ProcessoClient() {
           // 2. S1 — Upload para Gemini File API
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
-          const formData = new FormData();
-          formData.append("pdfBase64", base64);
-          const s1Res = await fetch("/api/lip/s1", { method: "POST", body: formData });
+          const s1Res = await fetch("/api/lip/s1", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdfBase64: base64 }),
+          });
           const s1Data = await s1Res.json();
           if (!s1Data.ok) throw new Error("S1: " + (s1Data.erro || "Erro ao enviar PDF"));
           const { fileUri } = s1Data;

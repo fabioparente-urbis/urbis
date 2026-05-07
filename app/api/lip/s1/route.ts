@@ -4,8 +4,7 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const pdfBase64 = formData.get("pdfBase64") as string;
+    const { pdfBase64 } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!pdfBase64) return NextResponse.json({ ok: false, erro: "PDF não enviado" }, { status: 400 });
