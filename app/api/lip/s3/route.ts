@@ -1,5 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
+import { supabase } from "@/lib/supabaseClient";
+
+export const maxDuration = 300;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { fileUri, documentos } = await req.json();
+    if (!fileUri)
+      return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
+
+    const { data: promptData, error: promptError } = await supabase
+      .from("lip_prompts")
+      .select("conteudo, versao")
+      .eq("ativo", true)
+      .order("versao", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (promptError || !promptData)
+      return Nex
+cat > ~/lip-interface/app/api/lip/s3/route.ts << 'EOF'
+import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
 import { supabase } from "@/lib/supabaseClient";
 
 export const maxDuration = 300;
@@ -20,47 +43,44 @@ export async function POST(req: NextRequest) {
 
     if (promptError || !promptData)
       return NextResponse.json(
-        { ok: false, erro: "Prompt S3 não encontrado. Cadastre-o no painel admin." },
+        { ok: false, erro: "Prompt S3 não encontrado." },
         { status: 500 }
       );
 
     console.log(`[S3] Prompt versão ${promptData.versao} carregado.`);
 
-    const ctxDocs = documentos
+    const ctxDocs = documentos?.length
       ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-    const promptFinal = 'Analise o PDF e retorne apenas JSON valido.';
+    const promptFinal = promptData.conteudo + ctxDocs;
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    let resultado: any = null;
+    let texto = "";
+
     for (let tentativa = 1; tentativa <= 4; tentativa++) {
       try {
         console.log(`[S3] Enviando para Gemini... (tentativa ${tentativa}/4)`);
-        const geminiRes = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [
-                { fileData: { mimeType: "application/pdf", fileUri } },
-                { text: promptFinal },
-              ]}],
-              generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
-            }),
-          }
-        );
-        if (!geminiRes.ok) throw new Error(`${geminiRes.status} ${await geminiRes.text()}`);
-        resultado = await geminiRes.json();
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [{
+            role: "user",
+            parts: [
+              { fileData: { mimeType: "application/pdf", fileUri } },
+              { text: promptFinal },
+            ],
+          }],
+          config: { thinkingConfig: { thinkingBudget: 0 } },
+        });
+        texto = response.text?.trim() ?? "";
         break;
       } catch (err: any) {
-        const is503 = err?.message?.includes("503") || err?.message?.includes("503 Service Unavailable");
+        const is503 = err?.message?.includes("503");
         const is429 = err?.message?.includes("429");
         if ((is503 || is429) && tentativa < 4) {
           const espera = tentativa * 8000;
-          console.log(`[S3] Tentativa ${tentativa} falhou (${is503 ? "503" : "429"}). Aguardando ${espera / 1000}s...`);
+          console.log(`[S3] Tentativa ${tentativa} falhou. Aguardando ${espera / 1000}s...`);
           await delay(espera);
         } else {
           throw err;
@@ -68,9 +88,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const texto = resultado.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
-
     const clean = texto.replace(/```json|```/g, "").trim();
     const dados = JSON.parse(clean);
 

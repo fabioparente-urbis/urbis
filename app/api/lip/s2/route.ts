@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const PROMPT_S2 = `Você é um assistente especializado em análise de processos administrativos de licenciamento de obras urbanas da Prefeitura de Goiânia.
-
 Analise este PDF de processo administrativo e faça um inventário completo de todos os documentos presentes.
-
 INSTRUÇÕES:
 1. Liste todos os documentos encontrados no processo
 2. Para cada documento, identifique o número SEI que aparece entre parênteses — normalmente no rodapé inferior da página, e em alguns casos na extremidade lateral (projetos AutoCAD)
 3. Quando houver múltiplas versões do mesmo tipo de documento, identifique qual é a mais recente (maior número SEI ou última no processo)
 4. Classifique cada documento em um dos tipos: matricula, uso_solo, laudo_tecnico, art_rrt, vistoria, procuracao, cheadv, planta, embargo, indice, outros
-
 Responda APENAS com um JSON válido, sem texto adicional, sem markdown, sem explicações:
 {
   "documentos": [
@@ -20,49 +17,38 @@ Responda APENAS com um JSON válido, sem texto adicional, sem markdown, sem expl
       "tipo": "string",
       "descricao": "string",
       "paginas": [1, 2],
-      "sei": "string ou null",
+      "sei": "número SEI entre parênteses",
       "ultimaVersao": true
     }
-  ],
-  "totalDocumentos": 0,
-  "observacoes": "string ou null"
+  ]
 }`;
 
 export async function POST(req: NextRequest) {
   try {
     const { fileUri } = await req.json();
-    if (!fileUri) return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
+    if (!fileUri)
+      return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
 
-    const apiKey = process.env.GEMINI_API_KEY!;
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     console.log("[S2] Enviando para Gemini...");
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [
-            { fileData: { mimeType: "application/pdf", fileUri } },
-            { text: PROMPT_S2 },
-          ]}],
-          generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
-        }),
-      }
-    );
-    if (!geminiRes.ok) {
-      const err = await geminiRes.text();
-      return NextResponse.json({ ok: false, erro: `Gemini S2: ${err}` }, { status: 500 });
-    }
-    const geminiData = await geminiRes.json();
-    const texto = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-    console.log("[S2] Resposta recebida:", texto.substring(0, 200));
 
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{
+        role: "user",
+        parts: [
+          { fileData: { mimeType: "application/pdf", fileUri } },
+          { text: PROMPT_S2 },
+        ],
+      }],
+      config: { thinkingConfig: { thinkingBudget: 0 } },
+    });
+
+    const texto = response.text?.trim() ?? "";
+    console.log("[S2] Resposta recebida:", texto.substring(0, 200));
     const clean = texto.replace(/```json|```/g, "").trim();
     const dados = JSON.parse(clean);
-
     return NextResponse.json({ ok: true, ...dados });
-
   } catch (e: any) {
     console.error("[S2] Erro:", e?.message);
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
