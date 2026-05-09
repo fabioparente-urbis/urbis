@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const { fileUri, documentos } = await req.json();
     if (!fileUri)
-      return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
+      return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
 
     const { data: promptData, error: promptError } = await supabase
       .from("lip_prompts")
@@ -19,38 +19,12 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (promptError || !promptData)
-      return Nex
-cat > ~/lip-interface/app/api/lip/s3/route.ts << 'EOF'
-import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
-import { supabase } from "@/lib/supabaseClient";
+      return NextResponse.json({ ok: false, erro: "Prompt S3 nao encontrado." }, { status: 500 });
 
-export const maxDuration = 300;
-
-export async function POST(req: NextRequest) {
-  try {
-    const { fileUri, documentos } = await req.json();
-    if (!fileUri)
-      return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
-
-    const { data: promptData, error: promptError } = await supabase
-      .from("lip_prompts")
-      .select("conteudo, versao")
-      .eq("ativo", true)
-      .order("versao", { ascending: false })
-      .limit(1)
-      .single();
-
-    if (promptError || !promptData)
-      return NextResponse.json(
-        { ok: false, erro: "Prompt S3 não encontrado." },
-        { status: 500 }
-      );
-
-    console.log(`[S3] Prompt versão ${promptData.versao} carregado.`);
+    console.log(`[S3] Prompt versao ${promptData.versao} carregado.`);
 
     const ctxDocs = documentos?.length
-      ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2:\n${JSON.stringify(documentos, null, 2)}\n---`
+      ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
     const promptFinal = promptData.conteudo + ctxDocs;
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
@@ -64,13 +38,10 @@ export async function POST(req: NextRequest) {
         console.log(`[S3] Enviando para Gemini... (tentativa ${tentativa}/4)`);
         const response = await ai.models.generateContent({
           model: "gemini-2.5-flash",
-          contents: [{
-            role: "user",
-            parts: [
-              { fileData: { mimeType: "application/pdf", fileUri } },
-              { text: promptFinal },
-            ],
-          }],
+          contents: [{ role: "user", parts: [
+            { fileData: { mimeType: "application/pdf", fileUri } },
+            { text: promptFinal },
+          ]}],
           config: { thinkingConfig: { thinkingBudget: 0 } },
         });
         texto = response.text?.trim() ?? "";
@@ -103,39 +74,25 @@ export async function POST(req: NextRequest) {
     if (dados.campos) {
       for (const [chave, item] of Object.entries(dados.campos as Record<string, any>)) {
         const val = item?.valor?.toString().trim();
-        if (!val || ["null","n/a","não identificado",""].includes(val.toLowerCase())) {
+        if (!val || ["null","n/a","nao identificado",""].includes(val.toLowerCase())) {
           campos[chave] = CAMPOS_NP.includes(chave)
-            ? { valor: "NP", fonte: "Não identificado" }
+            ? { valor: "NP", fonte: "Nao identificado" }
             : null;
         } else {
-          campos[chave] = {
-            valor: val,
-            fonte: item.fonte ? String(item.fonte).trim() : "Processo SEI",
-          };
+          campos[chave] = { valor: val, fonte: item.fonte ? String(item.fonte).trim() : "Processo SEI" };
         }
       }
       for (const c of CAMPOS_NP) {
-        if (!campos[c]) campos[c] = { valor: "NP", fonte: "Não identificado" };
+        if (!campos[c]) campos[c] = { valor: "NP", fonte: "Nao identificado" };
       }
     }
 
-    const preenchidos = Object.values(campos).filter(
-      (v) => v?.valor && v.valor !== "NP"
-    ).length;
-    console.log(`[S3] Concluído. ${preenchidos} campos preenchidos.`);
+    const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
+    console.log(`[S3] Concluido. ${preenchidos} campos preenchidos.`);
 
-    return NextResponse.json({
-      ok: true,
-      campos,
-      alertasMAC: dados.alertasMAC ?? [],
-      validacoes: dados.validacoes ?? {},
-      pendencias: dados.pendencias ?? [],
-    });
+    return NextResponse.json({ ok: true, campos, alertasMAC: dados.alertasMAC ?? [], validacoes: dados.validacoes ?? {}, pendencias: dados.pendencias ?? [] });
   } catch (e: any) {
     console.error("[S3] Erro:", e?.message);
-    return NextResponse.json(
-      { ok: false, erro: e?.message || "Erro interno" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }
 }
