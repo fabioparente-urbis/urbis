@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const promptFinal = promptData.conteudo + ctxDocs;
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as any });
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     let resultado: any = null;
