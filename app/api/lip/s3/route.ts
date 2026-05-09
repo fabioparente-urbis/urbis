@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const ctxDocs = documentos
       ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-    const promptFinal = "Analise o PDF e retorne apenas: {"campos":{"proprietario":{"valor":"teste","fonte":"teste"}},"alertasMAC":[],"validacoes":{},"pendencias":[]}";
+    const promptFinal = 'Analise o PDF e retorne apenas JSON valido.';
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
