@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       ? `\n\n---\nMAPA DE DOCUMENTOS IDENTIFICADOS PELO S2:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
     const promptFinal = promptData.conteudo + ctxDocs;
+    console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
