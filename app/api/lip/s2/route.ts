@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
           { text: PROMPT_S2 },
         ],
       }],
-      config: { thinkingConfig: { thinkingBudget: 0 } },
+      
     });
 
     const texto = response.text?.trim() ?? "";
