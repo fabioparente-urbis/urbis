@@ -35,16 +35,27 @@ export async function POST(req: NextRequest) {
 
     const apiKey = process.env.GEMINI_API_KEY!;
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as any });
-
     console.log("[S2] Enviando para Gemini...");
-
-    const result = await model.generateContent([
-      { fileData: { mimeType: "application/pdf", fileUri } },
-      { text: PROMPT_S2 },
-    ]);
-
-    const texto = result.response.text().trim();
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [
+            { fileData: { mimeType: "application/pdf", fileUri } },
+            { text: PROMPT_S2 },
+          ]}],
+          generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      }
+    );
+    if (!geminiRes.ok) {
+      const err = await geminiRes.text();
+      return NextResponse.json({ ok: false, erro: `Gemini S2: ${err}` }, { status: 500 });
+    }
+    const geminiData = await geminiRes.json();
+    const texto = geminiData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S2] Resposta recebida:", texto.substring(0, 200));
 
     const clean = texto.replace(/```json|```/g, "").trim();

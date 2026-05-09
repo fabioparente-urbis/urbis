@@ -32,18 +32,27 @@ export async function POST(req: NextRequest) {
     const promptFinal = promptData.conteudo + ctxDocs;
 
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", generationConfig: { thinkingConfig: { thinkingBudget: 0 } } as any });
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
     let resultado: any = null;
     for (let tentativa = 1; tentativa <= 4; tentativa++) {
       try {
         console.log(`[S3] Enviando para Gemini... (tentativa ${tentativa}/4)`);
-        const result = await model.generateContent([
-          { fileData: { mimeType: "application/pdf", fileUri } },
-          { text: promptFinal },
-        ]);
-        resultado = result;
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [
+                { fileData: { mimeType: "application/pdf", fileUri } },
+                { text: promptFinal },
+              ]}],
+              generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
+            }),
+          }
+        );
+        if (!geminiRes.ok) throw new Error(`${geminiRes.status} ${await geminiRes.text()}`);
+        resultado = await geminiRes.json();
         break;
       } catch (err: any) {
         const is503 = err?.message?.includes("503") || err?.message?.includes("503 Service Unavailable");
@@ -58,7 +67,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const texto = resultado.response.text().trim();
+    const texto = resultado.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
 
     const clean = texto.replace(/```json|```/g, "").trim();
