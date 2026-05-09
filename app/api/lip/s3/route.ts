@@ -47,7 +47,6 @@ export async function POST(req: NextRequest) {
                 { fileData: { mimeType: "application/pdf", fileUri } },
                 { text: promptFinal },
               ]}],
-              generationConfig: { thinkingConfig: { thinkingBudget: 0 } },
             }),
           }
         );
