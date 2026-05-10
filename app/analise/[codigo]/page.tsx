@@ -667,7 +667,44 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 disabled={motivosIndeferimento.length === 0 || salvando}
                 onClick={async () => {
                   setModalIndeferimento(false);
+                  const obsCompleta = [...motivosIndeferimento, obsIndeferimento].filter(Boolean).join("\n• ");
                   await salvar("indeferido");
+                  // Gera documento de indeferimento automaticamente
+                  setGerandoDespacho(true);
+                  try {
+                    const res = await fetch("/api/despacho", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        processo: codigo,
+                        tipo: "indeferimento",
+                        numeroDespacho: "",
+                        naoConformes: motivosIndeferimento,
+                        observacoes: obsCompleta,
+                        analises: analises.map((a) => ({
+                          numero: a.numero_analise,
+                          data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
+                          ultima: a.numero_analise === 5,
+                        })),
+                      }),
+                    });
+                    if (res.ok) {
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `indeferimento_${codigo}.docx`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                      mostrarToast("✅ Indeferimento salvo e documento gerado!");
+                    } else {
+                      mostrarToast("Análise salva. Erro ao gerar documento.");
+                    }
+                  } finally {
+                    setGerandoDespacho(false);
+                    setMotivosIndeferimento([]);
+                    setObsIndeferimento("");
+                  }
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
                 Confirmar Indeferimento
