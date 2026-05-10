@@ -152,7 +152,10 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
   children.push(secao("DOCUMENTAÇÃO PERTINENTE À ANÁLISE DO PROJETO:"));
-  gerarItens(dados.naoConformes).forEach(item => children.push(item));
+  console.log("[GERADOR] naoConformes:", JSON.stringify(dados.naoConformes));
+  const itensGerados = gerarItens(dados.naoConformes);
+  console.log("[GERADOR] itens gerados:", itensGerados.length);
+  itensGerados.forEach(item => children.push(item));
   if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
   children.push(vazio(80));
   children.push(secao("CARIMBO:"));
