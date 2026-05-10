@@ -304,7 +304,12 @@ export default function ProcessoClient() {
             body: JSON.stringify({ fileUri, documentos }),
           });
           const s3Data = await s3Res.json();
-          if (!s3Data.ok) throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
+          if (!s3Data.ok) {
+          if (s3Data.erro?.includes("429") || s3Data.erro?.includes("RESOURCE_EXHAUSTED") || s3Data.erro?.includes("quota")) {
+            throw new Error("⚠️ Limite diário do Gemini Free atingido! Tente novamente após as 21h (horário de Brasília).");
+          }
+          throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
+        }
 
           return {
             campos: s3Data.campos ?? {},
