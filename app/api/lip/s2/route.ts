@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
-
 export const maxDuration = 120;
-
 const PROMPT_S2 = `Você é um assistente especializado em análise de processos administrativos de licenciamento de obras urbanas da Prefeitura de Goiânia.
 Analise este PDF de processo administrativo e faça um inventário completo de todos os documentos presentes.
 INSTRUÇÕES:
@@ -22,30 +19,38 @@ Responda APENAS com um JSON válido, sem texto adicional, sem markdown, sem expl
     }
   ]
 }`;
-
 export async function POST(req: NextRequest) {
   try {
     const { fileUri } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
-
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const apiKey = process.env.GEMINI_API_KEY;
     console.log("[S2] Enviando para Gemini...");
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{
-        role: "user",
-        parts: [
-          { fileData: { mimeType: "application/pdf", fileUri } },
-          { text: PROMPT_S2 },
-        ],
-      }],
-    });
-
-    const texto = response.text?.trim() ?? "";
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { fileData: { mimeType: "application/pdf", fileUri } },
+              { text: PROMPT_S2 },
+            ],
+          }],
+        }),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      console.error("[S2] Erro:", err);
+      return NextResponse.json({ ok: false, erro: err }, { status: 500 });
+    }
+    const data = await res.json();
+    const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S2] Resposta recebida:", texto.substring(0, 200));
-    const clean = texto.replace(/```json|```/g, "").trim();
+    const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
     const dados = JSON.parse(clean);
     return NextResponse.json({ ok: true, ...dados });
   } catch (e: any) {
