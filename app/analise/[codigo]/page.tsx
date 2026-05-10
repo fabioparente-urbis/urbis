@@ -39,6 +39,9 @@ export default function MacPage() {
   const [abaAtual, setAbaAtual] = useState(0);
   const [gerandoDespacho, setGerandoDespacho] = useState(false);
   const [modalDespacho, setModalDespacho] = useState(false);
+  const [modalIndeferimento, setModalIndeferimento] = useState(false);
+  const [motivosIndeferimento, setMotivosIndeferimento] = useState<string[]>([]);
+  const [obsIndeferimento, setObsIndeferimento] = useState("");
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
 
@@ -590,7 +593,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             <p className="text-xs text-yellow-400">⚠️ {naoConformes.length} item(ns) não conforme(s) — impossível deferir.</p>
           )}
 
-          <button onClick={() => salvar("indeferido")} disabled={salvando}
+          <button onClick={() => setModalIndeferimento(true)} disabled={salvando}
             className="w-full bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
@@ -630,6 +633,49 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           )}
         </div>
       </div>
+
+      {modalIndeferimento && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-red-700 rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento por Impossibilidade de Análise</h2>
+            <p className="text-xs text-slate-400 mb-3">Selecione o(s) motivo(s):</p>
+            {[
+              "Uso do solo não definido — atividade sem classificação permitida para regularização",
+              "Edificação com mais de 7 pavimentos — vedada pela LC 314/2018",
+              "Reforma ou construção após 04/03/2022 — não elegível para regularização",
+              "Edificação em APP/APM — vedada pela legislação ambiental",
+              "Processo sem documentação mínima para análise",
+            ].map((motivo) => (
+              <label key={motivo} className="flex items-start gap-2 mb-2 cursor-pointer">
+                <input type="checkbox" className="mt-1" checked={motivosIndeferimento.includes(motivo)}
+                  onChange={(e) => {
+                    if (e.target.checked) setMotivosIndeferimento((p) => [...p, motivo]);
+                    else setMotivosIndeferimento((p) => p.filter((m) => m !== motivo));
+                  }} />
+                <span className="text-sm text-slate-300">{motivo}</span>
+              </label>
+            ))}
+            <textarea value={obsIndeferimento} onChange={(e) => setObsIndeferimento(e.target.value)}
+              placeholder="Observações adicionais (opcional)..."
+              className="w-full mt-3 bg-slate-700 border border-slate-500 rounded p-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-20" />
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setModalIndeferimento(false)}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button
+                disabled={motivosIndeferimento.length === 0 || salvando}
+                onClick={async () => {
+                  setModalIndeferimento(false);
+                  await salvar("indeferido");
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
+                Confirmar Indeferimento
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
