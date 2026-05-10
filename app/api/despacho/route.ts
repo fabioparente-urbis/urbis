@@ -4,6 +4,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { processo, tipo, numeroDespacho, naoConformes, observacoes, analises } = body;
+    console.log("[DESPACHO] naoConformes recebidos:", JSON.stringify(naoConformes));
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
