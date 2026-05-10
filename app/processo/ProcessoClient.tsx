@@ -307,6 +307,14 @@ export default function ProcessoClient() {
           const s3Data = await s3Res.json();
           if (!s3Data.ok) {
           if (s3Data.erro?.includes("429") || s3Data.erro?.includes("RESOURCE_EXHAUSTED") || s3Data.erro?.includes("quota") || s3Data.erro === "LIMITE_DIARIO_GEMINI") {
+            // Registra falha por limite no historico
+            try {
+              await fetch("/api/lip/registrar-evento", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ codigo: idUrl, fileName: arquivo.name, status: "LIMITE" }),
+              });
+            } catch (_) {}
             throw new Error("⚠️ Limite diário do Gemini Free atingido! Tente novamente após as 21h (horário de Brasília).");
           }
           throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
