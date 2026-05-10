@@ -4,8 +4,6 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { processo, tipo, numeroDespacho, naoConformes, observacoes, analises } = body;
-    console.log("[DESPACHO] naoConformes recebidos:", JSON.stringify(naoConformes));
-    console.log("[DESPACHO] tipo:", tipo);
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -28,8 +26,7 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-      console.log("[DESPACHO] chamando gerarDespachoRegularizacao com naoConformes:", JSON.stringify(naoConformes));
-      buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroDespacho, naoConformes, observacoes, analises });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroDespacho, naoConformes, observacoes, analises });
     } else if (tipo === "indeferimento") {
       buffer = await gerarIndeferimento({ processo, interessado, analises });
     } else {
