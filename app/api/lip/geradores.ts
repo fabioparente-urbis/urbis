@@ -123,7 +123,6 @@ function gerarItens(ids: string[]) {
 }
 
 export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
-  console.log("[GERADOR-INICIO] naoConformes recebidos na função:", JSON.stringify(dados.naoConformes));
   const logoData = getLogoData();
   const analista = dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.crea || "CREA 11716/D-GO";
@@ -178,7 +177,6 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
 }
 
 export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
-  console.log("[GERADOR-INICIO] naoConformes recebidos na função:", JSON.stringify(dados.naoConformes));
   const logoData = getLogoData();
   const analista = dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.crea || "CREA 11716/D-GO";
@@ -219,7 +217,6 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
 }
 
 export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; }): Promise<Buffer> {
-  console.log("[GERADOR-INICIO] naoConformes recebidos na função:", JSON.stringify(dados.naoConformes));
   const logoData = getLogoData();
   const analista = dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.crea || "CREA 11716/D-GO";
