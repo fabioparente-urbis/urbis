@@ -42,6 +42,7 @@ export default function MacPage() {
   const [modalIndeferimento, setModalIndeferimento] = useState(false);
   const [motivosIndeferimento, setMotivosIndeferimento] = useState<string[]>([]);
   const [obsIndeferimento, setObsIndeferimento] = useState("");
+  const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string} | null>(null);
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
 
@@ -593,6 +594,36 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             <p className="text-xs text-yellow-400">⚠️ {naoConformes.length} item(ns) não conforme(s) — impossível deferir.</p>
           )}
 
+          {indeferimentoPendente && (
+            <button onClick={async () => {
+              const { motivos, obs } = indeferimentoPendente;
+              setGerandoDespacho(true);
+              try {
+                const res = await fetch("/api/despacho", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    processo: codigo, tipo: "indeferimento", numeroDespacho: "",
+                    naoConformes: motivos, observacoes: obs,
+                    analises: analises.map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })),
+                  }),
+                });
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url; link.download = `indeferimento_${codigo}.docx`;
+                  document.body.appendChild(link); link.click();
+                  document.body.removeChild(link); URL.revokeObjectURL(url);
+                  setIndeferimentoPendente(null);
+                  mostrarToast("✅ Documento de indeferimento gerado!");
+                }
+              } finally { setGerandoDespacho(false); }
+            }}
+            className="w-full bg-orange-700 hover:bg-orange-600 text-white font-bold py-2.5 rounded-lg text-sm">
+              📄 Baixar Indeferimento
+            </button>
+          )}
           <button onClick={() => setModalIndeferimento(true)} disabled={salvando}
             className="w-full bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
@@ -668,52 +699,11 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 onClick={async () => {
                   const motivosCopy = [...motivosIndeferimento];
                   const obsCopy = obsIndeferimento;
+                  setIndeferimentoPendente({ motivos: motivosCopy, obs: obsCopy });
                   setModalIndeferimento(false);
                   setMotivosIndeferimento([]);
                   setObsIndeferimento("");
-                  setSalvando(true);
-                  try {
-                    // 1. Salva análise como indeferida
-                    const bodyAnalise = novaAnalise || !analiseAtual
-                      ? { processo_codigo: codigo, itens, observacoes: motivosCopy.join("\n"), status: "indeferido", modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001" }
-                      : { id: analiseAtual.id, itens, observacoes: motivosCopy.join("\n"), status: "indeferido" };
-                    const metodo = novaAnalise || !analiseAtual ? "POST" : "PUT";
-                    await fetch("/api/analise", { method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyAnalise) });
-                    console.log("[INDEFERIMENTO] analise salvo, iniciando despacho...");
-                    // 2. Gera documento
-                    const resDoc = await fetch("/api/despacho", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        processo: codigo,
-                        tipo: "indeferimento",
-                        numeroDespacho: "",
-                        naoConformes: motivosCopy,
-                        observacoes: obsCopy,
-                        analises: analises.map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })),
-                      }),
-                    });
-                    if (resDoc.ok) {
-                      const blob = await resDoc.blob();
-                      const url = URL.createObjectURL(blob);
-                      const link = document.createElement("a");
-                      link.href = url;
-                      link.download = `indeferimento_${codigo}.docx`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                      mostrarToast("✅ Indeferimento salvo e documento gerado!");
-                    } else {
-                      mostrarToast("Salvo. Erro ao gerar documento.");
-                    }
-                    await carregar();
-                  } catch(e: any) {
-                    console.error("[INDEFERIMENTO] erro:", e);
-                    mostrarToast("Erro: " + e.message);
-                  } finally {
-                    setSalvando(false);
-                  }
+                  await salvar("indeferido");
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
                 Confirmar Indeferimento
