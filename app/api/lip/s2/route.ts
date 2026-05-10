@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
           { fileData: { mimeType: "application/pdf", fileUri } },
           { text: PROMPT_S2 },
         ],
-      }] },
+      }],
     });
 
     const texto = response.text?.trim() ?? "";
