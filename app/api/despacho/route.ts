@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer;
     if (tipo === "despacho") {
+      console.log("[DESPACHO] chamando gerarDespachoRegularizacao com naoConformes:", JSON.stringify(naoConformes));
       buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroDespacho, naoConformes, observacoes, analises });
     } else if (tipo === "indeferimento") {
       buffer = await gerarIndeferimento({ processo, interessado, analises });
