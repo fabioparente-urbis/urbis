@@ -191,7 +191,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     try {
       const naoConformesIds = checklistItens
         .filter((i) => itens[i.id] === "nao_conforme")
-        .map((i) => i.id);
+        .map((i) => i.texto);
 
       const res = await fetch("/api/despacho", {
         method: "POST",
