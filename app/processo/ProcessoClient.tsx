@@ -718,7 +718,7 @@ export default function ProcessoClient() {
                             </table>
                           ) : (
                             <p className="text-slate-400 mb-3">Processo criado.</p>
-                          ))}
+                          )}
                           {ev.snapshot && !esteConfirmando && (
                             <button onClick={() => setConfirmando(ev.id)}
                               className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
