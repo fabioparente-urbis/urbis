@@ -708,6 +708,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                     }
                     await carregar();
                   } catch(e: any) {
+                    console.error("[INDEFERIMENTO] erro:", e);
                     mostrarToast("Erro: " + e.message);
                   } finally {
                     setSalvando(false);
