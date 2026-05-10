@@ -666,44 +666,51 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               <button
                 disabled={motivosIndeferimento.length === 0 || salvando}
                 onClick={async () => {
+                  const motivosCopy = [...motivosIndeferimento];
+                  const obsCopy = obsIndeferimento;
                   setModalIndeferimento(false);
-                  const obsCompleta = [...motivosIndeferimento, obsIndeferimento].filter(Boolean).join("\n• ");
-                  await salvar("indeferido");
-                  // Gera documento de indeferimento automaticamente
-                  setGerandoDespacho(true);
+                  setMotivosIndeferimento([]);
+                  setObsIndeferimento("");
+                  setSalvando(true);
                   try {
-                    const res = await fetch("/api/despacho", {
+                    // 1. Salva análise como indeferida
+                    const bodyAnalise = novaAnalise || !analiseAtual
+                      ? { processo_codigo: codigo, itens, observacoes: motivosCopy.join("\n"), status: "indeferido", modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001" }
+                      : { id: analiseAtual.id, itens, observacoes: motivosCopy.join("\n"), status: "indeferido" };
+                    const metodo = novaAnalise || !analiseAtual ? "POST" : "PUT";
+                    await fetch("/api/analise", { method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyAnalise) });
+                    // 2. Gera documento
+                    const resDoc = await fetch("/api/despacho", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
                         processo: codigo,
                         tipo: "indeferimento",
                         numeroDespacho: "",
-                        naoConformes: motivosIndeferimento,
-                        observacoes: obsCompleta,
-                        analises: analises.map((a) => ({
-                          numero: a.numero_analise,
-                          data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
-                          ultima: a.numero_analise === 5,
-                        })),
+                        naoConformes: motivosCopy,
+                        observacoes: obsCopy,
+                        analises: analises.map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })),
                       }),
                     });
-                    if (res.ok) {
-                      const blob = await res.blob();
+                    if (resDoc.ok) {
+                      const blob = await resDoc.blob();
                       const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `indeferimento_${codigo}.docx`;
-                      a.click();
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `indeferimento_${codigo}.docx`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
                       URL.revokeObjectURL(url);
                       mostrarToast("✅ Indeferimento salvo e documento gerado!");
                     } else {
-                      mostrarToast("Análise salva. Erro ao gerar documento.");
+                      mostrarToast("Salvo. Erro ao gerar documento.");
                     }
+                    await carregar();
+                  } catch(e: any) {
+                    mostrarToast("Erro: " + e.message);
                   } finally {
-                    setGerandoDespacho(false);
-                    setMotivosIndeferimento([]);
-                    setObsIndeferimento("");
+                    setSalvando(false);
                   }
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
