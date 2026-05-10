@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { createClient } from "@supabase/supabase-js";
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, documentos } = await req.json();
+    const { fileUri, documentos, codigo, fileName } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
     const { data: promptData, error: promptError } = await supabase
@@ -95,6 +100,21 @@ export async function POST(req: NextRequest) {
     }
     const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
     console.log(`[S3] Concluido. ${preenchidos} campos preenchidos.`);
+    // Registra leitura no historico
+    if (codigo) {
+      try {
+        const { data: proc } = await supabaseAdmin.from("processos").select("id").eq("codigo", codigo).maybeSingle();
+        if (proc?.id) {
+          await supabaseAdmin.from("auditoria_log").insert({
+            tabela: "processos",
+            registro_id: proc.id,
+            operacao: "LIP_LEITURA",
+            dados_antes: null,
+            dados_depois: { arquivo: fileName ?? "arquivo.pdf", camposPreenchidos: preenchidos, status: "OK" },
+          });
+        }
+      } catch (_) {}
+    }
     return NextResponse.json({ ok: true, campos, alertasMAC: dados.alertasMAC ?? [], validacoes: dados.validacoes ?? {}, pendencias: dados.pendencias ?? [] });
   } catch (e: any) {
     console.error("[S3] Erro:", e?.message);

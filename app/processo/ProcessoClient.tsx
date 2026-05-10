@@ -301,11 +301,11 @@ export default function ProcessoClient() {
           const s3Res = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, documentos }),
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name }),
           });
           const s3Data = await s3Res.json();
           if (!s3Data.ok) {
-          if (s3Data.erro?.includes("429") || s3Data.erro?.includes("RESOURCE_EXHAUSTED") || s3Data.erro?.includes("quota")) {
+          if (s3Data.erro?.includes("429") || s3Data.erro?.includes("RESOURCE_EXHAUSTED") || s3Data.erro?.includes("quota") || s3Data.erro === "LIMITE_DIARIO_GEMINI") {
             throw new Error("⚠️ Limite diário do Gemini Free atingido! Tente novamente após as 21h (horário de Brasília).");
           }
           throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
@@ -687,11 +687,17 @@ export default function ProcessoClient() {
                     <div className="flex-1" style={{ opacity: opacidade }}>
                       <button onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}
                         className={`text-xs font-mono ${cores.text} hover:underline`}>
-                        {formatarDataCompleta(ev.criado_em)} — {ev.campos.length > 0 ? `${ev.campos.length} campo(s) alterado(s)` : ev.operacao}
+                        {formatarDataCompleta(ev.criado_em)} — {ev.operacao === "LIP_LEITURA" ? `📄 LIP lido por IA — ${ev.meta?.camposPreenchidos ?? 0} campos extraídos` : ev.campos.length > 0 ? `${ev.campos.length} campo(s) alterado(s)` : ev.operacao}
                       </button>
                       {aberto && (
                         <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs">
-                          {ev.campos.length > 0 ? (
+                          {ev.operacao === "LIP_LEITURA" ? (
+                            <div className="text-slate-300 space-y-1">
+                              <p>📄 <span className="text-slate-400">Arquivo:</span> {ev.meta?.arquivo ?? "—"}</p>
+                              <p>✅ <span className="text-slate-400">Campos preenchidos:</span> {ev.meta?.camposPreenchidos ?? 0}</p>
+                              <p>🟢 <span className="text-slate-400">Status:</span> {ev.meta?.status ?? "—"}</p>
+                            </div>
+                          ) : ev.campos.length > 0 ? (
                             <table className="w-full mb-3">
                               <thead>
                                 <tr className="text-slate-400">
@@ -712,7 +718,7 @@ export default function ProcessoClient() {
                             </table>
                           ) : (
                             <p className="text-slate-400 mb-3">Processo criado.</p>
-                          )}
+                          ))}
                           {ev.snapshot && !esteConfirmando && (
                             <button onClick={() => setConfirmando(ev.id)}
                               className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">

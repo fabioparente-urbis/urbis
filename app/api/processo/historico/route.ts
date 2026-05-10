@@ -95,6 +95,7 @@ export async function GET(req: NextRequest) {
       criado_em: ev.criado_em,
       campos,
       snapshot: dadosAntes,
+      meta: ev.dados_depois ?? null,
     }
   })
 
