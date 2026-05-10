@@ -679,6 +679,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                       : { id: analiseAtual.id, itens, observacoes: motivosCopy.join("\n"), status: "indeferido" };
                     const metodo = novaAnalise || !analiseAtual ? "POST" : "PUT";
                     await fetch("/api/analise", { method: metodo, headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyAnalise) });
+                    console.log("[INDEFERIMENTO] analise salvo, iniciando despacho...");
                     // 2. Gera documento
                     const resDoc = await fetch("/api/despacho", {
                       method: "POST",
