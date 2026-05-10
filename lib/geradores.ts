@@ -173,7 +173,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const analista = dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.crea || "CREA 11716/D-GO";
@@ -199,6 +199,17 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   });
   children.push(vazio(140));
   children.push(p([txt("O Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº 546, de 27 de fevereiro de 2015, define procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, §4º, Inciso II do Decreto nº. 2.559/2018.")], { after: 120 }));
+  if (dados.naoConformes?.length) {
+    children.push(vazio(80));
+    children.push(p([txt("Motivos do indeferimento:", { bold: true })], { after: 60 }));
+    dados.naoConformes.forEach((motivo, idx) => {
+      children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 60, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt(`${idx + 1}.  ${motivo}`, { size: 20 })] }));
+    });
+    children.push(vazio(80));
+  }
+  if (dados.observacoes) {
+    children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)], { after: 100 }));
+  }
   children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias", { bold: true }), txt(", contados a partir da publicação deste parecer, conforme previsto no Artigo 9º do Decreto nº. 2.559/2018. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
