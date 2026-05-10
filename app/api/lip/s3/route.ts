@@ -27,52 +27,33 @@ export async function POST(req: NextRequest) {
     const promptFinal = promptData.conteudo + ctxDocs;
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
     const apiKey = process.env.GEMINI_API_KEY;
-    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
     let texto = "";
-    for (let tentativa = 1; tentativa <= 4; tentativa++) {
-      try {
-        console.log(`[S3] Enviando para Gemini... (tentativa ${tentativa}/4)`);
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{
-                role: "user",
-                parts: [
-                  { fileData: { mimeType: "application/pdf", fileUri } },
-                  { text: promptFinal },
-                ],
-              }],
-            }),
-          }
-        );
-        if (!res.ok) {
-          const errText = await res.text();
-          const is503 = res.status === 503;
-          const is429 = res.status === 429;
-          if ((is503 || is429) && tentativa < 4) {
-            const espera = tentativa * 8000;
-            console.log(`[S3] Tentativa ${tentativa} falhou (${res.status}). Aguardando ${espera / 1000}s...`);
-            await delay(espera);
-            continue;
-          }
-          if (is429) {
-            return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
-          }
-          throw new Error(errText);
-        }
-        const data = await res.json();
-        texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-        break;
-      } catch (err: any) {
-        if (tentativa === 4) throw err;
-        const espera = tentativa * 8000;
-        console.log(`[S3] Tentativa ${tentativa} falhou. Aguardando ${espera / 1000}s...`);
-        await delay(espera);
+    console.log(`[S3] Enviando para Gemini...`);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            role: "user",
+            parts: [
+              { fileData: { mimeType: "application/pdf", fileUri } },
+              { text: promptFinal },
+            ],
+          }],
+        }),
       }
+    );
+    if (!res.ok) {
+      const errText = await res.text();
+      if (res.status === 429) {
+        return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
+      }
+      throw new Error(errText);
     }
+    const data = await res.json();
+    texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
     const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
     const dados = JSON.parse(clean);
