@@ -11,6 +11,7 @@ type EventoHistorico = {
   criado_em: string;
   campos: { campo: string; de: string; para: string }[];
   snapshot: Record<string, Campo> | null;
+  meta?: any;
 };
 type TipoProcesso = "Regularização" | "Aceite" | "Aprovação";
 
