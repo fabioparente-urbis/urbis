@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
             { fileData: { mimeType: "application/pdf", fileUri } },
             { text: promptFinal },
           ]}],
-          
+          config: { thinkingConfig: { thinkingBudget: 0 } },
         });
         texto = response.text?.trim() ?? "";
         break;
