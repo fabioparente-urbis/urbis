@@ -111,8 +111,10 @@ function secao(text: string) {
 
 function gerarItens(ids: string[]) {
   const out: Paragraph[] = [];
+  console.log("[ITENS] ids recebidos:", JSON.stringify(ids));
   ids.forEach((textoOuId, idx) => {
     const texto = TEXTOS_DESPACHO[textoOuId] ?? textoOuId;
+    console.log("[ITENS] texto:", texto?.substring(0, 60));
     if (!texto) return;
     texto.split("\n").forEach((linha, i) => {
       const isPrimeira = i === 0;
