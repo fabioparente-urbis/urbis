@@ -238,7 +238,7 @@ export default function ProcessosPage() {
 
                 {/* Ações */}
                 <div className="flex gap-2">
-                  <button onClick={(e) => { e.stopPropagation(); abrirProcesso(p); }}
+                  <button onClick={(e) => { e.stopPropagation(); abrirEditar(p); }}
                     title="Abrir LIP do processo"
                     className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">
                     ✏️
