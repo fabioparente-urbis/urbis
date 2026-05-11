@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isPerfilIrrestrito } from "@/lib/perfis";
 
 type Processo = {
   id: string;
@@ -67,6 +68,8 @@ export default function ProcessosPage() {
   const [novoStatus, setNovoStatus] = useState("");
   const [novoAnalista, setNovoAnalista] = useState("");
   const [salvando, setSalvando] = useState(false);
+  const [perfil, setPerfil] = useState<string | null>(null);
+  const irrestrito = isPerfilIrrestrito(perfil);
 
   async function carregar() {
     try {
@@ -90,7 +93,17 @@ export default function ProcessosPage() {
     if (json.ok) setUsuarios(json.data);
   }
 
-  useEffect(() => { carregarUsuarios(); }, []);
+  async function carregarPerfil() {
+    try {
+      const res = await fetch("/api/auth/me");
+      const json = await res.json();
+      if (json.ok) setPerfil(json.data?.perfil ?? null);
+    } catch {
+      // mantem perfil=null -> tratado como nao-irrestrito (UX restritiva por padrao)
+    }
+  }
+
+  useEffect(() => { carregarUsuarios(); carregarPerfil(); }, []);
   useEffect(() => { carregar(); }, [busca, tipo, status, analista]);
 
   async function deletar(p: Processo) {
@@ -182,11 +195,13 @@ export default function ProcessosPage() {
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
-        <select value={analista} onChange={(e) => setAnalista(e.target.value)}
-          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">Todos os analistas</option>
-          {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-        </select>
+        {irrestrito && (
+          <select value={analista} onChange={(e) => setAnalista(e.target.value)}
+            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">Todos os analistas</option>
+            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        )}
       </div>
 
       {/* LISTA */}

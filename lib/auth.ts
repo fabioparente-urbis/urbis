@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { PERFIS_IRRESTRITOS, isPerfilIrrestrito } from "@/lib/perfis";
 
-// Perfis com visibilidade total dos processos.
-// Demais perfis (Analista, etc.) so acessam processos atribuidos a eles.
-export const PERFIS_IRRESTRITOS = ["Administrador", "Gerente", "Diretor"];
+// Re-exporta para compatibilidade com codigo existente que importa daqui.
+export { PERFIS_IRRESTRITOS };
 
 export type AuthContext = {
   userId: string;
@@ -43,7 +43,7 @@ export async function autenticar(
   return {
     userId,
     perfil: usuario.perfil,
-    irrestrito: PERFIS_IRRESTRITOS.includes(usuario.perfil),
+    irrestrito: isPerfilIrrestrito(usuario.perfil),
   };
 }
 

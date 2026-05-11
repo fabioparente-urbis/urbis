@@ -51,6 +51,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
       }
     } else {
+      // INSERT: atribui o criador como analista responsavel.
+      // Sem isso, o processo recem-criado nasceria com analista_id=null
+      // e sumiria da lista do proprio criador (que e Analista, nao irrestrito).
       const { data, error } = await supabase
         .from("processos")
         .insert([{
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest) {
           status: "CADASTRADO",
           tipo_processo: "REGULARIZACAO",
           edicao_autorizada: true,
+          analista_id: usuarioId,
         }])
         .select();
 
