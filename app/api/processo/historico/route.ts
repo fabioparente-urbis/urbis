@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { autenticar, verificarOwnership } from '@/lib/auth'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,6 +47,9 @@ function diffDados(antes: any, depois: any): { campo: string; de: string; para: 
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await autenticar(req)
+  if (auth instanceof NextResponse) return auth
+
   const { searchParams } = new URL(req.url)
   const codigo = searchParams.get('id')
 
@@ -53,10 +57,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: 'ID não informado' }, { status: 400 })
   }
 
-  // Busca o uuid do processo pelo codigo
+  // Busca o uuid do processo pelo codigo (e analista_id para checar ownership)
   const { data: processo, error: erroProcesso } = await supabaseAdmin
     .from('processos')
-    .select('id')
+    .select('id, analista_id')
     .eq('codigo', codigo)
     .maybeSingle()
 
@@ -67,6 +71,9 @@ export async function GET(req: NextRequest) {
   if (erroProcesso || !processo) {
     return NextResponse.json({ ok: true, data: [] })
   }
+
+  const ownerErr = verificarOwnership(auth, processo.analista_id)
+  if (ownerErr) return ownerErr
 
   // Busca o histórico no auditoria_log
   const { data, error } = await supabaseAdmin

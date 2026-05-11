@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { autenticar, verificarOwnership } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await autenticar(req);
+    if (auth instanceof NextResponse) return auth;
+    const usuarioId = auth.userId;
+
     const body = await req.json();
     const { id, dados, camposAlterados } = body;
-
-    // Pega o usuario_id do cookie
-    const cookieHeader = req.headers.get("cookie") || "";
-    const usuarioId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1] ?? null;
 
     if (!id) {
       return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const { data: existente, error: erroBusca } = await supabase
       .from("processos")
-      .select("id, codigo")
+      .select("id, codigo, analista_id")
       .eq("codigo", id)
       .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
 
@@ -28,6 +29,10 @@ export async function POST(req: NextRequest) {
     let acao = "inserido";
 
     if (existente?.id) {
+      // UPDATE: so o analista dono (ou perfil irrestrito) pode salvar
+      const ownerErr = verificarOwnership(auth, existente.analista_id);
+      if (ownerErr) return ownerErr;
+
       processoId = existente.id;
       acao = "atualizado";
       const { error } = await supabase

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { autenticar, verificarOwnership } from '@/lib/auth'
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,9 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await autenticar(req)
+    if (auth instanceof NextResponse) return auth
+
     const body = await req.json()
     const { auditoria_id, codigo } = body
 
@@ -31,6 +35,23 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       )
     }
+
+    // Verifica ownership do processo alvo do restore
+    const { data: processo, error: erroProcesso } = await supabaseAdmin
+      .from('processos')
+      .select('analista_id')
+      .eq('id', evento.registro_id)
+      .maybeSingle()
+
+    if (erroProcesso || !processo) {
+      return NextResponse.json(
+        { ok: false, erro: 'Processo não encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const ownerErr = verificarOwnership(auth, processo.analista_id)
+    if (ownerErr) return ownerErr
 
     const dadosRestaurar = evento.dados_antes?.dados
     if (!dadosRestaurar) {
