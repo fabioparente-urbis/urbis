@@ -423,7 +423,7 @@ export default function ProcessoClient() {
     }
   }
 
-  const totalPadrao = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length;
+  const totalPadrao = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
 
   function renderCampo(campo: CampoDB) {
     const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
@@ -510,7 +510,7 @@ export default function ProcessoClient() {
             className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
-          <button onClick={async () => { const t = Object.values(d).filter((c) => c.origem === "padrao" && c.valor.trim() === "").length; if (t > 0) { setErroCampos(true); return; } await salvar(); router.push(`/analise/${encodeURIComponent(idUrl)}`); }}
+          <button onClick={async () => { const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length; if (t > 0) { setErroCampos(true); return; } await salvar(); router.push(`/analise/${encodeURIComponent(idUrl)}`); }}
             className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
