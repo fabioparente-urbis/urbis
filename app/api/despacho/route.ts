@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const { data: proc } = await supabase
       .from("processos")
-      .select("dados, numero_processo_fisico")
+      .select("dados, numero_processo_fisico, analista_id")
       .eq("codigo", processo)
       .maybeSingle();
 
@@ -29,16 +29,35 @@ export async function POST(req: NextRequest) {
       (proc as any)?.numero_processo_fisico ||
       "";
 
+    // Buscar dados do analista responsável na tabela equipe
+    let assinante: { nome: string; matricula?: string; cargo?: string; registro?: string } | undefined;
+    const analistaId = (proc as any)?.analista_id;
+    if (analistaId) {
+      const { data: membro } = await supabase
+        .from("equipe")
+        .select("nome, matricula, cargo, registro")
+        .eq("id", analistaId)
+        .maybeSingle();
+      if (membro?.nome) {
+        assinante = {
+          nome: membro.nome,
+          matricula: membro.matricula || undefined,
+          cargo: membro.cargo || undefined,
+          registro: membro.registro || undefined,
+        };
+      }
+    }
+
     // Gerar documento baseado no tipo
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento } = await import("@/lib/geradores");
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, observacoes, analises });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, observacoes, analises, assinante });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises });
+      buffer = await gerarIndeferimento({ processo, interessado, analises, assinante });
     } else {
-      buffer = await gerarArquivamento({ processo, interessado });
+      buffer = await gerarArquivamento({ processo, interessado, assinante });
     }
 
     // Registrar último documento emitido

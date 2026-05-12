@@ -85,6 +85,65 @@ function vazio(after = 100) {
   return new Paragraph({ children: [txt("")], spacing: { before: 0, after } });
 }
 
+export type Assinante = { nome: string; matricula?: string; cargo?: string; registro?: string };
+
+/**
+ * Formata número como decimal brasileiro (vírgula, duas casas).
+ * Aceita number ou string parseável. Retorna "" para nulo/vazio,
+ * e devolve o input bruto quando não é número válido.
+ */
+export function formatarDecimal(valor: number | string | null | undefined): string {
+  if (valor === null || valor === undefined || valor === "") return "";
+  const n = typeof valor === "number" ? valor : Number(String(valor).replace(",", "."));
+  if (!Number.isFinite(n)) return String(valor);
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function blocoAssinaturaAnalista(ass: Assinante): Paragraph[] {
+  const out: Paragraph[] = [];
+  out.push(new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 300, after: 40 },
+    border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } },
+    indent: { left: 2400, right: 2400 },
+    children: [txt(ass.nome, { bold: true })],
+  }));
+  if (ass.matricula) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 30 },
+      children: [txt(`Matrícula: ${ass.matricula}`)],
+    }));
+  }
+  if (ass.cargo) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 30 },
+      children: [txt(ass.cargo)],
+    }));
+  }
+  if (ass.registro) {
+    out.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 0, after: 30 },
+      children: [txt(ass.registro)],
+    }));
+  }
+  return out;
+}
+
+function blocoLinhaEmBranco(label: string): Paragraph[] {
+  return [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 360, after: 40 },
+      border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } },
+      indent: { left: 2400, right: 2400 },
+      children: [txt(`${label}: ___________`)],
+    }),
+  ];
+}
+
 function makeHeader(logoData: Buffer | null) {
   const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   const borders = { top: nb, bottom: nb, left: nb, right: nb };
@@ -195,11 +254,13 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
-  const setor = dados.setor || "SEFIC / DIRAAP / GERAED";
+  const assinante: Assinante = dados.assinante || {
+    nome: dados.analista || "Engº Fábio Parente Martins Santos",
+    cargo: dados.setor || "SEFIC / DIRAAP / GERAED",
+    registro: dados.crea || "CREA 11716/D-GO",
+  };
   const dataAssinatura = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
   const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
@@ -232,19 +293,20 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
     children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 60, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(item)] }));
   });
   children.push(vazio(300));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 60 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, indent: { left: 2400, right: 2400 }, children: [txt(analista)] }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 }, children: [txt(crea)] }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 }, children: [txt(setor)] }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(dataAssinatura)] }));
+  blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 0 }, children: [txt(dataAssinatura)] }));
 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { size: { width: A4_W, height: A4_H }, margin: MARGINS } }, headers: { default: makeHeader(logoData) }, footers: { default: makeFooter("Despacho Regularização") }, children }] });
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
+  const assinante: Assinante = dados.assinante || {
+    nome: dados.analista || "Engº Fábio Parente Martins Santos",
+    cargo: "Análise e Licenciamento de Edificações",
+    registro: dados.crea || "CREA 11716/D-GO",
+  };
   const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
@@ -282,9 +344,9 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
-  const assinantes = [{ nome: analista, registro: crea, cargo: "Análise e Licenciamento de Edificações" }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
-  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: assinantes.map(ass => new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt(ass.nome, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt(ass.registro, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(ass.cargo, { size: 19 })] })] })) })] }) as any);
-  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [quart, half, quart], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("Arq. Urb. Virgínia Inácio Mathias Costa", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt("CAU A35072-9", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos – DIRAAP", { size: 19 })] })] }), new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] })] })] }) as any);
+  blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
+  blocoLinhaEmBranco("Gerente").forEach(par => children.push(par));
+  blocoLinhaEmBranco("Diretor").forEach(par => children.push(par));
   children.push(vazio(120));
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [txt(`Goiânia, ${dataGoiania}`)] })] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [txt("SEFIC / DIRAAP / GERAED")] })] })] })] }) as any);
 
@@ -292,10 +354,13 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; }): Promise<Buffer> {
+export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
+  const assinante: Assinante = dados.assinante || {
+    nome: dados.analista || "Engº Fábio Parente Martins Santos",
+    cargo: "Análise e Licenciamento de Edificações",
+    registro: dados.crea || "CREA 11716/D-GO",
+  };
   const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
@@ -315,9 +380,9 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
-  const assinantes = [{ nome: analista, registro: crea, cargo: "Análise e Licenciamento de Edificações" }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
-  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: assinantes.map(ass => new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt(ass.nome, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt(ass.registro, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(ass.cargo, { size: 19 })] })] })) })] }) as any);
-  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [quart, half, quart], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("Arq. Urb. Virgínia Inácio Mathias Costa", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt("CAU A35072-9", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos – DIRAAP", { size: 19 })] })] }), new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] })] })] }) as any);
+  blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
+  blocoLinhaEmBranco("Gerente").forEach(par => children.push(par));
+  blocoLinhaEmBranco("Diretor").forEach(par => children.push(par));
   children.push(vazio(120));
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [txt(`Goiânia, ${dataGoiania}`)] })] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [txt("SEFIC / DIRAAP / GERAED")] })] })] })] }) as any);
 
