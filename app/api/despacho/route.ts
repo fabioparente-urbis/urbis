@@ -14,19 +14,27 @@ export async function POST(req: NextRequest) {
 
     const { data: proc } = await supabase
       .from("processos")
-      .select("dados")
+      .select("dados, numero_processo_fisico")
       .eq("codigo", processo)
       .maybeSingle();
 
     const dados = proc?.dados || {};
-    const interessado = dados?.proprietario?.valor || processo;
+    const interessado =
+      dados?.proprietario?.valor ||
+      dados?.interessado?.valor ||
+      dados?.nome_proprietario?.valor ||
+      processo;
+    const numeroProcessoFisico =
+      dados?.numero_processo_fisico?.valor ||
+      (proc as any)?.numero_processo_fisico ||
+      "";
 
     // Gerar documento baseado no tipo
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento } = await import("@/lib/geradores");
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroDespacho, naoConformes, observacoes, analises });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, observacoes, analises });
     } else if (tipo === "indeferimento") {
       buffer = await gerarIndeferimento({ processo, interessado, analises });
     } else {

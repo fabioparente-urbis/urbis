@@ -1,7 +1,7 @@
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   ImageRun, Header, Footer, AlignmentType, BorderStyle, WidthType,
-  ShadingType, VerticalAlign, PageNumber, UnderlineType, TabStopType,
+  VerticalAlign, PageNumber, UnderlineType, TabStopType,
 } from "docx";
 import fs from "fs";
 import path from "path";
@@ -105,24 +105,97 @@ function makeFooter(label: string) {
   return new Footer({ children: [new Paragraph({ border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, spacing: { before: 60 }, tabStops: [{ type: TabStopType.RIGHT, position: CONTENT_W }], children: [txt("Página ", { size: 17 }), new TextRun({ children: [PageNumber.CURRENT], font: "Arial", size: 17 }), txt(" de ", { size: 17 }), new TextRun({ children: [PageNumber.TOTAL_PAGES], font: "Arial", size: 17 }), txt(`\t${label}`, { size: 17 })] })] });
 }
 
-function secao(text: string) {
-  return new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 280, after: 200 }, keepLines: true, keepNext: true, shading: { fill: "C6EFCE", type: ShadingType.CLEAR, color: "auto" }, border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "375623", space: 1 } }, children: [txt(text, { bold: true, underline: true, size: 20, color: "375623" })] });
+const GRUPOS_DESPACHO: { categoria: string; titulo: string }[] = [
+  { categoria: "d",   titulo: "DOCUMENTAÇÃO" },
+  { categoria: "c",   titulo: "CARIMBO" },
+  { categoria: "p",   titulo: "PROJETO — CARIMBO" },
+  { categoria: "pr",  titulo: "PROJETO — DESENHO" },
+  { categoria: "cal", titulo: "CALÇADA" },
+  { categoria: "cv",  titulo: "CORREDOR VIÁRIO" },
+];
+
+function categorizarItem(id: string): string {
+  if (/^pr\d+$/i.test(id)) return "pr";
+  if (/^cal\d+$/i.test(id)) return "cal";
+  if (/^cv\d+$/i.test(id)) return "cv";
+  if (/^d\d+$/i.test(id)) return "d";
+  if (/^p\d+$/i.test(id)) return "p";
+  if (/^c\d+$/i.test(id)) return "c";
+  return "?";
+}
+
+function subtituloSecao(titulo: string) {
+  return new Paragraph({
+    alignment: AlignmentType.LEFT,
+    spacing: { before: 240, after: 100, line: 260 },
+    keepLines: true,
+    keepNext: true,
+    children: [txt(titulo, { bold: true, underline: true })],
+  });
 }
 
 function gerarItens(ids: string[]) {
   const out: Paragraph[] = [];
-  ids.forEach((id, idx) => {
-    const texto = TEXTOS_DESPACHO[id] ?? id;
-    if (!texto) return;
-    texto.split("\n").forEach((linha, i) => {
-      const isPrimeira = i === 0;
-      out.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: isPrimeira ? 180 : 0, after: 80, line: 260 }, indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 }, keepLines: true, keepNext: i < texto.split("\n").length - 1, children: [txt(isPrimeira ? `${idx + 1}.   ${linha}` : `    ${linha}`, { size: 20 })] }));
+  if (!ids?.length) return out;
+
+  const buckets: Record<string, string[]> = {};
+  ids.forEach((id) => {
+    const cat = categorizarItem(id);
+    (buckets[cat] ??= []).push(id);
+  });
+
+  let contador = 0;
+  GRUPOS_DESPACHO.forEach((grupo) => {
+    const itens = buckets[grupo.categoria];
+    if (!itens?.length) return;
+
+    out.push(subtituloSecao(grupo.titulo));
+
+    itens.forEach((id) => {
+      contador += 1;
+      const texto = TEXTOS_DESPACHO[id] ?? id;
+      if (!texto) return;
+      const linhas = texto.split("\n");
+      linhas.forEach((linha, i) => {
+        const isPrimeira = i === 0;
+        out.push(new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { before: isPrimeira ? 120 : 0, after: 80, line: 260 },
+          indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
+          keepLines: true,
+          keepNext: i < linhas.length - 1,
+          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+        }));
+      });
     });
   });
+
+  // Itens com prefixo não reconhecido — anexar ao final sem subtítulo, mantendo numeração contínua
+  const desconhecidos = buckets["?"];
+  if (desconhecidos?.length) {
+    desconhecidos.forEach((id) => {
+      contador += 1;
+      const texto = TEXTOS_DESPACHO[id] ?? id;
+      if (!texto) return;
+      const linhas = texto.split("\n");
+      linhas.forEach((linha, i) => {
+        const isPrimeira = i === 0;
+        out.push(new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { before: isPrimeira ? 120 : 0, after: 80, line: 260 },
+          indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
+          keepLines: true,
+          keepNext: i < linhas.length - 1,
+          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+        }));
+      });
+    });
+  }
+
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const analista = dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.crea || "CREA 11716/D-GO";
@@ -133,7 +206,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   const children: Paragraph[] = [];
 
   children.push(vazio(160));
-  children.push(p([txt("Proce|Proje:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
   children.push(p([txt("Assunto:  "), txt("ALVARÁ DE REGULARIZAÇÃO", { bold: true })], { align: AlignmentType.LEFT, after: 180 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº   ${dados.numeroDespacho || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
@@ -151,14 +224,9 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
   children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
-  children.push(secao("DOCUMENTAÇÃO PERTINENTE À ANÁLISE DO PROJETO:"));
   gerarItens(dados.naoConformes).forEach(item => children.push(item));
   if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
-  children.push(vazio(80));
-  children.push(secao("CARIMBO:"));
-  children.push(p([txt("8. Informar em campo acima do carimbo:")], { align: AlignmentType.LEFT, after: 100 }));
-  children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 120, line: 260 }, indent: { left: 900 }, keepLines: true, children: [txt(`"O MEMORIAL DE CÁLCULO DA CAIXA DE INFILTRAÇÃO (RECARGA) É DE RESPONSABILIDADE DO PROFISSIONAL QUE ASSINOU A ART/RRT DE EXECUÇÃO E PROJETO";`)] }));
-  children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 200, line: 260 }, indent: { left: 900 }, keepLines: true, children: [txt(`"DE ACORDO COM A LEI COMPLEMENTAR 364 DE JAN/2023 ART. 108 - É DE RESPONSABILIDADE DO INTERESSADO A APROVAÇÃO DO PROJETO SOB REGRAMENTO DO CORPO DE BOMBEIRO";`)] }));
+  children.push(vazio(160));
   children.push(new Paragraph({ spacing: { before: 200, after: 80 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("CONSIDERAÇÕES FINAIS", { bold: true, underline: true })] }));
   ["AS CÓPIAS DE ARQUIVO NÃO PODEM SER RETIRADAS DO PROCESSO;", "É FACULTADO AO ANALISTA/REVISOR O DIREITO DE SOLICITAR DOCUMENTAÇÃO, CORREÇÕES E ADEQUAÇÕES SEMPRE QUE NECESSÁRIO, ANTES DO DEFERIMENTO DO PROCESSO, CONFORME LEGISLAÇÃO MUNICIPAL VIGENTE."].forEach(item => {
     children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 60, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(item)] }));
