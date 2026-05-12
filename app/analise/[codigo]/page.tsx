@@ -397,7 +397,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between gap-4 mb-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push(`/processo/${encodeURIComponent(codigo)}`)}
+            <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
               className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Cadastro
             </button>
