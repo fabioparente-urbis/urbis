@@ -45,6 +45,7 @@ export default function MacPage() {
   const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string} | null>(null);
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
+  const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
 
   // Seleção de modelo
   const [modalModelo, setModalModelo] = useState(false);
@@ -100,6 +101,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       setItens(ultima.itens || {});
       setObservacoes(ultima.observacoes || "");
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
+      setNumeroRevisao(Number(ultima.numero_revisao) || 1);
       setNovaAnalise(false);
 
       // Carrega itens do modelo salvo na análise
@@ -162,6 +164,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes_por_aba: observacoesPorAba,
             status,
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
+            numero_revisao: numeroRevisao,
           }),
         });
         const json = await res.json().catch(() => null);
@@ -179,6 +182,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
+            numero_revisao: numeroRevisao,
           }),
         });
       }
@@ -201,6 +205,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes_por_aba: observacoesPorAba,
             status,
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
+            numero_revisao: numeroRevisao,
           }),
         });
         const json = await res.json();
@@ -217,6 +222,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
+            numero_revisao: numeroRevisao,
           }),
         });
         const json = await res.json();
@@ -253,6 +259,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
             ultima: a.numero_analise === 5,
           })),
+          analiseId: analiseAtual?.id,
+          numero_revisao: numeroRevisao,
         }),
       });
 
@@ -291,6 +299,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setItens(a.itens || {});
     setObservacoes(a.observacoes || "");
     setObservacoesPorAba(a.observacoes_por_aba || {});
+    setNumeroRevisao(Number(a.numero_revisao) || 1);
     setNovaAnalise(false);
     if (a.modelo_id) carregarItensModelo(a.modelo_id);
   }

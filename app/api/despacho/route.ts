@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo, tipo, numeroDespacho, naoConformes, observacoes, analises } = body;
+    const { processo, tipo, numeroDespacho, naoConformes, observacoes, analises, analiseId, numero_revisao } = body;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -48,14 +48,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Itens não conformes agrupados por grupo do checklist.
+    // Quando o MAC envia `analiseId`, faz o equivalente do JOIN entre
+    // analises_mac.itens (jsonb) e mac_checklist_itens — sempre puxando o
+    // grupo direto do banco para a renderização do docx.
+    let naoConformesAgrupados:
+      | { texto: string; grupo: string; ordem: number }[]
+      | undefined;
+    if (analiseId) {
+      const { data: analise } = await supabase
+        .from("analises_mac")
+        .select("itens, modelo_id")
+        .eq("id", analiseId)
+        .maybeSingle();
+      const mapa = (analise?.itens as Record<string, string> | null) || {};
+      const idsNaoConformes = Object.keys(mapa).filter((k) => mapa[k] === "nao_conforme");
+      if (analise?.modelo_id && idsNaoConformes.length > 0) {
+        const { data: itensMC } = await supabase
+          .from("mac_checklist_itens")
+          .select("id, texto, grupo, ordem")
+          .eq("modelo_id", analise.modelo_id)
+          .eq("ativo", true)
+          .in("id", idsNaoConformes)
+          .order("grupo", { ascending: true })
+          .order("ordem", { ascending: true });
+        if (itensMC && itensMC.length > 0) {
+          naoConformesAgrupados = itensMC.map((i: any) => ({
+            texto: String(i.texto ?? ""),
+            grupo: String(i.grupo ?? ""),
+            ordem: Number(i.ordem ?? 0),
+          }));
+        }
+      }
+    }
+
+    // Quando o MAC envia `numero_revisao`, substituímos o array de análises
+    // por uma única linha referente à revisão selecionada. A 5ª acrescenta
+    // o sufixo "– LIBERAÇÃO DE TAXA OU INDEFERIMENTO" (via `ultima: true`).
+    let analisesParaDoc = analises;
+    const nRev = Number(numero_revisao);
+    if (Number.isInteger(nRev) && nRev >= 1 && nRev <= 5) {
+      const hoje = new Date().toLocaleDateString("pt-BR");
+      analisesParaDoc = [{ numero: nRev, data: hoje, ultima: nRev === 5 }];
+    }
+
     // Gerar documento baseado no tipo
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento } = await import("@/lib/geradores");
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, observacoes, analises, assinante });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, analises: analisesParaDoc, assinante });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises, assinante });
+      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante });
     } else {
       buffer = await gerarArquivamento({ processo, interessado, assinante });
     }

@@ -193,6 +193,57 @@ function subtituloSecao(titulo: string) {
   });
 }
 
+/**
+ * Renderiza itens não conformes agrupados pelo `grupo` vindo do checklist.
+ * Texto = exatamente `item.texto` (zero reescrita). Numeração contínua entre grupos.
+ */
+function gerarItensAgrupados(
+  itens: { texto: string; grupo: string; ordem: number }[],
+) {
+  const out: Paragraph[] = [];
+  if (!itens?.length) return out;
+
+  // Agrupa preservando a ordem de primeira aparição de cada grupo.
+  const ordemGrupos: string[] = [];
+  const buckets: Record<string, { texto: string; ordem: number }[]> = {};
+  itens.forEach((it) => {
+    const g = (it.grupo || "OUTROS").toString();
+    if (!buckets[g]) {
+      buckets[g] = [];
+      ordemGrupos.push(g);
+    }
+    buckets[g].push({ texto: it.texto, ordem: it.ordem });
+  });
+
+  let contador = 0;
+  ordemGrupos.forEach((grupo) => {
+    const lista = buckets[grupo].slice().sort((a, b) => a.ordem - b.ordem);
+    if (!lista.length) return;
+
+    out.push(subtituloSecao(grupo.toUpperCase()));
+
+    lista.forEach((it) => {
+      contador += 1;
+      const texto = it.texto || "";
+      if (!texto) return;
+      const linhas = texto.split("\n");
+      linhas.forEach((linha, i) => {
+        const isPrimeira = i === 0;
+        out.push(new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { before: isPrimeira ? 120 : 0, after: 80, line: 260 },
+          indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
+          keepLines: true,
+          keepNext: i < linhas.length - 1,
+          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+        }));
+      });
+    });
+  });
+
+  return out;
+}
+
 function gerarItens(ids: string[]) {
   const out: Paragraph[] = [];
   if (!ids?.length) return out;
@@ -254,7 +305,7 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -285,7 +336,11 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
   children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
-  gerarItens(dados.naoConformes).forEach(item => children.push(item));
+  if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
+    gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
+  } else {
+    gerarItens(dados.naoConformes).forEach(item => children.push(item));
+  }
   if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
   children.push(vazio(160));
   children.push(new Paragraph({ spacing: { before: 200, after: 80 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("CONSIDERAÇÕES FINAIS", { bold: true, underline: true })] }));
