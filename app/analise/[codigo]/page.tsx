@@ -486,10 +486,29 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-4 text-xs mb-3">
+        <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
           <span className="flex items-center gap-1"><span className="bg-green-700 px-2 py-0.5 rounded font-bold">✅</span> <span className="text-slate-300">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-red-700 px-2 py-0.5 rounded font-bold">❌</span> <span className="text-slate-300">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-slate-600 px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-slate-300">Não se Aplica</span></span>
+          <span className="flex items-center gap-2 ml-auto">
+            <label htmlFor="numero_revisao" className="text-slate-400 font-semibold uppercase tracking-wide">Revisão</label>
+            <select
+              id="numero_revisao"
+              value={numeroRevisao}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setNumeroRevisao(v);
+                void salvarSilencioso();
+              }}
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value={1}>1ª ANÁLISE</option>
+              <option value={2}>2ª ANÁLISE</option>
+              <option value={3}>3ª ANÁLISE</option>
+              <option value={4}>4ª ANÁLISE</option>
+              <option value={5}>5ª ANÁLISE (ÚLTIMA*)</option>
+            </select>
+          </span>
         </div>
 
         <div className="flex gap-4 text-xs">

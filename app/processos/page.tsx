@@ -134,18 +134,34 @@ export default function ProcessosPage() {
     if (!editando) return;
     setSalvando(true);
     try {
-      const res = await fetch("/api/processos", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editando.id,
-          status: novoStatus || undefined,
-          analista_id: novoAnalista || null,
-        }),
-      });
-      const json = await res.json();
-      if (json.ok) { setEditando(null); await carregar(); }
-      else alert("Erro: " + json.erro);
+      const erros: string[] = [];
+      // Atualizar status: PUT genérico em /api/processos (somente quando mudou).
+      if (novoStatus && novoStatus !== editando.status) {
+        const resStatus = await fetch("/api/processos", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: editando.id, status: novoStatus }),
+        });
+        const jsonStatus = await resStatus.json().catch(() => ({ ok: false, erro: "Resposta inválida" }));
+        if (!jsonStatus.ok) erros.push(jsonStatus.erro || "Falha ao atualizar status");
+      }
+      // Atualizar analista: rota dedicada, com autenticação e checagem de perfil.
+      const novoAnalistaNorm = novoAnalista || null;
+      if (novoAnalistaNorm !== (editando.analista_id || null)) {
+        const resAtrib = await fetch("/api/processo/atribuir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ processo_id: editando.id, analista_id: novoAnalistaNorm }),
+        });
+        const jsonAtrib = await resAtrib.json().catch(() => ({ ok: false, erro: "Resposta inválida" }));
+        if (!jsonAtrib.ok) erros.push(jsonAtrib.erro || "Falha ao atribuir analista");
+      }
+      if (erros.length) {
+        alert("Erro: " + erros.join("; "));
+      } else {
+        setEditando(null);
+        await carregar();
+      }
     } finally {
       setSalvando(false);
     }

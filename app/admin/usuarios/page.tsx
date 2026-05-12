@@ -6,13 +6,15 @@ import { useRouter } from "next/navigation";
 type Usuario = {
   id: string; nome: string; cpf: string; email: string;
   matricula: string; telefone: string; cargo: string;
-  perfil: string; status: string; criado_em: string;
+  perfil: string;
+  perfis?: string[];
+  status: string; criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
 
 const PERFIS = ["Analista", "Gerente", "Diretor", "Administrador"];
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
-const vazio = () => ({ nome: "", cpf: "", email: "", matricula: "", telefone: "", cargo: "", perfil: "Analista", status: "Ativo" });
+const vazio = () => ({ nome: "", cpf: "", email: "", matricula: "", telefone: "", cargo: "", perfis: ["Analista"] as string[], status: "Ativo" });
 
 export default function UsuariosPage() {
   const router = useRouter();
@@ -40,8 +42,21 @@ export default function UsuariosPage() {
   function abrirNovo() { setEditando(null); setForm(vazio()); setSenha(""); setErro(""); setModal(true); }
   function abrirEditar(u: Usuario) {
     setEditando(u);
-    setForm({ nome: u.nome, cpf: u.cpf, email: u.email, matricula: u.matricula, telefone: u.telefone, cargo: u.cargo, perfil: u.perfil, status: u.status });
+    const perfisIniciais = Array.isArray(u.perfis) && u.perfis.length > 0
+      ? u.perfis
+      : (u.perfil ? [u.perfil] : ["Analista"]);
+    setForm({ nome: u.nome, cpf: u.cpf, email: u.email, matricula: u.matricula, telefone: u.telefone, cargo: u.cargo, perfis: perfisIniciais, status: u.status });
     setSenha(""); setErro(""); setModal(true);
+  }
+
+  function togglePerfil(p: string) {
+    setForm((prev) => {
+      const set = new Set(prev.perfis);
+      if (set.has(p)) set.delete(p); else set.add(p);
+      // Fábio fixo: nunca permite remover "Administrador".
+      if (form.nome.trim() === ADMIN_FIXO) set.add("Administrador");
+      return { ...prev, perfis: Array.from(set) };
+    });
   }
 
   async function salvar() {
@@ -176,11 +191,28 @@ export default function UsuariosPage() {
                 </div>
               ))}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Perfil</label>
-                <select value={form.perfil} onChange={(e) => f("perfil", e.target.value)}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  {PERFIS.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Perfis</label>
+                <div className="flex flex-wrap gap-3 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2">
+                  {PERFIS.map((p) => {
+                    const marcado = form.perfis.includes(p);
+                    const ehAdminFixoBloqueado = p === "Administrador" && form.nome.trim() === ADMIN_FIXO;
+                    return (
+                      <label key={p} className="flex items-center gap-1.5 text-sm text-white cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          disabled={ehAdminFixoBloqueado}
+                          onChange={() => togglePerfil(p)}
+                          className="accent-blue-500"
+                        />
+                        <span>{p}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {form.nome.trim() === ADMIN_FIXO && (
+                  <p className="text-xs text-slate-400 italic">O perfil <b>Administrador</b> é fixo para {ADMIN_FIXO}.</p>
+                )}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Status</label>

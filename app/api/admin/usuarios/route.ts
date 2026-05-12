@@ -8,6 +8,24 @@ const supabase = createClient(
 
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
 
+/**
+ * Normaliza os perfis recebidos do client: dedup, remove vazios,
+ * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
+ * `perfil` (singular) é tratado como fallback quando `perfis` não vem.
+ */
+function normalizarPerfis(input: { nome?: string; perfil?: string; perfis?: unknown }): string[] {
+  const raw: string[] = Array.isArray(input.perfis)
+    ? (input.perfis as unknown[]).map((p) => String(p)).filter(Boolean)
+    : input.perfil
+      ? [String(input.perfil)]
+      : [];
+  const set = new Set(raw);
+  if (input.nome && input.nome.trim() === ADMIN_FIXO) {
+    set.add("Administrador");
+  }
+  return Array.from(set);
+}
+
 export async function GET() {
   const { data, error } = await supabase.from("usuarios").select("*").order("nome");
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
@@ -16,17 +34,24 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { nome, cpf, email, matricula, telefone, cargo, perfil, status, senha } = await req.json();
+    const body = await req.json();
+    const { nome, cpf, email, matricula, telefone, cargo, status, senha } = body;
     if (!nome || !email || !senha)
       return NextResponse.json({ ok: false, erro: "Nome, email e senha obrigatórios" }, { status: 400 });
 
+    const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
+    const perfilPrincipal = perfis[0] || "Analista";
+
     // Regra: perfil Administrador só para o nome fixo
-    if (perfil === "Administrador" && nome.trim() !== ADMIN_FIXO)
+    if (perfis.includes("Administrador") && nome.trim() !== ADMIN_FIXO)
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
-    // Regra: só pode existir 1 administrador
-    if (perfil === "Administrador") {
-      const { data: admins } = await supabase.from("usuarios").select("id").eq("perfil", "Administrador");
+    // Regra: só pode existir 1 administrador no sistema
+    if (perfis.includes("Administrador")) {
+      const { data: admins } = await supabase
+        .from("usuarios")
+        .select("id")
+        .or("perfil.eq.Administrador,perfis.cs.{Administrador}");
       if (admins && admins.length > 0)
         return NextResponse.json({ ok: false, erro: "Já existe um Administrador cadastrado no sistema." }, { status: 400 });
     }
@@ -38,7 +63,9 @@ export async function POST(req: NextRequest) {
 
     const { error: dbError } = await supabase.from("usuarios").insert({
       nome, cpf, email, matricula, telefone, cargo,
-      perfil: perfil || "Analista", status: status || "Ativo",
+      perfil: perfilPrincipal,
+      perfis,
+      status: status || "Ativo",
     });
 
     if (dbError) {
@@ -54,23 +81,29 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { id, nome, cpf, email, matricula, telefone, cargo, perfil, status, senha } = await req.json();
+    const body = await req.json();
+    const { id, nome, cpf, email, matricula, telefone, cargo, status, senha } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
 
+    const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
+    const perfilPrincipal = perfis[0] || "Analista";
+
     // Regra: não permite remover/alterar o admin fixo
-    const { data: atual } = await supabase.from("usuarios").select("perfil, nome").eq("id", id).maybeSingle();
-    if (atual?.perfil === "Administrador" && atual?.nome === ADMIN_FIXO) {
-      if (perfil !== "Administrador")
-        return NextResponse.json({ ok: false, erro: "Não é permitido alterar o perfil do Administrador fixo." }, { status: 400 });
-      if (nome.trim() !== ADMIN_FIXO)
+    const { data: atual } = await supabase.from("usuarios").select("perfil, perfis, nome").eq("id", id).maybeSingle();
+    const atualPerfis: string[] = Array.isArray((atual as any)?.perfis) ? (atual as any).perfis : [];
+    const atualEraAdmin = atual?.perfil === "Administrador" || atualPerfis.includes("Administrador");
+    if (atualEraAdmin && atual?.nome === ADMIN_FIXO) {
+      if (!perfis.includes("Administrador"))
+        return NextResponse.json({ ok: false, erro: "Não é permitido remover o perfil Administrador do usuário fixo." }, { status: 400 });
+      if ((nome || "").trim() !== ADMIN_FIXO)
         return NextResponse.json({ ok: false, erro: `O nome do Administrador não pode ser alterado.` }, { status: 400 });
     }
 
     // Regra: perfil Administrador só para o nome fixo
-    if (perfil === "Administrador" && nome.trim() !== ADMIN_FIXO)
+    if (perfis.includes("Administrador") && (nome || "").trim() !== ADMIN_FIXO)
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
-    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, perfil, status };
+    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, perfil: perfilPrincipal, perfis, status };
     if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
     if (status === "Ativo") atualizacao.descadastrado_em = null;
 

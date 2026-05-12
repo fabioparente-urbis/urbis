@@ -8,6 +8,7 @@ export { PERFIS_IRRESTRITOS };
 export type AuthContext = {
   userId: string;
   perfil: string;
+  perfis: string[];
   irrestrito: boolean;
 };
 
@@ -31,7 +32,7 @@ export async function autenticar(
   }
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
-    .select("perfil")
+    .select("perfil, perfis")
     .eq("id", userId)
     .maybeSingle();
   if (error || !usuario) {
@@ -40,10 +41,19 @@ export async function autenticar(
       { status: 401 },
     );
   }
+  // `perfis` é o array canônico; `perfil` (legado) é mantido por compatibilidade.
+  // Se um deles vier preenchido e o outro não, união dos dois.
+  const perfisArr: string[] = Array.isArray((usuario as any).perfis)
+    ? ((usuario as any).perfis as string[]).filter(Boolean)
+    : [];
+  if (usuario.perfil && !perfisArr.includes(usuario.perfil)) {
+    perfisArr.push(usuario.perfil);
+  }
   return {
     userId,
-    perfil: usuario.perfil,
-    irrestrito: isPerfilIrrestrito(usuario.perfil),
+    perfil: usuario.perfil ?? perfisArr[0] ?? "",
+    perfis: perfisArr,
+    irrestrito: isPerfilIrrestrito(perfisArr.length > 0 ? perfisArr : usuario.perfil),
   };
 }
 
