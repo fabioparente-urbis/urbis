@@ -20,7 +20,7 @@ export default function Home() {
     return "INVALIDO";
   }
 
-  function validar() {
+  async function validar() {
     const tipoNumero = identificarTipoNumero(numero);
     if (tipoNumero === "INVALIDO") {
       setErro("O número informado não corresponde a um formato válido do URBIS.");
@@ -35,6 +35,11 @@ export default function Home() {
       return;
     }
     setErro("");
+    await fetch('/api/processo/salvar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: numero.trim(), tipo })
+    });
     router.push(`/processo/${encodeURIComponent(numero.trim())}`);
   }
 
