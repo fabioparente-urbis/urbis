@@ -147,6 +147,46 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setModalModelo(false);
   }
 
+  // Auto-save silencioso para disparar em troca de aba / clique de botão,
+  // sem chamar carregar() (que resetaria estado da UI).
+  async function salvarSilencioso(status = "em_andamento") {
+    try {
+      if (novaAnalise || !analiseAtual) {
+        const res = await fetch("/api/analise", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            processo_codigo: codigo,
+            itens,
+            observacoes,
+            observacoes_por_aba: observacoesPorAba,
+            status,
+            modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
+          }),
+        });
+        const json = await res.json().catch(() => null);
+        if (json?.ok && json?.data) {
+          setAnaliseAtual(json.data);
+          setNovaAnalise(false);
+        }
+      } else {
+        await fetch("/api/analise", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: analiseAtual.id,
+            itens,
+            observacoes,
+            observacoes_por_aba: observacoesPorAba,
+            status,
+          }),
+        });
+      }
+    } catch {
+      // silencioso por design
+    }
+  }
+
   async function salvar(status = "em_andamento") {
     setSalvando(true);
     try {
@@ -192,6 +232,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   async function gerarDespacho() {
     setGerandoDespacho(true);
     setModalDespacho(false);
+    // Garante que itens e observações atuais estejam persistidos antes do docx
+    await salvarSilencioso();
     try {
       const naoConformesIds = checklistItens
         .filter((i) => itens[i.id] === "nao_conforme")
@@ -458,7 +500,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               const respondidos = checklistItens.filter((i) => i.grupo === grupo && itens[i.id]).length;
               const temErro = temNaoConformeNaAba(idx);
               return (
-                <button key={grupo} onClick={() => setAbaAtual(idx)}
+                <button key={grupo} onClick={() => { void salvarSilencioso(); setAbaAtual(idx); }}
                   className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                     abaAtual === idx ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"
                   }`}>
@@ -553,11 +595,11 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             </div>
 
             <div className="flex justify-between mt-6">
-              <button onClick={() => setAbaAtual((a) => Math.max(0, a - 1))} disabled={abaAtual === 0}
+              <button onClick={() => { void salvarSilencioso(); setAbaAtual((a) => Math.max(0, a - 1)); }} disabled={abaAtual === 0}
                 className="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white px-4 py-2 rounded text-sm transition-colors">
                 ← Anterior
               </button>
-              <button onClick={() => setAbaAtual((a) => Math.min(GRUPOS.length - 1, a + 1))} disabled={abaAtual === GRUPOS.length - 1}
+              <button onClick={() => { void salvarSilencioso(); setAbaAtual((a) => Math.min(GRUPOS.length - 1, a + 1)); }} disabled={abaAtual === GRUPOS.length - 1}
                 className="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-white px-4 py-2 rounded text-sm transition-colors">
                 Próxima →
               </button>
@@ -598,6 +640,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             <button onClick={async () => {
               const { motivos, obs } = indeferimentoPendente;
               setGerandoDespacho(true);
+              await salvarSilencioso("indeferido");
               try {
                 const res = await fetch("/api/despacho", {
                   method: "POST",
@@ -624,7 +667,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               📄 Baixar Indeferimento
             </button>
           )}
-          <button onClick={() => setModalIndeferimento(true)} disabled={salvando}
+          <button onClick={async () => { await salvarSilencioso(); setModalIndeferimento(true); }} disabled={salvando}
             className="w-full bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
@@ -632,7 +675,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           <div className="border-t border-slate-700 pt-2">
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">Documentos</h3>
 
-            <button onClick={() => setModalDespacho(true)} disabled={gerandoDespacho}
+            <button onClick={async () => { await salvarSilencioso(); setModalDespacho(true); }} disabled={gerandoDespacho}
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>

@@ -194,8 +194,8 @@ export default function ProcessoClient() {
   const autoSalvar = useCallback((estado: Record<string, Campo>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const temPadrao = Object.values(estado).some((c) => c.origem === "padrao" && c.valor.trim() === "");
-      if (temPadrao) return;
+      // Auto-save blindado: salva mesmo com campos padrão vazios (CONFERIR)
+      // para que a análise no MAC receba os itens não conformes correspondentes.
       const iguais = snapRef.current && Object.keys(estado).every(
         (k) => estado[k]?.valor === snapRef.current![k]?.valor
       );

@@ -23,10 +23,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const { modelo_id, grupo, texto, ref, ordem } = await req.json();
+  const { modelo_id, grupo, texto, ref, ordem, chave_lip } = await req.json();
   const { data, error } = await supabase
     .from("mac_checklist_itens")
-    .insert({ modelo_id, grupo, texto, ref: ref || null, ordem: ordem || 0 })
+    .insert({
+      modelo_id,
+      grupo,
+      texto,
+      ref: ref || null,
+      ordem: ordem || 0,
+      chave_lip: chave_lip || null,
+    })
     .select()
     .maybeSingle();
 
