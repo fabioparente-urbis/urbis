@@ -46,6 +46,7 @@ export default function MacPage() {
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
+  const [historicoAnalises, setHistoricoAnalises] = useState("");
 
   // Seleção de modelo
   const [modalModelo, setModalModelo] = useState(false);
@@ -102,6 +103,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       setObservacoes(ultima.observacoes || "");
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
       setNumeroRevisao(Number(ultima.numero_revisao) || 1);
+      setHistoricoAnalises(ultima.historico_analises || "");
       setNovaAnalise(false);
 
       // Carrega itens do modelo salvo na análise
@@ -165,6 +167,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             status,
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
+            historico_analises: historicoAnalises,
           }),
         });
         const json = await res.json().catch(() => null);
@@ -183,6 +186,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes_por_aba: observacoesPorAba,
             status,
             numero_revisao: numeroRevisao,
+            historico_analises: historicoAnalises,
           }),
         });
       }
@@ -206,6 +210,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             status,
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
+            historico_analises: historicoAnalises,
           }),
         });
         const json = await res.json();
@@ -223,6 +228,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             observacoes_por_aba: observacoesPorAba,
             status,
             numero_revisao: numeroRevisao,
+            historico_analises: historicoAnalises,
           }),
         });
         const json = await res.json();
@@ -300,6 +306,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setObservacoes(a.observacoes || "");
     setObservacoesPorAba(a.observacoes_por_aba || {});
     setNumeroRevisao(Number(a.numero_revisao) || 1);
+    setHistoricoAnalises(a.historico_analises || "");
     setNovaAnalise(false);
     if (a.modelo_id) carregarItensModelo(a.modelo_id);
   }
@@ -509,6 +516,20 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               <option value={5}>5ª ANÁLISE (ÚLTIMA*)</option>
             </select>
           </span>
+        </div>
+
+        <div className="mt-2 flex flex-col gap-1">
+          <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
+            Histórico de análises anteriores
+          </label>
+          <textarea
+            value={historicoAnalises}
+            onChange={(e) => setHistoricoAnalises(e.target.value)}
+            onBlur={() => void salvarSilencioso()}
+            placeholder="Ex: 1ª análise: Analista João — 2ª análise: Analista Maria"
+            rows={2}
+            className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
         </div>
 
         <div className="flex gap-4 text-xs">

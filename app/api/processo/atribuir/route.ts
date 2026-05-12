@@ -1,17 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { verificarAuth } from "@/lib/auth";
+import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
+
+// Apenas admin/gerente atribuem analista.
+const PERFIS_ATRIBUEM = new Set(["administrador", "gerente"]);
 
 export async function POST(req: NextRequest) {
-  const auth = await verificarAuth(req);
-  if (!auth.ok) return NextResponse.json({ ok: false, erro: auth.erro }, { status: 401 });
-  if (!["admin", "gerente"].includes(auth.perfil))
+  const auth = await autenticar(req);
+  if (auth instanceof NextResponse) return auth;
+
+  const perfis = [auth.perfil, ...(auth.perfis || [])].map((p) =>
+    String(p || "").toLowerCase(),
+  );
+  if (!perfis.some((p) => PERFIS_ATRIBUEM.has(p)))
     return NextResponse.json({ ok: false, erro: "Sem permissão" }, { status: 403 });
 
   const { processo_id, analista_id } = await req.json();
-  if (!processo_id) return NextResponse.json({ ok: false, erro: "processo_id obrigatório" }, { status: 400 });
+  if (!processo_id)
+    return NextResponse.json({ ok: false, erro: "processo_id obrigatório" }, { status: 400 });
 
-  const supabase = createClient();
   const { error } = await supabase
     .from("processos")
     .update({ analista_id: analista_id || null })

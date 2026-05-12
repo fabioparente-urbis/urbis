@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo_codigo, itens, observacoes, status, numero_revisao } = body;
+    const { processo_codigo, itens, observacoes, status, numero_revisao, historico_analises } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
     const cookieHeader = req.headers.get("cookie") || "";
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
         observacoes: observacoes || "",
         modelo_id: body.modelo_id || null,
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
+        ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
       })
       .select()
       .maybeSingle();
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, itens, observacoes, status, modelo_id, numero_revisao } = body;
+    const { id, itens, observacoes, status, modelo_id, numero_revisao, historico_analises } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
     const { error } = await supabase
@@ -77,6 +78,7 @@ export async function PUT(req: NextRequest) {
         status,
         ...(modelo_id ? { modelo_id } : {}),
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
+        ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", id);
