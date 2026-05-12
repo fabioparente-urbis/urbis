@@ -23,16 +23,16 @@ type Usuario = {
 };
 
 const STATUS_OPCOES = [
-  "cadastrado", "em_analise", "concluido", "pendente",
+  "CADASTRADO", "EM_ANALISE", "CONCLUIDO", "PENDENTE",
   "cancelado", "arquivado_duplicado", "aguardando_assinaturas"
 ];
 
 const STATUS_COR: Record<string, string> = {
-  em_analise: "bg-blue-900 text-blue-300",
-  concluido: "bg-green-900 text-green-300",
-  pendente: "bg-yellow-900 text-yellow-300",
+  EM_ANALISE: "bg-blue-900 text-blue-300",
+  CONCLUIDO: "bg-green-900 text-green-300",
+  PENDENTE: "bg-yellow-900 text-yellow-300",
   cancelado: "bg-red-900 text-red-300",
-  cadastrado: "bg-slate-700 text-slate-300",
+  CADASTRADO: "bg-slate-700 text-slate-300",
   arquivado_duplicado: "bg-orange-900 text-orange-300",
   aguardando_assinaturas: "bg-purple-900 text-purple-300",
 };
