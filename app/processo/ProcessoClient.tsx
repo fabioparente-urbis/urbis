@@ -429,12 +429,17 @@ export default function ProcessoClient() {
     const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
     const isPadrao = val.origem === "padrao";
     const fonte = val.fonte;
+    const ehCoordenadas = campo.chave === "coordenadas";
+    const temValor = val.valor.trim() !== "";
+    const mostrarBotaoMaps = ehCoordenadas && temValor;
+    // Coordenadas são opcionais — não disparam marcação CONFERIR.
+    const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
 
     if (campo.tipo === "select" && campo.opcoes && campo.opcoes.length > 0) {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{isPadrao && val.valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
           </label>
           <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`}>
@@ -449,12 +454,24 @@ export default function ProcessoClient() {
     return (
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-          {campo.label}{isPadrao && val.valor.trim() === "" && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
         </label>
-        <input value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
-          placeholder={campo.placeholder || campo.label}
-          className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+        <div className="relative">
+          <input value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
+            placeholder={campo.placeholder || campo.label}
+            className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+          {mostrarBotaoMaps && (
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(val.valor.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no Google Maps"
+              aria-label="Abrir coordenadas no Google Maps"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            >📍</a>
+          )}
+        </div>
         {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
       </div>
     );
