@@ -153,7 +153,7 @@ export default function UsuariosPage() {
                   <td className="px-4 py-3 text-slate-400">{u.email}</td>
                   <td className="px-4 py-3 text-slate-400">{u.matricula || "—"}</td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.perfil === "Administrador" ? "bg-purple-900 text-purple-300" : u.perfil === "Diretor" ? "bg-red-900 text-red-300" : u.perfil === "Gerente" ? "bg-yellow-900 text-yellow-300" : "bg-blue-900 text-blue-300"}`}>{u.perfil}</span>
+                    {(u.perfis && u.perfis.length > 0 ? u.perfis : [u.perfil]).map((p, i) => (<span key={i} className={`px-2 py-0.5 rounded text-xs font-bold mr-1 ${p === "Administrador" ? "bg-purple-900 text-purple-300" : p === "Diretor" ? "bg-red-900 text-red-300" : p === "Gerente" ? "bg-yellow-900 text-yellow-300" : "bg-blue-900 text-blue-300"}`}>{p}</span>))}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.status === "Ativo" ? "bg-green-900 text-green-300" : "bg-slate-700 text-slate-400"}`}>{u.status}</span>
