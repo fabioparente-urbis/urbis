@@ -106,6 +106,7 @@ export async function POST(req: NextRequest) {
           status: "CADASTRADO",
           tipo_processo: tipoProcesso,
           edicao_autorizada: true,
+          analista_id: usuarioId,
         }])
         .select();
 

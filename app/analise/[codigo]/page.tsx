@@ -292,10 +292,11 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       mostrarToast("Limite de 5 análises atingido.");
       return;
     }
+    const ultima = analises[analises.length - 1];
     setAnaliseAtual(null);
-    setItens({});
+    setItens(ultima?.itens || {});
     setObservacoes("");
-    setObservacoesPorAba({});
+    setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     setNovaAnalise(true);
     carregarModelos(tipoProcesso).then(() => setModalModelo(true));
   }
