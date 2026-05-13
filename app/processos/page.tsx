@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { isPerfilIrrestrito } from "@/lib/perfis";
+import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 
 type Processo = {
   id: string;
@@ -69,7 +69,11 @@ export default function ProcessosPage() {
   const [novoAnalista, setNovoAnalista] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [perfil, setPerfil] = useState<string | null>(null);
-  const irrestrito = isPerfilIrrestrito(perfil);
+  const [perfisUsuario, setPerfisUsuario] = useState<string[]>([]);
+  const irrestrito = isPerfilIrrestrito(perfisUsuario.length > 0 ? perfisUsuario : perfil);
+  // Gerente de gerencia tambem pode filtrar por analista (dentro da sua gerencia).
+  const ehGerente = perfisUsuario.some((p) => (PERFIS_GERENCIA as readonly string[]).includes(p));
+  const podeFiltrarAnalista = irrestrito || ehGerente;
 
   async function carregar() {
     try {
@@ -97,7 +101,11 @@ export default function ProcessosPage() {
     try {
       const res = await fetch("/api/auth/me");
       const json = await res.json();
-      if (json.ok) setPerfil(json.data?.perfil ?? null);
+      if (json.ok) {
+        setPerfil(json.data?.perfil ?? null);
+        const perfis: string[] = Array.isArray(json.data?.perfis) ? json.data.perfis : [];
+        setPerfisUsuario(perfis);
+      }
     } catch {
       // mantem perfil=null -> tratado como nao-irrestrito (UX restritiva por padrao)
     }
@@ -211,7 +219,7 @@ export default function ProcessosPage() {
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
-        {irrestrito && (
+        {podeFiltrarAnalista && (
           <select value={analista} onChange={(e) => setAnalista(e.target.value)}
             className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Todos os analistas</option>

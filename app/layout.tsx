@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import HeaderGlobal from "@/components/HeaderGlobal";
 
 export const metadata: Metadata = {
   title: "URBIS",
@@ -22,6 +23,7 @@ export default function RootLayout({
             "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif",
         }}
       >
+        <HeaderGlobal />
         {children}
       </body>
     </html>

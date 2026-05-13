@@ -32,6 +32,13 @@ export async function GET() {
   return NextResponse.json({ ok: true, data });
 }
 
+// Normaliza usuarios.gerencia: aceita 'PP'|'MP'|'GP' ou null. Qualquer outro
+// valor (incluindo ''/undefined/'DIRAAP') vira null = analista DIRAAP direto.
+function normalizarGerencia(v: unknown): "PP" | "MP" | "GP" | null {
+  if (v === "PP" || v === "MP" || v === "GP") return v;
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -41,6 +48,9 @@ export async function POST(req: NextRequest) {
 
     const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
     const perfilPrincipal = perfis[0] || "Analista";
+    // gerencia faz sentido apenas para analistas (DIRAAP). Para os demais, null.
+    const ehAnalista = perfis.includes("Analista");
+    const gerencia = ehAnalista ? normalizarGerencia(body.gerencia) : null;
 
     // Regra: perfil Administrador só para o nome fixo
     if (perfis.includes("Administrador") && nome.trim() !== ADMIN_FIXO)
@@ -65,12 +75,17 @@ export async function POST(req: NextRequest) {
       nome, cpf, email, matricula, telefone, cargo,
       perfil: perfilPrincipal,
       perfis,
+      gerencia,
       status: status || "Ativo",
     });
 
     if (dbError) {
       await supabase.auth.admin.deleteUser(authData.user.id);
-      return NextResponse.json({ ok: false, erro: dbError.message }, { status: 500 });
+      // Propaga code (23505 = unique_violation) para a UI tratar.
+      return NextResponse.json(
+        { ok: false, erro: dbError.message, code: (dbError as any).code },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({ ok: true });
@@ -87,6 +102,8 @@ export async function PUT(req: NextRequest) {
 
     const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
     const perfilPrincipal = perfis[0] || "Analista";
+    const ehAnalista = perfis.includes("Analista");
+    const gerencia = ehAnalista ? normalizarGerencia(body.gerencia) : null;
 
     // Regra: não permite remover/alterar o admin fixo
     const { data: atual } = await supabase.from("usuarios").select("perfil, perfis, nome").eq("id", id).maybeSingle();
@@ -103,12 +120,16 @@ export async function PUT(req: NextRequest) {
     if (perfis.includes("Administrador") && (nome || "").trim() !== ADMIN_FIXO)
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
-    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, perfil: perfilPrincipal, perfis, status };
+    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, perfil: perfilPrincipal, perfis, gerencia, status };
     if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
     if (status === "Ativo") atualizacao.descadastrado_em = null;
 
     const { error: dbError } = await supabase.from("usuarios").update(atualizacao).eq("id", id);
-    if (dbError) return NextResponse.json({ ok: false, erro: dbError.message }, { status: 500 });
+    if (dbError)
+      return NextResponse.json(
+        { ok: false, erro: dbError.message, code: (dbError as any).code },
+        { status: 500 },
+      );
 
     if (senha) {
       const { data: userData } = await supabase.from("usuarios").select("email").eq("id", id).maybeSingle();

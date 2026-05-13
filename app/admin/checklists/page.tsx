@@ -91,7 +91,14 @@ export default function ChecklistsPage() {
   useEffect(() => { if (usuarioId) carregarModelos(usuarioId); }, [usuarioId]);
 
   const isPadrao = modeloAtual?.dono_id === null;
-  const podeEditar = !isPadrao || perfil === "Administrador" || perfil === "Gerente" || perfil === "Diretor";
+  // Pode editar modelos padrão: Administrador, Diretora/Diretor ou qualquer gerente de gerencia (PP/MP/GP).
+  const podeEditar = !isPadrao
+    || perfil === "Administrador"
+    || perfil === "Diretora"
+    || perfil === "Diretor"
+    || perfil === "Gerência PP"
+    || perfil === "Gerência MP"
+    || perfil === "Gerência GP";
   const grupos = [...new Set(itens.map((i) => i.grupo))];
 
   // Carrega itens da fonte quando copiarDe muda

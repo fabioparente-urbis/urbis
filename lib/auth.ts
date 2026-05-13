@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { PERFIS_IRRESTRITOS, isPerfilIrrestrito } from "@/lib/perfis";
+import {
+  PERFIS_IRRESTRITOS,
+  isPerfilIrrestrito,
+  gerenciaDoPerfil,
+  Gerencia,
+} from "@/lib/perfis";
 
 // Re-exporta para compatibilidade com codigo existente que importa daqui.
 export { PERFIS_IRRESTRITOS };
@@ -10,6 +15,11 @@ export type AuthContext = {
   perfil: string;
   perfis: string[];
   irrestrito: boolean;
+  // Gerencia do usuario:
+  // - usuarios.gerencia para analistas ('PP' | 'MP' | 'GP' | null)
+  // - derivada do perfil 'Gerência PP/MP/GP' para gerentes
+  // - null para Administrador / Diretora / outros
+  gerencia: Gerencia | null;
 };
 
 /**
@@ -32,7 +42,7 @@ export async function autenticar(
   }
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
-    .select("perfil, perfis")
+    .select("perfil, perfis, gerencia")
     .eq("id", userId)
     .maybeSingle();
   if (error || !usuario) {
@@ -49,17 +59,26 @@ export async function autenticar(
   if (usuario.perfil && !perfisArr.includes(usuario.perfil)) {
     perfisArr.push(usuario.perfil);
   }
+
+  // gerencia: prioridade ao perfil de gerente (Gerência PP/MP/GP); se nao
+  // for gerente, usa usuarios.gerencia (caso seja analista).
+  const gerenciaPerfil = gerenciaDoPerfil(perfisArr);
+  const gerenciaUsuario = (usuario as any).gerencia as Gerencia | null | undefined;
+  const gerencia: Gerencia | null =
+    gerenciaPerfil ?? (gerenciaUsuario ?? null);
+
   return {
     userId,
     perfil: usuario.perfil ?? perfisArr[0] ?? "",
     perfis: perfisArr,
     irrestrito: isPerfilIrrestrito(perfisArr.length > 0 ? perfisArr : usuario.perfil),
+    gerencia,
   };
 }
 
 /**
  * Garante que o usuario tem permissao para acessar um processo.
- * - Perfis irrestritos (Administrador/Gerente/Diretor) sempre passam.
+ * - Perfis irrestritos (Administrador / Diretora) sempre passam.
  * - Demais perfis so passam se o processo estiver atribuido a eles.
  *
  * Retorna NextResponse com 403 quando deve bloquear; null quando autoriza.

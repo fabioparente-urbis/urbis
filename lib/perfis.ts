@@ -1,18 +1,36 @@
 // Perfis com visibilidade total dos processos.
-// Demais perfis (Analista, etc.) so enxergam/acessam processos atribuidos a eles.
+// Apenas Administrador e Diretora veem todos os processos sem restricao
+// de gerencia. Demais perfis (Gerencia PP/MP/GP, Analista) tem regras
+// proprias de visibilidade definidas em /api/processos/route.ts.
 //
-// Este modulo nao importa nada de Next ou Supabase para que possa ser usado
-// tanto no server (lib/auth.ts) quanto em client components.
-export const PERFIS_IRRESTRITOS = ["Administrador", "Gerente", "Diretor"] as const;
+// Este modulo nao importa nada de Next ou Supabase para que possa ser
+// usado tanto no server (lib/auth.ts) quanto em client components.
+export const PERFIS_IRRESTRITOS = ["Administrador", "Diretora", "Diretor"] as const;
 
 export type PerfilIrrestrito = (typeof PERFIS_IRRESTRITOS)[number];
 
-// Catálogo canônico de perfis (usado pela UI de checkboxes em /admin/usuarios).
-export const PERFIS_DISPONIVEIS = ["Administrador", "Gerente", "Diretor", "Analista"] as const;
+// Perfis das 3 gerencias da DIRAAP. Cada um e unico no sistema (constraint
+// no banco) e ve apenas processos dos seus analistas (usuarios.gerencia).
+export const PERFIS_GERENCIA = ["Gerência PP", "Gerência MP", "Gerência GP"] as const;
+export type PerfilGerencia = (typeof PERFIS_GERENCIA)[number];
+
+// Codigos de gerencia armazenados em usuarios.gerencia. NULL = DIRAAP direto.
+export const GERENCIAS = ["PP", "MP", "GP"] as const;
+export type Gerencia = (typeof GERENCIAS)[number];
+
+// Catalogo canonico de perfis para o checkbox em /admin/usuarios.
+export const PERFIS_DISPONIVEIS = [
+  "Administrador",
+  "Diretora",
+  "Gerência PP",
+  "Gerência MP",
+  "Gerência GP",
+  "Analista",
+] as const;
 
 /**
- * Aceita string única (legado) ou array de perfis. Retorna true se houver
- * qualquer perfil irrestrito.
+ * Aceita string unica (legado) ou array de perfis. Retorna true se houver
+ * qualquer perfil irrestrito (Administrador ou Diretora).
  */
 export function isPerfilIrrestrito(
   perfil: string | string[] | null | undefined,
@@ -22,4 +40,21 @@ export function isPerfilIrrestrito(
   return lista.some((p) =>
     !!p && (PERFIS_IRRESTRITOS as readonly string[]).includes(p),
   );
+}
+
+/**
+ * Retorna a gerencia associada ao perfil ("Gerência PP" -> "PP"). Aceita
+ * string unica ou array. Retorna null quando nao ha perfil de gerencia.
+ */
+export function gerenciaDoPerfil(
+  perfil: string | string[] | null | undefined,
+): Gerencia | null {
+  if (!perfil) return null;
+  const lista = Array.isArray(perfil) ? perfil : [perfil];
+  for (const p of lista) {
+    if (p === "Gerência PP") return "PP";
+    if (p === "Gerência MP") return "MP";
+    if (p === "Gerência GP") return "GP";
+  }
+  return null;
 }

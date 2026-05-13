@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isPerfilIrrestrito } from "@/lib/perfis";
 
 type TipoProcesso = "ACEITE" | "REGULARIZACAO" | "APROVACAO";
 
@@ -10,6 +11,24 @@ export default function Home() {
   const [tipo, setTipo] = useState<TipoProcesso>("REGULARIZACAO");
   const [numero, setNumero] = useState("");
   const [erro, setErro] = useState("");
+  // Perfis do usuario logado — gate para "Gestão de usuários" (item 4).
+  const [perfis, setPerfis] = useState<string[]>([]);
+  const podeGerirUsuarios = perfis.includes("Administrador") || isPerfilIrrestrito(perfis);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const json = await res.json();
+        if (json.ok) {
+          const arr: string[] = Array.isArray(json.data?.perfis) && json.data.perfis.length > 0
+            ? json.data.perfis
+            : (json.data?.perfil ? [json.data.perfil] : []);
+          setPerfis(arr);
+        }
+      } catch { /* mantem [] -> oculta gestao por padrao */ }
+    })();
+  }, []);
 
   function identificarTipoNumero(valor: string) {
     const v = valor.trim().toUpperCase();
@@ -116,10 +135,12 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           📋 Ver todos os processos
         </button>
-        <button onClick={() => router.push("/admin/usuarios")}
-          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-          👥 Gestão de usuários
-        </button>
+        {podeGerirUsuarios && (
+          <button onClick={() => router.push("/admin/usuarios")}
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+            👥 Gestão de usuários
+          </button>
+        )}
         <button onClick={() => router.push("/admin/checklists")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           ✅ Gerenciar Checklists

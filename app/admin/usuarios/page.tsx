@@ -8,13 +8,35 @@ type Usuario = {
   matricula: string; telefone: string; cargo: string;
   perfil: string;
   perfis?: string[];
+  gerencia?: string | null;
   status: string; criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
 
-const PERFIS = ["Analista", "Gerente", "Diretor", "Administrador"];
+// Catalogo de perfis exibidos no checkbox. "Administrador" e filtrado em runtime
+// para nao aparecer a usuarios que nao sao admins (ITEM 2).
+const PERFIS = [
+  "Administrador",
+  "Diretora",
+  "Gerência PP",
+  "Gerência MP",
+  "Gerência GP",
+  "Analista",
+];
+const PERFIS_GERENCIA = ["Gerência PP", "Gerência MP", "Gerência GP"];
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
-const vazio = () => ({ nome: "", cpf: "", email: "", matricula: "", telefone: "", cargo: "", perfis: ["Analista"] as string[], status: "Ativo" });
+
+const vazio = () => ({
+  nome: "",
+  cpf: "",
+  email: "",
+  matricula: "",
+  telefone: "",
+  cargo: "",
+  perfis: ["Analista"] as string[],
+  gerencia: "" as string, // "" | "PP" | "MP" | "GP" | "DIRAAP"
+  status: "Ativo",
+});
 
 export default function UsuariosPage() {
   const router = useRouter();
@@ -27,6 +49,10 @@ export default function UsuariosPage() {
   const [erro, setErro] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [busca, setBusca] = useState("");
+  // Perfil do usuario logado — necessario para ocultar opcao "Administrador"
+  // do checkbox e a mensagem do admin fixo aos nao-admins (ITEM 2).
+  const [meuPerfis, setMeuPerfis] = useState<string[]>([]);
+  const souAdmin = meuPerfis.includes("Administrador");
 
   async function carregar() {
     try {
@@ -37,7 +63,20 @@ export default function UsuariosPage() {
     } finally { setCarregando(false); }
   }
 
-  useEffect(() => { carregar(); }, []);
+  async function carregarMeuPerfil() {
+    try {
+      const res = await fetch("/api/auth/me");
+      const json = await res.json();
+      if (json.ok) {
+        const perfis: string[] = Array.isArray(json.data?.perfis) && json.data.perfis.length > 0
+          ? json.data.perfis
+          : (json.data?.perfil ? [json.data.perfil] : []);
+        setMeuPerfis(perfis);
+      }
+    } catch { /* mantem [] -> trata como nao-admin */ }
+  }
+
+  useEffect(() => { carregar(); carregarMeuPerfil(); }, []);
 
   function abrirNovo() { setEditando(null); setForm(vazio()); setSenha(""); setErro(""); setModal(true); }
   function abrirEditar(u: Usuario) {
@@ -45,7 +84,19 @@ export default function UsuariosPage() {
     const perfisIniciais = Array.isArray(u.perfis) && u.perfis.length > 0
       ? u.perfis
       : (u.perfil ? [u.perfil] : ["Analista"]);
-    setForm({ nome: u.nome, cpf: u.cpf, email: u.email, matricula: u.matricula, telefone: u.telefone, cargo: u.cargo, perfis: perfisIniciais, status: u.status });
+    // gerencia: '' = analista DIRAAP direto (gerencia=null); 'PP'/'MP'/'GP' = analista de gerencia
+    const gerenciaForm = u.gerencia ?? "";
+    setForm({
+      nome: u.nome,
+      cpf: u.cpf,
+      email: u.email,
+      matricula: u.matricula,
+      telefone: u.telefone,
+      cargo: u.cargo,
+      perfis: perfisIniciais,
+      gerencia: gerenciaForm,
+      status: u.status,
+    });
     setSenha(""); setErro(""); setModal(true);
   }
 
@@ -64,13 +115,40 @@ export default function UsuariosPage() {
     if (!editando && !senha) { setErro("Senha obrigatória para novo usuário."); return; }
     try {
       setSalvando(true); setErro("");
+      // Para analistas: gerencia "" = DIRAAP direto -> null no banco.
+      // Para nao-analistas (sem 'Analista' no perfis): gerencia sempre null.
+      const ehAnalista = form.perfis.includes("Analista");
+      const gerenciaPayload = ehAnalista
+        ? (form.gerencia && form.gerencia !== "DIRAAP" ? form.gerencia : null)
+        : null;
       const res = await fetch("/api/admin/usuarios", {
         method: editando ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, senha: senha || undefined, id: editando?.id }),
+        body: JSON.stringify({
+          ...form,
+          gerencia: gerenciaPayload,
+          senha: senha || undefined,
+          id: editando?.id,
+        }),
       });
       const json = await res.json();
-      if (!json.ok) { setErro(json.erro || "Erro ao salvar."); return; }
+      if (!json.ok) {
+        // Mensagem amigavel para a constraint unica de gerencia (item 1).
+        const erroStr = String(json.erro || "");
+        const ehUnique23505 =
+          json.code === "23505" ||
+          /23505/.test(erroStr) ||
+          /duplicate key|unique constraint/i.test(erroStr);
+        const mencionaGerencia =
+          /gerenc/i.test(erroStr) ||
+          form.perfis.some((p) => PERFIS_GERENCIA.includes(p));
+        if (ehUnique23505 && mencionaGerencia) {
+          setErro("Já existe um gerente cadastrado para essa gerência.");
+        } else {
+          setErro(json.erro || "Erro ao salvar.");
+        }
+        return;
+      }
       setModal(false); await carregar();
     } finally { setSalvando(false); }
   }
@@ -111,6 +189,16 @@ export default function UsuariosPage() {
   );
 
   const isAdminFixo = (u: Usuario) => u.perfil === "Administrador" && u.nome === ADMIN_FIXO;
+
+  const corPerfil = (p: string) => {
+    if (p === "Administrador") return "bg-purple-900 text-purple-300";
+    if (p === "Diretora" || p === "Diretor") return "bg-red-900 text-red-300";
+    if (PERFIS_GERENCIA.includes(p)) return "bg-yellow-900 text-yellow-300";
+    return "bg-blue-900 text-blue-300";
+  };
+
+  // Lista de perfis exibida no checkbox: oculta "Administrador" para nao-admins.
+  const perfisVisiveis = PERFIS.filter((p) => p !== "Administrador" || souAdmin);
 
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
@@ -153,7 +241,7 @@ export default function UsuariosPage() {
                   <td className="px-4 py-3 text-slate-400">{u.email}</td>
                   <td className="px-4 py-3 text-slate-400">{u.matricula || "—"}</td>
                   <td className="px-4 py-3">
-                    {(u.perfis && u.perfis.length > 0 ? u.perfis : [u.perfil]).map((p, i) => (<span key={i} className={`px-2 py-0.5 rounded text-xs font-bold mr-1 ${p === "Administrador" ? "bg-purple-900 text-purple-300" : p === "Diretor" ? "bg-red-900 text-red-300" : p === "Gerente" ? "bg-yellow-900 text-yellow-300" : "bg-blue-900 text-blue-300"}`}>{p}</span>))}
+                    {(u.perfis && u.perfis.length > 0 ? u.perfis : [u.perfil]).map((p, i) => (<span key={i} className={`px-2 py-0.5 rounded text-xs font-bold mr-1 ${corPerfil(p)}`}>{p}</span>))}
                   </td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.status === "Ativo" ? "bg-green-900 text-green-300" : "bg-slate-700 text-slate-400"}`}>{u.status}</span>
@@ -193,7 +281,7 @@ export default function UsuariosPage() {
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Perfis</label>
                 <div className="flex flex-wrap gap-3 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2">
-                  {PERFIS.map((p) => {
+                  {perfisVisiveis.map((p) => {
                     const marcado = form.perfis.includes(p);
                     const ehAdminFixoBloqueado = p === "Administrador" && form.nome.trim() === ADMIN_FIXO;
                     return (
@@ -210,10 +298,26 @@ export default function UsuariosPage() {
                     );
                   })}
                 </div>
-                {form.nome.trim() === ADMIN_FIXO && (
+                {souAdmin && form.nome.trim() === ADMIN_FIXO && (
                   <p className="text-xs text-slate-400 italic">O perfil <b>Administrador</b> é fixo para {ADMIN_FIXO}.</p>
                 )}
               </div>
+              {/* Select de Gerencia — exibido somente para analistas. */}
+              {form.perfis.includes("Analista") && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Gerência</label>
+                  <select
+                    value={form.gerencia || "DIRAAP"}
+                    onChange={(e) => f("gerencia", e.target.value === "DIRAAP" ? "" : e.target.value)}
+                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="PP">PP</option>
+                    <option value="MP">MP</option>
+                    <option value="GP">GP</option>
+                    <option value="DIRAAP">DIRAAP (direto)</option>
+                  </select>
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => f("status", e.target.value)}

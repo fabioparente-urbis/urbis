@@ -7,11 +7,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Sentinela usada para forcar lista vazia quando a gerencia nao possui
+// analistas cadastrados (evita 'in' com array vazio retornar resultados
+// indesejados pelo driver). UUID nulo nao colidirá com nenhum id real.
+const SENTINELA_ID_VAZIO = "00000000-0000-0000-0000-000000000000";
+
 export async function GET(req: NextRequest) {
   try {
     const auth = await autenticar(req);
     if (auth instanceof NextResponse) return auth;
-    const { userId, irrestrito } = auth;
+    const { userId, irrestrito, perfis, gerencia } = auth;
 
     const { searchParams } = new URL(req.url);
     const busca = searchParams.get("busca") || "";
@@ -29,13 +34,49 @@ export async function GET(req: NextRequest) {
     if (tipo) query = query.eq("tipo_processo", tipo);
     if (status) query = query.eq("status", status);
 
+    // Visibilidade de processos (item 3):
+    // - Admin / Diretora                 → todos
+    // - Gerência PP/MP/GP                → processos dos analistas onde usuarios.gerencia = sua gerencia
+    // - Analista com gerencia != null    → apenas os próprios
+    // - Analista com gerencia = null     → processos das 3 gerências (DIRAAP direto)
+    const ehGerenteDeGerencia = perfis.some((p) => p && p.startsWith("Gerência "));
+
     if (irrestrito) {
-      // Admin/Gerente/Diretor podem usar o filtro opcional ?analista
+      // Admin/Diretora podem usar o filtro opcional ?analista
       if (analista) query = query.eq("analista_id", analista);
-    } else {
-      // Analista (e demais) veem apenas o que esta atribuido a eles,
-      // ignorando qualquer ?analista vindo do cliente
+    } else if (ehGerenteDeGerencia && gerencia) {
+      // Coleta ids dos analistas da mesma gerencia
+      const { data: ids } = await supabase
+        .from("usuarios")
+        .select("id")
+        .eq("gerencia", gerencia);
+      const idList = (ids ?? []).map((u) => u.id);
+      if (analista) {
+        // Intersecciona com o filtro vindo do cliente: so passa se o analista
+        // pedido pertencer a essa gerencia.
+        query = query.eq("analista_id", idList.includes(analista) ? analista : SENTINELA_ID_VAZIO);
+      } else if (idList.length > 0) {
+        query = query.in("analista_id", idList);
+      } else {
+        query = query.eq("analista_id", SENTINELA_ID_VAZIO);
+      }
+    } else if (gerencia) {
+      // Analista de uma gerencia: somente os proprios processos.
+      // Qualquer ?analista vindo do cliente e ignorado.
       query = query.eq("analista_id", userId);
+    } else {
+      // Analista DIRAAP direto (gerencia=null, sem perfil de gerente):
+      // ve processos das 3 gerencias.
+      const { data: ids } = await supabase
+        .from("usuarios")
+        .select("id")
+        .in("gerencia", ["PP", "MP", "GP"]);
+      const idList = (ids ?? []).map((u) => u.id);
+      if (idList.length > 0) {
+        query = query.in("analista_id", idList);
+      } else {
+        query = query.eq("analista_id", SENTINELA_ID_VAZIO);
+      }
     }
 
     const { data, error } = await query;
