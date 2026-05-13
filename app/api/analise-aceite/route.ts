@@ -6,7 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const TIPO = "REGULARIZACAO";
+const TIPO = "ACEITE";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

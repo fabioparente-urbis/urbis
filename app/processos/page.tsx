@@ -38,12 +38,22 @@ const STATUS_COR: Record<string, string> = {
 };
 
 const TIPO_COR: Record<string, string> = {
+  // Regularizacao → roxo, Aceite → azul (item 6).
   Regularizacao: "bg-purple-900 text-purple-300",
   REGULARIZACAO: "bg-purple-900 text-purple-300",
-  Aceite: "bg-cyan-900 text-cyan-300",
-  ACEITE: "bg-cyan-900 text-cyan-300",
+  Aceite: "bg-blue-900 text-blue-300",
+  ACEITE: "bg-blue-900 text-blue-300",
   Aprovacao: "bg-orange-900 text-orange-300",
   APROVACAO: "bg-orange-900 text-orange-300",
+};
+
+const TIPO_ROTULO: Record<string, string> = {
+  REGULARIZACAO: "Regularização",
+  Regularizacao: "Regularização",
+  ACEITE: "Aceite",
+  Aceite: "Aceite",
+  APROVACAO: "Aprovação",
+  Aprovacao: "Aprovação",
 };
 
 function formatar(dataStr: string | null) {
@@ -177,7 +187,10 @@ export default function ProcessosPage() {
 
   function abrirProcesso(p: Processo) {
     const id = p.codigo || p.numero_sei;
-    router.push(`/processo/${encodeURIComponent(id)}`);
+    // Passa o tipo do processo na URL para que o cadastro/LIP saiba qual
+    // dos processos (REG vs ACEITE com mesmo SEI) abrir.
+    const tipoNorm = String(p.tipo_processo || "REGULARIZACAO").toUpperCase();
+    router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
   }
 
   function nomeAnalista(id: string | null) {
@@ -210,9 +223,9 @@ export default function ProcessosPage() {
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}
           className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os tipos</option>
-          <option value="Regularizacao">Regularizacao</option>
-          <option value="Aceite">Aceite</option>
-          <option value="Aprovacao">Aprovacao</option>
+          <option value="REGULARIZACAO">Regularização</option>
+          <option value="ACEITE">Aceite</option>
+          <option value="APROVACAO">Aprovação</option>
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -249,7 +262,7 @@ export default function ProcessosPage() {
 
                 {/* Tipo */}
                 <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-slate-700 text-slate-300"}`}>
-                  {p.tipo_processo || "—"}
+                  {TIPO_ROTULO[p.tipo_processo] || p.tipo_processo || "—"}
                 </span>
 
                 {/* Status */}

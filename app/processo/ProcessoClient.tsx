@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 type Origem = "original" | "urbis" | "manual" | "padrao";
 type Campo = { valor: string; origem: Origem; fonte?: string };
@@ -87,10 +87,29 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
   );
 }
 
+function normalizarTipo(t: string | null | undefined): "ACEITE" | "REGULARIZACAO" | "APROVACAO" {
+  const v = String(t ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim();
+  if (v === "ACEITE") return "ACEITE";
+  if (v === "APROVACAO") return "APROVACAO";
+  return "REGULARIZACAO";
+}
+
+function rotuloTipo(t: "ACEITE" | "REGULARIZACAO" | "APROVACAO"): string {
+  if (t === "ACEITE") return "Aceite";
+  if (t === "APROVACAO") return "Aprovação";
+  return "Regularização";
+}
+
 export default function ProcessoClient() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const idUrl = (params?.id as string) ?? "";
+  const tipoUrl = normalizarTipo(searchParams?.get("tipo"));
 
   const [aba, setAba] = useState(0);
   const [salvando, setSalvando] = useState(false);
@@ -109,7 +128,7 @@ export default function ProcessoClient() {
   const [restaurando, setRestaurando] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [novoProcesso, setNovoProcesso] = useState("");
-  const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>("Regularização");
+  const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(rotuloTipo(tipoUrl) as TipoProcesso);
   const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
@@ -158,7 +177,7 @@ export default function ProcessoClient() {
     async function carregar() {
       try {
         setCarregando(true);
-        const res = await fetch(`/api/processo/carregar?id=${idUrl}`);
+        const res = await fetch(`/api/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
         const texto = await res.text();
         let json: any = null;
         try { json = texto ? JSON.parse(texto) : null; } catch {
@@ -205,7 +224,7 @@ export default function ProcessoClient() {
         const res = await fetch("/api/processo/salvar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: idUrl, dados: estado }),
+          body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
         });
         const json = await res.json();
         if (json?.ok) {
@@ -218,7 +237,7 @@ export default function ProcessoClient() {
         }
       } catch { setStatusSalvo("erro"); }
     }, 2000);
-  }, [idUrl]);
+  }, [idUrl, tipoUrl]);
 
   function u(chave: string, valor: string) {
     setD((prev) => {
@@ -241,7 +260,8 @@ export default function ProcessoClient() {
   function navegarParaProcesso() {
     const id = novoProcesso.trim();
     if (!id) return;
-    router.push(`/processo/${encodeURIComponent(id)}?tipo=${tipoNavegacao}`);
+    const tipoNorm = normalizarTipo(tipoNavegacao);
+    router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
     setNovoProcesso("");
   }
 
@@ -370,7 +390,7 @@ export default function ProcessoClient() {
       const res = await fetch("/api/processo/salvar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: idUrl, dados: d }),
+        body: JSON.stringify({ id: idUrl, dados: d, tipo: tipoUrl }),
       });
       const json = await res.json();
       if (!res.ok || !json?.ok) {
@@ -510,7 +530,13 @@ export default function ProcessoClient() {
             className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
-          <button onClick={async () => { const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length; if (t > 0) { setErroCampos(true); return; } await salvar(); router.push(`/analise/${encodeURIComponent(idUrl)}`); }}
+          <button onClick={async () => {
+              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
+              if (t > 0) { setErroCampos(true); return; }
+              await salvar();
+              const rotaMac = tipoUrl === "ACEITE" ? "/analise-aceite" : "/analise";
+              router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
+            }}
             className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
@@ -518,7 +544,7 @@ export default function ProcessoClient() {
             <h1 className="text-2xl font-bold tracking-tight">📋 Cadastro de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
               Processo: <span className="text-yellow-400 font-mono">{idUrl || "—"}</span>
-              {" · "}<span className="text-slate-500">Regularização</span>
+              {" · "}<span className="text-slate-500">{rotuloTipo(tipoUrl)}</span>
             </p>
           </div>
         </div>

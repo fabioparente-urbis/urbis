@@ -4,34 +4,41 @@ import { usePathname } from "next/navigation";
 import NomeUsuario from "./NomeUsuario";
 
 /**
- * Header global do URBIS: logo no canto superior esquerdo e nome do
- * usuario logado no canto superior direito (item 5 e 6).
+ * Header global do URBIS:
+ * - Logo grande, 50% de opacidade, fixada no canto INFERIOR esquerdo
+ *   (marca-d'água, não compete com o conteúdo).
+ * - Nome do usuário logado no canto SUPERIOR direito.
  *
- * Posicionamento fixo com pointer-events controlados para nao bloquear
- * cliques no conteudo abaixo. Oculto na tela /login para nao competir
- * com o card centralizado.
+ * Oculto na tela /login (o card de login já tem logo centralizado).
  */
 export default function HeaderGlobal() {
   const pathname = usePathname();
-  // Em /login o card ja tem logo centralizado; nao duplica.
   if (pathname?.startsWith("/login")) return null;
 
   return (
-    <div
-      className="fixed top-0 left-0 right-0 z-40 pointer-events-none flex items-center justify-between px-4 py-2"
-      aria-hidden={false}
-    >
-      <div className="pointer-events-auto flex items-center gap-2">
+    <>
+      {/* Nome do usuário no topo direito (mantido) */}
+      <div
+        className="fixed top-0 right-0 z-40 pointer-events-none flex items-center justify-end px-4 py-2"
+        aria-hidden={false}
+      >
+        <div className="pointer-events-auto">
+          <NomeUsuario />
+        </div>
+      </div>
+
+      {/* Logo URBIS — canto inferior esquerdo, dobrada e 50% de opacidade */}
+      <div
+        className="fixed bottom-2 left-2 z-40 pointer-events-none"
+        aria-hidden={true}
+      >
         <img
           src="/logo_urbis.png"
           alt="URBIS"
-          className="h-7 w-auto opacity-90 select-none"
+          className="h-14 w-auto opacity-50 select-none"
           draggable={false}
         />
       </div>
-      <div className="pointer-events-auto">
-        <NomeUsuario />
-      </div>
-    </div>
+    </>
   );
 }

@@ -59,7 +59,7 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: numero.trim(), tipo })
     });
-    router.push(`/processo/${encodeURIComponent(numero.trim())}`);
+    router.push(`/processo/${encodeURIComponent(numero.trim())}?tipo=${encodeURIComponent(tipo)}`);
   }
 
   function getPlaceholder() {

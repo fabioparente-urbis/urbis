@@ -355,6 +355,53 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+  const logoData = getLogoData();
+  const assinante: Assinante = dados.assinante || {
+    nome: dados.analista || "Engº Fábio Parente Martins Santos",
+    cargo: dados.setor || "SEFIC / DIRAAP / GERAED",
+    registro: dados.crea || "CREA 11716/D-GO",
+  };
+  const dataAssinatura = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const ano = new Date().getFullYear().toString();
+  const children: Paragraph[] = [];
+
+  children.push(vazio(160));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
+  children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
+  // Cabeçalho do ACEITE: difere do despacho de Regularização.
+  children.push(p([txt("Assunto:  "), txt("ANÁLISE DE ACEITE", { bold: true })], { align: AlignmentType.LEFT, after: 180 }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº   ${dados.numeroDespacho || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
+  children.push(new Paragraph({ spacing: { before: 0, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000", space: 1 } }, children: [txt("AO INTERESSADO/AUTOR", { bold: true })] }));
+  children.push(new Paragraph({ spacing: { before: 100, after: 80 }, children: [txt("OBSERVAÇÕES:", { bold: true })] }));
+  ["Análise de Aceite com base na legislação municipal vigente para fins de aprovação de projeto/edificação.", "De acordo com o Decreto Nº 2559, DE 13 DE DEZEMBRO DE 2018, a análise documental foi feita pela CHEADV – CHEFIA DA ADVOCACIA SETORIAL DA SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E HABITAÇÃO;"].forEach(b => {
+    children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(b)] }));
+  });
+  children.push(vazio(120));
+  dados.analises.forEach((a, idx) => {
+    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}`;
+    children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
+  });
+  children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
+    gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
+  } else {
+    gerarItens(dados.naoConformes).forEach(item => children.push(item));
+  }
+  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
+  children.push(vazio(160));
+  children.push(new Paragraph({ spacing: { before: 200, after: 80 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("CONSIDERAÇÕES FINAIS", { bold: true, underline: true })] }));
+  ["AS CÓPIAS DE ARQUIVO NÃO PODEM SER RETIRADAS DO PROCESSO;", "É FACULTADO AO ANALISTA/REVISOR O DIREITO DE SOLICITAR DOCUMENTAÇÃO, CORREÇÕES E ADEQUAÇÕES SEMPRE QUE NECESSÁRIO, ANTES DO DEFERIMENTO DO PROCESSO, CONFORME LEGISLAÇÃO MUNICIPAL VIGENTE."].forEach(item => {
+    children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 60, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(item)] }));
+  });
+  children.push(vazio(300));
+  blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 60, after: 0 }, children: [txt(dataAssinatura)] }));
+
+  const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { size: { width: A4_W, height: A4_H }, margin: MARGINS } }, headers: { default: makeHeader(logoData) }, footers: { default: makeFooter("Despacho Aceite") }, children }] });
+  return await Packer.toBuffer(doc) as Buffer;
+}
+
 export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {

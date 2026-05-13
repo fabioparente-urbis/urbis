@@ -22,6 +22,22 @@ function chavesVaziasOuX(dados: any): string[] {
   return out;
 }
 
+/**
+ * Normaliza tipo_processo para os valores canônicos do banco.
+ * Aceita formas vindas do front ("Regularização" / "Aceite" / "Aprovação")
+ * e formas em caixa-alta ("REGULARIZACAO" / "ACEITE" / "APROVACAO").
+ */
+function normalizarTipo(tipo: unknown): "ACEITE" | "REGULARIZACAO" | "APROVACAO" {
+  const t = String(tipo ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toUpperCase()
+    .trim();
+  if (t === "ACEITE") return "ACEITE";
+  if (t === "APROVACAO") return "APROVACAO";
+  return "REGULARIZACAO";
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = await autenticar(req);
@@ -30,15 +46,19 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { id, dados, camposAlterados } = body;
+    const tipoProcesso = normalizarTipo(body.tipo);
 
     if (!id) {
       return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
     }
 
+    // Busca processo EXATAMENTE do par (codigo, tipo). Sem o tipo, REG e
+    // ACEITE do mesmo SEI colidem.
     const { data: existente, error: erroBusca } = await supabase
       .from("processos")
-      .select("id, codigo, analista_id")
+      .select("id, codigo, analista_id, tipo_processo")
       .eq("codigo", id)
+      .eq("tipo_processo", tipoProcesso)
       .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
 
     if (erroBusca) {
@@ -55,16 +75,20 @@ export async function POST(req: NextRequest) {
 
       processoId = existente.id;
       acao = "atualizado";
+      const update: any = {
+        codigo: id,
+        status: "CADASTRADO",
+        tipo_processo: tipoProcesso,
+        edicao_autorizada: true,
+        atualizado_em: new Date().toISOString(),
+      };
+      // Só sobrescreve `dados` quando o cliente envia (a Home cria o
+      // processo só com tipo + id; o LIP envia depois com `dados`).
+      if (dados !== undefined) update.dados = dados;
+
       const { error } = await supabase
         .from("processos")
-        .update({
-          codigo: id,
-          dados: dados,
-          status: "CADASTRADO",
-          tipo_processo: "REGULARIZACAO",
-          edicao_autorizada: true,
-          atualizado_em: new Date().toISOString(),
-        })
+        .update(update)
         .eq("id", existente.id);
 
       if (error) {
@@ -78,9 +102,9 @@ export async function POST(req: NextRequest) {
         .from("processos")
         .insert([{
           codigo: id,
-          dados: dados,
+          dados: dados ?? {},
           status: "CADASTRADO",
-          tipo_processo: "REGULARIZACAO",
+          tipo_processo: tipoProcesso,
           edicao_autorizada: true,
         }])
         .select();
@@ -105,13 +129,15 @@ export async function POST(req: NextRequest) {
     // Propaga campos CONFERIR/X do LIP para a última análise do MAC
     // como itens nao_conforme. Não sobrescreve marcações existentes.
     // Requer coluna `chave_lip` em mac_checklist_itens (ver migration).
+    // Filtra também por tipo_processo para não cruzar análises entre fluxos.
     try {
-      const chavesProblema = chavesVaziasOuX(dados);
+      const chavesProblema = dados ? chavesVaziasOuX(dados) : [];
       if (chavesProblema.length > 0) {
         const { data: ultima } = await supabase
           .from("analises_mac")
           .select("id, itens, modelo_id, status")
           .eq("processo_codigo", id)
+          .eq("tipo_processo", tipoProcesso)
           .order("numero_analise", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -145,10 +171,10 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch {
-      // Falha silenciosa: coluna chave_lip pode não existir ainda.
+      // Falha silenciosa: coluna chave_lip/tipo_processo pode não existir ainda.
     }
 
-    return NextResponse.json({ ok: true, acao });
+    return NextResponse.json({ ok: true, acao, tipo: tipoProcesso });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }
