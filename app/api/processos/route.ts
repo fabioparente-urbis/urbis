@@ -65,18 +65,7 @@ export async function GET(req: NextRequest) {
       // Qualquer ?analista vindo do cliente e ignorado.
       query = query.eq("analista_id", userId);
     } else {
-      // Analista DIRAAP direto (gerencia=null, sem perfil de gerente):
-      // ve processos das 3 gerencias.
-      const { data: ids } = await supabase
-        .from("usuarios")
-        .select("id")
-        .in("gerencia", ["PP", "MP", "GP"]);
-      const idList = (ids ?? []).map((u) => u.id);
-      if (idList.length > 0) {
-        query = query.in("analista_id", idList);
-      } else {
-        query = query.eq("analista_id", SENTINELA_ID_VAZIO);
-      }
+      // Analista DIRAAP direto (gerencia=null): ve todos os processos.
     }
 
     const { data, error } = await query;
