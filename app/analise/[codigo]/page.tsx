@@ -155,6 +155,13 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   }
 
   useEffect(() => { carregar(); }, [codigo]);
+  // auto-save ao alterar itens/obs - so para analise ja existente (PUT)
+  useEffect(() => {
+    if (checklistItens.length === 0 || novaAnalise || !analiseAtual) return;
+    const t = setTimeout(() => salvarSilencioso(), 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itens, observacoes, observacoesPorAba]);
 
 
   function setItem(id: string, status: StatusItem) {
