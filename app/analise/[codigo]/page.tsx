@@ -493,6 +493,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               ← LIP
             </button>
             
+            <a
               href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
               download
               className="bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
