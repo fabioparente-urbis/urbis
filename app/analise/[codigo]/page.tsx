@@ -667,6 +667,10 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   🔄 Trocar Checklist
 </button>
 
+<button onClick={() => router.push("/")}
+  className="w-full bg-slate-600 hover:bg-slate-500 text-slate-300 font-bold py-2 rounded-lg text-sm transition-colors">
+  🏠 Home
+</button>
 <button onClick={() => router.push("/admin/checklists")}
   className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm transition-colors">
   📋 Gerenciar Checklists
