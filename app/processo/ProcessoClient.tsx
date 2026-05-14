@@ -519,6 +519,7 @@ export default function ProcessoClient() {
             placeholder={campo.placeholder || campo.label}
             className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
           {mostrarBotaoMaps && (
+            <>
             <a
               href={`https://maps.google.com/?q=${encodeURIComponent(parseCoords(val.valor))}`}
               target="_blank"
@@ -536,6 +537,7 @@ export default function ProcessoClient() {
               aria-label="Abrir coordenadas no Google Earth"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
             >🌍</a>
+            </>
           )}
         </div>
         {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
