@@ -155,12 +155,11 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   }
 
   useEffect(() => { carregar(); }, [codigo]);
-  // auto-save ao alterar itens/obs - so para analise ja existente (PUT)
+  // auto-save ao alterar itens/obs
   useEffect(() => {
-    if (checklistItens.length === 0 || novaAnalise || !analiseAtual) return;
-    const t = setTimeout(() => salvarSilencioso(), 400);
+    if (checklistItens.length === 0) return;
+    const t = setTimeout(() => salvarSilencioso("em_andamento", true), 400);
     return () => clearTimeout(t);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itens, observacoes, observacoesPorAba]);
 
 
@@ -192,7 +191,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
 
   // Auto-save silencioso para disparar em troca de aba / clique de botão,
   // sem chamar carregar() (que resetaria estado da UI).
-  async function salvarSilencioso(status = "em_andamento") {
+  async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
     try {
       if (novaAnalise || !analiseAtual) {
         const res = await fetch("/api/analise", {
@@ -210,7 +209,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           }),
         });
         const json = await res.json().catch(() => null);
-        if (json?.ok && json?.data) {
+        if (json?.ok && json?.data && !skipStateUpdate) {
           setAnaliseAtual(json.data);
           setNovaAnalise(false);
         }
