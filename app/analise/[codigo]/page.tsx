@@ -729,7 +729,13 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
-
+            <a
+            
+              href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
+              download
+              className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              📊 Exportar Excel
+            </a>
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
             </div>

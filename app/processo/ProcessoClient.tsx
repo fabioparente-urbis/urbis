@@ -591,6 +591,12 @@ export default function ProcessoClient() {
             className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
+          <a
+            href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
+            download
+            className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            📊 Excel
+          </a>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
