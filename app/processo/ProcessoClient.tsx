@@ -528,6 +528,7 @@ export default function ProcessoClient() {
               className="absolute right-8 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
             >📍</a>
             
+            <a
               href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(val.valor))}`}
               target="_blank"
               rel="noopener noreferrer"
