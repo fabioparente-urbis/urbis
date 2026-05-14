@@ -104,6 +104,43 @@ function rotuloTipo(t: "ACEITE" | "REGULARIZACAO" | "APROVACAO"): string {
   return "Regularização";
 }
 
+// Conversão UTM Zona 22S (SIRGAS 2000) → lat/lng
+function utmToLatLng(easting: number, northing: number): { lat: number; lng: number } {
+  const k0 = 0.9996, a = 6378137.0, e = 0.0818191908426;
+  const e1sq = 0.006739496742;
+  const x = easting - 500000;
+  const y = northing - 10000000;
+  const lon0 = (22 - 1) * 6 - 180 + 3;
+  const M = y / k0;
+  const mu = M / (a * (1 - e**2/4 - 3*e**4/64 - 5*e**6/256));
+  const e1 = (1 - Math.sqrt(1 - e*e)) / (1 + Math.sqrt(1 - e*e));
+  const fp = mu + (3*e1/2 - 27*e1**3/32)*Math.sin(2*mu)
+           + (21*e1**2/16 - 55*e1**4/32)*Math.sin(4*mu)
+           + (151*e1**3/96)*Math.sin(6*mu)
+           + (1097*e1**4/512)*Math.sin(8*mu);
+  const C1 = e1sq * Math.cos(fp)**2;
+  const T1 = Math.tan(fp)**2;
+  const R1 = a*(1-e*e) / (1-(e*Math.sin(fp))**2)**1.5;
+  const N1 = a / Math.sqrt(1-(e*Math.sin(fp))**2);
+  const D = x / (N1*k0);
+  const lat = fp - (N1*Math.tan(fp)/R1)*(D**2/2 - (5+3*T1+10*C1-4*C1**2-9*e1sq)*D**4/24 + (61+90*T1+298*C1+45*T1**2-252*e1sq-3*C1**2)*D**6/720);
+  const lng = lon0*Math.PI/180 + (D - (1+2*T1+C1)*D**3/6 + (5-2*C1+28*T1-3*C1**2+8*e1sq+24*T1**2)*D**5/120)/Math.cos(fp);
+  return { lat: lat*180/Math.PI, lng: lng*180/Math.PI };
+}
+
+function parseCoords(val: string): string {
+  const parts = val.trim().split(/[,\s]+/).map(Number).filter(n => !isNaN(n));
+  if (parts.length < 2) return val;
+  const [a, b] = parts;
+  // UTM zona 22S: easting ~160000-840000, northing ~7500000-9000000
+  if (a > 10000 && b > 1000000) {
+    const { lat, lng } = utmToLatLng(a, b);
+    return `${lat.toFixed(8)},${lng.toFixed(8)}`;
+  }
+  return val.trim();
+}
+
+
 export default function ProcessoClient() {
   const params = useParams();
   const router = useRouter();
@@ -483,13 +520,21 @@ export default function ProcessoClient() {
             className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
           {mostrarBotaoMaps && (
             <a
-              href={`https://maps.google.com/?q=${encodeURIComponent(val.valor.trim())}`}
+              href={`https://maps.google.com/?q=${encodeURIComponent(parseCoords(val.valor))}`}
               target="_blank"
               rel="noopener noreferrer"
               title="Abrir no Google Maps"
               aria-label="Abrir coordenadas no Google Maps"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
             >📍</a>
+            
+              href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(val.valor))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no Google Earth"
+              aria-label="Abrir coordenadas no Google Earth"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            >🌍</a>
           )}
         </div>
         {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
