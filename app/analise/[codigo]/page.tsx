@@ -155,6 +155,12 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   }
 
   useEffect(() => { carregar(); }, [codigo]);
+  // auto-save ao alterar itens/obs
+  useEffect(() => {
+    if (checklistItens.length === 0) return;
+    const t = setTimeout(() => salvarSilencioso(), 400);
+    return () => clearTimeout(t);
+  }, [itens, observacoes, observacoesPorAba]);
 
   function setItem(id: string, status: StatusItem) {
     setItens((prev) => ({ ...prev, [id]: status }));
@@ -813,55 +819,10 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
-            <a
-
-              href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
-              download
-              className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-              📊 Backup Excel
-            </a>
-            <button
-              type="button"
-              onClick={() => inputImportRef.current?.click()}
-              disabled={importando || !analiseAtual?.id}
-              className="w-full mt-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-              {importando ? "⏳ Importando..." : "📥 Importar Excel"}
-            </button>
-            <input
-              ref={inputImportRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importarExcel(f);
-              }}
-            />
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
             </div>
-          </div>
-
-          {analises.length === 4 && (
-            <div className="bg-orange-950 border border-orange-700 rounded-lg p-3">
-              <p className="text-xs text-orange-300 font-bold">⚠️ Esta é a 5ª e última análise permitida.</p>
-              <p className="text-xs text-orange-400 mt-1">Se não for liberada a taxa, o processo será indeferido.</p>
             </div>
-          )}
-
-          {naoConformes.length > 0 && (
-            <div className="mt-2">
-              <h4 className="text-xs font-bold text-red-400 uppercase mb-2">Não Conformes</h4>
-              <div className="flex flex-col gap-1">
-                {naoConformes.map((i) => (
-                  <div key={i.id} className="bg-red-950 border border-red-800 rounded p-2">
-                    <p className="text-xs text-red-300 leading-relaxed">{i.texto}</p>
-                    {i.ref && <p className="text-xs text-red-600 mt-0.5">{i.ref}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

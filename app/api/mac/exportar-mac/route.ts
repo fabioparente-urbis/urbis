@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "MAC");
 
-  const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+  const buf = Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
   const data = new Date().toISOString().slice(0, 10);
   const filename = `MAC_${analise.processo_codigo}_${data}.xlsx`;
 
