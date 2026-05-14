@@ -452,7 +452,7 @@ export default function MacAceitePage() {
           <div className="flex items-center gap-3">
             <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}?tipo=ACEITE`))}
               className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              ← Cadastro
+              ← LIP
             </button>
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Análise de Aceite</h1>
@@ -733,7 +733,7 @@ export default function MacAceitePage() {
               href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
               download
               className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-              📊 Exportar Excel
+              📊 Backup Excel
             </a>
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />

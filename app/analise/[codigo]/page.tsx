@@ -459,7 +459,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           <div className="flex items-center gap-3">
             <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
               className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              ← Cadastro
+              ← LIP
             </button>
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
@@ -739,7 +739,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
               download
               className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-              📊 Exportar Excel
+              📊 Backup Excel
             </a>
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
