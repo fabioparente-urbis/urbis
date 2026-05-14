@@ -161,6 +161,7 @@ export default function ProcessoClient() {
   const [d, setD] = useState<Record<string, Campo>>({});
 
   const [historico, setHistorico] = useState<EventoHistorico[]>([]);
+  const [perfisUsuario, setPerfisUsuario] = useState<string[]>([]);
   const [eventoAberto, setEventoAberto] = useState<string | null>(null);
   const [restaurando, setRestaurando] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
@@ -204,6 +205,8 @@ export default function ProcessoClient() {
   async function carregarHistorico() {
     try {
       const res = await fetch(`/api/processo/historico?id=${idUrl}`);
+      const meRes = await fetch("/api/auth/me");
+      if (meRes.ok) { const meJson = await meRes.json(); setPerfisUsuario(meJson.perfis || (meJson.perfil ? [meJson.perfil] : [])); }
       const json = await res.json();
       if (json?.ok) setHistorico(json.data ?? []);
     } catch {}
@@ -831,14 +834,23 @@ export default function ProcessoClient() {
                                 ⚠️ Tem certeza? Todas as alterações feitas após este momento serão revertidas.
                               </p>
                               <div className="flex gap-2">
-                                <button onClick={() => restaurar(ev)} disabled={!!esteRestaurando}
-                                  className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
-                                  {esteRestaurando ? "Restaurando..." : "✓ Confirmar restauração"}
-                                </button>
-                                <button onClick={() => setConfirmando(null)}
-                                  className="bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
-                                  Cancelar
-                                </button>
+                                {perfisUsuario.some(p => ["Administrador","Diretora","Diretor"].includes(p)) ? (
+                                  <>
+                                    <button onClick={() => restaurar(ev)} disabled={!!esteRestaurando}
+                                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      {esteRestaurando ? "Restaurando..." : "✓ Confirmar restauração"}
+                                    </button>
+                                    <button onClick={() => setConfirmando(null)}
+                                      className="bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      Cancelar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => setConfirmando(null)}
+                                    className="bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                    Cancelar
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
