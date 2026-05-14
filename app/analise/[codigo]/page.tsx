@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
 
@@ -39,6 +39,8 @@ export default function MacPage() {
   const [abaAtual, setAbaAtual] = useState(0);
   const [gerandoDespacho, setGerandoDespacho] = useState(false);
   const [modalDespacho, setModalDespacho] = useState(false);
+  const [modalPendenciasLip, setModalPendenciasLip] = useState(false);
+  const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
   const [modalIndeferimento, setModalIndeferimento] = useState(false);
   const [motivosIndeferimento, setMotivosIndeferimento] = useState<string[]>([]);
   const [obsIndeferimento, setObsIndeferimento] = useState("");
@@ -61,6 +63,35 @@ export default function MacPage() {
   function mostrarToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
+  }
+
+  const inputImportRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+  async function importarExcel(file: File) {
+    if (!file || !analiseAtual?.id) {
+      mostrarToast("Crie/salve a análise antes de importar.");
+      return;
+    }
+    try {
+      setImportando(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("analiseId", analiseAtual.id);
+      const res = await fetch("/api/mac/importar-mac", { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        mostrarToast(`Erro ao importar: ${json?.erro || res.statusText}`);
+        return;
+      }
+      const naoEnc = Array.isArray(json.naoEncontrados) ? json.naoEncontrados.length : 0;
+      mostrarToast(`✅ ${json.atualizados} item(ns) atualizado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`);
+      await carregar();
+    } catch (e: any) {
+      mostrarToast(`Erro ao importar: ${e?.message || "falha"}`);
+    } finally {
+      setImportando(false);
+      if (inputImportRef.current) inputImportRef.current.value = "";
+    }
   }
 
   async function carregarModelos(tipo: string) {
@@ -730,17 +761,58 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           <div className="border-t border-slate-700 pt-2">
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">Documentos</h3>
 
-            <button onClick={async () => { await salvarSilencioso(); setModalDespacho(true); }} disabled={gerandoDespacho}
+            <button onClick={async () => {
+              await salvarSilencioso();
+              try {
+                const [procRes, lipRes] = await Promise.all([
+                  fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`),
+                  fetch("/api/admin/lip"),
+                ]);
+                const procJson = await procRes.json();
+                const lipJson = await lipRes.json();
+                const dados = procJson?.dados || {};
+                const campos = (lipJson?.data || []).flatMap((a: any) => a.lip_campos || []);
+                const pendentes = campos
+                  .filter((c: any) => {
+                    const v = dados[c.chave]?.valor;
+                    return v === "" || v === "X" || v === undefined;
+                  })
+                  .map((c: any) => c.label);
+                if (pendentes.length > 0) {
+                  setPendenciasLip(pendentes);
+                  setModalPendenciasLip(true);
+                } else {
+                  setModalDespacho(true);
+                }
+              } catch { setModalDespacho(true); }
+            }} disabled={gerandoDespacho}
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
             <a
-            
+
               href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
               download
               className="w-full mt-2 bg-green-700 hover:bg-green-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               📊 Backup Excel
             </a>
+            <button
+              type="button"
+              onClick={() => inputImportRef.current?.click()}
+              disabled={importando || !analiseAtual?.id}
+              className="w-full mt-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              {importando ? "⏳ Importando..." : "📥 Importar Excel"}
+            </button>
+            <input
+              ref={inputImportRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) importarExcel(f);
+              }}
+            />
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
             </div>
@@ -769,6 +841,27 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
         </div>
       </div>
 
+      {modalPendenciasLip && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold text-orange-400 mb-2">⚠️ Pendências no LIP</h2>
+            <p className="text-slate-300 text-sm mb-3">Os seguintes campos estão vazios ou marcados com X. Deseja emitir o despacho mesmo assim?</p>
+            <ul className="text-sm text-red-300 mb-4 max-h-48 overflow-y-auto list-disc pl-5">
+              {pendenciasLip.map((p, i) => <li key={i}>{p}</li>)}
+            </ul>
+            <div className="flex gap-3">
+              <button onClick={() => { setModalPendenciasLip(false); setModalDespacho(true); }}
+                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
+                Emitir mesmo assim
+              </button>
+              <button onClick={() => setModalPendenciasLip(false)}
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalIndeferimento && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-red-700 rounded-xl p-6 w-full max-w-lg">

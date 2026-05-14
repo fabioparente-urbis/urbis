@@ -212,43 +212,76 @@ export default function ProcessoClient() {
     } catch {}
   }
 
+  const carregarProcesso = useCallback(async () => {
+    if (!idUrl) return;
+    try {
+      setCarregando(true);
+      const res = await fetch(`/api/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
+      const texto = await res.text();
+      let json: any = null;
+      try { json = texto ? JSON.parse(texto) : null; } catch {
+        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+      }
+      if (!json?.ok || !json?.data?.dados) {
+        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+      }
+      const dadosSalvos = json.data.dados;
+      setD((prev) => {
+        const atualizado = { ...prev };
+        for (const chave in atualizado) {
+          const salvo = dadosSalvos[chave];
+          if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
+            atualizado[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
+          }
+        }
+        atualizado.processo = { valor: idUrl, origem: "urbis" };
+        snapRef.current = atualizado;
+        return atualizado;
+      });
+    } catch (e) {
+      console.error("Erro ao carregar:", e);
+      setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } }));
+    } finally {
+      setCarregando(false);
+    }
+  }, [idUrl, tipoUrl]);
+
   useEffect(() => {
     if (!idUrl || carregandoAbas) return;
-    async function carregar() {
-      try {
-        setCarregando(true);
-        const res = await fetch(`/api/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
-        const texto = await res.text();
-        let json: any = null;
-        try { json = texto ? JSON.parse(texto) : null; } catch {
-          setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
-        }
-        if (!json?.ok || !json?.data?.dados) {
-          setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
-        }
-        const dadosSalvos = json.data.dados;
-        setD((prev) => {
-          const atualizado = { ...prev };
-          for (const chave in atualizado) {
-            const salvo = dadosSalvos[chave];
-            if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
-              atualizado[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
-            }
-          }
-          atualizado.processo = { valor: idUrl, origem: "urbis" };
-          snapRef.current = atualizado;
-          return atualizado;
-        });
-      } catch (e) {
-        console.error("Erro ao carregar:", e);
-        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } }));
-      } finally {
-        setCarregando(false);
-      }
-    }
-    carregar();
+    carregarProcesso();
     carregarHistorico();
-  }, [idUrl, carregandoAbas]);
+  }, [idUrl, carregandoAbas, carregarProcesso]);
+
+  const inputImportRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+  async function importarExcel(file: File) {
+    if (!file) return;
+    try {
+      setImportando(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("codigo", idUrl);
+      fd.append("tipo", tipoUrl || "REGULARIZACAO");
+      const res = await fetch("/api/processo/importar-lip", { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        mostrarToast(`Erro ao importar: ${json?.erro || res.statusText}`, "erro");
+        return;
+      }
+      const naoEnc = Array.isArray(json.naoEncontrados) ? json.naoEncontrados.length : 0;
+      mostrarToast(
+        `✅ Importação concluída: ${json.atualizados} campo(s) atualizado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`,
+        "sucesso",
+      );
+      await carregarProcesso();
+      await carregarHistorico();
+    } catch (e: any) {
+      mostrarToast(`Erro ao importar: ${e?.message || "falha inesperada"}`, "erro");
+    } finally {
+      setImportando(false);
+      if (inputImportRef.current) inputImportRef.current.value = "";
+    }
+  }
 
   const autoSalvar = useCallback((estado: Record<string, Campo>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -597,6 +630,23 @@ export default function ProcessoClient() {
             className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Backup Excel
           </a>
+          <button
+            type="button"
+            onClick={() => inputImportRef.current?.click()}
+            disabled={importando || !idUrl}
+            className="mt-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            {importando ? "⏳ Importando..." : "📥 Importar Excel"}
+          </button>
+          <input
+            ref={inputImportRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importarExcel(f);
+            }}
+          />
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
