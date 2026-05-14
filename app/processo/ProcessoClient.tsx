@@ -541,7 +541,7 @@ export default function ProcessoClient() {
             🔍 MAC
           </button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">📋 Cadastro de Processo</h1>
+            <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
               Processo: <span className="text-yellow-400 font-mono">{idUrl || "—"}</span>
               {" · "}<span className="text-slate-500">{rotuloTipo(tipoUrl)}</span>

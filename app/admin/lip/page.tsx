@@ -330,7 +330,7 @@ export default function AdminLipPage() {
             </button>
             <div>
               <h1 className="text-xl font-bold">🏗️ Gerenciar Campos do LIP</h1>
-              <p className="text-slate-400 text-sm">Abas e campos do Cadastro de Processo</p>
+              <p className="text-slate-400 text-sm">Abas e campos do LIP - Leitura Inteligente de Processo</p>
             </div>
           </div>
           <button onClick={abrirNovaAba}

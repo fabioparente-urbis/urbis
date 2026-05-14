@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       dados?.nome_proprietario?.valor ||
       processo;
     const numeroProcessoFisico =
-      dados?.numero_processo_fisico?.valor ||
+      dados?.processoFisico?.valor ||
       (proc as any)?.numero_processo_fisico ||
       "";
 
