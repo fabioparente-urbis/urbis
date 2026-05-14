@@ -252,6 +252,7 @@ export default function MacAceitePage() {
           numeroDespacho,
           naoConformes: naoConformesIds,
           observacoes,
+          observacoesPorAba,
           analises: analises.map((a) => ({
             numero: a.numero_analise,
             data: new Date(a.criado_em).toLocaleDateString("pt-BR"),

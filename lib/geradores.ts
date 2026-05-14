@@ -321,7 +321,7 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -357,7 +357,16 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   } else {
     gerarItens(dados.naoConformes).forEach(item => children.push(item));
   }
-  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
+  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações gerais: ", { bold: true }), txt(dados.observacoes)])); }
+  if (dados.observacoesPorAba && Object.keys(dados.observacoesPorAba).length > 0) {
+    children.push(vazio(100));
+    children.push(p([txt("Observações por seção:", { bold: true, underline: {} })]));
+    Object.entries(dados.observacoesPorAba).forEach(([aba, obs]) => {
+      if (obs && obs.trim()) {
+        children.push(p([txt(`${aba}: `, { bold: true }), txt(obs)]));
+      }
+    });
+  }
   children.push(vazio(160));
   children.push(new Paragraph({ spacing: { before: 200, after: 80 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("CONSIDERAÇÕES FINAIS", { bold: true, underline: true })] }));
   ["AS CÓPIAS DE ARQUIVO NÃO PODEM SER RETIRADAS DO PROCESSO;", "É FACULTADO AO ANALISTA/REVISOR O DIREITO DE SOLICITAR DOCUMENTAÇÃO, CORREÇÕES E ADEQUAÇÕES SEMPRE QUE NECESSÁRIO, ANTES DO DEFERIMENTO DO PROCESSO, CONFORME LEGISLAÇÃO MUNICIPAL VIGENTE."].forEach(item => {
@@ -371,7 +380,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -404,7 +413,16 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   } else {
     gerarItens(dados.naoConformes).forEach(item => children.push(item));
   }
-  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)])); }
+  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações gerais: ", { bold: true }), txt(dados.observacoes)])); }
+  if (dados.observacoesPorAba && Object.keys(dados.observacoesPorAba).length > 0) {
+    children.push(vazio(100));
+    children.push(p([txt("Observações por seção:", { bold: true, underline: {} })]));
+    Object.entries(dados.observacoesPorAba).forEach(([aba, obs]) => {
+      if (obs && obs.trim()) {
+        children.push(p([txt(`${aba}: `, { bold: true }), txt(obs)]));
+      }
+    });
+  }
   children.push(vazio(160));
   children.push(new Paragraph({ spacing: { before: 200, after: 80 }, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("CONSIDERAÇÕES FINAIS", { bold: true, underline: true })] }));
   ["AS CÓPIAS DE ARQUIVO NÃO PODEM SER RETIRADAS DO PROCESSO;", "É FACULTADO AO ANALISTA/REVISOR O DIREITO DE SOLICITAR DOCUMENTAÇÃO, CORREÇÕES E ADEQUAÇÕES SEMPRE QUE NECESSÁRIO, ANTES DO DEFERIMENTO DO PROCESSO, CONFORME LEGISLAÇÃO MUNICIPAL VIGENTE."].forEach(item => {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo, tipo, numeroDespacho, naoConformes, observacoes, analises, analiseId, numero_revisao } = body;
+    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao } = body;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, analises: analisesParaDoc, assinante });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante });
     } else if (tipo === "indeferimento") {
       buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante });
     } else {

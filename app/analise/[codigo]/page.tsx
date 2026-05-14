@@ -260,6 +260,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           numeroDespacho,
           naoConformes: naoConformesIds,
           observacoes,
+          observacoesPorAba,
           analises: analises.map((a) => ({
             numero: a.numero_analise,
             data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
