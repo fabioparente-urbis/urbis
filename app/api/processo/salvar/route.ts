@@ -127,13 +127,22 @@ export async function POST(req: NextRequest) {
         }]);
     }
 
-    // Propaga campos CONFERIR/X do LIP para a última análise do MAC
-    // como itens nao_conforme. Não sobrescreve marcações existentes.
-    // Requer coluna `chave_lip` em mac_checklist_itens (ver migration).
-    // Filtra também por tipo_processo para não cruzar análises entre fluxos.
+    // Propaga campos CONFERIR/X do LIP para a análise MAC ativa
+    // (status != 'deferido' && status != 'indeferido') como itens
+    // 'nao_conforme'. NÃO cria análise se não existir e NÃO sobrescreve
+    // marcações manuais do analista — apenas itens nulos ou
+    // 'nao_respondido' são alterados.
+    //
+    // O equivalente conceitual do "UPSERT em analise_itens com
+    // ON CONFLICT (analise_id, checklist_item_id) DO UPDATE SET
+    // status = 'nao_conforme'" é implementado sobre o jsonb
+    // `analises_mac.itens` (mapa item_id → status), já que essa é a
+    // estrutura efetiva no banco. Filtra por tipo_processo via
+    // modelo_id da análise + colunas explícitas.
     try {
       const chavesProblema = dados ? chavesVaziasOuX(dados) : [];
       if (chavesProblema.length > 0) {
+        // 3. Buscar a análise MAC ativa (não deferida e não indeferida).
         const { data: ultima } = await supabase
           .from("analises_mac")
           .select("id, itens, modelo_id, status")
@@ -143,21 +152,40 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .maybeSingle();
 
-        if (ultima?.id && ultima.modelo_id && ultima.status !== "deferido" && ultima.status !== "indeferido") {
+        const ativa =
+          ultima?.id &&
+          ultima.modelo_id &&
+          ultima.status !== "deferido" &&
+          ultima.status !== "indeferido";
+
+        if (ativa) {
+          // 2. Itens do MAC cuja `chave_lip` cai na lista de campos
+          //    vazios/X, restritos ao modelo da análise ativa
+          //    (que, por sua vez, está vinculado ao tipo_processo).
           const { data: itensMap } = await supabase
             .from("mac_checklist_itens")
             .select("id, chave_lip")
-            .eq("modelo_id", ultima.modelo_id)
+            .eq("modelo_id", ultima!.modelo_id)
             .eq("ativo", true)
             .in("chave_lip", chavesProblema);
 
           if (itensMap && itensMap.length > 0) {
-            const itensAtuais: Record<string, string | null> = (ultima.itens as any) || {};
+            const itensAtuais: Record<string, string | null> =
+              (ultima!.itens as any) || {};
             let alterou = false;
             for (const it of itensMap) {
               if (!it?.id) continue;
-              // Só pré-marca se ainda não foi avaliado pelo analista.
-              if (!itensAtuais[it.id]) {
+              const atual = itensAtuais[it.id];
+              // 4. UPSERT lógico: só pré-marca se status atual for
+              //    null/undefined, vazio ou 'nao_respondido'. Marcações
+              //    manuais ('conforme', 'nao_conforme', 'nao_aplica')
+              //    NÃO são sobrescritas.
+              const livreParaPreMarcar =
+                atual === null ||
+                atual === undefined ||
+                atual === "" ||
+                atual === "nao_respondido";
+              if (livreParaPreMarcar) {
                 itensAtuais[it.id] = "nao_conforme";
                 alterou = true;
               }
@@ -165,8 +193,11 @@ export async function POST(req: NextRequest) {
             if (alterou) {
               await supabase
                 .from("analises_mac")
-                .update({ itens: itensAtuais, atualizado_em: new Date().toISOString() })
-                .eq("id", ultima.id);
+                .update({
+                  itens: itensAtuais,
+                  atualizado_em: new Date().toISOString(),
+                })
+                .eq("id", ultima!.id);
             }
           }
         }

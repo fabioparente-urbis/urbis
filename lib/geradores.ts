@@ -99,6 +99,22 @@ export function formatarDecimal(valor: number | string | null | undefined): stri
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/**
+ * Formata número no padrão BR para inserção em documentos (.docx/.xlsx):
+ * sempre 2 casas decimais, separador vírgula e SEM separador de milhares.
+ * Use para áreas (m²), medidas (m) e volumes (m³).
+ *
+ * Aceita number ou string parseável. Retorna "" para nulo/vazio e
+ * devolve o input bruto quando não é número válido — para nunca quebrar
+ * a renderização do documento por causa de um dado mal-formatado.
+ */
+export function formatarBR(valor: number | string | null | undefined): string {
+  if (valor === null || valor === undefined || valor === "") return "";
+  const n = typeof valor === "number" ? valor : Number(String(valor).replace(",", "."));
+  if (!Number.isFinite(n)) return String(valor);
+  return n.toFixed(2).replace(".", ",");
+}
+
 function blocoAssinaturaAnalista(ass: Assinante): Paragraph[] {
   const out: Paragraph[] = [];
   out.push(new Paragraph({
