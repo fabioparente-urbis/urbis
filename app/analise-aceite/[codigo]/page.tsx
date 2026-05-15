@@ -44,6 +44,13 @@ export default function MacAceitePage() {
   const [abaAtual, setAbaAtual] = useState(0);
   const [gerandoDespacho, setGerandoDespacho] = useState(false);
   const [modalDespacho, setModalDespacho] = useState(false);
+  const [modalDespachoInterno, setModalDespachoInterno] = useState(false);
+  const [numDI, setNumDI] = useState("");
+  const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
+  const [destinoDI, setDestinoDI] = useState("");
+  const [destinoCustomDI, setDestinoCustomDI] = useState("");
+  const [corpoDI, setCorpoDI] = useState("");
+  const [gerandoDI, setGerandoDI] = useState(false);
   const [modalPendenciasLip, setModalPendenciasLip] = useState(false);
   const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
   const [modalIndeferimento, setModalIndeferimento] = useState(false);
@@ -361,6 +368,21 @@ export default function MacAceitePage() {
     );
   }
 
+  async function handleDespachoInterno() {
+    setGerandoDI(true);
+    try {
+      const res = await fetch("/api/despacho-interno", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, tipoProcesso: "ACEITE", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+      });
+      if (!res.ok) throw new Error("Erro");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
+      URL.revokeObjectURL(url); setModalDespachoInterno(false);
+    } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
+  }
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {toast && (
@@ -818,6 +840,10 @@ export default function MacAceitePage() {
               className="w-full bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
+            <button onClick={() => setModalDespachoInterno(true)}
+              className="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 mt-2">
+              📨 Despacho Interno
+            </button>
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
             </div>
@@ -825,6 +851,56 @@ export default function MacAceitePage() {
         </div>
       </div>
 
+      {modalDespachoInterno && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-white font-bold text-lg">📨 Despacho Interno</h2>
+              <button onClick={() => setModalDespachoInterno(false)} className="text-slate-400 hover:text-white text-xl">✕</button>
+            </div>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Nº Despacho</label>
+                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Data</label>
+                  <input value={dataDI} onChange={e => setDataDI(e.target.value)} className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Destinatário</label>
+                <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Selecione...</option>
+                  <option value="Gerência de Pequeno Porte — DIRAAP/SEFIC">Gerência de Pequeno Porte — DIRAAP</option>
+                  <option value="Gerência de Médio Porte — DIRAAP/SEFIC">Gerência de Médio Porte — DIRAAP</option>
+                  <option value="Gerência de Grande Porte — DIRAAP/SEFIC">Gerência de Grande Porte — DIRAAP</option>
+                  <option value="Diretoria de Análise de Projetos — DIRAAP/SEFIC">Diretoria de Análise de Projetos — DIRAAP/SEFIC</option>
+                  <option value="outro">Outro...</option>
+                </select>
+                {destinoDI === "outro" && (
+                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Conteúdo</label>
+                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !destinoDI || !corpoDI}
+                className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
+              </button>
+              <button onClick={() => setModalDespachoInterno(false)}
+                className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalPendenciasLip && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-lg">

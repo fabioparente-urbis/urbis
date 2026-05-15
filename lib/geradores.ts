@@ -529,3 +529,32 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { size: { width: A4_W, height: A4_H }, margin: MARGINS } }, headers: { default: makeHeader(logoData) }, footers: { default: makeFooter("Arquivamento") }, children }] });
   return await Packer.toBuffer(doc) as Buffer;
 }
+
+export async function gerarDespachoInterno(dados: {
+  processo: string; interessado: string; numeroDespacho: string;
+  data: string; tipoProcesso: string; destino: string; corpo: string;
+  assinante?: Assinante;
+}): Promise<Buffer> {
+  const logoData = getLogoData();
+  const assinante: Assinante = dados.assinante || { nome: "Analista", cargo: "Analista de Obras e Urbanismo" };
+  const CW = A4_W - MARGINS.left - MARGINS.right;
+  const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
+  const brd = { top: nb, bottom: nb, left: nb, right: nb };
+  const half = Math.floor(CW / 2);
+  const children: Paragraph[] = [];
+  children.push(vazio(160));
+  children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("Assunto:  "), txt(dados.tipoProcesso, { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO INTERNO Nº ${dados.numeroDespacho}`, { bold: true, size: 22 })] }));
+  children.push(p([txt(`À ${dados.destino}`)], { align: AlignmentType.LEFT, after: 160 }));
+  dados.corpo.split("\n").forEach((linha: string) => {
+    children.push(p([txt(linha || " ")], { after: 80 }));
+  });
+  children.push(vazio(200));
+  blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
+  children.push(vazio(120));
+  children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [txt(`Goiânia, ${dados.data}`)] })] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [txt("SEFIC / DIRAAP")] })] })] })] }) as any);
+  const doc = new Document({ styles: { default: { document: { run: { font: "Arial", size: 20 } } } }, sections: [{ properties: { page: { size: { width: A4_W, height: A4_H }, margin: MARGINS } }, headers: { default: makeHeader(logoData) }, footers: { default: makeFooter("Despacho Interno") }, children }] });
+  return await Packer.toBuffer(doc) as Buffer;
+}
