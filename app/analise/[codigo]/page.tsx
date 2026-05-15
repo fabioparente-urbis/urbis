@@ -823,7 +823,6 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
             </div>
-            </div>
         </div>
       </div>
 
