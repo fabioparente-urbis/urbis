@@ -122,10 +122,11 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroDespacho: string; naoConformes: string[]; observacoes: string; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: { nome: string; cargo?: string; registro?: string }; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
+  const analista = dados.assinante?.nome || dados.analista || "Engº Fábio Parente Martins Santos";
+  const crea = dados.assinante?.registro || dados.crea || "CREA 11716/D-GO";
+  const cargoAnalista = dados.assinante?.cargo || "Analista de Obras e Urbanismo";
   const setor = dados.setor || "SEFIC / DIRAAP / GERAED";
   const dataAssinatura = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
@@ -173,10 +174,11 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: { nome: string; cargo?: string; registro?: string }; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
+  const analista = dados.assinante?.nome || dados.analista || "Engº Fábio Parente Martins Santos";
+  const crea = dados.assinante?.registro || dados.crea || "CREA 11716/D-GO";
+  const cargoAnalista = dados.assinante?.cargo || "Analista de Obras e Urbanismo";
   const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
@@ -203,7 +205,7 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
-  const assinantes = [{ nome: analista, registro: crea, cargo: "Análise e Licenciamento de Edificações" }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
+  const assinantes = [{ nome: analista, registro: crea, cargo: cargoAnalista }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: assinantes.map(ass => new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt(ass.nome, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt(ass.registro, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(ass.cargo, { size: 19 })] })] })) })] }) as any);
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [quart, half, quart], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("Arq. Urb. Virgínia Inácio Mathias Costa", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt("CAU A35072-9", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos – DIRAAP", { size: 19 })] })] }), new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] })] })] }) as any);
   children.push(vazio(120));
@@ -213,10 +215,11 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; }): Promise<Buffer> {
+export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: { nome: string; cargo?: string; registro?: string }; }): Promise<Buffer> {
   const logoData = getLogoData();
-  const analista = dados.analista || "Engº Fábio Parente Martins Santos";
-  const crea = dados.crea || "CREA 11716/D-GO";
+  const analista = dados.assinante?.nome || dados.analista || "Engº Fábio Parente Martins Santos";
+  const crea = dados.assinante?.registro || dados.crea || "CREA 11716/D-GO";
+  const cargoAnalista = dados.assinante?.cargo || "Analista de Obras e Urbanismo";
   const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
@@ -236,7 +239,7 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
-  const assinantes = [{ nome: analista, registro: crea, cargo: "Análise e Licenciamento de Edificações" }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
+  const assinantes = [{ nome: analista, registro: crea, cargo: cargoAnalista }, { nome: "Arq. Urb. Marcos Antônio de Castro Rocha", registro: "CAU A2585910", cargo: "Gerencia de Análise e Licenciamento de Edificações" }];
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: assinantes.map(ass => new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt(ass.nome, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt(ass.registro, { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(ass.cargo, { size: 19 })] })] })) })] }) as any);
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [quart, half, quart], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 40 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, children: [txt("Arq. Urb. Virgínia Inácio Mathias Costa", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 30 }, children: [txt("CAU A35072-9", { size: 19 })] }), new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos – DIRAAP", { size: 19 })] })] }), new TableCell({ borders: brd, width: { size: quart, type: WidthType.DXA }, children: [vazio(0)] })] })] }) as any);
   children.push(vazio(120));
