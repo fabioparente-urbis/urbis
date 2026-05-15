@@ -42,7 +42,7 @@ function normalizarGerencia(v: unknown): "PP" | "MP" | "GP" | null {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { nome, cpf, email, matricula, telefone, cargo, status, senha } = body;
+    const { nome, cpf, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, cau_crea, status, senha } = body;
     if (!nome || !email || !senha)
       return NextResponse.json({ ok: false, erro: "Nome, email e senha obrigatórios" }, { status: 400 });
 
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, nome, cpf, email, matricula, telefone, cargo, status, senha } = body;
+    const { id, nome, cpf, email, matricula, telefone, cargo, cau_crea, status, senha } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
 
     const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
@@ -120,7 +120,7 @@ export async function PUT(req: NextRequest) {
     if (perfis.includes("Administrador") && (nome || "").trim() !== ADMIN_FIXO)
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
-    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, perfil: perfilPrincipal, perfis, gerencia, status };
+    const atualizacao: any = { nome, cpf, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status };
     if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
     if (status === "Ativo") atualizacao.descadastrado_em = null;
 

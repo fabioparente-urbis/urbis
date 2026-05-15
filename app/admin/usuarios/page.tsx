@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 type Usuario = {
   id: string; nome: string; cpf: string; email: string;
-  matricula: string; telefone: string; cargo: string;
+  matricula: string; telefone: string; cargo: string; cau_crea?: string;
   perfil: string;
   perfis?: string[];
   gerencia?: string | null;
@@ -33,6 +33,7 @@ const vazio = () => ({
   matricula: "",
   telefone: "",
   cargo: "",
+  cau_crea: "",
   perfis: ["Analista"] as string[],
   gerencia: "" as string, // "" | "PP" | "MP" | "GP" | "DIRAAP"
   status: "Ativo",
@@ -93,6 +94,7 @@ export default function UsuariosPage() {
       matricula: u.matricula,
       telefone: u.telefone,
       cargo: u.cargo,
+      cau_crea: u.cau_crea ?? "",
       perfis: perfisIniciais,
       gerencia: gerenciaForm,
       status: u.status,
@@ -271,7 +273,7 @@ export default function UsuariosPage() {
               <button onClick={() => setModal(false)} className="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
-              {([ ["nome","Nome completo","text"], ["cpf","CPF","text"], ["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
+              {([ ["nome","Nome completo","text"], ["cpf","CPF","text"], ["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"], ["cau_crea","CAU / CREA","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
                 <div key={campo} className="flex flex-col gap-1">
                   <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</label>
                   <input type={tipo} value={(form as any)[campo]} onChange={(e) => f(campo, e.target.value)}
