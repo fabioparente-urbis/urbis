@@ -59,27 +59,26 @@ export async function GET(req: NextRequest) {
     nao_aplica: "⬜ N/A",
   };
 
+  // 1ª aba: Observações por aba (todas reunidas)
+  const obsPorAba = (analise.observacoes_por_aba || {}) as Record<string, string>;
+  const obsEntradas = Object.entries(obsPorAba).filter(([, v]) => v && String(v).trim());
+  const wb = XLSX.utils.book_new();
+  const obsRows = obsEntradas.length > 0
+    ? obsEntradas.map(([aba, obs]) => ({ "Aba": aba, "Observação": String(obs) }))
+    : [{ "Aba": "—", "Observação": "Nenhuma observação registrada" }];
+  const wsObs = XLSX.utils.json_to_sheet(obsRows);
+  wsObs["!cols"] = [{ wch: 30 }, { wch: 80 }];
+  XLSX.utils.book_append_sheet(wb, wsObs, "Observações");
+  // 2ª aba: Checklist
   const rows = (itens || []).map((item: any) => ({
     Grupo: item.grupo,
     Item: item.texto,
     Referência: item.ref || "",
     Status: statusLabel[mapaRespostas[item.id]?.status] || "— Não respondido",
-    Observação: mapaRespostas[item.id]?.observacao || "",
   }));
-
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [{ wch: 25 }, { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 40 }];
-  const wb = XLSX.utils.book_new();
+  ws["!cols"] = [{ wch: 25 }, { wch: 60 }, { wch: 20 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, ws, "MAC");
-
-  // Aba de observações por aba do MAC
-  const obsPorAba = (analise.observacoes_por_aba || {}) as Record<string, string>;
-  const obsEntradas = Object.entries(obsPorAba).filter(([, v]) => v && String(v).trim());
-  if (obsEntradas.length > 0) {
-    const obsRows = obsEntradas.map(([aba, obs]) => ({ "Aba": aba, "Observação": String(obs) }));
-    const wsObs = XLSX.utils.json_to_sheet(obsRows);
-    wsObs["!cols"] = [{ wch: 30 }, { wch: 80 }];
-    XLSX.utils.book_append_sheet(wb, wsObs, "Observações");
   }
 
   const buf = Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
