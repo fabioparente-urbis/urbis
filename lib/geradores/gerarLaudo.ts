@@ -284,8 +284,8 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
   // ── EMISSÃO ───────────────────────────────────────────────
   const dataEmissao = dados.dataEmissao ?? new Date();
   set(ws, "K65", dataExtenso(dataEmissao));
-  set(ws, "M65", dados.nomeAnalista);
-  ws.getCell("M65").alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
+  set(ws, "K66", dados.nomeAnalista);
+  ws.getCell("K66").alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
 
   // ── OBSERVAÇÕES FINAIS ────────────────────────────────────
   if (dados.observacoesFinais) {
