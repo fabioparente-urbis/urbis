@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (analiseId) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, checklist_modelo_id")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id")
       .eq("id", analiseId)
       .maybeSingle();
     analise = data;
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!analise && codigoParam) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, checklist_modelo_id")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id")
       .eq("processo_codigo", codigoParam)
       .order("numero_analise", { ascending: false })
       .limit(1)
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const { data: itens } = await supabase
     .from("mac_checklist_itens")
     .select("id, grupo, ordem, texto, ref")
-    .eq("modelo_id", analise.checklist_modelo_id)
+    .eq("modelo_id", analise.modelo_id)
     .eq("ativo", true)
     .order("grupo")
     .order("ordem");
