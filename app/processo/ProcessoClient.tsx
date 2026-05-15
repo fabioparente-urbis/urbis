@@ -326,7 +326,15 @@ export default function ProcessoClient() {
   }
 
   function confirmar(chave: string) {
-    if (d[chave]?.origem === "padrao") {
+    if (json.ok) setDadosLogradouro(json.data);
+  }
+      setD((prev) => {
+        const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
+        autoSalvar(novo);
+        return novo;
+      });
+    }
+  }
 
   async function buscarBairros(q: string) {
     setBairroBusca(q);
@@ -353,13 +361,6 @@ export default function ProcessoClient() {
     const res = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairro)}&logradouro=${encodeURIComponent(logradouro)}`);
     const json = await res.json();
     if (json.ok) setDadosLogradouro(json.data);
-  }
-      setD((prev) => {
-        const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
-        autoSalvar(novo);
-        return novo;
-      });
-    }
   }
 
   function navegarParaProcesso() {
