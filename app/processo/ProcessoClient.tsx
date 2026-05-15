@@ -150,9 +150,9 @@ export default function ProcessoClient() {
 
   const [aba, setAba] = useState(0);
   const [salvando, setSalvando] = useState(false);
-  const [bairroBusca, setBairroBusca] = useState(() => d["bairro"]?.valor || "");
+  const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
-  const [logradouroBusca, setLogradouroBusca] = useState(() => d["logradouro"]?.valor || "");
+  const [logradouroBusca, setLogradouroBusca] = useState("");
   const [logradourosBusca, setLogradourosBusca] = useState<string[]>([]);
   const [dadosLogradouro, setDadosLogradouro] = useState<any>(null);
   const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
@@ -256,6 +256,11 @@ export default function ProcessoClient() {
     carregarProcesso();
     carregarHistorico();
   }, [idUrl, carregandoAbas, carregarProcesso]);
+  // Sincroniza inputs de via quando LIP carrega do banco
+  useEffect(() => {
+    if (d["bairro"]?.valor) setBairroBusca(d["bairro"].valor);
+    if (d["logradouro"]?.valor) setLogradouroBusca(d["logradouro"].valor);
+  }, [carregandoAbas]);
 
   const inputImportRef = useRef<HTMLInputElement>(null);
   const [importando, setImportando] = useState(false);
