@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (analiseId) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba")
       .eq("id", analiseId)
       .maybeSingle();
     analise = data;
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!analise && codigoParam) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba")
       .eq("processo_codigo", codigoParam)
       .order("numero_analise", { ascending: false })
       .limit(1)
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
   const { data: respostas } = await supabase
     .from("analise_itens")
     .select("checklist_item_id, status, observacao")
-    .eq("analise_id", analiseId);
+    .eq("analise_id", analise.id);
 
   const mapaRespostas: Record<string, { status: string; observacao: string }> = {};
   for (const r of respostas || []) {
@@ -71,6 +71,16 @@ export async function GET(req: NextRequest) {
   ws["!cols"] = [{ wch: 25 }, { wch: 60 }, { wch: 20 }, { wch: 20 }, { wch: 40 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "MAC");
+
+  // Aba de observações por aba do MAC
+  const obsPorAba = (analise.observacoes_por_aba || {}) as Record<string, string>;
+  const obsEntradas = Object.entries(obsPorAba).filter(([, v]) => v && String(v).trim());
+  if (obsEntradas.length > 0) {
+    const obsRows = obsEntradas.map(([aba, obs]) => ({ "Aba": aba, "Observação": String(obs) }));
+    const wsObs = XLSX.utils.json_to_sheet(obsRows);
+    wsObs["!cols"] = [{ wch: 30 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsObs, "Observações");
+  }
 
   const buf = Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
   const data = new Date().toISOString().slice(0, 10);

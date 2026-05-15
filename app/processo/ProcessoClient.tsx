@@ -150,9 +150,9 @@ export default function ProcessoClient() {
 
   const [aba, setAba] = useState(0);
   const [salvando, setSalvando] = useState(false);
-  const [bairroBusca, setBairroBusca] = useState("");
+  const [bairroBusca, setBairroBusca] = useState(() => d["bairro"]?.valor || "");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
-  const [logradouroBusca, setLogradouroBusca] = useState("");
+  const [logradouroBusca, setLogradouroBusca] = useState(() => d["logradouro"]?.valor || "");
   const [logradourosBusca, setLogradourosBusca] = useState<string[]>([]);
   const [dadosLogradouro, setDadosLogradouro] = useState<any>(null);
   const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
@@ -821,7 +821,7 @@ export default function ProcessoClient() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {aba === 0 && (
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="text-sm font-bold text-blue-800 mb-3">🔍 Consulta de Logradouro</h3>
+              <h3 className="text-sm font-bold text-blue-800 mb-3">Via no Cadastro Imobiliário</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
                   <label className="text-xs font-medium text-slate-600 mb-1 block">Setor / Bairro</label>
