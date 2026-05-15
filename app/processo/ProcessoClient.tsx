@@ -327,7 +327,6 @@ export default function ProcessoClient() {
 
   function confirmar(chave: string) {
     if (json.ok) setDadosLogradouro(json.data);
-  }
       setD((prev) => {
         const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
         autoSalvar(novo);
