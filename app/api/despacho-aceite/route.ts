@@ -34,13 +34,16 @@ export async function POST(req: NextRequest) {
       (proc as any)?.numero_processo_fisico ||
       "";
 
-    // Buscar dados do analista responsável na tabela equipe
-    let assinante: { nome: string; matricula?: string; cargo?: string; registro?: string } | undefined;
+    // Buscar dados do analista responsável na tabela usuarios
+    type Pessoa = { nome: string; matricula?: string; cargo?: string; registro?: string };
+    let assinante: Pessoa | undefined;
+    let gerente: Pessoa | undefined;
+    let diretora: Pessoa | undefined;
     const analistaId = (proc as any)?.analista_id;
     if (analistaId) {
       const { data: membro } = await supabase
-        .from("equipe")
-        .select("nome, matricula, cargo, registro")
+        .from("usuarios")
+        .select("nome, matricula, cargo, cau_crea, gerencia")
         .eq("id", analistaId)
         .maybeSingle();
       if (membro?.nome) {
@@ -48,7 +51,42 @@ export async function POST(req: NextRequest) {
           nome: membro.nome,
           matricula: membro.matricula || undefined,
           cargo: membro.cargo || undefined,
-          registro: membro.registro || undefined,
+          registro: membro.cau_crea || undefined,
+        };
+        // Gerente: perfis contém "Gerência {gerencia}" (ex: "Gerência MP")
+        if (membro.gerencia) {
+          const perfilGerente = `Gerência ${membro.gerencia}`;
+          const { data: ger } = await supabase
+            .from("usuarios")
+            .select("nome, matricula, cargo, cau_crea")
+            .contains("perfis", [perfilGerente])
+            .limit(1)
+            .maybeSingle();
+          if (ger?.nome) {
+            gerente = {
+              nome: ger.nome,
+              matricula: ger.matricula || undefined,
+              cargo: ger.cargo || undefined,
+              registro: ger.cau_crea || undefined,
+            };
+          }
+        }
+      }
+    }
+    // Diretora: usuario com perfil "Diretora"
+    {
+      const { data: dir } = await supabase
+        .from("usuarios")
+        .select("nome, matricula, cargo, cau_crea")
+        .contains("perfis", ["Diretora"])
+        .limit(1)
+        .maybeSingle();
+      if (dir?.nome) {
+        diretora = {
+          nome: dir.nome,
+          matricula: dir.matricula || undefined,
+          cargo: dir.cargo || undefined,
+          registro: dir.cau_crea || undefined,
         };
       }
     }
@@ -98,9 +136,9 @@ export async function POST(req: NextRequest) {
     if (tipo === "despacho") {
       buffer = await gerarDespachoAceite({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante });
+      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante, gerente, diretora });
     } else {
-      buffer = await gerarArquivamento({ processo, interessado, assinante });
+      buffer = await gerarArquivamento({ processo, interessado, assinante, gerente, diretora });
     }
 
     // Registrar último documento emitido
