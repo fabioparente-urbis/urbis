@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
     const { gerarDespachoInterno } = await import("@/lib/geradores");
     const buffer = await gerarDespachoInterno({ processo: codigo, interessado, numeroDespacho, data, tipoProcesso, destino, corpo, assinante });
-    return new NextResponse(buffer, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Content-Disposition": `attachment; filename="DespachoInterno_${codigo}_${numeroDespacho}.docx"` } });
+    return new NextResponse(new Uint8Array(buffer), { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Content-Disposition": `attachment; filename="DespachoInterno_${codigo}_${numeroDespacho}.docx"` } });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
