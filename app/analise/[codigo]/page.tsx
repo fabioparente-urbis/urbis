@@ -508,6 +508,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               📊 Backup Excel
             </button>
               type="button"
+            <button
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
