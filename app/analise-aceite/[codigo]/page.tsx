@@ -498,7 +498,7 @@ export default function MacAceitePage() {
               onClick={() => { if (analiseAtual?.id) window.location.href = `/api/mac/exportar-mac?analiseId=${analiseAtual.id}`; }}
               disabled={!analiseAtual?.id}
               className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              📊 Backup Excel
+              📊 Exportar Excel
             </button>
             <button
               type="button"
@@ -515,8 +515,6 @@ export default function MacAceitePage() {
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) importarExcel(f);
-              }}
-            />
               }}
             />
             <div>

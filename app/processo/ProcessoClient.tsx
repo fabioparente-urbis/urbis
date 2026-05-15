@@ -628,7 +628,7 @@ export default function ProcessoClient() {
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
             className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-            📊 Backup Excel
+            📊 Exportar Excel
           </a>
           <button
             type="button"
