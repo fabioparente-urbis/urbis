@@ -502,13 +502,12 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             
             <button
               type="button"
-              onClick={() => { if (analiseAtual?.id) window.location.href = `/api/mac/exportar-mac?analiseId=${analiseAtual.id}`; }}
+              onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}`, "_blank"); }}
               disabled={!analiseAtual?.id}
               className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📊 Exportar Excel
             </button>
               type="button"
-            <button
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
