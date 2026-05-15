@@ -530,16 +530,16 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               ← LIP
             </button>
             
+            <button onClick={() => setModalDespachoInterno(true)}
+              className="bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              📨 Despacho Interno
+            </button>
             <button
               type="button"
               onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank"); }}
               disabled={!analiseAtual?.id}
               className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📊 Exportar Excel
-            </button>
-            <button onClick={() => setModalDespachoInterno(true)}
-              className="bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              📨 Despacho Interno
             </button>
             <button
               type="button"
