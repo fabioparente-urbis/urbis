@@ -526,7 +526,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               🚪 Sair
             </button>
                         <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
-              className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-fuchsia-700 hover:bg-fuchsia-600 text-fuchsia-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
             </button>
             
@@ -536,6 +536,10 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               disabled={!analiseAtual?.id}
               className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📊 Exportar Excel
+            </button>
+            <button onClick={() => setModalDespachoInterno(true)}
+              className="bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              📨 Despacho Interno
             </button>
             <button
               type="button"
@@ -845,10 +849,6 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             }} disabled={gerandoDespacho}
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
-            </button>
-            <button onClick={() => setModalDespachoInterno(true)}
-              className="w-full bg-indigo-700 hover:bg-indigo-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 mt-2">
-              📨 Despacho Interno
             </button>
             <div className="mt-2">
               <BotaoGerarLaudo processoId={codigo} />
