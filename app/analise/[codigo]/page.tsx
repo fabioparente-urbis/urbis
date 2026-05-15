@@ -500,13 +500,13 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               ← LIP
             </button>
             
-            <a
-              href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
-              download
-              className="bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              📊 Backup Excel
-            </a>
             <button
+              type="button"
+              onClick={() => { if (analiseAtual?.id) window.location.href = `/api/mac/exportar-mac?analiseId=${analiseAtual.id}`; }}
+              disabled={!analiseAtual?.id}
+              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              📊 Backup Excel
+            </button>
               type="button"
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
