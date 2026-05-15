@@ -79,21 +79,6 @@ function opacidadeEvento(indice: number, total: number): number {
 function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" | "info"; onClose: () => void }) {
   const bg = tipo === "sucesso" ? "bg-green-700 border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-blue-500";
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
-  async function handleDespachoInterno() {
-    setGerandoDI(true);
-    try {
-      const res = await fetch("/api/despacho-interno", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "REGULARIZACAO", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
-      });
-      if (!res.ok) throw new Error("Erro");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a"); a.href = url;
-      a.download = `DespachoInterno_${idUrl}_${numDI}.docx`; a.click();
-      URL.revokeObjectURL(url); setModalDI(false);
-    } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
-  }
   return (
     <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
       <span>{msg}</span>
@@ -516,7 +501,22 @@ export default function ProcessoClient() {
     }
   }
 
-  async function salvar() {
+  async function handleDespachoInterno() {
+    setGerandoDI(true);
+    try {
+      const res = await fetch("/api/despacho-interno", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "REGULARIZACAO", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+      });
+      if (!res.ok) throw new Error("Erro");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `DespachoInterno_${idUrl}_${numDI}.docx`; a.click();
+      URL.revokeObjectURL(url); setModalDI(false);
+    } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
+  }
+    async function salvar() {
     setErroCampos(false);
     try {
       setSalvando(true); setStatusSalvo("salvando");
