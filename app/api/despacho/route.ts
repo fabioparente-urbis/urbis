@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
     const analistaId = (proc as any)?.analista_id;
     if (analistaId) {
       const { data: membro } = await supabase
-        .from("equipe")
-        .select("nome, matricula, cargo, registro")
+        .from("usuarios")
+        .select("nome, matricula, cargo, cau_crea")
         .eq("id", analistaId)
         .maybeSingle();
       if (membro?.nome) {
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
           nome: membro.nome,
           matricula: membro.matricula || undefined,
           cargo: membro.cargo || undefined,
-          registro: membro.registro || undefined,
+          registro: membro.cau_crea || undefined,
         };
       }
     }
