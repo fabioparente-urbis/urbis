@@ -42,7 +42,7 @@ function normalizarGerencia(v: unknown): "PP" | "MP" | "GP" | null {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { nome, cpf, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, cau_crea, status, senha } = body;
+    const { nome, cpf, email, matricula, telefone, cargo, cau_crea, status, senha } = body;
     if (!nome || !email || !senha)
       return NextResponse.json({ ok: false, erro: "Nome, email e senha obrigatórios" }, { status: 400 });
 
