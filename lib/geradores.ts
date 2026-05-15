@@ -321,7 +321,7 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -380,7 +380,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -436,7 +436,7 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -481,8 +481,10 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   children.push(vazio(200));
 
   blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
-  blocoLinhaEmBranco("Gerente").forEach(par => children.push(par));
-  blocoLinhaEmBranco("Diretor").forEach(par => children.push(par));
+  if (dados.gerente) { blocoAssinaturaAnalista(dados.gerente).forEach(par => children.push(par)); }
+  else { blocoLinhaEmBranco("Gerente").forEach(par => children.push(par)); }
+  if (dados.diretora) { blocoAssinaturaAnalista(dados.diretora).forEach(par => children.push(par)); }
+  else { blocoLinhaEmBranco("Diretor").forEach(par => children.push(par)); }
   children.push(vazio(120));
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [txt(`Goiânia, ${dataGoiania}`)] })] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [txt("SEFIC / DIRAAP / GERAED")] })] })] })] }) as any);
 
@@ -490,7 +492,7 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; }): Promise<Buffer> {
+export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -517,8 +519,10 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   children.push(vazio(200));
 
   blocoAssinaturaAnalista(assinante).forEach(par => children.push(par));
-  blocoLinhaEmBranco("Gerente").forEach(par => children.push(par));
-  blocoLinhaEmBranco("Diretor").forEach(par => children.push(par));
+  if (dados.gerente) { blocoAssinaturaAnalista(dados.gerente).forEach(par => children.push(par)); }
+  else { blocoLinhaEmBranco("Gerente").forEach(par => children.push(par)); }
+  if (dados.diretora) { blocoAssinaturaAnalista(dados.diretora).forEach(par => children.push(par)); }
+  else { blocoLinhaEmBranco("Diretor").forEach(par => children.push(par)); }
   children.push(vazio(120));
   children.push(new Table({ width: { size: CW, type: WidthType.DXA }, columnWidths: [half, half], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [txt(`Goiânia, ${dataGoiania}`)] })] }), new TableCell({ borders: brd, width: { size: half, type: WidthType.DXA }, children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [txt("SEFIC / DIRAAP / GERAED")] })] })] })] }) as any);
 
