@@ -258,9 +258,10 @@ export default function ProcessoClient() {
   }, [idUrl, carregandoAbas, carregarProcesso]);
   // Sincroniza inputs de via quando LIP carrega do banco
   useEffect(() => {
-    if (d["bairro"]?.valor) setBairroBusca(d["bairro"].valor);
-    if (d["logradouro"]?.valor) setLogradouroBusca(d["logradouro"].valor);
-  }, [carregandoAbas]);
+    if (d["bairro"]?.valor && !bairroBusca) setBairroBusca(d["bairro"].valor);
+    if (d["logradouro"]?.valor && !logradouroBusca) setLogradouroBusca(d["logradouro"].valor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d["bairro"]?.valor, d["logradouro"]?.valor]);
 
   const inputImportRef = useRef<HTMLInputElement>(null);
   const [importando, setImportando] = useState(false);
