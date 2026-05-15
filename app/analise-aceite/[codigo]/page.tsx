@@ -493,13 +493,6 @@ export default function MacAceitePage() {
               ← LIP
             </button>
             
-            <a
-              href={analiseAtual?.id ? `/api/mac/exportar-mac?analiseId=${analiseAtual.id}` : "#"}
-              download
-              className="bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              📊 Backup Excel
-            </a>
-            <button
             <button
               type="button"
               onClick={() => { if (analiseAtual?.id) window.location.href = `/api/mac/exportar-mac?analiseId=${analiseAtual.id}`; }}
@@ -507,14 +500,23 @@ export default function MacAceitePage() {
               className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📊 Backup Excel
             </button>
-              ref={inputImportRef}
             <button
+              type="button"
+              onClick={() => inputImportRef.current?.click()}
+              disabled={importando || !analiseAtual?.id}
+              className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              {importando ? "⏳ Importando..." : "📥 Importar Excel"}
+            </button>
+            <input
+              ref={inputImportRef}
               type="file"
               accept=".xlsx"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) importarExcel(f);
+              }}
+            />
               }}
             />
             <div>
