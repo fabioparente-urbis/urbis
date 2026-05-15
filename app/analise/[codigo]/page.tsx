@@ -158,7 +158,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   // auto-save ao alterar itens/obs
   useEffect(() => {
     if (checklistItens.length === 0) return;
-    const t = setTimeout(() => salvarSilencioso("em_andamento", true), 400);
+    const t = setTimeout(() => salvarSilencioso("em_andamento"), 400);
     return () => clearTimeout(t);
   }, [itens, observacoes, observacoesPorAba]);
 
