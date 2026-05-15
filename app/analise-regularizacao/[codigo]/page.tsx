@@ -958,7 +958,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 Cancelar
               </button>
               <button
-                disabled={motivosIndeferimento.length === 0 || salvando}
+                disabled={salvando}
                 onClick={async () => {
                   const motivosCopy = [...motivosIndeferimento];
                   const obsCopy = obsIndeferimento;

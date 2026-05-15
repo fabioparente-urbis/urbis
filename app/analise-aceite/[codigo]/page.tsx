@@ -951,7 +951,7 @@ export default function MacAceitePage() {
                 Cancelar
               </button>
               <button
-                disabled={motivosIndeferimento.length === 0 || salvando}
+                disabled={salvando}
                 onClick={async () => {
                   const motivosCopy = [...motivosIndeferimento];
                   const obsCopy = obsIndeferimento;
