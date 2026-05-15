@@ -79,7 +79,6 @@ export async function GET(req: NextRequest) {
   const ws = XLSX.utils.json_to_sheet(rows);
   ws["!cols"] = [{ wch: 25 }, { wch: 60 }, { wch: 20 }, { wch: 20 }];
   XLSX.utils.book_append_sheet(wb, ws, "MAC");
-  }
 
   const buf = Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
   const data = new Date().toISOString().slice(0, 10);
