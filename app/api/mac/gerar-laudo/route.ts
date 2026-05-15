@@ -33,6 +33,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Buscar analista ────────────────────────────────────────
+    let nomeAnalista = "";
+    if (p.analista_id) {
+      const { data: membro } = await supabase
+        .from("usuarios")
+        .select("nome, cargo, cau_crea")
+        .eq("id", p.analista_id)
+        .maybeSingle();
+      if (membro?.nome) {
+        nomeAnalista = membro.nome;
+        if (membro.cargo) nomeAnalista += `
+${membro.cargo}`;
+        if (membro.cau_crea) nomeAnalista += `
+${membro.cau_crea}`;
+      }
+    }
     // ── Buscar respostas do MAC ─────────────────────────────
     const { data: mac } = await supabase
       .from("mac_analises")
@@ -144,7 +160,7 @@ export async function POST(req: NextRequest) {
       areaTotalConstruida:  v("areaTotal"),
 
       // Emissão
-      nomeAnalista: "",
+      nomeAnalista,
       dataEmissao:  new Date(),
 
       observacoesFinais: mac?.observacoes ?? undefined,
