@@ -167,6 +167,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(vazio(300));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 300, after: 60 }, border: { top: { style: BorderStyle.SINGLE, size: 4, color: "000000", space: 1 } }, indent: { left: 2400, right: 2400 }, children: [txt(analista)] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 }, children: [txt(crea)] }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 }, children: [txt(cargoAnalista)] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 }, children: [txt(setor)] }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 0 }, children: [txt(dataAssinatura)] }));
 
