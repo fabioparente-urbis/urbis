@@ -9,13 +9,29 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   const analiseId = req.nextUrl.searchParams.get("analiseId");
-  if (!analiseId) return NextResponse.json({ ok: false, erro: "analiseId obrigatório" }, { status: 400 });
+  const codigoParam = req.nextUrl.searchParams.get("codigo");
 
-  const { data: analise } = await supabase
-    .from("analises_mac")
-    .select("processo_codigo, tipo_processo, numero_revisao, checklist_modelo_id")
-    .eq("id", analiseId)
-    .maybeSingle();
+  let analise: any = null;
+
+  if (analiseId) {
+    const { data } = await supabase
+      .from("analises_mac")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, checklist_modelo_id")
+      .eq("id", analiseId)
+      .maybeSingle();
+    analise = data;
+  }
+
+  if (!analise && codigoParam) {
+    const { data } = await supabase
+      .from("analises_mac")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, checklist_modelo_id")
+      .eq("processo_codigo", codigoParam)
+      .order("numero_analise", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    analise = data;
+  }
 
   if (!analise) return NextResponse.json({ ok: false, erro: "Análise não encontrada" }, { status: 404 });
 
