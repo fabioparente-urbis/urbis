@@ -495,7 +495,15 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between gap-4 mb-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
+            <button onClick={() => router.push("/")}
+              className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              🏠 Home
+            </button>
+            <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+              className="bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              🚪 Sair
+            </button>
+                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
               className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
             </button>
@@ -729,11 +737,6 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
 }}
   className="w-full bg-slate-600 hover:bg-slate-500 text-slate-300 font-bold py-2 rounded-lg text-sm transition-colors">
   🔄 Trocar Checklist
-</button>
-
-<button onClick={() => router.push("/")}
-  className="w-full bg-slate-600 hover:bg-slate-500 text-slate-300 font-bold py-2 rounded-lg text-sm transition-colors">
-  🏠 Home
 </button>
 <button onClick={() => router.push("/admin/checklists")}
   className="w-full bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm transition-colors">
