@@ -232,7 +232,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
             title=""
             draggable={false}
             style={{
-              width: 160, height: 200,
+              width: 220, height: 280,
               objectFit: "contain",
               userSelect: "none",
               pointerEvents: "none",
