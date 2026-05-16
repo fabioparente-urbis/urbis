@@ -130,27 +130,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
 
   return (
     <>
-      {/* ZIPPER DE ENTRADA */}
-      {videoAtivo && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 960,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          pointerEvents: "none",
-        }}>
-          <video
-            src="/urbi/abertura-urbi.mp4"
-            autoPlay
-            muted
-            playsInline
-            style={{
-              width: "min(600px, 80vw)",
-              height: "auto",
-              mixBlendMode: "screen",
-              pointerEvents: "none",
-            }}
-          />
-        </div>
-      )}
+
       {videoAtivo && (
         <video
           src="/urbi/abertura-urbi.mp4"
