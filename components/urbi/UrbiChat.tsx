@@ -276,8 +276,9 @@ export default function UrbiChat({ usuario }: Props) {
           >
             <img
               src={POSE_MAP[poseId] ?? POSE_MAP["sucesso"]}
-              alt="URBI"
-              style={{ width: 160, height: 200, objectFit: "contain", userSelect: "none", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.25))" }}
+              alt=""
+              draggable={false}
+              style={{ width: 160, height: 200, objectFit: "contain", userSelect: "none", pointerEvents: "none", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.25))", background: "transparent" }}
             />
           </div>
         </div>
