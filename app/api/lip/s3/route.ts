@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
       .from("lip_prompts")
       .select("conteudo, versao")
       .eq("ativo", true)
+      .eq("chave", "P2_EXTRACAO")
       .order("versao", { ascending: false })
       .limit(1)
       .single();
