@@ -39,6 +39,7 @@ export default function MacAceitePage() {
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
   const [abaAtual, setAbaAtual] = useState(0);
@@ -135,6 +136,10 @@ export default function MacAceitePage() {
       setAnalises(json.data);
       const ultima = json.data[0];
       setAnaliseAtual(ultima);
+      if (analiseAtual?.id) {
+        fetch(`/api/mac/historico?analiseId=${analiseAtual.id}`)
+          .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+      }
       setItens(ultima.itens || {});
       setObservacoes(ultima.observacoes || "");
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
