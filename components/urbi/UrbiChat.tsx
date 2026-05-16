@@ -248,7 +248,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
         )}
 
         {/* BONECO */}
-        <div
+        {fase !== "fora" && <div
           className={
             fase === "entrando" ? "urbi-entrando" :
             fase === "idle"     ? "urbi-idle"     :
@@ -271,7 +271,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
               filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.25))",
             }}
           />
-        </div>
+        </div>}
       </div>
     </>
   );
