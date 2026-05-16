@@ -116,6 +116,29 @@ export async function PUT(req: NextRequest) {
         });
         await supabase.from("mac_historico").insert(registros);
       }
+      // Observações por aba
+      if (body.observacoes_por_aba) {
+        const obsAntes = ((analiseAtual as any).itens && (analiseAtual as any).observacoes_por_aba || {}) as Record<string, string>;
+        const obsNovo = body.observacoes_por_aba as Record<string, string>;
+        const { data: obsAnalise } = await supabase.from("analises_mac").select("observacoes_por_aba").eq("id", id).maybeSingle();
+        const obsAntesReal = ((obsAnalise as any)?.observacoes_por_aba || {}) as Record<string, string>;
+        const abasAlteradas = Object.keys(obsNovo).filter(k => obsNovo[k] !== obsAntesReal[k] && obsNovo[k]?.trim());
+        if (abasAlteradas.length > 0) {
+          const obsRegistros = abasAlteradas.map(aba => ({
+            analise_id: id,
+            processo_codigo: (analiseAtual as any).processo_codigo,
+            tipo_processo: (analiseAtual as any).tipo_processo,
+            analista_id: (analiseAtual as any).analista_id,
+            analista_nome: null,
+            analista_gerencia: null,
+            aba,
+            item_texto: obsNovo[aba],
+            status_anterior: obsAntesReal[aba] ?? null,
+            status_novo: "observacao",
+          }));
+          await supabase.from("mac_historico").insert(obsRegistros);
+        }
+      }
     }
     // ─────────────────────────────────────────────────────────
 
