@@ -40,10 +40,10 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico" {
 
 type Msg = { role: "user"|"urbi"; texto: string };
 type GeminiMsg = { role: string; parts: { text: string }[] };
-type Props = { usuario: { nome: string; perfil: string; id?: string } };
+type Props = { usuario: { nome: string; perfil: string; id?: string }; aberto: boolean; setAberto: (v: boolean) => void };
 
-export default function UrbiChat({ usuario }: Props) {
-  const [aberto, setAberto] = useState(false);
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Props) {
+  const aberto = abertoProp;
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
   const [msgs, setMsgs] = useState<Msg[]>([]);
