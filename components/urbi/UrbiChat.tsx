@@ -50,6 +50,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
+  const [poseOpacity, setPoseOpacity] = useState(1);
   const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -89,7 +90,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
     if (!texto || carregando) return;
     setInput("");
     setMsgs(m => [...m, { role: "user", texto }]);
-    setPoseId(selectPose("pensando"));
+    setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("pensando", poseId)); setPoseOpacity(1); }, 200);
     setCarregando(true);
     const novoHistory: GeminiMsg[] = [...history, { role: "user", parts: [{ text: texto }] }];
     try {
@@ -100,7 +101,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
       const json = await res.json();
       if (json.ok) {
         const tipo = detectTipo(json.resposta);
-        setPoseId(selectPose(tipo));
+        setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
         await fetch("/api/urbi/historico", {
@@ -109,7 +110,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
         });
         if (json.sair) setTimeout(() => fechar(), 1800);
       } else {
-        setPoseId(selectPose("negativo"));
+        setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("negativo", poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: "Tive um problema técnico. Tenta de novo." }]);
       }
     } catch {
