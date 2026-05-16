@@ -163,16 +163,16 @@ export default function Home() {
           🧠 BDI — Banco de Dados e Inteligência
         </button>
 
-        {usuario.nome && (
-          <button
-            onClick={() => setUrbiAberto(true)}
-            className="w-full mt-4 flex flex-col items-center gap-1 cursor-pointer border-none bg-transparent p-2"
-          >
-            <img src="/urbi/urbi-botao.jpg" style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", boxShadow: "0 2px 12px #3b82f644" }} />
-            <span style={{ color: "#64748b", fontSize: 10, letterSpacing: 1 }}>CHAMAR URBI</span>
-          </button>
-        )}
         <div className="mt-auto pt-4 border-t border-slate-800">
+          {usuario.nome && (
+            <button
+              onClick={() => setUrbiAberto(true)}
+              className="w-full mb-3 flex flex-col items-center gap-1 cursor-pointer border-none bg-transparent p-2"
+            >
+              <img src="/urbi/urbi-botao.jpg" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", boxShadow: "0 2px 12px #3b82f644" }} />
+              <span style={{ color: "#64748b", fontSize: 10, letterSpacing: 1 }}>CHAMAR URBI</span>
+            </button>
+          )}
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="w-full p-3 text-left rounded transition hover:bg-red-900 text-red-400 hover:text-white text-sm font-medium">
             🚪 Sair
