@@ -103,7 +103,7 @@ export default function Home() {
       </aside>
 
       {/* CENTRO */}
-      <main className="flex-1 flex items-center justify-center">
+      <main className="flex-1 flex items-center justify-center" style={{ paddingBottom: urbiAberto ? "300px" : "0", transition: "padding-bottom 0.5s ease" }}>
         <div className="bg-white p-10 rounded shadow w-full max-w-md text-center">
           <img src="/logo_urbis.png" alt="URBIS" className="mx-auto mb-6 w-44 h-auto" />
           <h2 className="text-3xl font-semibold text-gray-700 mb-4">

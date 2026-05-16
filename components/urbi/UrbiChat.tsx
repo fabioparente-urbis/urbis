@@ -51,6 +51,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [poseOpacity, setPoseOpacity] = useState(1);
+  const [videoAtivo, setVideoAtivo] = useState(false);
   const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -63,14 +64,18 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   }, [abertoProp]);
 
   function abrir() {
-    setFase("entrando");
-    setPoseId("planejando");
+    setVideoAtivo(true);
     setTimeout(() => {
+      setFase("entrando");
+      setPoseId("planejando");
+    }, 2000);
+    setTimeout(() => {
+      setVideoAtivo(false);
       setPoseId("tudo-ok");
       setFase("idle");
       setBalaoVisivel(true);
       setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
-    }, 900);
+    }, 3200);
   }
 
   function fechar() {
@@ -120,20 +125,42 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
     setCarregando(false);
   }
 
-  if (fase === "fora") return null;
+  if (fase === "fora" && !videoAtivo) return null;
 
   return (
     <>
+      {/* ZIPPER DE ENTRADA */}
+      {videoAtivo && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 960,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          pointerEvents: "none",
+        }}>
+          <video
+            src="/urbi/abertura-urbi.mp4"
+            autoPlay
+            muted
+            playsInline
+            style={{
+              width: "min(600px, 80vw)",
+              height: "auto",
+              mixBlendMode: "screen",
+              pointerEvents: "none",
+            }}
+          />
+        </div>
+      )}
       <style>{`
         @keyframes urbiEntrada {
-          0%   { transform: translateX(160%) scaleX(0.9); }
-          70%  { transform: translateX(-15px) scaleX(1.05); }
-          85%  { transform: translateX(5px) scaleX(0.98); }
-          100% { transform: translateX(0) scaleX(1); }
+          0%   { transform: translateX(160%); opacity: 0; }
+          60%  { opacity: 1; }
+          75%  { transform: translateX(-12px); }
+          90%  { transform: translateX(6px); }
+          100% { transform: translateX(0); }
         }
         @keyframes urbiSaida {
-          0%   { transform: translateX(0) scaleX(1); opacity: 1; }
-          100% { transform: translateX(160%) scaleX(0.9); opacity: 0; }
+          0%   { transform: translateX(0); opacity: 1; }
+          100% { transform: translateX(160%); opacity: 0; }
         }
         @keyframes urbiIdle {
           0%, 100% { transform: translateY(0); }
