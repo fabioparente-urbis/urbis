@@ -62,11 +62,11 @@ export async function GET(req: NextRequest) {
   // Aba unica: obs por aba no topo + checklist abaixo
   const obsPorAba = (analise.observacoes_por_aba || {}) as Record<string, string>;
   const obsEntradas = Object.entries(obsPorAba).filter(([, v]) => v && String(v).trim());
-  const obsRows = obsEntradas.map(([aba, obs]) => ({ "Aba": aba, "Observacao": String(obs), "Referencia": "", "Status": "" }));
-  const separador = [{ "Aba": "", "Observacao": "", "Referencia": "", "Status": "" }];
+  const obsRows = obsEntradas.map(([aba, obs]) => ({ "Aba": aba, "Item": String(obs), "Referencia": "", "Status": "" }));
+  const separador = [{ "Aba": "", "Item": "", "Referencia": "", "Status": "" }];
   const checklistRows = (itens || []).map((item: any) => ({
     "Aba": item.grupo,
-    "Observacao": item.texto,
+    "Item": item.texto,
     "Referencia": item.ref || "",
     "Status": statusLabel[mapaRespostas[item.id]?.status] || "— Nao respondido",
   }));

@@ -114,8 +114,8 @@ export async function POST(req: NextRequest) {
     };
 
     for (const row of linhas) {
-      const grupoTxt = norm(row["Grupo"]);
-      const itemTxt = norm(row["Item"]);
+      const grupoTxt = norm(row["Aba"] ?? row["Grupo"]);
+      const itemTxt = norm(row["Item"] ?? row["Observacao"]);
       const status = mapearStatus(row["Status"]);
       const observacao = row["Observação"] ?? row["Observacao"] ?? "";
 
