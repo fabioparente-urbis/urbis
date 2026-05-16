@@ -97,14 +97,14 @@ export default function BDIPage() {
     page: { background: "#0a0a0f", minHeight: "100vh", fontFamily: "'JetBrains Mono', monospace", color: "#e2e8f0" },
     header: { borderBottom: "1px solid #d946ef33", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0d0d14" },
     abas: { display: "flex", gap: 4, padding: "16px 28px 0", borderBottom: "1px solid #ffffff11" },
-    aba: (ativa: boolean) => ({ padding: "8px 18px", fontSize: 11, letterSpacing: 2, cursor: "pointer", border: "none", background: "transparent", color: ativa ? "#d946ef" : "#ffffff44", borderBottom: ativa ? "2px solid #d946ef" : "2px solid transparent", transition: "all 0.15s" } as React.CSSProperties),
+    aba: (ativa: boolean): React.CSSProperties => ({ padding: "8px 18px", fontSize: 11, letterSpacing: 2, cursor: "pointer", border: "none", background: "transparent", color: ativa ? "#d946ef" : "#ffffff44", borderBottom: ativa ? "2px solid #d946ef" : "2px solid transparent", transition: "all 0.15s" }),
     content: { padding: "24px 28px" },
     card: { background: "#0d0d14", border: "1px solid #ffffff11", borderRadius: 8, padding: 20, marginBottom: 16 },
     label: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, marginBottom: 6 },
     valor: { color: "#f0f0f0", fontSize: 22, fontWeight: 700 },
-    toggle: (ativo: boolean) => ({ width: 42, height: 22, borderRadius: 11, background: ativo ? "#d946ef" : "#ffffff22", border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 } as React.CSSProperties),
+    toggle: (ativo: boolean): React.CSSProperties => ({ width: 42, height: 22, borderRadius: 11, background: ativo ? "#d946ef" : "#ffffff22", border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }),
     input: { background: "#0a0a0f", border: "1px solid #ffffff22", borderRadius: 6, color: "#f0f0f0", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", width: "100%", outline: "none", marginBottom: 10 },
-    btn: (cor: string) => ({ background: cor + "22", border: `1px solid ${cor}55`, color: cor, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1 } as React.CSSProperties),
+    btn: (cor: string): React.CSSProperties => ({ background: cor + "22", border: `1px solid ${cor}55`, color: cor, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1 }),
   };
 
   return (
