@@ -1,42 +1,21 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 
-const POSES: Record<string, string> = {
-  sucesso:       "/urbi/urbi-poses2.jpg",
-  "tudo-ok":     "/urbi/urbi-poses2.jpg",
-  oops:          "/urbi/urbi-poses2.jpg",
-  "oh-nao":      "/urbi/urbi-poses2.jpg",
-  atencao:       "/urbi/urbi-poses2.jpg",
-  "algo-errado": "/urbi/urbi-poses2.jpg",
-  analisando:    "/urbi/urbi-poses2.jpg",
-  planejando:    "/urbi/urbi-poses2.jpg",
-  "dados-errados":"/urbi/urbi-poses2.jpg",
-  bravo:         "/urbi/urbi-poses2.jpg",
+const POSE_MAP: Record<string, string> = {
+  sucesso:          "/urbi/poses/urbi-sucesso.png",
+  "tudo-ok":        "/urbi/poses/urbi-tudo-ok.png",
+  oops:             "/urbi/poses/urbi-oops.png",
+  "oh-nao":         "/urbi/poses/urbi-oh-nao.png",
+  atencao:          "/urbi/poses/urbi-atencao.png",
+  "algo-errado":    "/urbi/poses/urbi-algo-errado.png",
+  analisando:       "/urbi/poses/urbi-analisando.png",
+  planejando:       "/urbi/poses/urbi-planejando.png",
+  "dados-errados":  "/urbi/poses/urbi-dados-errados.png",
+  bravo:            "/urbi/poses/urbi-bravo.png",
 };
 
-// Coordenadas da spritesheet 5x2
-const POSE_POS: Record<string, {col: number; row: number}> = {
-  sucesso:        { col: 0, row: 0 },
-  "tudo-ok":      { col: 1, row: 0 },
-  oops:           { col: 2, row: 0 },
-  "oh-nao":       { col: 3, row: 0 },
-  atencao:        { col: 4, row: 0 },
-  "algo-errado":  { col: 0, row: 1 },
-  analisando:     { col: 1, row: 1 },
-  planejando:     { col: 2, row: 1 },
-  "dados-errados":{ col: 3, row: 1 },
-  bravo:          { col: 4, row: 1 },
-};
 
-function getPoseStyle(poseId: string) {
-  const p = POSE_POS[poseId] ?? { col: 0, row: 0 };
-  return {
-    backgroundImage: "url('/urbi/urbi-poses2.jpg')",
-    backgroundSize: "500% 200%",
-    backgroundPosition: `${p.col * 25}% ${p.row * 100}%`,
-    backgroundRepeat: "no-repeat",
-  };
-}
+
 
 function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"idle"): string {
   const map: Record<string, string[]> = {
