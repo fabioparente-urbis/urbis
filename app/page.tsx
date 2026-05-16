@@ -133,7 +133,7 @@ export default function Home() {
         </h1>
         <button onClick={() => router.push("/processos")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-          📋 Ver todos os processos
+          📋 Pilha de Processos
         </button>
         {podeGerirUsuarios && (
           <button onClick={() => router.push("/admin/usuarios")}
