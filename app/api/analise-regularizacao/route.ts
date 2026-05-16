@@ -76,6 +76,50 @@ export async function PUT(req: NextRequest) {
     const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
+    // ── Histórico BDI ────────────────────────────────────────
+    if (itens) {
+      const { data: analiseAtual } = await supabase
+        .from("analises_mac")
+        .select("itens, processo_codigo, tipo_processo, modelo_id, analista_id")
+        .eq("id", id).maybeSingle();
+      const itensAnteriores = ((analiseAtual as any)?.itens || {}) as Record<string, string>;
+      const itensNovos = (itens || {}) as Record<string, string>;
+      const alterados = Object.keys(itensNovos).filter(k => itensNovos[k] !== itensAnteriores[k]);
+      if (alterados.length > 0 && analiseAtual) {
+        const [{ data: proc }, { data: analista }, { data: checkItens }] = await Promise.all([
+          supabase.from("processos").select("dados").eq("codigo", (analiseAtual as any).processo_codigo).maybeSingle(),
+          supabase.from("usuarios").select("nome, gerencia").eq("id", (analiseAtual as any).analista_id || "").maybeSingle(),
+          supabase.from("mac_checklist_itens").select("id, grupo, texto, ref").eq("modelo_id", (analiseAtual as any).modelo_id).eq("ativo", true),
+        ]);
+        const d = (proc as any)?.dados || {};
+        const v = (campo: string) => d[campo]?.valor ?? null;
+        const idxItem = new Map(((checkItens || []) as any[]).map((i: any) => [i.id, i]));
+        const registros = alterados.map(itemId => {
+          const it = idxItem.get(itemId) as any;
+          return {
+            analise_id: id,
+            processo_codigo: (analiseAtual as any).processo_codigo,
+            tipo_processo: (analiseAtual as any).tipo_processo,
+            area_total: v("areaTotal") ? Number(v("areaTotal")) : null,
+            analista_id: (analiseAtual as any).analista_id,
+            analista_nome: (analista as any)?.nome ?? null,
+            analista_gerencia: (analista as any)?.gerencia ?? null,
+            proprietario: v("proprietario"),
+            autor_levantamento: v("autorLevantamento") ?? v("autor_levantamento"),
+            autor_projeto: v("autorProjeto") ?? v("autor_projeto"),
+            checklist_item_id: itemId,
+            aba: it?.grupo ?? null,
+            item_texto: it?.texto ?? null,
+            referencia_legal: it?.ref ?? null,
+            status_anterior: itensAnteriores[itemId] ?? null,
+            status_novo: itensNovos[itemId],
+          };
+        });
+        await supabase.from("mac_historico").insert(registros);
+      }
+    }
+    // ─────────────────────────────────────────────────────────
+
     const { error } = await supabase
       .from("analises_mac")
       .update({
