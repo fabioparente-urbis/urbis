@@ -14,7 +14,7 @@ const POSE_MAP: Record<string, string> = {
   bravo:            "/urbi/poses/urbi-bravo.png",
 };
 
-function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"idle"): string {
+function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"idle", atual?: string): string {
   const map: Record<string, string[]> = {
     pensando: ["analisando","planejando"],
     positivo: ["sucesso","tudo-ok"],
@@ -24,7 +24,8 @@ function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"
     idle:     ["sucesso","tudo-ok"],
   };
   const ids = map[tipo];
-  return ids[Math.floor(Math.random() * ids.length)];
+  const opcoes = ids.filter(id => id !== atual);
+  return opcoes.length > 0 ? opcoes[Math.floor(Math.random() * opcoes.length)] : ids[0];
 }
 
 function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico" {
@@ -148,8 +149,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
       `}</style>
 
       <div style={{
-        position: "fixed", bottom: 16, right: 16, zIndex: 950,
-        display: "flex", alignItems: "flex-end", gap: 12,
+        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        zIndex: 950,
+        display: "flex", alignItems: "flex-end", gap: 24,
         pointerEvents: "none",
       }}>
         {/* BALÃO */}
@@ -162,11 +164,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
             display: "flex", flexDirection: "column",
           }}>
             <div style={{
-              position: "absolute", right: -10, bottom: 40,
+              position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)",
               width: 0, height: 0,
-              borderTop: "10px solid transparent",
-              borderBottom: "10px solid transparent",
-              borderLeft: "10px solid #ffffff",
+              borderLeft: "10px solid transparent",
+              borderRight: "10px solid transparent",
+              borderTop: "10px solid #ffffff",
             }} />
             <div style={{
               flex: 1, overflowY: "auto", maxHeight: 300,

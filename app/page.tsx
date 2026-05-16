@@ -169,8 +169,7 @@ export default function Home() {
               onClick={() => setUrbiAberto(true)}
               className="w-full mb-4 flex flex-col items-center gap-2 cursor-pointer border-none bg-transparent p-2"
             >
-              <img src="/urbi/urbi-botao.jpg" style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 16px #3b82f655" }} />
-              <span style={{ color: "#94a3b8", fontSize: 11, letterSpacing: 2, fontWeight: 600 }}>CHAMAR URBI</span>
+              <img src="/urbi/urbi-botao.jpg" style={{ width: 110, height: 110, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 20px #3b82f677" }} />
             </button>
           )}
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
