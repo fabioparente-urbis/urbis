@@ -1,5 +1,6 @@
 "use client";
 
+import UrbiChat from "@/components/urbi/UrbiChat";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito } from "@/lib/perfis";
@@ -75,6 +76,7 @@ export default function Home() {
   }
 
   return (
+    <>
     <div className="flex h-screen bg-gray-100">
 
       {/* SIDEBAR ESQUERDA — Tipos de processo */}
@@ -170,5 +172,6 @@ export default function Home() {
 
     </div>
       {usuario.nome && <UrbiChat usuario={usuario} />}
+    </>
   );
 }
