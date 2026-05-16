@@ -151,7 +151,7 @@ export default function Home() {
         </button>
         <button onClick={() => router.push("/admin/prompts")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-          🧠 Gerenciar Prompts de IA
+          📝 Gerenciar Prompts
         </button>
         <button onClick={() => router.push("/admin/bdi")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
