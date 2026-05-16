@@ -139,8 +139,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       const ultima = json.data[0];
       setAnaliseAtual(ultima);
       if (analiseAtual?.id) {
-        fetch(`/api/mac/historico?analiseId=${analiseAtual.id}`)
-          .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+        carregarHistoricoMac(analiseAtual.id);
       }
       setItens(ultima.itens || {});
       setObservacoes(ultima.observacoes || "");
@@ -203,6 +202,11 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
 
   // Auto-save silencioso para disparar em troca de aba / clique de botão,
   // sem chamar carregar() (que resetaria estado da UI).
+
+  function carregarHistoricoMac(id: string) {
+    fetch(`/api/mac/historico?analiseId=${id}`)
+      .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+  }
   async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
     try {
       if (novaAnalise || !analiseAtual) {

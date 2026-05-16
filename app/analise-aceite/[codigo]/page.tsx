@@ -137,8 +137,7 @@ export default function MacAceitePage() {
       const ultima = json.data[0];
       setAnaliseAtual(ultima);
       if (analiseAtual?.id) {
-        fetch(`/api/mac/historico?analiseId=${analiseAtual.id}`)
-          .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+        carregarHistoricoMac(analiseAtual.id);
       }
       setItens(ultima.itens || {});
       setObservacoes(ultima.observacoes || "");
@@ -196,6 +195,11 @@ export default function MacAceitePage() {
     setModalModelo(false);
   }
 
+
+  function carregarHistoricoMac(id: string) {
+    fetch(`/api/mac/historico?analiseId=${id}`)
+      .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+  }
   async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
     try {
       if (novaAnalise || !analiseAtual) {
