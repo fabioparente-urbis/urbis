@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     // Carrega análise para descobrir o modelo de checklist
     const { data: analise, error: errAn } = await supabase
       .from("analises_mac")
-      .select("id, checklist_modelo_id, modelo_id, itens")
+      .select("id, modelo_id, itens, observacoes_por_aba")
       .eq("id", analiseId)
       .maybeSingle();
 
@@ -74,8 +74,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "análise não encontrada" }, { status: 404 });
     }
 
-    const modeloId: string | null =
-      (analise as any).checklist_modelo_id ?? (analise as any).modelo_id ?? null;
+    const modeloId: string | null = (analise as any).modelo_id ?? null;
 
     if (!modeloId) {
       return NextResponse.json({ ok: false, erro: "análise sem modelo de checklist vinculado" }, { status: 400 });
@@ -106,9 +105,7 @@ export async function POST(req: NextRequest) {
 
     let atualizados = 0;
     const naoEncontrados: string[] = [];
-    const upserts: { analise_id: string; checklist_item_id: string; status: string; observacao: string }[] = [];
-
-    // Mapa para sincronizar o JSON analises_mac.itens consumido pelo frontend
+    const obsPorAba: Record<string, string> = { ...((analise as any).observacoes_por_aba || {}) };
     const itensJson: Record<string, "conforme" | "nao_conforme" | "nao_aplica"> = {
       ...((analise as any).itens || {}),
     };
@@ -120,7 +117,13 @@ export async function POST(req: NextRequest) {
       const observacao = row["Observação"] ?? row["Observacao"] ?? "";
 
       if (!itemTxt) continue;
-      if (!status) continue; // pula linhas sem status reconhecido (ex.: "— Não respondido")
+      if (!status) {
+        // linha de observação por aba
+        const aba = String(row["Aba"] ?? "").trim();
+        const obs = String(row["Item"] ?? "").trim();
+        if (aba && obs) obsPorAba[aba] = (obsPorAba[aba] ? obsPorAba[aba] + "\n" : "") + obs;
+        continue;
+      } // pula linhas sem status reconhecido (ex.: "— Não respondido")
 
       let id = idxPorGrupoTexto.get(`${grupoTxt}::${itemTxt}`);
       if (!id) {
@@ -133,33 +136,16 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      upserts.push({
-        analise_id: analiseId,
-        checklist_item_id: id,
-        status,
-        observacao: String(observacao ?? ""),
-      });
       itensJson[id] = status;
       atualizados++;
     }
 
-    if (upserts.length > 0) {
-      const { error: errUp } = await supabase
-        .from("analise_itens")
-        .upsert(upserts, { onConflict: "analise_id,checklist_item_id" });
-
-      if (errUp) {
-        return NextResponse.json({ ok: false, erro: errUp.message }, { status: 500 });
-      }
-
-      // Sincroniza o JSON itens lido pelo frontend (analise/[codigo] e analise-aceite/[codigo])
-      const { error: errUpJson } = await supabase
-        .from("analises_mac")
-        .update({ itens: itensJson, atualizado_em: new Date().toISOString() })
-        .eq("id", analiseId);
-      if (errUpJson) {
-        return NextResponse.json({ ok: false, erro: errUpJson.message }, { status: 500 });
-      }
+    const { error: errUpJson } = await supabase
+      .from("analises_mac")
+      .update({ itens: itensJson, observacoes_por_aba: obsPorAba, atualizado_em: new Date().toISOString() })
+      .eq("id", analiseId);
+    if (errUpJson) {
+      return NextResponse.json({ ok: false, erro: errUpJson.message }, { status: 500 });
     }
 
     return NextResponse.json({
