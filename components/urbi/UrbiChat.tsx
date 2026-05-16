@@ -52,6 +52,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   const [carregando, setCarregando] = useState(false);
   const [poseOpacity, setPoseOpacity] = useState(1);
   const [videoAtivo, setVideoAtivo] = useState(false);
+  const [overlayOpacity, setOverlayOpacity] = useState(0);
+  const [overlayVisivel, setOverlayVisivel] = useState(false);
   const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -64,19 +66,25 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   }, [abertoProp]);
 
   function abrir() {
-    setVideoAtivo(true);
+    setOverlayVisivel(true);
+    setTimeout(() => setOverlayOpacity(1), 10);
+    setTimeout(() => setVideoAtivo(true), 600);
   }
 
   function onVideoEnd() {
-    setVideoAtivo(false);
-    setFase("entrando");
-    setPoseId("planejando");
+    setOverlayOpacity(0);
     setTimeout(() => {
-      setPoseId("tudo-ok");
-      setFase("idle");
-      setBalaoVisivel(true);
-      setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
-    }, 900);
+      setOverlayVisivel(false);
+      setVideoAtivo(false);
+      setFase("entrando");
+      setPoseId("planejando");
+      setTimeout(() => {
+        setPoseId("tudo-ok");
+        setFase("idle");
+        setBalaoVisivel(true);
+        setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
+      }, 900);
+    }, 1200);
   }
 
   function fechar() {
@@ -131,6 +139,16 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
   return (
     <>
 
+      {overlayVisivel && (
+        <div style={{
+          position: "fixed", inset: 0,
+          background: "#000000",
+          opacity: overlayOpacity,
+          transition: "opacity 0.8s ease",
+          zIndex: 955,
+          pointerEvents: overlayOpacity > 0.5 ? "all" : "none",
+        }} />
+      )}
       {videoAtivo && (
         <video
           src="/urbi/abertura-urbi.mp4"
@@ -178,7 +196,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
       `}</style>
 
       <div style={{
-        position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)",
+        position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
         zIndex: 950,
         display: "flex", alignItems: "flex-end", gap: 24,
         pointerEvents: "none",
