@@ -143,11 +143,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
             top: "50%",
             left: "50%",
             transform: "translate(-50%, -50%)",
-            width: "min(560px, 65vw)",
+            width: "min(640px, 70vw)",
             height: "auto",
-            mixBlendMode: "screen",
             zIndex: 960,
             pointerEvents: "none",
+            borderRadius: 12,
           }}
         />
       )}
