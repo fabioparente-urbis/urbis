@@ -153,6 +153,10 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           🧠 Gerenciar Prompts de IA
         </button>
+        <button onClick={() => router.push("/admin/bdi")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          🧠 BDI — Banco de Dados e Inteligência
+        </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
