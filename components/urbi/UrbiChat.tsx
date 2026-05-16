@@ -292,15 +292,15 @@ export default function UrbiChat({ usuario }: Props) {
               fase === "idle"     ? "urbi-idle"     :
               fase === "saindo"   ? "urbi-saindo"   : ""
             }
-            style={{
-              pointerEvents: "all",
-              width: 160, height: 160,
-              flexShrink: 0,
-              cursor: "pointer",
-              ...getPoseStyle(poseId),
-            }}
+            style={{ pointerEvents: "all", flexShrink: 0, cursor: "pointer", background: "transparent" }}
             onClick={() => !balaoVisivel && setBalaoVisivel(true)}
-          />
+          >
+            <img
+              src={POSE_MAP[poseId] ?? POSE_MAP["sucesso"]}
+              alt="URBI"
+              style={{ width: 160, height: 200, objectFit: "contain", userSelect: "none", filter: "drop-shadow(0 8px 20px rgba(0,0,0,0.25))" }}
+            />
+          </div>
         </div>
       )}
     </>
