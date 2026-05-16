@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (analiseId) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba, itens")
       .eq("id", analiseId)
       .maybeSingle();
     analise = data;
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (!analise && codigoParam) {
     const { data } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba")
+      .select("id, processo_codigo, tipo_processo, numero_revisao, modelo_id, observacoes_por_aba, itens")
       .eq("processo_codigo", codigoParam)
       .order("numero_analise", { ascending: false })
       .limit(1)
@@ -43,35 +43,10 @@ export async function GET(req: NextRequest) {
     .order("grupo")
     .order("ordem");
 
-  let { data: respostas } = await supabase
-    .from("analise_itens")
-    .select("checklist_item_id, status, observacao")
-    .eq("analise_id", analise.id);
-  // Se análise atual sem respostas, busca a anterior com dados
-  if (!respostas || respostas.length === 0) {
-    const { data: anterior } = await supabase
-      .from("analises_mac")
-      .select("id")
-      .eq("processo_codigo", analise.processo_codigo)
-      .order("numero_analise", { ascending: false })
-      .limit(10)
-      .then(async (res) => {
-        for (const a of res.data || []) {
-          if (a.id === analise.id) continue;
-          const { data: r } = await supabase.from("analise_itens").select("checklist_item_id, status, observacao").eq("analise_id", a.id).limit(1);
-          if (r && r.length > 0) return { data: a };
-        }
-        return { data: null };
-      });
-    if (anterior) {
-      const { data: r2 } = await supabase.from("analise_itens").select("checklist_item_id, status, observacao").eq("analise_id", anterior.id);
-      if (r2) respostas = r2;
-    }
-  }
-
+  const itensJson = (analise.itens || {}) as Record<string, string>;
   const mapaRespostas: Record<string, { status: string; observacao: string }> = {};
-  for (const r of respostas || []) {
-    mapaRespostas[r.checklist_item_id] = { status: r.status, observacao: r.observacao || "" };
+  for (const [id, status] of Object.entries(itensJson)) {
+    mapaRespostas[id] = { status, observacao: "" };
   }
 
   const statusLabel: Record<string, string> = {
