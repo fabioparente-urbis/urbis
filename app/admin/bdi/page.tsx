@@ -93,7 +93,7 @@ export default function BDIPage() {
   const leiAtivas = leis.filter(l => l.ativo).length;
   const urbiAtivo = getConfig("urbi_ativo") === "true";
 
-  const S: Record<string, React.CSSProperties> = {
+  const S: Record<string, any> = {
     page: { background: "#0a0a0f", minHeight: "100vh", fontFamily: "'JetBrains Mono', monospace", color: "#e2e8f0" },
     header: { borderBottom: "1px solid #d946ef33", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0d0d14" },
     abas: { display: "flex", gap: 4, padding: "16px 28px 0", borderBottom: "1px solid #ffffff11" },
