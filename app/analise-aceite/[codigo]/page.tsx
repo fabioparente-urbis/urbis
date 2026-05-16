@@ -239,6 +239,8 @@ export default function MacAceitePage() {
       }
     } catch {
       // silencioso por design
+    } finally {
+      if (analiseAtual?.id) carregarHistoricoMac(analiseAtual.id);
     }
   }
 
@@ -285,6 +287,7 @@ export default function MacAceitePage() {
       }
     } finally {
       setSalvando(false);
+      if (analiseAtual?.id) carregarHistoricoMac(analiseAtual.id);
     }
   }
 

@@ -246,6 +246,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       }
     } catch {
       // silencioso por design
+    } finally {
+      if (analiseAtual?.id) carregarHistoricoMac(analiseAtual.id);
     }
   }
 
@@ -292,6 +294,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       }
     } finally {
       setSalvando(false);
+      if (analiseAtual?.id) carregarHistoricoMac(analiseAtual.id);
     }
   }
 
