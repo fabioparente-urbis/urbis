@@ -65,17 +65,18 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
 
   function abrir() {
     setVideoAtivo(true);
+  }
+
+  function onVideoEnd() {
+    setVideoAtivo(false);
+    setFase("entrando");
+    setPoseId("planejando");
     setTimeout(() => {
-      setFase("entrando");
-      setPoseId("planejando");
-    }, 2000);
-    setTimeout(() => {
-      setVideoAtivo(false);
       setPoseId("tudo-ok");
       setFase("idle");
       setBalaoVisivel(true);
       setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
-    }, 3200);
+    }, 900);
   }
 
   function fechar() {
@@ -149,6 +150,26 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
             }}
           />
         </div>
+      )}
+      {videoAtivo && (
+        <video
+          src="/urbi/abertura-urbi.mp4"
+          autoPlay
+          muted
+          playsInline
+          onEnded={onVideoEnd}
+          style={{
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: "min(560px, 65vw)",
+            height: "auto",
+            mixBlendMode: "screen",
+            zIndex: 960,
+            pointerEvents: "none",
+          }}
+        />
       )}
       <style>{`
         @keyframes urbiEntrada {
