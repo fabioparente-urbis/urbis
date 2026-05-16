@@ -164,7 +164,7 @@ export default function Home() {
         </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
-          {usuario.nome && (
+          {usuario.nome && !urbiAberto && (
             <button
               onClick={() => setUrbiAberto(true)}
               className="w-full mb-4 flex flex-col items-center gap-2 cursor-pointer border-none bg-transparent p-2"
