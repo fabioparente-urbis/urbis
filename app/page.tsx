@@ -13,6 +13,7 @@ export default function Home() {
   const [erro, setErro] = useState("");
   // Perfis do usuario logado — gate para "Gestão de usuários" (item 4).
   const [perfis, setPerfis] = useState<string[]>([]);
+  const [usuario, setUsuario] = useState({ nome: "", perfil: "", id: "" });
   const podeGerirUsuarios = perfis.includes("Administrador") || isPerfilIrrestrito(perfis);
 
   useEffect(() => {
@@ -25,6 +26,7 @@ export default function Home() {
             ? json.data.perfis
             : (json.data?.perfil ? [json.data.perfil] : []);
           setPerfis(arr);
+          setUsuario({ nome: json.data?.nome ?? "", perfil: json.data?.perfil ?? "", id: json.data?.id ?? "" });
         }
       } catch { /* mantem [] -> oculta gestao por padrao */ }
     })();
@@ -167,5 +169,6 @@ export default function Home() {
       </aside>
 
     </div>
+      {usuario.nome && <UrbiChat usuario={usuario} />}
   );
 }
