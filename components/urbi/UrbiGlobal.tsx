@@ -20,7 +20,7 @@ export default function UrbiGlobal() {
 
   return (
     <>
-      {!urbiAberto && (
+      {!urbiAberto && isHome && (
         <button
           onClick={() => setUrbiAberto(true)}
           style={{
