@@ -248,6 +248,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           cursor: "pointer", fontSize: 12,
         }}>✕</button>
       </div>
+      <div style={{
+        display: "flex", gap: 8, paddingTop: 8, minHeight: 36,
+        borderTop: "1px solid #f1f5f9", marginTop: 6,
+        alignItems: "center",
+      }}>
+        {/* área reservada — botões futuros: áudio, anexo, etc. */}
+      </div>
     </>
   );
 
@@ -368,14 +375,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             display: "flex", flexDirection: "column",
           }}>
             <div style={{
-              position: "absolute", right: -10, top: 32,
+              position: "absolute", right: -10, top: 16,
               width: 0, height: 0,
               borderTop: "10px solid transparent",
               borderBottom: "10px solid transparent",
               borderLeft: "10px solid #ffffff",
             }} />
             <div style={{
-              position: "absolute", right: -13, top: 30,
+              position: "absolute", right: -13, top: 14,
               width: 0, height: 0,
               borderTop: "12px solid transparent",
               borderBottom: "12px solid transparent",
