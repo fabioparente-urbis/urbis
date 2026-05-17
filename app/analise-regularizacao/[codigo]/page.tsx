@@ -32,6 +32,7 @@ export default function MacPage() {
   const [fontes, setFontes] = useState<Record<string, "auto" | "p2" | "manual" | null>>({});
   const [aceites, setAceites] = useState<Record<string, boolean>>({});
   const [analisandoP2, setAnalisandoP2] = useState(false);
+  const [modalLimparMac, setModalLimparMac] = useState(false);
   const [progressoP2, setProgressoP2] = useState(0);
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputP2Ref = useRef<HTMLInputElement>(null);
@@ -599,6 +600,20 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             </button>
             <button
               type="button"
+              onClick={() => inputP2Ref.current?.click()}
+              disabled={analisandoP2 || checklistItens.length === 0}
+              title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
+              className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com P2"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalLimparMac(true)}
+              className="bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              🗑️ Limpar MAC
+            </button>
+            <button
+              type="button"
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
@@ -734,13 +749,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 className="flex items-center gap-1.5 bg-yellow-900 hover:bg-yellow-800 border border-yellow-700 text-yellow-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
               </button>
-              <button
-                onClick={() => inputP2Ref.current?.click()}
-                disabled={analisandoP2 || checklistItens.length === 0}
-                title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
-                className="flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 border border-indigo-600 text-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
-                {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com P2"}
-              </button>
+
               <input
                 ref={inputP2Ref}
                 type="file"
@@ -1112,6 +1121,34 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               <button onClick={() => setModalPendenciasLip(false)}
                 className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modalLimparMac && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
+            <p className="text-sm text-slate-200 mb-2">Você está prestes a <strong>apagar toda a análise MAC</strong> deste processo.</p>
+            <p className="text-sm text-red-300 font-semibold mb-4">Todos os itens, observações, fontes e aceites serão zerados. Esta ação não pode ser desfeita.</p>
+            <p className="text-xs text-slate-400 mb-4">Recomendamos exportar o Excel antes de continuar.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalLimparMac(false)}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button onClick={() => {
+                setItens({});
+                setFontes({});
+                setAceites({});
+                setObservacoes("");
+                setObservacoesPorAba({});
+                setModalLimparMac(false);
+                mostrarToast("🗑️ Análise MAC zerada.");
+              }}
+                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+                Confirmar — Limpar tudo
               </button>
             </div>
           </div>
