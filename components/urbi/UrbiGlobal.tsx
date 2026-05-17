@@ -16,11 +16,6 @@ export default function UrbiGlobal() {
       .catch(() => {});
   }, []);
 
-  // Na Home, abre automaticamente quando usuario carrega
-  useEffect(() => {
-    if (isHome && usuario?.nome) setUrbiAberto(true);
-  }, [isHome, usuario]);
-
   if (!usuario?.nome) return null;
 
   return (
@@ -29,14 +24,24 @@ export default function UrbiGlobal() {
         <button
           onClick={() => setUrbiAberto(true)}
           style={{
-            position: "fixed", bottom: 24, right: 24,
-            background: "transparent", border: "none",
-            cursor: "pointer", zIndex: 1000,
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            zIndex: 1000,
           }}
         >
           <img
             src="/urbi/urbi-botao.jpg"
-            style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }}
+            style={{
+              width: isHome ? 130 : 80,
+              height: isHome ? 130 : 80,
+              borderRadius: "50%",
+              objectFit: "cover",
+              boxShadow: "0 4px 24px #3b82f688",
+            }}
           />
         </button>
       )}
