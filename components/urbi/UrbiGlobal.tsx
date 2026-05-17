@@ -16,6 +16,11 @@ export default function UrbiGlobal() {
       .catch(() => {});
   }, []);
 
+  // Na Home, abre automaticamente quando usuario carrega
+  useEffect(() => {
+    if (isHome && usuario?.nome) setUrbiAberto(true);
+  }, [isHome, usuario]);
+
   if (!usuario?.nome) return null;
 
   return (
