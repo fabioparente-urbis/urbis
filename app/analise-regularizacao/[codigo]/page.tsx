@@ -848,7 +848,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 const pendentes = campos
                   .filter((c: any) => {
                     const v = dados[c.chave]?.valor;
-                    return v === "" || v === "X" || v === undefined;
+                    return v === "X";
                   })
                   .map((c: any) => c.label);
                 if (pendentes.length > 0) {

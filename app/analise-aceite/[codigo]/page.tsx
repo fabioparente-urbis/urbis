@@ -842,7 +842,7 @@ export default function MacAceitePage() {
                 const pendentes = campos
                   .filter((c: any) => {
                     const v = dados[c.chave]?.valor;
-                    return v === "" || v === "X" || v === undefined;
+                    return v === "X";
                   })
                   .map((c: any) => c.label);
                 if (pendentes.length > 0) {
