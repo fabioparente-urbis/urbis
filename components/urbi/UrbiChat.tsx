@@ -363,7 +363,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       <div style={{
         position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
         zIndex: 950,
-        display: "flex", alignItems: "flex-end", gap: 24,
+        display: "flex", alignItems: "flex-start", gap: 24,
         pointerEvents: "none",
       }}>
         {balaoVisivel && (
