@@ -25,8 +25,9 @@ export default function UrbiGlobal() {
           onClick={() => setUrbiAberto(true)}
           style={{
             position: "fixed",
-            bottom: 24,
-            right: 24,
+            bottom: 80,
+            left: "50%",
+            transform: "translateX(-50%)",
             background: "transparent",
             border: "none",
             cursor: "pointer",
