@@ -25,6 +25,21 @@ export default function UrbiGlobal() {
 
   return (
     <>
+      {!urbiAberto && (
+        <button
+          onClick={() => setUrbiAberto(true)}
+          style={{
+            position: "fixed", bottom: 24, right: 24,
+            background: "transparent", border: "none",
+            cursor: "pointer", zIndex: 1000,
+          }}
+        >
+          <img
+            src="/urbi/urbi-botao.jpg"
+            style={{ width: 80, height: 80, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }}
+          />
+        </button>
+      )}
       <UrbiChat
         usuario={usuario}
         aberto={urbiAberto}
