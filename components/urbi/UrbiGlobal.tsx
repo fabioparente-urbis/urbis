@@ -16,6 +16,7 @@ export default function UrbiGlobal() {
       .catch(() => {});
   }, []);
 
+  console.log("[URBI]", { isHome, usuario: usuario?.nome, pathname });
   if (isHome || !usuario?.nome) return null;
 
   return (
