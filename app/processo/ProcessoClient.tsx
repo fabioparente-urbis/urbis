@@ -157,6 +157,10 @@ export default function ProcessoClient() {
   const [destinoCustomDI, setDestinoCustomDI] = useState("");
   const [corpoDI, setCorpoDI] = useState("");
   const [gerandoDI, setGerandoDI] = useState(false);
+  const [modalIndeferimentoLip, setModalIndeferimentoLip] = useState(false);
+  const [motivosIndeferimentoLip, setMotivosIndeferimentoLip] = useState<string[]>([]);
+  const [obsIndeferimentoLip, setObsIndeferimentoLip] = useState("");
+  const [gerandoIndeferimento, setGerandoIndeferimento] = useState(false);
   const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
   const [logradouroBusca, setLogradouroBusca] = useState("");
@@ -662,6 +666,68 @@ export default function ProcessoClient() {
   return (
     <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      {modalIndeferimentoLip && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-red-700 rounded-xl p-6 w-full max-w-lg">
+            <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento por Impossibilidade de Análise</h2>
+            <p className="text-xs text-slate-400 mb-3">Selecione o(s) motivo(s):</p>
+            {[
+              "Uso do solo não definido — atividade sem classificação permitida para regularização",
+              "Edificação com mais de 7 pavimentos — vedada pela LC 314/2018",
+              "Reforma ou construção após 04/03/2022 — não elegível para regularização",
+              "Edificação em APP/APM — vedada pela legislação ambiental",
+              "Processo sem documentação mínima para análise",
+            ].map((motivo) => (
+              <label key={motivo} className="flex items-start gap-2 mb-2 cursor-pointer">
+                <input type="checkbox" className="mt-1" checked={motivosIndeferimentoLip.includes(motivo)}
+                  onChange={(e) => {
+                    if (e.target.checked) setMotivosIndeferimentoLip((p) => [...p, motivo]);
+                    else setMotivosIndeferimentoLip((p) => p.filter((m) => m !== motivo));
+                  }} />
+                <span className="text-sm text-slate-300">{motivo}</span>
+              </label>
+            ))}
+            <textarea value={obsIndeferimentoLip} onChange={(e) => setObsIndeferimentoLip(e.target.value)}
+              placeholder="Observações adicionais (opcional)..."
+              className="w-full mt-3 bg-slate-700 border border-slate-500 rounded p-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-20" />
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setModalIndeferimentoLip(false)}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button disabled={motivosIndeferimentoLip.length === 0 || gerandoIndeferimento}
+                onClick={async () => {
+                  setGerandoIndeferimento(true);
+                  setModalIndeferimentoLip(false);
+                  try {
+                    const res = await fetch("/api/despacho-regularizacao", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        processo: idUrl, tipo: "indeferimento", numeroDespacho: "",
+                        naoConformes: motivosIndeferimentoLip, observacoes: obsIndeferimentoLip,
+                        tipoProcesso: tipoUrl || "REGULARIZACAO",
+                      }),
+                    });
+                    if (res.ok) {
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url; a.download = `indeferimento_${idUrl}.docx`;
+                      document.body.appendChild(a); a.click();
+                      document.body.removeChild(a); URL.revokeObjectURL(url);
+                      setMotivosIndeferimentoLip([]); setObsIndeferimentoLip("");
+                      mostrarToast("✅ Indeferimento gerado!");
+                    }
+                  } finally { setGerandoIndeferimento(false); }
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
+                {gerandoIndeferimento ? "⏳ Gerando..." : "📄 Gerar Indeferimento"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalDI && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
@@ -737,6 +803,10 @@ export default function ProcessoClient() {
           <button onClick={() => setModalDI(true)}
             className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📨 Despacho Interno
+          </button>
+          <button onClick={() => setModalIndeferimentoLip(true)}
+            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            ❌ Indeferimento
           </button>
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
