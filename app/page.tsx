@@ -1,6 +1,5 @@
 "use client";
 
-import UrbiChat from "@/components/urbi/UrbiChat";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito } from "@/lib/perfis";
@@ -15,7 +14,6 @@ export default function Home() {
   // Perfis do usuario logado — gate para "Gestão de usuários" (item 4).
   const [perfis, setPerfis] = useState<string[]>([]);
   const [usuario, setUsuario] = useState({ nome: "", perfil: "", id: "" });
-  const [urbiAberto, setUrbiAberto] = useState(false);
   const podeGerirUsuarios = perfis.includes("Administrador") || isPerfilIrrestrito(perfis);
 
   useEffect(() => {
@@ -103,7 +101,7 @@ export default function Home() {
       </aside>
 
       {/* CENTRO */}
-      <main className="flex-1 flex items-center justify-center" style={{ paddingBottom: urbiAberto ? "300px" : "0", transition: "padding-bottom 0.5s ease" }}>
+      <main className="flex-1 flex items-center justify-center" style={{ paddingBottom: "0" }}>
         <div className="bg-white p-10 rounded shadow w-full max-w-md text-center">
           <img src="/logo_urbis.png" alt="URBIS" className="mx-auto mb-6 w-44 h-auto" />
           <h2 className="text-3xl font-semibold text-gray-700 mb-4">
@@ -164,14 +162,7 @@ export default function Home() {
         </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
-          {usuario.nome && (
-            <button
-              onClick={() => setUrbiAberto(!urbiAberto)}
-              className="w-full mb-4 flex flex-col items-center gap-2 cursor-pointer border-none bg-transparent p-2"
-            >
-              <img src="/urbi/urbi-botao.jpg" style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
-            </button>
-          )}
+
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="w-full p-3 text-left rounded transition hover:bg-red-900 text-red-400 hover:text-white text-sm font-medium">
             🚪 Sair
@@ -180,7 +171,6 @@ export default function Home() {
       </aside>
 
     </div>
-      {usuario.nome && <UrbiChat usuario={usuario} aberto={urbiAberto} setAberto={setUrbiAberto} />}
     </>
   );
 }
