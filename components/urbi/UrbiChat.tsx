@@ -361,7 +361,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       )}
       <style>{css}</style>
       <div style={{
-        position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
+        position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
         zIndex: 950,
         display: "flex", alignItems: "flex-start", gap: 24,
         pointerEvents: "none",
@@ -370,7 +370,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           <div className="urbi-balao" style={{
             pointerEvents: "all", position: "relative",
             background: "#ffffff", borderRadius: 16,
-            padding: "14px 16px", width: 380, maxHeight: 520,
+            padding: "14px 16px", width: 420, maxHeight: 560,
             boxShadow: "0 8px 32px #00000033",
             display: "flex", flexDirection: "column",
           }}>
