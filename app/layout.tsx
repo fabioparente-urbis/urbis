@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import HeaderGlobal from "@/components/HeaderGlobal";
-import dynamic from "next/dynamic";
-
-const UrbiGlobal = dynamic(() => import("@/components/urbi/UrbiGlobal"), { ssr: false });
+import UrbiWrapper from "@/components/urbi/UrbiWrapper";
 
 export const metadata: Metadata = {
   title: "URBIS",
@@ -21,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       }}>
         <HeaderGlobal />
         {children}
-        <UrbiGlobal />
+        <UrbiWrapper />
       </body>
     </html>
   );
