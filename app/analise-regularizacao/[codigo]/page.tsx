@@ -934,7 +934,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 n === 1 ||
                 analises.some(
                   (a) =>
-                    a.numero_analise === n - 1 && a.status !== "em_andamento",
+                    a.numero_analise === n - 1,
                 );
               const ativa = analiseAtual?.numero_analise === n;
               return (
