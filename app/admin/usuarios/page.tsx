@@ -28,7 +28,6 @@ const ADMIN_FIXO = "Fábio Parente Martins Santos";
 
 const vazio = () => ({
   nome: "",
-  cpf: "",
   email: "",
   matricula: "",
   telefone: "",
@@ -89,7 +88,6 @@ export default function UsuariosPage() {
     const gerenciaForm = u.gerencia ?? "";
     setForm({
       nome: u.nome,
-      cpf: u.cpf,
       email: u.email,
       matricula: u.matricula,
       telefone: u.telefone,
@@ -273,7 +271,7 @@ export default function UsuariosPage() {
               <button onClick={() => setModal(false)} className="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
-              {([ ["nome","Nome completo","text"], ["cpf","CPF","text"], ["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"], ["cau_crea","CAU / CREA","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
+              {([ ["nome","Nome completo","text"],["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"], ["cau_crea","CAU / CREA","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
                 <div key={campo} className="flex flex-col gap-1">
                   <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</label>
                   <input type={tipo} value={(form as any)[campo]} onChange={(e) => f(campo, e.target.value)}
