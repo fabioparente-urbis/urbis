@@ -84,7 +84,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
         setBalaoVisivel(true);
         setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
       }, 900);
-    }, 1600);
+    }, 800);
   }
 
   function fechar() {
