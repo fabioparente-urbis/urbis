@@ -263,18 +263,41 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 8,
+          gap: 0,
           userSelect: "none",
         }}>
           {balaoVisivel && (
             <div className="urbi-balao" style={{
+              position: "relative",
               background: "#ffffff", borderRadius: 16,
               padding: "14px 16px", width: 280, maxHeight: 360,
               boxShadow: "0 8px 32px #00000033",
               display: "flex", flexDirection: "column",
               pointerEvents: "all",
+              marginBottom: 6,
             }}>
               {chatContent(true)}
+              <div style={{
+                position: "absolute",
+                bottom: -10,
+                right: 32,
+                width: 0,
+                height: 0,
+                borderLeft: "10px solid transparent",
+                borderRight: "10px solid transparent",
+                borderTop: "10px solid #ffffff",
+              }} />
+              <div style={{
+                position: "absolute",
+                bottom: -13,
+                right: 30,
+                width: 0,
+                height: 0,
+                borderLeft: "12px solid transparent",
+                borderRight: "12px solid transparent",
+                borderTop: "12px solid rgba(0,0,0,0.08)",
+                zIndex: -1,
+              }} />
             </div>
           )}
           <div
