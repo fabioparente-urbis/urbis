@@ -604,7 +604,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               disabled={analisandoP2 || checklistItens.length === 0}
               title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
               className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com P2"}
+              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P2"}
             </button>
             <button
               type="button"
