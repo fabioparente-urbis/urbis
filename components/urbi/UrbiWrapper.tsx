@@ -1,6 +1,5 @@
 "use client";
-import dynamic from "next/dynamic";
-const UrbiGlobal = dynamic(() => import("./UrbiGlobal"), { ssr: false });
+import UrbiGlobal from "./UrbiGlobal";
 export default function UrbiWrapper() {
   return <UrbiGlobal />;
 }
