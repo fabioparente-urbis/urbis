@@ -162,7 +162,6 @@ export default function Home() {
         </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
-          {usuario.nome && (
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="w-full p-3 text-left rounded transition hover:bg-red-900 text-red-400 hover:text-white text-sm font-medium">
             🚪 Sair
