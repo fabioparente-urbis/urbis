@@ -363,16 +363,24 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           <div className="urbi-balao" style={{
             pointerEvents: "all", position: "relative",
             background: "#ffffff", borderRadius: 16,
-            padding: "14px 16px", width: 320, maxHeight: 440,
+            padding: "14px 16px", width: 380, maxHeight: 520,
             boxShadow: "0 8px 32px #00000033",
             display: "flex", flexDirection: "column",
           }}>
             <div style={{
-              position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)",
+              position: "absolute", right: -10, top: 32,
               width: 0, height: 0,
-              borderLeft: "10px solid transparent",
-              borderRight: "10px solid transparent",
-              borderTop: "10px solid #ffffff",
+              borderTop: "10px solid transparent",
+              borderBottom: "10px solid transparent",
+              borderLeft: "10px solid #ffffff",
+            }} />
+            <div style={{
+              position: "absolute", right: -13, top: 30,
+              width: 0, height: 0,
+              borderTop: "12px solid transparent",
+              borderBottom: "12px solid transparent",
+              borderLeft: "12px solid rgba(0,0,0,0.08)",
+              zIndex: -1,
             }} />
             {chatContent()}
           </div>
