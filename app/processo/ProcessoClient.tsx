@@ -915,7 +915,7 @@ export default function ProcessoClient() {
           </div>
           <div className="ml-auto flex gap-2">
             <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-white"}`}>
-              {lendoLip ? "⏳ Lendo..." : "📎 1 arquivo"}
+              {lendoLip ? "⏳ Lendo..." : "📎 Ler PDF com Prompt P1"}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
