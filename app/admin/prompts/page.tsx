@@ -12,6 +12,7 @@ type PromptData = {
 type PromptState = {
   atual: string;
   anterior: string;
+  backup: string;
   versao: number;
   editando: boolean;
   salvando: boolean;
@@ -23,8 +24,8 @@ export default function AdminPrompts() {
   const [adminNome, setAdminNome] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [toast, setToast] = useState<{ msg: string; tipo: "ok" | "erro" } | null>(null);
-  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false });
-  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false });
+  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "" });
+  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "" });
 
   useEffect(() => {
     (async () => {
@@ -46,6 +47,7 @@ export default function AdminPrompts() {
           ...prev,
           atual: p.conteudo,
           anterior: p.versao_anterior ?? "",
+          backup: p.conteudo_backup ?? "",
           versao: p.versao,
         }));
       });
@@ -91,7 +93,7 @@ export default function AdminPrompts() {
     });
     const json = await res.json();
     if (json.ok) {
-      setter(p => ({ ...p, anterior: p.atual, versao: p.versao + 1, editando: false, salvando: false }));
+      setter(p => ({ ...p, versao: p.versao + 1, editando: false, salvando: false }));
       showToast("Prompt salvo e ativado com sucesso.", "ok");
     } else {
       setter(p => ({ ...p, salvando: false }));
@@ -99,9 +101,23 @@ export default function AdminPrompts() {
     }
   }
 
+  async function copiarParaBackup(chave: string, setter: typeof setP1) {
+    const res = await fetch("/api/admin/prompts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chave }),
+    });
+    const json = await res.json();
+    if (json.ok) {
+      setter(p => ({ ...p, backup: p.atual }));
+      showToast("Backup atualizado com sucesso.", "ok");
+    } else {
+      showToast("Erro ao copiar backup: " + json.erro, "erro");
+    }
+  }
   function restaurar(state: PromptState, setter: typeof setP1) {
     if (!state.anterior) return;
-    setter(p => ({ ...p, atual: p.anterior, editando: true }));
+    setter(p => ({ ...p, atual: p.backup, editando: true }));
     showToast("Versão anterior restaurada. Clique em Salvar e Ativar para confirmar.", "ok");
   }
 
@@ -205,8 +221,9 @@ export default function AdminPrompts() {
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 2 }}>BACKUP / HISTÓRICO</span>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <Btn onClick={() => restaurar(state, setter)} disabled={!state.anterior} cor={cor}>🔄 Restaurar</Btn>
-                      <Btn onClick={() => exportar(state.anterior, chave + "_anterior")} disabled={!state.anterior} cor={cor}>📤 Exportar .txt</Btn>
+                      <Btn onClick={() => restaurar(state, setter)} disabled={!state.backup} cor={cor}>🔄 Restaurar</Btn>
+                      <Btn onClick={() => copiarParaBackup(chave, setter)} cor={cor}>⬅ Copiar Produção → Backup</Btn>
+                      <Btn onClick={() => exportar(state.backup, chave + "_backup")} disabled={!state.anterior} cor={cor}>📤 Exportar .txt</Btn>
                     </div>
                   </div>
                   <textarea readOnly value={state.anterior || "(sem versão anterior)"} style={{
