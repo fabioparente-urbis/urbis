@@ -8,9 +8,12 @@ import { toast } from "sonner";
 interface Props {
   processoId: string;
   disabled?: boolean;
+  // Callback opcional disparado APÓS o download bem-sucedido do laudo.
+  // Usado, por exemplo, para gravar uma tag permanente no processo.
+  onSuccess?: () => void;
 }
 
-export function BotaoGerarLaudo({ processoId, disabled }: Props) {
+export function BotaoGerarLaudo({ processoId, disabled, onSuccess }: Props) {
   const [gerando, setGerando] = useState(false);
 
   async function handleGerar() {
@@ -41,6 +44,7 @@ export function BotaoGerarLaudo({ processoId, disabled }: Props) {
       URL.revokeObjectURL(url);
 
       toast.success("Laudo gerado com sucesso!");
+      onSuccess?.();
     } catch (e: any) {
       toast.error(`Erro ao gerar laudo: ${e.message}`);
     } finally {

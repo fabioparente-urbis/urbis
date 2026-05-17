@@ -4,6 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 
+type ProcessoTag = {
+  id?: string;
+  tipo: "despacho" | "indeferimento" | "arquivamento" | "laudo";
+  numero_analise?: number;
+  numero_despacho?: string;
+  data?: string;
+  criado_em?: string;
+};
+
 type Processo = {
   id: string;
   codigo: string;
@@ -14,7 +23,34 @@ type Processo = {
   atualizado_em: string;
   analista_id: string | null;
   dados?: Record<string, any>;
+  tags?: ProcessoTag[];
 };
+
+const TAG_COR: Record<ProcessoTag["tipo"], string> = {
+  despacho: "bg-blue-900 text-blue-200 border-blue-700",
+  indeferimento: "bg-red-900 text-red-200 border-red-700",
+  arquivamento: "bg-slate-700 text-slate-200 border-slate-500",
+  laudo: "bg-green-900 text-green-200 border-green-700",
+};
+
+function rotuloTag(t: ProcessoTag): string {
+  switch (t.tipo) {
+    case "despacho":
+      return t.numero_analise && t.numero_despacho
+        ? `Análise ${t.numero_analise} — Despacho Nº ${t.numero_despacho}`
+        : t.numero_analise
+          ? `Análise ${t.numero_analise} — Despacho`
+          : "Despacho";
+    case "indeferimento":
+      return t.numero_despacho
+        ? `Indeferimento — Despacho Nº ${t.numero_despacho}`
+        : "Indeferimento";
+    case "arquivamento":
+      return "Arquivamento";
+    case "laudo":
+      return "Laudo emitido";
+  }
+}
 
 type Usuario = {
   id: string;
@@ -256,6 +292,19 @@ export default function ProcessosPage() {
                 {/* Clicavel */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
                   <p className="font-mono text-yellow-400 font-semibold text-sm">{numero}</p>
+                  {Array.isArray(p.tags) && p.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {p.tags.map((t, i) => (
+                        <span
+                          key={t.id ?? `${t.tipo}-${i}`}
+                          title={t.data ? `Emitido em ${t.data}` : undefined}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
+                        >
+                          {rotuloTag(t)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-slate-300 text-sm mt-0.5 truncate">{proprietario}</p>
                   <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-500 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
                 </div>

@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises } = body;
+    const { processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
     const cookieHeader = req.headers.get("cookie") || "";
@@ -54,6 +54,8 @@ export async function POST(req: NextRequest) {
         numero_analise: proximoNumero,
         status: status || "em_andamento",
         itens: itens || {},
+        fontes: fontes || {},
+        aceites: aceites || {},
         observacoes: observacoes || "",
         observacoes_por_aba: observacoes_por_aba || {},
         modelo_id: body.modelo_id || null,
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises } = body;
+    const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
     // ── Histórico BDI ────────────────────────────────────────
@@ -147,6 +149,8 @@ export async function PUT(req: NextRequest) {
       .from("analises_mac")
       .update({
         itens,
+        fontes: fontes || {},
+        aceites: aceites || {},
         observacoes,
         observacoes_por_aba,
         status,

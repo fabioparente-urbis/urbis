@@ -379,6 +379,21 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       a.click();
       URL.revokeObjectURL(url);
       mostrarToast("✅ Despacho gerado!");
+
+      // Grava tag permanente no processo (STEP 2a)
+      await gravarTag({
+        tipo: tipoDespacho,
+        numero_analise: analiseAtual?.numero_analise,
+        numero_despacho: numeroDespacho || undefined,
+      });
+
+      // Análise 5 + despacho ao interessado → abre indeferimento (STEP 1d)
+      if (
+        tipoDespacho === "despacho" &&
+        analiseAtual?.numero_analise === 5
+      ) {
+        setTimeout(() => setModalIndeferimento(true), 400);
+      }
     } catch {
       mostrarToast("Erro ao gerar despacho.");
     } finally {
@@ -413,6 +428,44 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setHistoricoAnalises(a.historico_analises || "");
     setNovaAnalise(false);
     if (a.modelo_id) carregarItensModelo(a.modelo_id);
+  }
+
+  // Seleciona uma análise existente (numero_analise === n) ou inicia o fluxo
+  // de criação se ainda não existir. Os botões 1..5 ficam liberados apenas
+  // quando a análise anterior já foi emitida (regra na UI).
+  function selecionarOuCriarAnalise(n: number) {
+    const existente = analises.find((a) => a.numero_analise === n);
+    if (existente) {
+      selecionarAnalise(existente);
+    } else {
+      // Backend incrementa numero_analise automaticamente; com a regra de
+      // liberação sequencial, o próximo será exatamente N.
+      iniciarNovaAnalise();
+    }
+  }
+
+  // Grava uma tag permanente no processo (jsonb processos.tags).
+  // Falha silenciosamente — não bloqueia o fluxo principal (download).
+  async function gravarTag(tag: {
+    tipo: "despacho" | "indeferimento" | "arquivamento" | "laudo";
+    numero_analise?: number;
+    numero_despacho?: string;
+  }) {
+    try {
+      await fetch("/api/processo/tag", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo,
+          tag: {
+            ...tag,
+            data: new Date().toLocaleDateString("pt-BR"),
+          },
+        }),
+      });
+    } catch {
+      // silencioso
+    }
   }
 
   const naoConformes = checklistItens.filter((i) => itens[i.id] === "nao_conforme");
@@ -600,20 +653,6 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             </button>
             <button
               type="button"
-              onClick={() => inputP2Ref.current?.click()}
-              disabled={analisandoP2 || checklistItens.length === 0}
-              title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
-              className="bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P2"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalLimparMac(true)}
-              className="bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              🗑️ Limpar MAC
-            </button>
-            <button
-              type="button"
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
               className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
@@ -638,59 +677,17 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {analises.map((a) => (
-              <button key={a.id} onClick={() => selecionarAnalise(a)}
-                className={`px-3 py-1.5 rounded text-xs font-bold border transition-colors ${
-                  analiseAtual?.id === a.id
-                    ? "bg-blue-600 border-blue-500 text-white"
-                    : "bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600"
-                }`}>
-                {a.numero_analise}ª{a.status === "deferido" ? " ✅" : a.status === "indeferido" ? " ❌" : ""}
-              </button>
-            ))}
-            {novaAnalise && !analiseAtual && (
-              <span className="px-3 py-1.5 rounded text-xs font-bold bg-green-800 border border-green-600 text-green-300">
-                {analises.length + 1}ª (nova)
-              </span>
-            )}
-            {!novaAnalise && analises.length < 5 && (
-              <button onClick={iniciarNovaAnalise}
-                className="px-3 py-1.5 rounded text-xs font-bold bg-slate-700 border border-slate-600 text-slate-300 hover:bg-slate-600 transition-colors">
-                + Nova
-              </button>
-            )}
-          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
           <span className="flex items-center gap-1"><span className="bg-green-700 px-2 py-0.5 rounded font-bold">✅</span> <span className="text-slate-300">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-red-700 px-2 py-0.5 rounded font-bold">❌</span> <span className="text-slate-300">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-slate-600 px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-slate-300">Não se Aplica</span></span>
-          <span className="flex items-center gap-2 ml-auto">
-            <label htmlFor="numero_revisao" className="text-slate-400 font-semibold uppercase tracking-wide">Revisão</label>
-            <select
-              id="numero_revisao"
-              value={numeroRevisao}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setNumeroRevisao(v);
-                void salvarSilencioso();
-              }}
-              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={1}>1ª ANÁLISE</option>
-              <option value={2}>2ª ANÁLISE</option>
-              <option value={3}>3ª ANÁLISE</option>
-              <option value={4}>4ª ANÁLISE</option>
-              <option value={5}>5ª ANÁLISE (ÚLTIMA*)</option>
-            </select>
-          </span>
         </div>
 
         <div className="mt-2 flex flex-col gap-1">
           <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
-            Histórico de análises anteriores
+            Observações das análises
           </label>
           <textarea
             value={historicoAnalises}
@@ -702,12 +699,6 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           />
         </div>
 
-        <div className="flex gap-4 text-xs">
-          <span className="text-green-400">✅ {conformes.length} conformes</span>
-          <span className="text-red-400">❌ {naoConformes.length} não conformes</span>
-          <span className="text-slate-400">⬜ {naoAplica.length} não se aplica</span>
-          <span className="text-yellow-400">⏳ {naoRespondidos.length} não respondidos</span>
-        </div>
       </div>
 
       <div className="flex flex-1 gap-0 overflow-hidden">
@@ -820,6 +811,14 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 </div>
               </div>
             )}
+            {/* Legenda de status (movida do cabeçalho) — STEP 1g */}
+            <div className="flex flex-wrap gap-4 text-xs px-1 py-2 border-b border-slate-700 mb-2">
+              <span className="text-green-400">✅ {conformes.length} conformes</span>
+              <span className="text-red-400">❌ {naoConformes.length} não conformes</span>
+              <span className="text-slate-400">⬜ {naoAplica.length} não se aplica</span>
+              <span className="text-yellow-400">⏳ {naoRespondidos.length} não respondidos</span>
+            </div>
+
             <div className="flex flex-col gap-3 pt-2">
               {itensGrupo.map((item) => {
                 const status = itens[item.id];
@@ -924,6 +923,43 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
         {/* PAINEL LATERAL */}
         <div className="w-72 bg-slate-800 border-l border-slate-700 p-4 flex flex-col gap-4 overflow-y-auto">
           <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Ações</h3>
+
+          {/* Botões de análise 1-5 (STEP 1b) */}
+          <div className="flex flex-col gap-1.5 mb-1">
+            {[1, 2, 3, 4, 5].map((n) => {
+              const existente = analises.find((a) => a.numero_analise === n);
+              const jaEmitida =
+                !!existente && existente.status !== "em_andamento";
+              const liberada =
+                n === 1 ||
+                analises.some(
+                  (a) =>
+                    a.numero_analise === n - 1 && a.status !== "em_andamento",
+                );
+              const ativa = analiseAtual?.numero_analise === n;
+              return (
+                <button
+                  key={n}
+                  disabled={!liberada && !existente}
+                  onClick={() => selecionarOuCriarAnalise(n)}
+                  className={`w-full py-2 rounded-lg text-sm font-bold border transition-all ${
+                    ativa
+                      ? "bg-blue-700 border-blue-500 text-white"
+                      : jaEmitida
+                        ? "bg-green-900 border-green-700 text-green-300 hover:bg-green-800"
+                        : existente
+                          ? "bg-slate-700 border-slate-500 text-slate-200 hover:bg-slate-600"
+                          : liberada
+                            ? "bg-slate-700 border-slate-500 text-slate-200 hover:bg-slate-600"
+                            : "bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed opacity-50"
+                  }`}
+                >
+                  {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
+                </button>
+              );
+            })}
+          </div>
+
           <button onClick={() => {
   carregarModelos(tipoProcesso).then(() => setModalModelo(true));
 }}
@@ -973,6 +1009,10 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                   document.body.removeChild(link); URL.revokeObjectURL(url);
                   setIndeferimentoPendente(null);
                   mostrarToast("✅ Documento de indeferimento gerado!");
+                  await gravarTag({
+                    tipo: "indeferimento",
+                    numero_analise: analiseAtual?.numero_analise,
+                  });
                 }
               } finally { setGerandoDespacho(false); }
             }}
@@ -1025,8 +1065,34 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
             <div className="mt-2">
-              <BotaoGerarLaudo processoId={codigo} />
+              <BotaoGerarLaudo
+                processoId={codigo}
+                onSuccess={() =>
+                  void gravarTag({
+                    tipo: "laudo",
+                    numero_analise: analiseAtual?.numero_analise,
+                  })
+                }
+              />
             </div>
+
+            {/* P2 + Limpar MAC (movidos do header — STEP 1e) */}
+            <button
+              type="button"
+              onClick={() => inputP2Ref.current?.click()}
+              disabled={analisandoP2 || checklistItens.length === 0}
+              title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
+              className="w-full mt-2 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
+            >
+              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P2"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalLimparMac(true)}
+              className="w-full mt-2 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white font-bold py-2.5 rounded-lg text-sm transition-colors"
+            >
+              🗑️ Limpar MAC
+            </button>
           </div>
           {/* HISTÓRICO MAC */}
           <div className="mt-4 border-t border-slate-700 pt-4 px-1">
