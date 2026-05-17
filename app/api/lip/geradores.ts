@@ -175,7 +175,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: { nome: string; cargo?: string; registro?: string }; gerente?: { nome: string; cargo?: string; registro?: string }; diretora?: { nome: string; cargo?: string; registro?: string }; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; endereco?: string; analista?: string; crea?: string; setor?: string; observacoes?: string; assinante?: { nome: string; cargo?: string; registro?: string }; gerente?: { nome: string; cargo?: string; registro?: string }; diretora?: { nome: string; cargo?: string; registro?: string }; }): Promise<Buffer> {
   const logoData = getLogoData();
   const analista = dados.assinante?.nome || dados.analista || "Engº Fábio Parente Martins Santos";
   const crea = dados.assinante?.registro || dados.crea || "CREA 11716/D-GO";
@@ -204,6 +204,10 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   children.push(p([txt("O Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº 546, de 27 de fevereiro de 2015, define procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, §4º, Inciso II do Decreto nº. 2.559/2018.")], { after: 120 }));
   children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias", { bold: true }), txt(", contados a partir da publicação deste parecer, conforme previsto no Artigo 9º do Decreto nº. 2.559/2018. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
+  if (dados.observacoes?.trim()) {
+    children.push(vazio(80));
+    children.push(p([txt(dados.observacoes.trim())], { after: 60 }));
+  }
   children.push(vazio(200));
 
   const gerenteNome = dados.gerente?.nome || "Arq. Urb. Marcos Antônio de Castro Rocha";

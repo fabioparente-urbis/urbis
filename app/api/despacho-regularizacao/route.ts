@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
     if (tipo === "despacho") {
         buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante, gerente, diretora });
+      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora });
     } else {
       buffer = await gerarArquivamento({ processo, interessado, assinante, gerente, diretora });
     }

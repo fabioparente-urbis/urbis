@@ -695,7 +695,7 @@ export default function ProcessoClient() {
                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
-              <button disabled={motivosIndeferimentoLip.length === 0 || gerandoIndeferimento}
+              <button disabled={gerandoIndeferimento}
                 onClick={async () => {
                   setGerandoIndeferimento(true);
                   setModalIndeferimentoLip(false);
