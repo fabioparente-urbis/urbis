@@ -29,6 +29,12 @@ export default function MacPage() {
   const [analises, setAnalises] = useState<any[]>([]);
   const [analiseAtual, setAnaliseAtual] = useState<any | null>(null);
   const [itens, setItens] = useState<Record<string, StatusItem>>({});
+  const [fontes, setFontes] = useState<Record<string, "auto" | "p2" | "manual" | null>>({});
+  const [aceites, setAceites] = useState<Record<string, boolean>>({});
+  const [analisandoP2, setAnalisandoP2] = useState(false);
+  const [progressoP2, setProgressoP2] = useState(0);
+  const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const inputP2Ref = useRef<HTMLInputElement>(null);
   const [checklistItens, setChecklistItens] = useState<Item[]>([]);
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
@@ -142,6 +148,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
         carregarHistoricoMac(analiseAtual.id);
       }
       setItens(ultima.itens || {});
+      setFontes(ultima.fontes || {});
+      setAceites(ultima.aceites || {});
       setObservacoes(ultima.observacoes || "");
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
       setNumeroRevisao(Number(ultima.numero_revisao) || 1);
@@ -171,25 +179,49 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     if (checklistItens.length === 0) return;
     const t = setTimeout(() => salvarSilencioso("em_andamento"), 400);
     return () => clearTimeout(t);
-  }, [itens, observacoes, observacoesPorAba]);
+  }, [itens, observacoes, observacoesPorAba, fontes, aceites]);
 
 
   function setItem(id: string, status: StatusItem) {
     setItens((prev) => ({ ...prev, [id]: status }));
+    setFontes((prev) => ({ ...prev, [id]: "manual" }));
+    setAceites((prev) => ({ ...prev, [id]: true }));
   }
 
   function marcarGrupo(grupo: string, status: "conforme" | "nao_conforme" | "nao_aplica") {
+    const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
       const novo = { ...prev };
-      checklistItens.filter((i) => i.grupo === grupo).forEach((i) => { novo[i.id] = status; });
+      ids.forEach((id) => { novo[id] = status; });
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { novo[id] = "manual"; });
+      return novo;
+    });
+    setAceites((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { novo[id] = true; });
       return novo;
     });
   }
 
   function limparGrupo(grupo: string) {
+    const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
       const novo = { ...prev };
-      checklistItens.filter((i) => i.grupo === grupo).forEach((i) => { delete novo[i.id]; });
+      ids.forEach((id) => { delete novo[id]; });
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { delete novo[id]; });
+      return novo;
+    });
+    setAceites((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { delete novo[id]; });
       return novo;
     });
   }
@@ -216,6 +248,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           body: JSON.stringify({
             processo_codigo: codigo,
             itens,
+            fontes,
+            aceites,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -236,6 +270,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           body: JSON.stringify({
             id: analiseAtual.id,
             itens,
+            fontes,
+            aceites,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -261,6 +297,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           body: JSON.stringify({
             processo_codigo: codigo,
             itens,
+            fontes,
+            aceites,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -280,6 +318,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
           body: JSON.stringify({
             id: analiseAtual.id,
             itens,
+            fontes,
+            aceites,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -353,6 +393,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     const ultima = analises[analises.length - 1];
     setAnaliseAtual(null);
     setItens(ultima?.itens || {});
+    setFontes(ultima?.fontes || {});
+    setAceites(ultima?.aceites || {});
     setObservacoes("");
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     setNovaAnalise(true);
@@ -362,6 +404,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   function selecionarAnalise(a: any) {
     setAnaliseAtual(a);
     setItens(a.itens || {});
+    setFontes(a.fontes || {});
+    setAceites(a.aceites || {});
     setObservacoes(a.observacoes || "");
     setObservacoesPorAba(a.observacoes_por_aba || {});
     setNumeroRevisao(Number(a.numero_revisao) || 1);
@@ -690,11 +734,88 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                 className="flex items-center gap-1.5 bg-yellow-900 hover:bg-yellow-800 border border-yellow-700 text-yellow-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
               </button>
+              <button
+                onClick={() => inputP2Ref.current?.click()}
+                disabled={analisandoP2 || checklistItens.length === 0}
+                title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
+                className="flex items-center gap-1.5 bg-indigo-900 hover:bg-indigo-800 disabled:opacity-50 border border-indigo-600 text-indigo-200 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com P2"}
+              </button>
+              <input
+                ref={inputP2Ref}
+                type="file"
+                accept="application/pdf,.pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  try {
+                    setAnalisandoP2(true);
+                    setProgressoP2(0);
+                    let p = 0;
+                    progressoP2Ref.current = setInterval(() => {
+                      p += Math.random() * 8 + 2;
+                      if (p >= 80) { p = 80; if (progressoP2Ref.current) clearInterval(progressoP2Ref.current); }
+                      setProgressoP2(Math.round(p));
+                    }, 400);
+                    const fd = new FormData();
+                    fd.append("file", f);
+                    fd.append("codigo", codigo);
+                    fd.append("checklistItens", JSON.stringify(
+                      checklistItens.map((i) => ({ id: i.id, texto: i.texto, grupo: i.grupo }))
+                    ));
+                    if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
+                    const res = await fetch("/api/mac/p2", { method: "POST", body: fd });
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      mostrarToast(`Erro P2: ${json?.erro || res.statusText}`);
+                      return;
+                    }
+                    // Só preenche itens que ainda são null (analista não tocou)
+                    setItens((prev) => {
+                      const novo = { ...prev };
+                      Object.entries(json.itens || {}).forEach(([id, status]) => {
+                        if (prev[id] == null) novo[id] = status as StatusItem;
+                      });
+                      return novo;
+                    });
+                    setFontes((prev) => ({ ...prev, ...(json.fontes || {}) }));
+                    setAceites((prev) => {
+                      const novo = { ...prev };
+                      Object.keys(json.fontes || {}).forEach((id) => { novo[id] = false; });
+                      return novo;
+                    });
+                    const total = Object.keys(json.itens || {}).length;
+                    mostrarToast(`🤖 P2 sugeriu ${total} item(ns) — revise e aceite.`);
+                  } catch (err: any) {
+                    mostrarToast(`Erro P2: ${err?.message || "falha"}`);
+                  } finally {
+                    if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
+                    setProgressoP2(100);
+                    setTimeout(() => setProgressoP2(0), 800);
+                    setAnalisandoP2(false);
+                    if (inputP2Ref.current) inputP2Ref.current.value = "";
+                  }
+                }}
+              />
             </div>
 
+            {progressoP2 > 0 && (
+              <div className="flex flex-col gap-1 px-1 py-2">
+                <div className="flex justify-between text-xs text-indigo-300 font-semibold">
+                  <span>🤖 Analisando PDF com IA...</span>
+                  <span>{progressoP2}%</span>
+                </div>
+                <div className="w-full bg-slate-700 rounded-full h-2">
+                  <div className="bg-indigo-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-3 pt-2">
               {itensGrupo.map((item) => {
                 const status = itens[item.id];
+                const fonte = fontes[item.id] ?? null;
+                const aceito = !!aceites[item.id];
                 return (
                   <div key={item.id}
                     className={`rounded-xl border p-4 transition-all ${
@@ -708,20 +829,44 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
                         <p className="text-sm text-white leading-relaxed">{item.texto}</p>
                         {item.ref && <p className="text-xs text-slate-500 mt-1">{item.ref}</p>}
                       </div>
-                      <div className="flex gap-1 shrink-0">
-                        {(["conforme", "nao_conforme", "nao_aplica"] as StatusItem[]).map((s) => (
-                          <button key={s!}
-                            onClick={() => setItem(item.id, status === s ? null : s)}
-                            className={`px-2 py-1 rounded text-xs font-bold border transition-all ${
-                              status === s
-                                ? s === "conforme" ? "bg-green-700 border-green-500 text-white" :
-                                  s === "nao_conforme" ? "bg-red-700 border-red-500 text-white" :
-                                  "bg-slate-600 border-slate-400 text-white"
-                                : "bg-slate-700 border-slate-600 text-slate-400 hover:border-slate-400"
-                            }`}>
-                            {s === "conforme" ? "✅" : s === "nao_conforme" ? "❌" : "⬜"}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {fonte === "p2" && !aceito && (
+                          <button
+                            onClick={() => setAceites((prev) => ({ ...prev, [item.id]: true }))}
+                            title="Sugestão da IA — clique para aceitar"
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-yellow-500 bg-yellow-900/40 text-yellow-200 hover:bg-yellow-800/60 transition-colors">
+                            🤖 IA — Aceitar
                           </button>
-                        ))}
+                        )}
+                        {fonte === "p2" && aceito && (
+                          <span
+                            title="Sugestão da IA aceita"
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-green-600 bg-green-900/40 text-green-200">
+                            🤖 IA ✓
+                          </span>
+                        )}
+                        {fonte === "manual" && (
+                          <span
+                            title="Preenchido manualmente"
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-slate-600 bg-slate-700/40 text-slate-400">
+                            ✏️
+                          </span>
+                        )}
+                        <div className="flex gap-1">
+                          {(["conforme", "nao_conforme", "nao_aplica"] as StatusItem[]).map((s) => (
+                            <button key={s!}
+                              onClick={() => setItem(item.id, status === s ? null : s)}
+                              className={`px-2 py-1 rounded text-xs font-bold border transition-all ${
+                                status === s
+                                  ? s === "conforme" ? "bg-green-700 border-green-500 text-white" :
+                                    s === "nao_conforme" ? "bg-red-700 border-red-500 text-white" :
+                                    "bg-slate-600 border-slate-400 text-white"
+                                  : "bg-slate-700 border-slate-600 text-slate-400 hover:border-slate-400"
+                              }`}>
+                              {s === "conforme" ? "✅" : s === "nao_conforme" ? "❌" : "⬜"}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -835,6 +980,14 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">Documentos</h3>
 
             <button onClick={async () => {
+              // Bloqueia emissão se há sugestões IA não aceitas
+              const pendentesAceite = checklistItens.filter(
+                (i) => fontes[i.id] === "p2" && !aceites[i.id]
+              );
+              if (pendentesAceite.length > 0) {
+                mostrarToast(`⚠️ ${pendentesAceite.length} item(ns) sugeridos pela IA aguardam aceite.`);
+                return;
+              }
               await salvarSilencioso();
               try {
                 const [procRes, lipRes] = await Promise.all([
