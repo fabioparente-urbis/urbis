@@ -12,7 +12,7 @@ export default function UrbiGlobal() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.nome) setUsuario(data); })
+      .then(data => { if (data?.data?.nome) setUsuario(data.data); })
       .catch(() => {});
   }, []);
 
