@@ -26,7 +26,7 @@ export default function UrbiGlobal() {
           style={{
             position: "fixed",
             bottom: 80,
-            left: 25,
+            right: 24,
             background: "transparent",
             border: "none",
             cursor: "pointer",
