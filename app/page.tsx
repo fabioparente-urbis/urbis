@@ -164,9 +164,9 @@ export default function Home() {
         </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
-          {usuario.nome && !urbiAberto && (
+          {usuario.nome && (
             <button
-              onClick={() => setUrbiAberto(true)}
+              onClick={() => setUrbiAberto(!urbiAberto)}
               className="w-full mb-4 flex flex-col items-center gap-2 cursor-pointer border-none bg-transparent p-2"
             >
               <img src="/urbi/urbi-botao.jpg" style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
