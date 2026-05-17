@@ -6,6 +6,7 @@ type PromptData = {
   chave: string;
   conteudo: string;
   versao_anterior: string | null;
+  conteudo_backup?: string | null;
   versao: number;
 };
 
