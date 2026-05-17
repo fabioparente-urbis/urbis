@@ -151,7 +151,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto }: Pro
       )}
       {videoAtivo && (
         <video
-          src="/urbi/abertura-urbi-v2.mp4"
+          src="/urbi/abertura-urbi-v3.mp4"
           autoPlay
           muted
           playsInline
