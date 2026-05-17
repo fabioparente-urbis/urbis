@@ -16,12 +16,11 @@ export default function UrbiGlobal() {
       .catch(() => {});
   }, []);
 
-  console.log("[URBI]", { isHome, usuario: usuario?.nome, pathname });
-  if (isHome || !usuario?.nome) return null;
+  if (!usuario?.nome) return null;
 
   return (
     <>
-      {!urbiAberto && (
+      {!isHome && !urbiAberto && (
         <button
           onClick={() => setUrbiAberto(true)}
           style={{
@@ -40,7 +39,7 @@ export default function UrbiGlobal() {
         usuario={usuario}
         aberto={urbiAberto}
         setAberto={setUrbiAberto}
-        modo="corner"
+        modo={isHome ? "center" : "corner"}
       />
     </>
   );
