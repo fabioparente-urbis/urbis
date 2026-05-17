@@ -15,6 +15,8 @@ export default function Home() {
   const [perfis, setPerfis] = useState<string[]>([]);
   const [usuario, setUsuario] = useState({ nome: "", perfil: "", id: "" });
   const podeGerirUsuarios = perfis.includes("Administrador") || isPerfilIrrestrito(perfis);
+  // Backup & Restauração é exclusivo do Administrador (não inclui Diretora).
+  const souAdmin = perfis.includes("Administrador");
 
   useEffect(() => {
     (async () => {
@@ -160,6 +162,12 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           🧠 BDI — Banco de Dados e Inteligência
         </button>
+        {souAdmin && (
+          <button onClick={() => router.push("/admin/backup")}
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+            🗄 Backup & Restauração
+          </button>
+        )}
 
         <div className="mt-auto pt-4 border-t border-slate-800">
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
