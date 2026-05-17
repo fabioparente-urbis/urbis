@@ -151,6 +151,7 @@ export default function ProcessoClient() {
   const [aba, setAba] = useState(0);
   const [salvando, setSalvando] = useState(false);
   const [modalDI, setModalDI] = useState(false);
+  const [modalLimparLip, setModalLimparLip] = useState(false);
   const [numDI, setNumDI] = useState("");
   const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [destinoDI, setDestinoDI] = useState("");
@@ -728,6 +729,30 @@ export default function ProcessoClient() {
           </div>
         </div>
       )}
+      {modalLimparLip && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
+            <p className="text-sm text-slate-200 mb-2">Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo.</p>
+            <p className="text-sm text-red-300 font-semibold mb-4">Todos os campos preenchidos serão zerados. Esta ação não pode ser desfeita.</p>
+            <p className="text-xs text-slate-400 mb-4">Recomendamos exportar o Excel antes de continuar.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalLimparLip(false)}
+                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button onClick={() => {
+                setD({});
+                setModalLimparLip(false);
+                mostrarToast("🗑️ LIP zerado.");
+              }}
+                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+                Confirmar — Limpar tudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalDI && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
@@ -814,6 +839,12 @@ export default function ProcessoClient() {
             className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Exportar Excel
           </a>
+          <button
+            type="button"
+            onClick={() => setModalLimparLip(true)}
+            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🗑️ Limpar LIP
+          </button>
           <button
             type="button"
             onClick={() => inputImportRef.current?.click()}
