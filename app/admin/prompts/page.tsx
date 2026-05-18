@@ -10,6 +10,14 @@ type PromptData = {
   versao: number;
 };
 
+type HistoricoEntry = {
+  id: number;
+  prompt_chave: string;
+  conteudo: string;
+  salvo_em: string;
+  salvo_por: string | null;
+};
+
 type PromptState = {
   atual: string;
   anterior: string;
@@ -17,7 +25,15 @@ type PromptState = {
   versao: number;
   editando: boolean;
   salvando: boolean;
+  historico: HistoricoEntry[];
+  historicoSelId: number | null;
 };
+
+// Chaves aceitas pela tela. P2_MAC é ignorada explicitamente.
+const CHAVES_VALIDAS = ["P1_TRIAGEM", "P2_EXTRACAO"] as const;
+type ChaveValida = (typeof CHAVES_VALIDAS)[number];
+const isChaveValida = (c: string): c is ChaveValida =>
+  (CHAVES_VALIDAS as readonly string[]).includes(c);
 
 export default function AdminPrompts() {
   const router = useRouter();
@@ -25,8 +41,8 @@ export default function AdminPrompts() {
   const [adminNome, setAdminNome] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [toast, setToast] = useState<{ msg: string; tipo: "ok" | "erro" } | null>(null);
-  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "" });
-  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "" });
+  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null });
+  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null });
 
   useEffect(() => {
     (async () => {
@@ -42,7 +58,11 @@ export default function AdminPrompts() {
       const j2 = await r2.json();
       if (!j2.ok) { showToast("Erro ao carregar prompts.", "erro"); setCarregando(false); return; }
 
-      j2.data?.forEach((p: PromptData) => {
+      const prompts: PromptData[] = (j2.data ?? []).filter(
+        (p: PromptData) => isChaveValida(p.chave) // ignora P2_MAC e quaisquer outras
+      );
+
+      prompts.forEach((p) => {
         const setter = p.chave === "P1_TRIAGEM" ? setP1 : setP2;
         setter(prev => ({
           ...prev,
@@ -52,6 +72,22 @@ export default function AdminPrompts() {
           versao: p.versao,
         }));
       });
+
+      // Coluna esquerda: histórico vivo de lip_prompts_historico (mais recente primeiro).
+      await Promise.all(
+        prompts.map(async (p) => {
+          const r = await fetch(`/api/admin/prompts/historico?chave=${encodeURIComponent(p.chave)}`);
+          const j = await r.json();
+          if (!j.ok) return;
+          const historico: HistoricoEntry[] = j.data ?? [];
+          const setter = p.chave === "P1_TRIAGEM" ? setP1 : setP2;
+          setter(prev => ({
+            ...prev,
+            historico,
+            historicoSelId: historico[0]?.id ?? null,
+          }));
+        })
+      );
 
       setCarregando(false);
     })();
@@ -87,14 +123,30 @@ export default function AdminPrompts() {
 
   async function salvar(chave: string, state: PromptState, setter: typeof setP1) {
     setter(p => ({ ...p, salvando: true }));
+    // O backend grava um snapshot em lip_prompts_historico ANTES de sobrescrever lip_prompts.
     const res = await fetch("/api/admin/prompts", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chave, novo_conteudo: state.atual }),
+      body: JSON.stringify({ chave, novo_conteudo: state.atual, salvo_por: adminNome || null }),
     });
     const json = await res.json();
     if (json.ok) {
-      setter(p => ({ ...p, versao: p.versao + 1, editando: false, salvando: false }));
+      // Recarrega o histórico para refletir o snapshot recém-gravado na coluna esquerda.
+      let historico: HistoricoEntry[] = state.historico;
+      try {
+        const rh = await fetch(`/api/admin/prompts/historico?chave=${encodeURIComponent(chave)}`);
+        const jh = await rh.json();
+        if (jh.ok) historico = jh.data ?? [];
+      } catch { /* mantém histórico anterior em caso de falha de rede */ }
+
+      setter(p => ({
+        ...p,
+        versao: p.versao + 1,
+        editando: false,
+        salvando: false,
+        historico,
+        historicoSelId: historico[0]?.id ?? p.historicoSelId,
+      }));
       showToast("Prompt salvo e ativado com sucesso.", "ok");
     } else {
       setter(p => ({ ...p, salvando: false }));
@@ -206,28 +258,58 @@ export default function AdminPrompts() {
 
         <div style={{ padding: "24px 32px", display: "flex", flexDirection: "column", gap: 32 }}>
           {[
-            { label: "P2", sublabel: "EXTRAÇÃO DE DADOS E PARÂMETROS URBANÍSTICOS", chave: "P2_EXTRACAO", state: p2, setter: setP2, cor: "#d946ef" },
-            { label: "P1", sublabel: "TRIAGEM E CLASSIFICAÇÃO DE DOCUMENTOS", chave: "P1_TRIAGEM", state: p1, setter: setP1, cor: "#06b6d4" },
-          ].map(({ label, sublabel, chave, state, setter, cor }) => (
+            { label: "P2 — MAC", sublabel: "EXTRAÇÃO DE DADOS E PARÂMETROS URBANÍSTICOS", chave: "P2_EXTRACAO", state: p2, setter: setP2, cor: "#d946ef" },
+            { label: "P1 — LIP", sublabel: "TRIAGEM E CLASSIFICAÇÃO DE DOCUMENTOS", chave: "P1_TRIAGEM", state: p1, setter: setP1, cor: "#06b6d4" },
+          ].map(({ label, sublabel, chave, state, setter, cor }) => {
+            const historicoSel = state.historico.find(h => h.id === state.historicoSelId) ?? null;
+            const conteudoEsquerda = historicoSel?.conteudo ?? state.anterior ?? "";
+            const fmtData = (iso: string) => {
+              try { return new Date(iso).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }); }
+              catch { return iso; }
+            };
+            return (
             <div key={chave}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <div style={{ width: 3, height: 20, background: cor, borderRadius: 2 }} />
-                <span style={{ color: cor, fontSize: 10, letterSpacing: 3, fontWeight: 700 }}>{label}</span>
+                <span style={{
+                  color: cor, fontSize: 10, letterSpacing: 3, fontWeight: 700,
+                  border: `1px solid ${cor}66`, padding: "3px 8px", borderRadius: 4,
+                  background: cor + "11",
+                }}>{label}</span>
                 <span style={{ color: "#ffffff44", fontSize: 10, letterSpacing: 2 }}>{sublabel}</span>
                 <span style={{ color: "#ffffff22", fontSize: 10, marginLeft: "auto" }}>v{state.versao}</span>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 2 }}>BACKUP / HISTÓRICO</span>
-                    <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                    <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 2 }}>
+                      BACKUP / HISTÓRICO {state.historico.length > 0 && `(${state.historico.length})`}
+                    </span>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <Btn onClick={() => restaurar(state, setter)} disabled={!state.backup} cor={cor}>🔄 Restaurar</Btn>
                       <Btn onClick={() => copiarParaBackup(chave, setter)} cor={cor}>⬅ Copiar Produção → Backup</Btn>
-                      <Btn onClick={() => exportar(state.backup, chave + "_backup")} disabled={!state.anterior} cor={cor}>📤 Exportar .txt</Btn>
+                      <Btn onClick={() => exportar(conteudoEsquerda, chave + "_backup")} disabled={!conteudoEsquerda} cor={cor}>📤 Exportar .txt</Btn>
                     </div>
                   </div>
-                  <textarea readOnly value={state.anterior || "(sem versão anterior)"} style={{
+                  {state.historico.length > 0 && (
+                    <select
+                      value={state.historicoSelId ?? ""}
+                      onChange={e => setter(p => ({ ...p, historicoSelId: Number(e.target.value) }))}
+                      style={{
+                        background: "#0d0d14", border: `1px solid ${cor}44`, borderRadius: 4,
+                        color: "#ffffff88", fontSize: 10, padding: "4px 8px",
+                        fontFamily: "inherit", outline: "none", letterSpacing: 1,
+                      }}
+                    >
+                      {state.historico.map((h, i) => (
+                        <option key={h.id} value={h.id}>
+                          {i === 0 ? "★ " : ""}{fmtData(h.salvo_em)}{h.salvo_por ? ` — ${h.salvo_por}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <textarea readOnly value={conteudoEsquerda || "(sem versão anterior)"} style={{
                     background: "#0d0d14", border: `1px solid ${cor}22`, borderRadius: 6,
                     color: "#ffffff44", fontSize: 11, lineHeight: 1.6, padding: 14,
                     height: 320, fontFamily: "inherit", outline: "none",
@@ -268,7 +350,8 @@ export default function AdminPrompts() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {toast && (
