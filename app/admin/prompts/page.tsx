@@ -27,6 +27,7 @@ type PromptState = {
   salvando: boolean;
   historico: HistoricoEntry[];
   historicoSelId: number | null;
+  naoSalvo: boolean;
 };
 
 // Chaves aceitas pela tela. P2_MAC é ignorada explicitamente.
@@ -41,8 +42,8 @@ export default function AdminPrompts() {
   const [adminNome, setAdminNome] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [toast, setToast] = useState<{ msg: string; tipo: "ok" | "erro" } | null>(null);
-  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null });
-  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null });
+  const [p1, setP1] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null, naoSalvo: false });
+  const [p2, setP2] = useState<PromptState>({ atual: "", anterior: "", versao: 0, editando: false, salvando: false, backup: "", historico: [], historicoSelId: null, naoSalvo: false });
 
   useEffect(() => {
     (async () => {
@@ -144,6 +145,7 @@ export default function AdminPrompts() {
         versao: p.versao + 1,
         editando: false,
         salvando: false,
+        naoSalvo: false,
         historico,
         historicoSelId: historico[0]?.id ?? p.historicoSelId,
       }));
@@ -168,10 +170,12 @@ export default function AdminPrompts() {
       showToast("Erro ao copiar backup: " + json.erro, "erro");
     }
   }
-  function restaurar(state: PromptState, setter: typeof setP1) {
-    if (!state.anterior) return;
-    setter(p => ({ ...p, atual: p.backup, editando: true }));
-    showToast("Versão anterior restaurada. Clique em Salvar e Ativar para confirmar.", "ok");
+  // Restaurar = copia o snapshot SELECIONADO (coluna esquerda) para o textarea de PRODUÇÃO.
+  // NÃO salva — apenas preenche o campo, marca naoSalvo=true e exige Salvar e Ativar para efetivar.
+  function restaurar(conteudoSnapshot: string, setter: typeof setP1) {
+    if (!conteudoSnapshot) return;
+    setter(p => ({ ...p, atual: conteudoSnapshot, editando: true, naoSalvo: true }));
+    showToast("Snapshot copiado para PRODUÇÃO. Revise e clique em Salvar e Ativar para efetivar.", "ok");
   }
 
   function exportar(texto: string, chave: string) {
@@ -192,7 +196,7 @@ export default function AdminPrompts() {
       const file = e.target.files?.[0];
       if (!file) return;
       const texto = await file.text();
-      setter(p => ({ ...p, atual: texto, editando: true }));
+      setter(p => ({ ...p, atual: texto, editando: true, naoSalvo: true }));
       showToast("Arquivo importado. Revise e clique em Salvar e Ativar.", "ok");
     };
     input.click();
@@ -205,7 +209,7 @@ export default function AdminPrompts() {
 
   async function colar(setter: typeof setP1) {
     const texto = await navigator.clipboard.readText();
-    setter(p => ({ ...p, atual: texto, editando: true }));
+    setter(p => ({ ...p, atual: texto, editando: true, naoSalvo: true }));
     showToast("Conteúdo colado.", "ok");
   }
 
@@ -282,12 +286,18 @@ export default function AdminPrompts() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{
+                    color: "#ffffff88", fontSize: 10, letterSpacing: 2, fontWeight: 700,
+                    paddingBottom: 6, borderBottom: `1px solid ${cor}33`,
+                  }}>
+                    BACKUP / HISTÓRICO — somente leitura
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                     <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 2 }}>
-                      BACKUP / HISTÓRICO {state.historico.length > 0 && `(${state.historico.length})`}
+                      SNAPSHOTS {state.historico.length > 0 && `(${state.historico.length})`}
                     </span>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      <Btn onClick={() => restaurar(state, setter)} disabled={!state.backup} cor={cor}>🔄 Restaurar</Btn>
+                      <Btn onClick={() => restaurar(conteudoEsquerda, setter)} disabled={!conteudoEsquerda} cor={cor}>🔄 Restaurar</Btn>
                       <Btn onClick={() => copiarParaBackup(chave, setter)} cor={cor}>⬅ Copiar Produção → Backup</Btn>
                       <Btn onClick={() => exportar(conteudoEsquerda, chave + "_backup")} disabled={!conteudoEsquerda} cor={cor}>📤 Exportar .txt</Btn>
                     </div>
@@ -317,9 +327,23 @@ export default function AdminPrompts() {
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{
+                    color: "#ffffff88", fontSize: 10, letterSpacing: 2, fontWeight: 700,
+                    paddingBottom: 6, borderBottom: `1px solid ${cor}33`,
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <span>PRODUÇÃO — versão ativa</span>
+                    {state.naoSalvo && (
+                      <span style={{
+                        color: "#facc15", fontSize: 9, letterSpacing: 2, fontWeight: 700,
+                        border: "1px solid #facc1566", padding: "2px 6px", borderRadius: 3,
+                        background: "#facc1511",
+                      }}>● ALTERADO — NÃO SALVO</span>
+                    )}
+                  </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ color: "#ffffff66", fontSize: 10, letterSpacing: 2 }}>PRODUÇÃO</span>
+                      <span style={{ color: "#ffffff66", fontSize: 10, letterSpacing: 2 }}>ESTADO</span>
                       <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
                     </div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -335,16 +359,18 @@ export default function AdminPrompts() {
                   <textarea
                     readOnly={!state.editando}
                     value={state.atual}
-                    onChange={e => setter(p => ({ ...p, atual: e.target.value }))}
+                    onChange={e => setter(p => ({ ...p, atual: e.target.value, naoSalvo: true }))}
                     style={{
                       background: state.editando ? "#0d1117" : "#0d0d14",
-                      border: `1px solid ${state.editando ? cor : cor + "33"}`,
+                      border: `1px solid ${state.naoSalvo ? "#facc15" : state.editando ? cor : cor + "33"}`,
                       borderRadius: 6,
                       color: state.editando ? "#f0f0f0" : "#ffffff88",
                       fontSize: 11, lineHeight: 1.6, padding: 14,
                       height: 320, fontFamily: "inherit", outline: "none",
                       transition: "all 0.2s ease",
-                      boxShadow: state.editando ? `0 0 0 1px ${cor}44` : "none",
+                      boxShadow: state.naoSalvo
+                        ? "0 0 0 1px #facc1555"
+                        : state.editando ? `0 0 0 1px ${cor}44` : "none",
                     }}
                   />
                 </div>
