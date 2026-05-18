@@ -174,6 +174,12 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           🧠 BDI — Banco de Dados e Inteligência
         </button>
+        {isPerfilIrrestrito(perfis) && (
+          <button onClick={() => router.push("/admin/bdi/leis")}
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+            📚 BDI — Indexação de Leis
+          </button>
+        )}
         {souAdmin && (
           <button onClick={() => router.push("/admin/backup")}
             className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
