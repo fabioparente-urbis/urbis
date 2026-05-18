@@ -146,6 +146,22 @@ export async function POST(req: NextRequest) {
     const label = tipo === "despacho" ? `Despacho ${numeroDespacho}` : tipo === "indeferimento" ? "Indeferimento" : "Arquivamento";
     await supabase.from("processos").update({ dados: { ...dados, ultimo_documento: label }, atualizado_em: new Date().toISOString() }).eq("codigo", processo);
 
+    // ── MRP: grava o despacho automaticamente (falha silenciosa) ──
+    try {
+      const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
+      await gravarRegistroMRP({
+        processo_codigo: processo,
+        tipo_processo: "REGULARIZACAO",
+        tipo_despacho: tipo === "despacho" ? "despacho" : tipo === "indeferimento" ? "indeferimento" : "arquivamento",
+        numero_despacho: numeroDespacho ?? null,
+        analise_id: analiseId ?? null,
+        numero_revisao: Number.isInteger(Number(numero_revisao)) ? Number(numero_revisao) : null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+    } catch (mrpErr) {
+      console.warn("[MRP] falha ao gravar registro automático:", mrpErr);
+    }
+
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

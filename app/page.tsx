@@ -17,6 +17,8 @@ export default function Home() {
   const podeGerirUsuarios = perfis.includes("Administrador") || isPerfilIrrestrito(perfis);
   // Backup & Restauração é exclusivo do Administrador (não inclui Diretora).
   const souAdmin = perfis.includes("Administrador");
+  // MRP equipe: gerentes (Gerência PP/MP/GP) + irrestritos (Administrador/Diretora).
+  const podeVerEquipeMRP = isPerfilIrrestrito(perfis) || perfis.some((p) => p.startsWith("Gerência "));
 
   useEffect(() => {
     (async () => {
@@ -140,6 +142,16 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           📋 Pilha de Processos
         </button>
+        <button onClick={() => router.push("/mrp")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          📊 MRP — Minha Produtividade
+        </button>
+        {podeVerEquipeMRP && (
+          <button onClick={() => router.push("/admin/mrp")}
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+            👥 MRP — Equipe
+          </button>
+        )}
         {podeGerirUsuarios && (
           <button onClick={() => router.push("/admin/usuarios")}
             className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
