@@ -188,21 +188,25 @@ function fragmentar(textoBruto: string, meta: DocumentoMeta): Fragmento[] {
 
 async function embedBatch(
   fragmentos: Fragmento[],
-  ai: GoogleGenerativeAI
+  apiKey: string
 ): Promise<number[][]> {
-  const model = ai.getGenerativeModel({ model: EMBED_MODEL });
 
   let attempt = 0;
   while (true) {
     try {
-      const res = await model.batchEmbedContents({
+      const url = `https://generativelanguage.googleapis.com/v1/models/${EMBED_MODEL}:batchEmbedContents?key=${apiKey}`;
+      const body = {
         requests: fragmentos.map((f) => ({
+          model: `models/${EMBED_MODEL}`,
           content: { role: 'user', parts: [{ text: f.texto }] },
-          taskType: TaskType.RETRIEVAL_DOCUMENT,
+          taskType: 'RETRIEVAL_DOCUMENT',
           title: f.referencia,
         })),
-      });
-      return res.embeddings.map((e) => e.values);
+      };
+      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!resp.ok) { const t = await resp.text(); throw new Error(`Gemini ${resp.status}: ${t}`); }
+      const res = await resp.json();
+      return res.embeddings.map((e: any) => e.values);
     } catch (err: any) {
       const isRateLimit =
         err?.status === 429 ||
@@ -220,12 +224,12 @@ async function embedBatch(
 
 async function embedAll(
   fragmentos: Fragmento[],
-  ai: GoogleGenerativeAI
+  apiKey: string
 ): Promise<number[][]> {
   const out: number[][] = [];
   for (let i = 0; i < fragmentos.length; i += BATCH_SIZE) {
     const slice = fragmentos.slice(i, i + BATCH_SIZE);
-    const vecs = await embedBatch(slice, ai);
+    const vecs = await embedBatch(slice, apiKey);
     out.push(...vecs);
   }
   return out;
@@ -340,7 +344,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Embeddings em lote
-    const vetores = await embedAll(fragmentos, ai);
+    const vetores = await embedAll(fragmentos, process.env.GEMINI_API_KEY ?? '');
 
     if (vetores.length !== fragmentos.length) {
       throw new Error(
