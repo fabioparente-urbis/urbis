@@ -31,7 +31,7 @@ export const runtime = 'nodejs';        // pdf-parse não roda no Edge
 export const maxDuration = 300;          // Vercel Pro: até 300s
 export const dynamic = 'force-dynamic';
 
-const EMBED_MODEL = 'text-embedding-004';
+const EMBED_MODEL = 'gemini-embedding-001';
 const EMBED_DIM = 768;
 const BATCH_SIZE = 100;                  // limite prático do batchEmbedContents
 const MAX_RETRIES = 5;
