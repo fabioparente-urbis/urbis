@@ -284,6 +284,7 @@ export async function POST(req: NextRequest) {
     .eq('id', documentoId)
     .single();
 
+  console.log("[indexar-lei] id:", documentoId, "err:", errDoc && errDoc.message, "doc:", doc && doc.id);
   if (errDoc || !doc) {
     return NextResponse.json(
       { erro: 'documento_id não encontrado em bdi_documentos_lei' },
