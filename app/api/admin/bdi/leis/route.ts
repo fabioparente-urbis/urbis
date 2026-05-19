@@ -27,10 +27,11 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 2. Lista das leis — select * para tolerar variacoes do schema.
+  // 2. Lista das leis — select explicito garantindo que `id` venha sempre,
+  //    pois o frontend usa lei.id como documento_id no upload.
   const { data: leis, error: errLeis } = await supabaseAdmin
     .from("bdi_documentos_lei")
-    .select("*")
+    .select("id, titulo, tipo, numero, status_indexacao, criado_em")
     .order("titulo", { ascending: true });
 
   if (errLeis) {
