@@ -1,5 +1,46 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useWebSpeech } from "./useWebSpeech";
+import intencoesJson from "./urbi-intencoes.json";
+
+type IntencaoAcao =
+  | { tipo: "navegar"; rota: string }
+  | { tipo: "fechar" }
+  | { tipo: "mudo"; valor: boolean };
+
+type Intencao = {
+  id: string;
+  frases: string[];
+  acao: IntencaoAcao;
+  resposta?: string;
+};
+
+const INTENCOES: Intencao[] = (intencoesJson as { comandos: Intencao[] }).comandos;
+
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function casarIntencao(texto: string): Intencao | null {
+  const alvo = normalizar(texto);
+  if (!alvo) return null;
+  for (const intencao of INTENCOES) {
+    for (const frase of intencao.frases) {
+      const fraseNorm = normalizar(frase);
+      if (alvo === fraseNorm || alvo.includes(fraseNorm)) {
+        return intencao;
+      }
+    }
+  }
+  return null;
+}
 
 const POSE_MAP: Record<string, string> = {
   sucesso:          "/urbi/poses/urbi-sucesso.png",
@@ -48,6 +89,7 @@ type Props = {
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
 
 export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center" }: Props) {
+  const router = useRouter();
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
   const [msgs, setMsgs] = useState<Msg[]>([]);
@@ -63,6 +105,17 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // ----- Web Speech (STT + TTS) ------------------------------------------
+  const { estado: speech, alternarEscuta, falar, pararFala, alternarMudo, setMudo } =
+    useWebSpeech({
+      idioma: "pt-BR",
+      aoTranscrever: (texto) => {
+        // Reflete a transcrição no input e dispara o envio direto.
+        setInput(texto);
+        void enviar(texto);
+      },
+    });
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
@@ -138,12 +191,38 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     window.addEventListener("mouseup", onUp);
   }
 
-  async function enviar() {
-    const texto = input.trim();
+  function aplicarAcaoIntencao(acao: IntencaoAcao) {
+    switch (acao.tipo) {
+      case "navegar":
+        router.push(acao.rota);
+        break;
+      case "fechar":
+        setTimeout(() => fechar(), 1500);
+        break;
+      case "mudo":
+        setMudo(acao.valor);
+        break;
+    }
+  }
+
+  async function enviar(textoForcado?: string) {
+    const texto = (textoForcado ?? input).trim();
     if (!texto || carregando) return;
     setInput("");
     setMsgs(m => [...m, { role: "user", texto }]);
     setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("pensando", poseId)); setPoseOpacity(1); }, 200);
+
+    // Antes de chamar a API, tenta casar com uma intenção local (comando de voz/atalho).
+    const intencao = casarIntencao(texto);
+    if (intencao) {
+      const resposta = intencao.resposta ?? "Ok.";
+      setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
+      setMsgs(m => [...m, { role: "urbi", texto: resposta }]);
+      if (!speech.mudo) falar(resposta);
+      aplicarAcaoIntencao(intencao.acao);
+      return;
+    }
+
     setCarregando(true);
     const novoHistory: GeminiMsg[] = [...history, { role: "user", parts: [{ text: texto }] }];
     try {
@@ -157,6 +236,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
+        if (!speech.mudo) falar(json.resposta);
         await fetch("/api/urbi/historico", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ usuario_id: usuario.id ?? null, usuario_nome: usuario.nome, mensagem_usuario: texto, resposta_urbi: json.resposta, linha: "geral", pose_usada: poseId }),
@@ -164,11 +244,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         if (json.sair) setTimeout(() => fechar(), 1800);
       } else {
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("negativo", poseId)); setPoseOpacity(1); }, 200);
-        setMsgs(m => [...m, { role: "urbi", texto: "Tive um problema técnico. Tenta de novo." }]);
+        const fallback = "Tive um problema técnico. Tenta de novo.";
+        setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
+        if (!speech.mudo) falar(fallback);
       }
     } catch {
       setPoseId(selectPose("negativo"));
-      setMsgs(m => [...m, { role: "urbi", texto: "Sem conexão. Verifica a rede." }]);
+      const fallback = "Sem conexão. Verifica a rede.";
+      setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
+      if (!speech.mudo) falar(fallback);
     }
     setCarregando(false);
   }
@@ -229,7 +313,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviar()}
-          placeholder="Pergunte ao URBI..."
+          placeholder={speech.ouvindo ? "Ouvindo..." : "Pergunte ao URBI..."}
           style={{
             flex: 1, border: "1px solid #e2e8f0", borderRadius: 8,
             padding: "7px 10px", fontSize: 12,
@@ -237,7 +321,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             outline: "none", color: "#1e293b", background: "#f8fafc",
           }}
         />
-        <button onClick={enviar} disabled={carregando || !input.trim()} style={{
+        <button onClick={() => enviar()} disabled={carregando || !input.trim()} style={{
           background: carregando ? "#94a3b8" : "#1d4ed8", border: "none",
           borderRadius: 8, color: "#fff", padding: "7px 12px",
           cursor: carregando ? "not-allowed" : "pointer", fontSize: 13,
@@ -253,7 +337,70 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         borderTop: "1px solid #f1f5f9", marginTop: 6,
         alignItems: "center",
       }}>
-        {/* área reservada — botões futuros: áudio, anexo, etc. */}
+        {/* Microfone (STT) */}
+        <button
+          type="button"
+          onClick={alternarEscuta}
+          disabled={!speech.suportaSTT}
+          title={
+            !speech.suportaSTT
+              ? "Reconhecimento de voz não suportado neste navegador"
+              : speech.ouvindo
+                ? "Parar de ouvir"
+                : "Falar com o URBI (microfone)"
+          }
+          aria-label="Microfone"
+          aria-pressed={speech.ouvindo}
+          style={{
+            background: speech.ouvindo ? "#dc2626" : "#e2e8f0",
+            color: speech.ouvindo ? "#ffffff" : "#1e293b",
+            border: "none",
+            borderRadius: 8,
+            padding: "6px 10px",
+            cursor: speech.suportaSTT ? "pointer" : "not-allowed",
+            fontSize: 14,
+            opacity: speech.suportaSTT ? 1 : 0.4,
+          }}
+        >
+          {speech.ouvindo ? "● Ouvindo" : "🎙"}
+        </button>
+
+        {/* Switch mudo/som (TTS) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (speech.falando) pararFala();
+            alternarMudo();
+          }}
+          disabled={!speech.suportaTTS}
+          title={
+            !speech.suportaTTS
+              ? "Síntese de voz não suportada neste navegador"
+              : speech.mudo
+                ? "Ativar som das respostas"
+                : "Silenciar respostas"
+          }
+          aria-label={speech.mudo ? "Ativar som" : "Silenciar"}
+          aria-pressed={speech.mudo}
+          style={{
+            background: speech.mudo ? "#e2e8f0" : "#1d4ed8",
+            color: speech.mudo ? "#64748b" : "#ffffff",
+            border: "none",
+            borderRadius: 8,
+            padding: "6px 10px",
+            cursor: speech.suportaTTS ? "pointer" : "not-allowed",
+            fontSize: 14,
+            opacity: speech.suportaTTS ? 1 : 0.4,
+          }}
+        >
+          {speech.mudo ? "🔇 Mudo" : speech.falando ? "🔊 Falando…" : "🔊 Som"}
+        </button>
+
+        {speech.ultimoErroStt && (
+          <span style={{ fontSize: 11, color: "#dc2626" }}>
+            Mic: {speech.ultimoErroStt}
+          </span>
+        )}
       </div>
     </>
   );

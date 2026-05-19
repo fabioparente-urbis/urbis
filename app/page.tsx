@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { TrendingUp } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 
 type TipoProcesso = "ACEITE" | "REGULARIZACAO" | "APROVACAO";
@@ -142,14 +143,16 @@ export default function Home() {
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
           📋 Pilha de Processos
         </button>
-        <button onClick={() => router.push("/mrp")}
-          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-          📊 MRP — Minha Produtividade
-        </button>
+        {souAdmin && (
+          <button onClick={() => router.push("/admin/backup")}
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+            🗄 Backup & Restauração
+          </button>
+        )}
         {podeVerEquipeMRP && (
           <button onClick={() => router.push("/admin/mrp")}
-            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-            👥 MRP — Equipe
+            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm inline-flex items-center gap-2">
+            <TrendingUp size={16} aria-hidden="true" /> MRP — Equipe
           </button>
         )}
         {podeGerirUsuarios && (
@@ -160,7 +163,7 @@ export default function Home() {
         )}
         <button onClick={() => router.push("/admin/checklists")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-          ✅ Gerenciar Checklists
+          ✅ Gerenciar MAC
         </button>
         <button onClick={() => router.push("/admin/lip")}
           className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
@@ -180,12 +183,10 @@ export default function Home() {
             📚 BDI — Indexação de Leis
           </button>
         )}
-        {souAdmin && (
-          <button onClick={() => router.push("/admin/backup")}
-            className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-            🗄 Backup & Restauração
-          </button>
-        )}
+        <button onClick={() => router.push("/mrp")}
+          className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
+          📊 MRP — Minha Produtividade
+        </button>
 
         <div className="mt-auto pt-4 border-t border-slate-800">
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}

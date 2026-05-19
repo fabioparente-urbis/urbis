@@ -152,6 +152,30 @@ export default function BackupPage() {
     setEstado((prev) => ({ ...prev, [tipo]: { ...prev[tipo], msg, erro } }));
   }
 
+  async function gerarSnapshotBdi(origem: string): Promise<string | null> {
+    // Snapshot estático de mrp_registros em bdi_snapshots. Best-effort:
+    // qualquer erro é apenas logado e não interrompe o backup principal.
+    try {
+      const res = await fetch("/api/admin/bdi/snapshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ origem }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        console.warn("Falha ao gerar snapshot BDI:", json.erro);
+        return null;
+      }
+      return ` 📸 Snapshot BDI registrado (${
+        (json.snapshot?.total_registros ?? 0).toLocaleString("pt-BR")
+      } regs).`;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("Falha de rede ao gerar snapshot BDI:", msg);
+      return null;
+    }
+  }
+
   async function exportar(secao: Secao) {
     setEstado((prev) => ({
       ...prev,
@@ -169,9 +193,15 @@ export default function BackupPage() {
       const totalLinhas = Object.values(
         (json.dados as Record<string, unknown[]>) || {},
       ).reduce((acc, arr) => acc + (Array.isArray(arr) ? arr.length : 0), 0);
+
+      // Side effect: consolida mrp_registros em bdi_snapshots (JSON estático).
+      const sufixoSnapshot = await gerarSnapshotBdi(`backup_${secao.tipo}`);
+
       setMsg(
         secao.tipo,
-        `✅ Exportado ${totalLinhas.toLocaleString("pt-BR")} registros em ${nomeArquivo}`,
+        `✅ Exportado ${totalLinhas.toLocaleString("pt-BR")} registros em ${nomeArquivo}.${
+          sufixoSnapshot ?? ""
+        }`,
       );
     } catch (e: any) {
       setMsg(secao.tipo, `Erro: ${e?.message || "falha de rede"}`, true);
@@ -341,8 +371,9 @@ export default function BackupPage() {
                   onClick={() => exportar(secao)}
                   disabled={st.exportando || st.importando}
                   className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  title="Gerar Backup (exporta a seção e registra snapshot BDI)"
                 >
-                  {st.exportando ? "Exportando..." : "⬇ Exportar"}
+                  {st.exportando ? "Gerando backup..." : "⬇ Gerar Backup"}
                 </button>
                 <button
                   onClick={() => abrirSeletor(secao.tipo)}
