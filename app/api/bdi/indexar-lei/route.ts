@@ -6,9 +6,12 @@
 //   - pdf          : File (PDF da lei)
 //
 // Fluxo:
-//   1. Valida input e busca o documento.
+//   1. Valida input e busca o documento (incl. tipo / numero / ano).
 //   2. Extrai texto do PDF (pdf-parse, sem OCR).
-//   3. Fragmenta por artigo (regex "Art. N" no início da linha).
+//   3. Fragmenta o texto conforme o tipo do documento:
+//        - 'nbr' ou 'instrucao_aeronautica' -> seções numéricas
+//          (regex `^\d+(\.\d+)*\s`), ex.: 4, 4.1, 4.1.1.
+//        - demais tipos -> artigos (regex `^Art\.?\s*N...`).
 //   4. Gera embeddings via Gemini text-embedding-004 em lotes de 100,
 //      com retry exponencial em 429.
 //   5. Apaga fragmentos antigos do documento (idempotência) e insere os novos.
@@ -52,12 +55,30 @@ function getGemini() {
 }
 
 // -------------------------------------------------------------------
-// Chunker — fragmenta por artigo
+// Chunker — fragmenta por artigo (leis) ou por seção numérica (normas)
 // -------------------------------------------------------------------
 
 interface Fragmento {
   referencia: string;
   texto: string;
+}
+
+interface DocumentoMeta {
+  tipo?: string | null;
+  numero?: string | null;
+  ano?: string | number | null;
+  titulo?: string | null;
+}
+
+/** Tipos cujo texto é estruturado em seções numéricas (4, 4.1, 4.1.1 ...). */
+const TIPOS_SECAO_NUMERICA = new Set(['nbr', 'instrucao_aeronautica']);
+
+/** Normaliza o texto bruto vindo do PDF para um formato consistente. */
+function normalizarTexto(textoBruto: string): string {
+  return textoBruto
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n');
 }
 
 /**
@@ -68,11 +89,7 @@ interface Fragmento {
 const RE_ARTIGO = /^Art\.?\s*(\d+(?:[\-–][A-Z])?)[ºo]?\.?[\s,.\-–:]/gm;
 
 function chunkPorArtigo(textoBruto: string): Fragmento[] {
-  // Normaliza: CRLF -> LF, colapsa whitespace horizontal, limita linhas em branco.
-  const texto = textoBruto
-    .replace(/\r\n/g, '\n')
-    .replace(/[ \t]+/g, ' ')
-    .replace(/\n{3,}/g, '\n\n');
+  const texto = normalizarTexto(textoBruto);
 
   const matches: Array<{ index: number; numero: string }> = [];
   let m: RegExpExecArray | null;
@@ -95,6 +112,73 @@ function chunkPorArtigo(textoBruto: string): Fragmento[] {
     });
   }
   return fragmentos;
+}
+
+/**
+ * Regex de seção numérica (NBR / instrução aeronáutica), ancorada em início
+ * de linha. Aceita 1+ níveis hierárquicos (`4`, `4.1`, `4.1.1`, ...) e exige
+ * espaço/tab seguido de conteúdo não-branco — evita falsos positivos como
+ * números de página soltos na linha (`4\n`).
+ */
+const RE_SECAO_NUMERICA = /^(\d+(?:\.\d+)*)[ \t]+(?=\S)/gm;
+
+/** Monta o prefixo canônico da referência conforme o tipo do documento. */
+function prefixoReferencia(meta: DocumentoMeta): string {
+  const tipo = (meta.tipo ?? '').toLowerCase();
+  const numero = meta.numero ? String(meta.numero).trim() : '';
+  const ano = meta.ano != null ? String(meta.ano).trim() : '';
+
+  if (tipo === 'nbr') {
+    if (numero && ano) return `NBR ${numero}:${ano}`;
+    if (numero) return `NBR ${numero}`;
+    return meta.titulo?.trim() || 'NBR';
+  }
+  if (tipo === 'instrucao_aeronautica') {
+    // Instruções aeronáuticas variam (IAC, ICA, MCA). Sem um campo dedicado de
+    // sigla, caímos no titulo (ou em "Instrução Aeronáutica" como fallback).
+    return meta.titulo?.trim() || 'Instrução Aeronáutica';
+  }
+  return meta.titulo?.trim() || '';
+}
+
+function chunkPorSecaoNumerica(
+  textoBruto: string,
+  meta: DocumentoMeta
+): Fragmento[] {
+  const texto = normalizarTexto(textoBruto);
+
+  const matches: Array<{ index: number; secao: string }> = [];
+  let m: RegExpExecArray | null;
+  RE_SECAO_NUMERICA.lastIndex = 0;
+  while ((m = RE_SECAO_NUMERICA.exec(texto)) !== null) {
+    matches.push({ index: m.index, secao: m[1] });
+  }
+
+  if (matches.length === 0) return [];
+
+  const prefixo = prefixoReferencia(meta);
+  const fragmentos: Fragmento[] = [];
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = i + 1 < matches.length ? matches[i + 1].index : texto.length;
+    const corpo = texto.slice(start, end).trim();
+    if (corpo.length < MIN_FRAGMENTO_LEN) continue;
+    const sec = matches[i].secao;
+    const referencia = prefixo
+      ? `${prefixo} - Seção ${sec}`
+      : `Seção ${sec}`;
+    fragmentos.push({ referencia, texto: corpo });
+  }
+  return fragmentos;
+}
+
+/** Dispatch principal — escolhe o chunker conforme `meta.tipo`. */
+function fragmentar(textoBruto: string, meta: DocumentoMeta): Fragmento[] {
+  const tipo = (meta.tipo ?? '').toLowerCase();
+  if (TIPOS_SECAO_NUMERICA.has(tipo)) {
+    return chunkPorSecaoNumerica(textoBruto, meta);
+  }
+  return chunkPorArtigo(textoBruto);
 }
 
 // -------------------------------------------------------------------
@@ -191,10 +275,11 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabase();
   const ai = getGemini();
 
-  // 1. Confirma que o documento existe
+  // 1. Confirma que o documento existe (tipo / numero / ano guiam o chunker
+  //    e a montagem da referência canônica dos fragmentos).
   const { data: doc, error: errDoc } = await supabase
     .from('bdi_documentos_lei')
-    .select('id, titulo, status_indexacao')
+    .select('id, titulo, tipo, numero, ano, status_indexacao')
     .eq('id', documentoId)
     .single();
 
@@ -215,12 +300,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Fragmenta por artigo
-    const fragmentos = chunkPorArtigo(textoBruto);
+    // 3. Fragmenta conforme o tipo do documento
+    const meta: DocumentoMeta = {
+      tipo: (doc as any).tipo ?? null,
+      numero: (doc as any).numero ?? null,
+      ano: (doc as any).ano ?? null,
+      titulo: doc.titulo ?? null,
+    };
+    const fragmentos = fragmentar(textoBruto, meta);
     if (fragmentos.length === 0) {
-      throw new Error(
-        'nenhum artigo identificado (padrão "Art. N" no início de linha não encontrado)'
-      );
+      const tipoLc = (meta.tipo ?? '').toLowerCase();
+      const padrao = TIPOS_SECAO_NUMERICA.has(tipoLc)
+        ? 'seção numérica (ex.: "4.1 ...") no início de linha'
+        : 'padrão "Art. N" no início de linha';
+      throw new Error(`nenhum fragmento identificado (${padrao} não encontrado)`);
     }
 
     // 4. Embeddings em lote
