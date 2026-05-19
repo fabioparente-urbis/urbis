@@ -9,6 +9,11 @@ export default function LoginPage() {
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(false);
+  // Estado do fluxo "Esqueci minha senha"
+  const [modoReset, setModoReset] = useState(false);
+  const [emailReset, setEmailReset] = useState("");
+  const [enviandoReset, setEnviandoReset] = useState(false);
+  const [msgReset, setMsgReset] = useState<string>("");
 
   async function entrar() {
     if (!email || !senha) { setErro("Email e senha obrigatórios."); return; }
@@ -26,6 +31,32 @@ export default function LoginPage() {
       setErro("Erro de conexão.");
     } finally {
       setCarregando(false);
+    }
+  }
+
+  async function enviarLinkReset() {
+    const alvo = (emailReset || email).trim();
+    if (!alvo) {
+      setMsgReset("Informe o e-mail para receber o link de redefinição.");
+      return;
+    }
+    try {
+      setEnviandoReset(true); setMsgReset("");
+      await fetch("/api/auth/esqueci-senha", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: alvo }),
+      });
+      setMsgReset(
+        "Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.",
+      );
+    } catch {
+      // Mantemos resposta neutra para não vazar existência de e-mails.
+      setMsgReset(
+        "Se o e-mail estiver cadastrado, você receberá um link para redefinir a senha.",
+      );
+    } finally {
+      setEnviandoReset(false);
     }
   }
 
@@ -74,6 +105,43 @@ export default function LoginPage() {
         >
           {carregando ? "Entrando..." : "ENTRAR"}
         </button>
+
+        {/* Esqueci minha senha — abre formulário inline */}
+        <div className="mt-3 text-right">
+          <button
+            type="button"
+            onClick={() => { setModoReset((v) => !v); setMsgReset(""); }}
+            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+          >
+            {modoReset ? "Cancelar" : "Esqueci minha senha"}
+          </button>
+        </div>
+
+        {modoReset && (
+          <div className="mt-3 bg-slate-50 border border-slate-200 rounded-lg p-3 text-left">
+            <label className="text-xs text-slate-500 font-semibold uppercase tracking-wide block mb-1">
+              E-mail para recuperação
+            </label>
+            <input
+              type="email"
+              value={emailReset}
+              onChange={(e) => { setEmailReset(e.target.value); setMsgReset(""); }}
+              onKeyDown={(e) => e.key === "Enter" && enviarLinkReset()}
+              placeholder={email || "seu@email.com"}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <button
+              onClick={enviarLinkReset}
+              disabled={enviandoReset}
+              className="w-full mt-2 bg-slate-700 hover:bg-slate-800 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
+            >
+              {enviandoReset ? "Enviando..." : "Enviar link"}
+            </button>
+            {msgReset && (
+              <p className="text-xs text-slate-600 mt-2">{msgReset}</p>
+            )}
+          </div>
+        )}
 
         <div className="mt-6 pt-4 border-t border-gray-200">
           <p className="text-xs text-gray-400">by Fábio Parente</p>

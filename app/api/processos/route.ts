@@ -34,11 +34,13 @@ export async function GET(req: NextRequest) {
     if (tipo) query = query.eq("tipo_processo", tipo);
     if (status) query = query.eq("status", status);
 
-    // Visibilidade de processos (item 3):
-    // - Admin / Diretora                 → todos
-    // - Gerência PP/MP/GP                → processos dos analistas onde usuarios.gerencia = sua gerencia
-    // - Analista com gerencia != null    → apenas os próprios
-    // - Analista com gerencia = null     → processos das 3 gerências (DIRAAP direto)
+    // Visibilidade de processos (briefing Cowork — item 2):
+    // - Admin / Diretora / Diretor       → todos (perfis irrestritos)
+    // - Gerência PP/MP/GP                → processos dos analistas da sua gerência
+    // - Analista com gerencia != null    → apenas os próprios (atribuídos)
+    // - Analista com gerencia = null     → apenas os próprios (atribuídos)
+    //   (antes via todos os processos — bug fixado conforme briefing:
+    //   "Analistas só devem ver processos atribuídos a eles.")
     const ehGerenteDeGerencia = perfis.some((p) => p && p.startsWith("Gerência "));
 
     if (irrestrito) {
@@ -60,12 +62,11 @@ export async function GET(req: NextRequest) {
       } else {
         query = query.eq("analista_id", SENTINELA_ID_VAZIO);
       }
-    } else if (gerencia) {
-      // Analista de uma gerencia: somente os proprios processos.
-      // Qualquer ?analista vindo do cliente e ignorado.
-      query = query.eq("analista_id", userId);
     } else {
-      // Analista DIRAAP direto (gerencia=null): ve todos os processos.
+      // Qualquer outro perfil (Analista com ou sem gerência, ou perfis
+      // não-gerenciais): vê apenas os processos atribuídos a si. Qualquer
+      // ?analista vindo do cliente é ignorado.
+      query = query.eq("analista_id", userId);
     }
 
     const { data, error } = await query;

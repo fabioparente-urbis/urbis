@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites } = body;
+    const {
+      processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites,
+      cau_responsavel, crea_responsavel,
+    } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
     const cookieHeader = req.headers.get("cookie") || "";
@@ -61,6 +64,8 @@ export async function POST(req: NextRequest) {
         modelo_id: body.modelo_id || null,
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
+        ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
+        ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
       })
       .select()
       .maybeSingle();
@@ -75,7 +80,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites } = body;
+    const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites, cau_responsavel, crea_responsavel } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
     // ── Histórico BDI ────────────────────────────────────────
@@ -157,6 +162,8 @@ export async function PUT(req: NextRequest) {
         ...(modelo_id ? { modelo_id } : {}),
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
+        ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
+        ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", id);

@@ -95,13 +95,21 @@ export async function POST(req: NextRequest) {
     let naoConformesAgrupados:
       | { texto: string; grupo: string; ordem: number }[]
       | undefined;
+    let responsavelTecnico: { cau?: string | null; crea?: string | null } | undefined;
     if (analiseId) {
       const { data: analise } = await supabase
         .from("analises_mac")
-        .select("itens, modelo_id")
+        .select("itens, modelo_id, cau_responsavel, crea_responsavel")
         .eq("id", analiseId)
         .eq("tipo_processo", TIPO)
         .maybeSingle();
+      // item 3 Cowork: propaga CAU/CREA do responsável técnico ao despacho.
+      if ((analise as any)?.cau_responsavel || (analise as any)?.crea_responsavel) {
+        responsavelTecnico = {
+          cau: (analise as any).cau_responsavel,
+          crea: (analise as any).crea_responsavel,
+        };
+      }
       const mapa = (analise?.itens as Record<string, string> | null) || {};
       const idsNaoConformes = Object.keys(mapa).filter((k) => mapa[k] === "nao_conforme");
       if (analise?.modelo_id && idsNaoConformes.length > 0) {
@@ -134,7 +142,7 @@ export async function POST(req: NextRequest) {
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-      buffer = await gerarDespachoAceite({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante });
+      buffer = await gerarDespachoAceite({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante, responsavelTecnico });
     } else if (tipo === "indeferimento") {
       buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, assinante, gerente, diretora });
     } else {

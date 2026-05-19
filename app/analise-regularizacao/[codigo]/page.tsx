@@ -64,6 +64,9 @@ export default function MacPage() {
   const [numeroDespacho, setNumeroDespacho] = useState("");
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
+  // CAU/CREA do responsável técnico do projeto (item 3 Cowork).
+  const [cauResponsavel, setCauResponsavel] = useState("");
+  const [creaResponsavel, setCreaResponsavel] = useState("");
 
   // Seleção de modelo
   const [modalModelo, setModalModelo] = useState(false);
@@ -155,6 +158,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
       setNumeroRevisao(Number(ultima.numero_revisao) || 1);
       setHistoricoAnalises(ultima.historico_analises || "");
+      setCauResponsavel(ultima.cau_responsavel || "");
+      setCreaResponsavel(ultima.crea_responsavel || "");
       setNovaAnalise(false);
 
       // Carrega itens do modelo salvo na análise
@@ -257,6 +262,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
+            cau_responsavel: cauResponsavel,
+            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json().catch(() => null);
@@ -278,6 +285,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             status,
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
+            cau_responsavel: cauResponsavel,
+            crea_responsavel: creaResponsavel,
           }),
         });
       }
@@ -306,6 +315,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
+            cau_responsavel: cauResponsavel,
+            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json();
@@ -326,6 +337,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             status,
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
+            cau_responsavel: cauResponsavel,
+            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json();
@@ -413,6 +426,9 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setAceites(ultima?.aceites || {});
     setObservacoes("");
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
+    // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
+    setCauResponsavel(ultima?.cau_responsavel || "");
+    setCreaResponsavel(ultima?.crea_responsavel || "");
     setNovaAnalise(true);
     carregarModelos(tipoProcesso).then(() => setModalModelo(true));
   }
@@ -426,6 +442,8 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setObservacoesPorAba(a.observacoes_por_aba || {});
     setNumeroRevisao(Number(a.numero_revisao) || 1);
     setHistoricoAnalises(a.historico_analises || "");
+    setCauResponsavel(a.cau_responsavel || "");
+    setCreaResponsavel(a.crea_responsavel || "");
     setNovaAnalise(false);
     if (a.modelo_id) carregarItensModelo(a.modelo_id);
   }
@@ -697,6 +715,34 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
             rows={2}
             className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
           />
+        </div>
+
+        {/* CAU / CREA do responsável técnico (item 3 Cowork) */}
+        <div className="mt-2 flex flex-wrap gap-3">
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
+              CAU do responsável técnico
+            </label>
+            <input
+              value={cauResponsavel}
+              onChange={(e) => setCauResponsavel(e.target.value)}
+              onBlur={() => void salvarSilencioso()}
+              placeholder="Ex: A12345-6"
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
+            <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
+              CREA do responsável técnico
+            </label>
+            <input
+              value={creaResponsavel}
+              onChange={(e) => setCreaResponsavel(e.target.value)}
+              onBlur={() => void salvarSilencioso()}
+              placeholder="Ex: 1234567/D-GO"
+              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
         </div>
 
       </div>
