@@ -201,6 +201,7 @@ async function embedBatch(
           content: { role: 'user', parts: [{ text: f.texto }] },
           taskType: 'RETRIEVAL_DOCUMENT',
           title: f.referencia,
+          outputDimensionality: 768,
         })),
       };
       const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
