@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { GoogleGenerativeAI, TaskType } from '@google/generative-ai';
 import pdf from 'pdf-parse';
+import { uploadToR2, keyParaLei } from '@/lib/r2';
 
 // -------------------------------------------------------------------
 // Config
@@ -298,6 +299,27 @@ export async function POST(req: NextRequest) {
       throw new Error(
         'PDF vazio ou ilegível — pode ser escaneado (OCR não habilitado neste pipeline)'
       );
+    }
+
+    // 2.5. Faz upload do PDF para o R2 e persiste a URL em
+    //      bdi_documentos_lei.url_pdf. Falhas aqui sao fatais para o fluxo
+    //      de indexacao porque a coluna `url_pdf` e necessaria para
+    //      reindexar mais tarde sem novo upload manual.
+    try {
+      const key = keyParaLei(documentoId, fileName);
+      const r2Url = await uploadToR2(key, buffer, 'application/pdf');
+      const { error: errUrl } = await supabase
+        .from('bdi_documentos_lei')
+        .update({ url_pdf: r2Url })
+        .eq('id', documentoId);
+      if (errUrl) {
+        console.warn('[indexar-lei] falhou ao gravar url_pdf:', errUrl.message);
+      }
+    } catch (errUpload: any) {
+      // Nao aborta a indexacao se o upload falhar (modo degradado): o
+      // pipeline de fragmentos continua, mas a reindexacao via R2 ficara
+      // indisponivel ate o proximo upload bem sucedido.
+      console.warn('[indexar-lei] upload para R2 falhou:', errUpload?.message);
     }
 
     // 3. Fragmenta conforme o tipo do documento

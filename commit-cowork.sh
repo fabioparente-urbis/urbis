@@ -1,28 +1,38 @@
 #!/usr/bin/env bash
-# Commit + push das 5 alterações implementadas pelo Cowork.
+# Commit + push do gerenciador completo de leis do BDI implementado pelo Cowork.
 # Rode no terminal do macOS dentro de /Users/fabiomartinssantos/lip-interface.
 
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-# Limpa um lock estale e um arquivo de teste que o sandbox criou (se existirem).
-rm -f .git/index.lock .git/test-write-perm 2>/dev/null || true
+# Limpa locks estale e artefatos de teste que o sandbox possa ter deixado.
+rm -f .git/index.lock .git/test-write-perm .git/test-write 2>/dev/null || true
 
 git add -A
-git commit -m "feat(cowork): snapshot BDI no backup, Web Speech no URBI, ajustes na home
+git commit -m "feat(bdi/leis): gerenciador completo de leis (CRUD + reindexar + exclusão segura)
 
-- ITEM 1: ao gerar backup, consolida mrp_registros em JSON estático em bdi_snapshots
-  (nova migration 2026_05_18_create_bdi_snapshots.sql + endpoint
-  /api/admin/bdi/snapshot). Botão da tela /admin/backup renomeado para 'Gerar Backup'.
-- ITEM 2: URBI Chat Box ganha Web Speech API — botão microfone (STT),
-  leitura por voz das respostas (TTS), switch mudo/som e mapeamento de
-  intenções em components/urbi/urbi-intencoes.json + hook useWebSpeech.
-- ITEM 3: ícone do botão 'MRP — Equipe' agora usa TrendingUp (lucide-react)
-  para deixar de conflitar com 'Gestão de usuários'.
-- ITEM 4: na home, 'Backup & Restauração' sobe para a posição do MRP
-  e 'MRP — Minha Produtividade' desce para o final.
-- ITEM 5: 'Gerenciar Checklists' renomeado para 'Gerenciar MAC' em
-  app/page.tsx, analise-aceite e analise-regularizacao."
+Expansão do módulo /admin/bdi/leis com CRUD completo:
+
+- Adicionar lei (POST /api/admin/bdi/leis): formulário com título, número,
+  ano, tipo (dropdown 8 tipos), ementa e PDF opcional. Multipart suporta
+  upload + indexação inline.
+- Editar metadados (PUT /api/admin/bdi/leis/[id]): só atualiza colunas
+  permitidas; não toca em fragmentos.
+- Reindexar (POST /api/admin/bdi/leis/[id]/reindexar): baixa o PDF do R2
+  via URL assinada e repassa para o pipeline /api/bdi/indexar-lei.
+- Excluir lei (DELETE /api/admin/bdi/leis/[id]): com gate de confirmação —
+  GET /api/admin/bdi/leis/[id]/referencias retorna itens de
+  mac_checklist_itens.ref que potencialmente citam a lei (heurística por
+  número/tipo/título); modal exige digitar 'EXCLUIR' antes de prosseguir.
+  Remove PDF do R2 + DELETE bdi_lei_fragmentos + DELETE bdi_documentos_lei.
+
+Outros ajustes:
+
+- app/api/bdi/indexar-lei/route.ts: faz upload do PDF para o R2 e persiste
+  url_pdf em bdi_documentos_lei (degrada com warning se o R2 falhar).
+- lib/r2.ts: helper de upload/delete/signGetUrl/keyFromUrl compartilhado.
+- Restrito a perfis irrestritos (Administrador / Diretora) via
+  autenticar() em todos os endpoints."
 
 git push origin HEAD
