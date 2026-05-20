@@ -81,13 +81,27 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
         <div style={{ width: '100%', height: 1, background: '#ffffff11', margin: '12px 0' }} />
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#888', marginBottom: 8 }}>🕓 HISTÓRICO</div>
         {historico.length === 0 && <div style={{ fontSize: 11, color: '#444', fontStyle: 'italic' }}>Sem ações ainda.</div>}
-        {historico.map((h) => (
-          <button key={h.id}
-            onClick={() => h.pagina && irParaPagina(h.pagina)}
-            style={{ background: 'transparent', border: 'none', color: '#ffffff66', padding: '4px 2px', cursor: h.pagina ? 'pointer' : 'default', textAlign: 'left', fontSize: 11, lineHeight: 1.4 }}>
-            {h.pagina ? `p.${h.pagina} — ` : ''}{h.acao.slice(0, 35)}
-          </button>
-        ))}
+        {historico.map((h) => {
+          const dt = new Date(h.criado_em)
+          const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+          const data = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          const label = `${data} ${hora}`
+          return (
+            <button key={h.id}
+              onClick={() => h.pagina && irParaPagina(h.pagina)}
+              title={h.acao}
+              style={{
+                background: 'transparent', border: 'none',
+                borderLeft: h.pagina ? '2px solid #1976D2' : '2px solid #333',
+                paddingLeft: 8, color: '#ffffff99', cursor: h.pagina ? 'pointer' : 'default',
+                textAlign: 'left', fontSize: 11, lineHeight: 1.5, width: '100%',
+              }}>
+              <span style={{ color: '#ffffff44', fontSize: 10, display: 'block' }}>{label}</span>
+              <span>{h.acao.slice(0, 40)}</span>
+            </button>
+          )
+        })}
       </aside>
 
       {/* Área principal */}

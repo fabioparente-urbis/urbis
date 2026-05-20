@@ -2,12 +2,16 @@
 
 // ============================================================
 // /mrp — Página do analista (próprio painel)
-// 3 abas: Dashboard | Dossiê do Processo | Listona
+// Camada superior: USUÁRIO (todos) | EQUIPE (gerentes + irrestritos)
+// Dentro de USUÁRIO: Dashboard | Dossiê do Processo | Listona
 // ============================================================
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PainelResposta, StatusMRP } from "@/lib/mrp";
+import { isPerfilIrrestrito } from "@/lib/perfis";
+import MrpEquipeView from "@/components/MrpEquipeView";
 
+type AbaTopo = "usuario" | "equipe";
 type Aba = "dashboard" | "dossie" | "listona";
 
 const MESES_PT = [
@@ -30,10 +34,35 @@ function MrpInner() {
   const usuarioIdParam = sp.get("usuario_id") ?? null;
   const somenteLeitura = !!usuarioIdParam;
 
+  const [abaTopo, setAbaTopo] = useState<AbaTopo>("usuario");
   const [aba, setAba] = useState<Aba>("dashboard");
   const hoje = new Date();
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [ano, setAno] = useState(hoje.getFullYear());
+
+  // Perfis para gating da aba EQUIPE — mesma regra do botão "MRP — Equipe"
+  // da Home antiga: gerentes + irrestritos (Administrador/Diretora).
+  const [perfis, setPerfis] = useState<string[]>([]);
+  const [perfisProntos, setPerfisProntos] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch("/api/auth/me");
+        const j = await r.json();
+        if (j.ok) {
+          const arr: string[] = Array.isArray(j.data?.perfis) && j.data.perfis.length > 0
+            ? j.data.perfis
+            : (j.data?.perfil ? [j.data.perfil] : []);
+          setPerfis(arr);
+        }
+      } catch { /* mantém [] */ }
+      finally { setPerfisProntos(true); }
+    })();
+  }, []);
+
+  const ehIrrestrito = isPerfilIrrestrito(perfis);
+  const ehGerente = perfis.some((p) => p.startsWith("Gerência "));
+  const podeVerEquipe = ehIrrestrito || ehGerente;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -55,22 +84,48 @@ function MrpInner() {
         </div>
       </header>
 
-      <nav className="bg-white border-b px-8 flex gap-2">
-        {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setAba(k)}
-            className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
-              aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
-            }`}>{l}</button>
-        ))}
-      </nav>
+      {/* Camada 1 — abas USUÁRIO / EQUIPE (só aparece quando há acesso à equipe) */}
+      {perfisProntos && podeVerEquipe && (
+        <nav className="bg-slate-100 border-b px-8 flex gap-2">
+          {([
+            ["usuario", "👤 Usuário"],
+            ["equipe", "👥 Equipe"],
+          ] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setAbaTopo(k)}
+              className={`px-5 py-3 text-sm font-semibold border-b-2 transition ${
+                abaTopo === k ? "border-slate-900 text-slate-900" : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}>{l}</button>
+          ))}
+        </nav>
+      )}
+
+      {/* Camada 2 — abas internas do painel do usuário (só na aba USUÁRIO) */}
+      {abaTopo === "usuario" && (
+        <nav className="bg-white border-b px-8 flex gap-2">
+          {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setAba(k)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
+                aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
+              }`}>{l}</button>
+          ))}
+        </nav>
+      )}
 
       <main className="p-8">
-        {aba === "dashboard" && (
-          <Dashboard mes={mes} ano={ano} usuarioId={usuarioIdParam} somenteLeitura={somenteLeitura} />
+        {abaTopo === "usuario" && (
+          <>
+            {aba === "dashboard" && (
+              <Dashboard mes={mes} ano={ano} usuarioId={usuarioIdParam} somenteLeitura={somenteLeitura} />
+            )}
+            {aba === "dossie" && <Dossie />}
+            {aba === "listona" && (
+              <Listona mes={mes} ano={ano} usuarioId={usuarioIdParam} />
+            )}
+          </>
         )}
-        {aba === "dossie" && <Dossie />}
-        {aba === "listona" && (
-          <Listona mes={mes} ano={ano} usuarioId={usuarioIdParam} />
+
+        {abaTopo === "equipe" && podeVerEquipe && (
+          <MrpEquipeView mes={mes} ano={ano} ehAdmin={ehIrrestrito} />
         )}
       </main>
     </div>

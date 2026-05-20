@@ -82,6 +82,7 @@ export function useBipAnotacoes({ leiId }: UseBipAnotacoesProps) {
     })
     const label = elemento.tipo === 'traco' ? 'Traço' : elemento.tipo === 'comentario' ? 'Comentário' : 'Clipe'
     registrarHistorico(`${label} adicionado na página ${pagina}`, pagina, elemento.id)
+    carregarHistorico()
   }, [salvarPagina, registrarHistorico])
 
   const removerElemento = useCallback((pagina: number, elementoId: string) => {
@@ -91,6 +92,7 @@ export function useBipAnotacoes({ leiId }: UseBipAnotacoesProps) {
       return { ...prev, [pagina]: lista }
     })
     registrarHistorico(`Elemento removido na página ${pagina}`, pagina, elementoId)
+    carregarHistorico()
   }, [salvarPagina, registrarHistorico])
 
   const toggleClipe = useCallback((pagina: number) => {
@@ -103,6 +105,7 @@ export function useBipAnotacoes({ leiId }: UseBipAnotacoesProps) {
       )
       return novos
     })
+    carregarHistorico()
   }, [salvarClipes, registrarHistorico])
 
   const [historico, setHistorico] = useState<{id: string, acao: string, pagina: number | null, criado_em: string}[]>([])
