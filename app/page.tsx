@@ -24,7 +24,17 @@ import {
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 
-type TipoProcesso = "ACEITE" | "REGULARIZACAO" | "APROVACAO";
+// `tipo` enviado ao backend continua sendo uma string canonica (ex.:
+// "REGULARIZACAO"). A Sessao 3 substituiu o dropdown fixo por uma
+// lista dinamica vinda de /api/admin/assuntos — usamos slug.toUpperCase()
+// como tipo, mantendo compat com o backend ("regularizacao" -> "REGULARIZACAO").
+type TipoProcesso = string;
+
+type AssuntoAtivo = {
+  id: string;
+  slug: string;
+  nome: string;
+};
 
 type Card = {
   chave: string;
@@ -35,15 +45,44 @@ type Card = {
   visivel: boolean;
 };
 
+const SLUG_REGULARIZACAO = "regularizacao";
+
 export default function Home() {
   const router = useRouter();
   const [perfis, setPerfis] = useState<string[]>([]);
   const [carregandoAuth, setCarregandoAuth] = useState(true);
 
   // ── Entrada de processo (barra compacta) ──────────────────
+  // Default = REGULARIZACAO ate o GET /api/admin/assuntos resolver.
+  // Regularizacao e sempre ativo (slot fixo), entao sera o default
+  // selecionado depois da carga tambem.
   const [tipo, setTipo] = useState<TipoProcesso>("REGULARIZACAO");
   const [numero, setNumero] = useState("");
   const [erro, setErro] = useState("");
+
+  // ── Assuntos ativos (dropdown dinamico) ───────────────────
+  const [assuntosAtivos, setAssuntosAtivos] = useState<AssuntoAtivo[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/assuntos");
+        const json = await res.json();
+        if (!json.ok || !Array.isArray(json.data)) return;
+        const ativos: AssuntoAtivo[] = json.data
+          .filter((a: any) => a?.ativo === true)
+          .map((a: any) => ({ id: a.id, slug: a.slug, nome: a.nome }));
+        setAssuntosAtivos(ativos);
+        // Garante que Regularizacao fica selecionada por padrao se
+        // estiver presente; caso contrario, mantem o que ja estava.
+        const reg = ativos.find((a) => a.slug === SLUG_REGULARIZACAO);
+        if (reg) setTipo(reg.slug.toUpperCase());
+      } catch {
+        // Silencioso — se falhar, o dropdown fica vazio mas o resto da
+        // tela continua funcionando. O default ja e REGULARIZACAO.
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -163,9 +202,17 @@ export default function Home() {
                 value={tipo}
                 onChange={(e) => { setTipo(e.target.value as TipoProcesso); setErro(""); }}
                 className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]">
-                <option value="ACEITE">Aceite</option>
-                <option value="REGULARIZACAO">Regularização</option>
-                <option value="APROVACAO">Aprovação de projeto</option>
+                {assuntosAtivos.length === 0 ? (
+                  // Fallback enquanto o GET nao retornou: mostra Regularizacao
+                  // (sempre ativa) para nao deixar o select vazio.
+                  <option value="REGULARIZACAO">Regularização</option>
+                ) : (
+                  assuntosAtivos.map((a) => (
+                    <option key={a.id} value={a.slug.toUpperCase()}>
+                      {a.nome}
+                    </option>
+                  ))
+                )}
               </select>
               <input
                 type="text"
