@@ -58,7 +58,7 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
   const [ferramentaAtiva, setFerramentaAtiva] = useState<Ferramenta>(null)
   const [corAtiva, setCorAtiva] = useState('#FFD600')
   const [espessuraAtiva, setEspessuraAtiva] = useState(3)
-  const { anotacoes, clipes, carregando, adicionarElemento, removerElemento, toggleClipe } = useBipAnotacoes({ leiId })
+  const { anotacoes, clipes, carregando, adicionarElemento, removerElemento, toggleClipe, historico, carregarHistorico } = useBipAnotacoes({ leiId })
 
   const irParaPagina = useCallback((pagina: number) => {
     document.getElementById(`bip-pagina-${pagina}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -76,6 +76,16 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
           <button key={pag} onClick={() => irParaPagina(pag)}
             style={{ background: 'rgba(25,118,210,0.15)', border: '1px solid rgba(25,118,210,0.4)', borderRadius: 6, color: '#90CAF9', padding: '6px 10px', cursor: 'pointer', textAlign: 'left', fontSize: 13 }}>
             📌 Página {pag}
+          </button>
+        ))}
+        <div style={{ width: '100%', height: 1, background: '#ffffff11', margin: '12px 0' }} />
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#888', marginBottom: 8 }}>🕓 HISTÓRICO</div>
+        {historico.length === 0 && <div style={{ fontSize: 11, color: '#444', fontStyle: 'italic' }}>Sem ações ainda.</div>}
+        {historico.map((h) => (
+          <button key={h.id}
+            onClick={() => h.pagina && irParaPagina(h.pagina)}
+            style={{ background: 'transparent', border: 'none', color: '#ffffff66', padding: '4px 2px', cursor: h.pagina ? 'pointer' : 'default', textAlign: 'left', fontSize: 11, lineHeight: 1.4 }}>
+            {h.pagina ? `p.${h.pagina} — ` : ''}{h.acao.slice(0, 35)}
           </button>
         ))}
       </aside>

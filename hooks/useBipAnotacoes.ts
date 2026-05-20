@@ -105,5 +105,15 @@ export function useBipAnotacoes({ leiId }: UseBipAnotacoesProps) {
     })
   }, [salvarClipes, registrarHistorico])
 
-  return { anotacoes, clipes, carregando, adicionarElemento, removerElemento, toggleClipe }
+  const [historico, setHistorico] = useState<{id: string, acao: string, pagina: number | null, criado_em: string}[]>([])
+
+  const carregarHistorico = useCallback(async () => {
+    const res = await fetch(`/api/bdi/bip/historico?lei_id=${leiId}`)
+    const json = await res.json()
+    if (json.ok) setHistorico(json.data ?? [])
+  }, [leiId])
+
+  useEffect(() => { carregarHistorico() }, [carregarHistorico])
+
+  return { anotacoes, clipes, carregando, adicionarElemento, removerElemento, toggleClipe, historico, carregarHistorico }
 }
