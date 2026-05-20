@@ -180,7 +180,7 @@ export default function Home() {
         {isPerfilIrrestrito(perfis) && (
           <button onClick={() => router.push("/admin/bdi/leis")}
             className="w-full p-3 text-left rounded mb-2 transition hover:bg-slate-800 text-slate-300 hover:text-white text-sm">
-            📚 BDI — Indexação de Leis
+            📚 BIP — Biblioteca Inteligente e Pesquisa
           </button>
         )}
         <button onClick={() => router.push("/mrp")}

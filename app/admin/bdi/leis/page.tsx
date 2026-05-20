@@ -470,7 +470,7 @@ export default function BDILeisPage() {
       <div style={S.header}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ color: "#d946ef", fontSize: 11, letterSpacing: 3, fontWeight: 700 }}>
-            BDI — GERENCIADOR DE LEIS
+            BIP — BIBLIOTECA INTELIGENTE E PESQUISA
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -616,7 +616,13 @@ export default function BDILeisPage() {
                     style={S.btn("#f59e0b", desabilitar || indexando || reindexando)}
                     disabled={desabilitar || indexando || reindexando}
                   >
-                    ✎ EDITAR
+                    ✎ EDITAR</button>
+                  <button
+                    onClick={() => router.push(`/admin/bdi/bip/${lei.id}`)}
+                    style={S.btn("#22c55e", desabilitar || indexando || reindexando)}
+                    disabled={desabilitar || indexando || reindexando}
+                  >
+                    📖 LER
                   </button>
                   <button
                     onClick={() => abrirExcluir(lei)}
