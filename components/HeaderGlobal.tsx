@@ -8,7 +8,7 @@ export default function HeaderGlobal() {
   return (
     <>
       {/* Logo URBIS — canto inferior esquerdo */}
-      <div className="fixed bottom-2 left-2 z-40 pointer-events-none" aria-hidden={true}>
+      <div className="fixed bottom-2 left-2 z-50 pointer-events-none" aria-hidden={true}>
         <img
           src="/logo_urbis.png"
           alt="URBIS"
