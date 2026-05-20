@@ -1,0 +1,1 @@
+ALTER TABLE bdi_documentos_lei ADD COLUMN IF NOT EXISTS ano TEXT;
