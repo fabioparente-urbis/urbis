@@ -22,14 +22,28 @@ type Aba = {
   dica: string;
   ordem: number;
   ativo: boolean;
+  assunto_id: string | null;
   lip_campos: Campo[];
 };
 
+type Assunto = {
+  id: string;
+  slug: string;
+  nome: string;
+  ativo: boolean;
+  ordem: number;
+};
+
+const SLUG_REGULARIZACAO = "regularizacao";
+
 export default function AdminLipPage() {
   const router = useRouter();
+  const [assuntos, setAssuntos] = useState<Assunto[]>([]);
+  const [assuntoId, setAssuntoId] = useState<string>("");
   const [abas, setAbas] = useState<Aba[]>([]);
   const [abaSelecionada, setAbaSelecionada] = useState<Aba | null>(null);
   const [carregando, setCarregando] = useState(true);
+  const [clonando, setClonando] = useState(false);
   const [toast, setToast] = useState("");
 
   const [modalCampo, setModalCampo] = useState(false);
@@ -45,9 +59,19 @@ export default function AdminLipPage() {
     setTimeout(() => setToast(""), 3000);
   }
 
-  async function carregar() {
+  async function carregar(idAssunto?: string) {
+    // Sessão 4: o GET agora filtra por assunto_id. Se nenhum assunto está
+    // selecionado ainda (carga inicial antes de resolver o dropdown),
+    // mantém abas vazias para evitar mostrar a lista global.
+    const alvo = idAssunto ?? assuntoId;
+    if (!alvo) {
+      setAbas([]);
+      setAbaSelecionada(null);
+      setCarregando(false);
+      return;
+    }
     setCarregando(true);
-    const res = await fetch("/api/admin/lip");
+    const res = await fetch(`/api/admin/lip?assunto_id=${encodeURIComponent(alvo)}`);
     const json = await res.json();
     if (json.ok) {
       setAbas(json.data);
@@ -56,12 +80,72 @@ export default function AdminLipPage() {
           const atualizada = json.data.find((a: Aba) => a.id === prev?.id);
           return atualizada ?? json.data[0];
         });
+      } else {
+        setAbaSelecionada(null);
       }
     }
     setCarregando(false);
   }
 
-  useEffect(() => { carregar(); }, []);
+  // Carga inicial: busca assuntos ativos e seleciona Regularização por padrão.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/assuntos");
+        const json = await res.json();
+        if (!json.ok || !Array.isArray(json.data)) {
+          setCarregando(false);
+          return;
+        }
+        const ativos: Assunto[] = json.data.filter((a: any) => a?.ativo === true);
+        setAssuntos(ativos);
+        const reg = ativos.find((a) => a.slug === SLUG_REGULARIZACAO);
+        const escolhido = reg ?? ativos[0];
+        if (escolhido) {
+          setAssuntoId(escolhido.id);
+          await carregar(escolhido.id);
+        } else {
+          setCarregando(false);
+        }
+      } catch {
+        setCarregando(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function trocarAssunto(novoId: string) {
+    setAssuntoId(novoId);
+    setAbaSelecionada(null);
+    await carregar(novoId);
+  }
+
+  async function clonarDeRegularizacao() {
+    const reg = assuntos.find((a) => a.slug === SLUG_REGULARIZACAO);
+    if (!reg) {
+      mostrarToast("Assunto Regularização não encontrado.");
+      return;
+    }
+    if (reg.id === assuntoId) return;
+    if (!confirm(`Clonar todas as abas e campos de "Regularização" para "${assuntos.find((a) => a.id === assuntoId)?.nome}"?`)) return;
+    setClonando(true);
+    try {
+      const res = await fetch("/api/admin/lip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "clonar", origem_assunto_id: reg.id, destino_assunto_id: assuntoId }),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        mostrarToast(`Erro ao clonar: ${json.erro}`);
+        return;
+      }
+      mostrarToast(`✅ Clonado: ${json.data.abasClonadas} abas, ${json.data.camposClonados} campos.`);
+      await carregar();
+    } finally {
+      setClonando(false);
+    }
+  }
 
   function abrirNovaAba() {
     setEditandoAba(null);
@@ -85,10 +169,11 @@ export default function AdminLipPage() {
       });
       mostrarToast("Aba atualizada!");
     } else {
+      if (!assuntoId) { mostrarToast("Selecione um assunto antes de criar uma aba."); return; }
       await fetch("/api/admin/lip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "aba", ...formAba }),
+        body: JSON.stringify({ tipo: "aba", assunto_id: assuntoId, ...formAba }),
       });
       mostrarToast("Aba criada!");
     }
@@ -322,7 +407,7 @@ export default function AdminLipPage() {
 
       {/* CABEÇALHO */}
       <div className="bg-slate-800 border-b border-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <button onClick={() => router.push("/")}
               className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
@@ -333,10 +418,35 @@ export default function AdminLipPage() {
               <p className="text-slate-400 text-sm">Abas e campos do LIP - Leitura Inteligente de Processo</p>
             </div>
           </div>
-          <button onClick={abrirNovaAba}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors">
-            + Nova Aba
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Assunto</label>
+              <select
+                value={assuntoId}
+                onChange={(e) => trocarAssunto(e.target.value)}
+                className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]">
+                {assuntos.length === 0 ? (
+                  <option value="">Carregando...</option>
+                ) : (
+                  assuntos.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
+                  ))
+                )}
+              </select>
+            </div>
+            {assuntoId &&
+             assuntos.find((a) => a.id === assuntoId)?.slug !== SLUG_REGULARIZACAO &&
+             abas.length === 0 && !carregando && (
+              <button onClick={clonarDeRegularizacao} disabled={clonando}
+                className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+                {clonando ? "⏳ Clonando..." : "📋 Clonar de Regularização"}
+              </button>
+            )}
+            <button onClick={abrirNovaAba} disabled={!assuntoId}
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+              + Nova Aba
+            </button>
+          </div>
         </div>
       </div>
 
@@ -429,7 +539,13 @@ export default function AdminLipPage() {
             </>
           ) : (
             <div className="flex items-center justify-center h-full">
-              <p className="text-slate-500">Selecione uma aba para gerenciar os campos</p>
+              <p className="text-slate-500">
+                {abas.length === 0
+                  ? assuntos.find((a) => a.id === assuntoId)?.slug === SLUG_REGULARIZACAO
+                    ? "Crie uma nova aba para começar."
+                    : "Este assunto ainda não tem abas. Clone de Regularização ou crie uma nova."
+                  : "Selecione uma aba para gerenciar os campos"}
+              </p>
             </div>
           )}
         </div>

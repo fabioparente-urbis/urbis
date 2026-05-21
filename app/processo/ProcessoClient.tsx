@@ -197,9 +197,30 @@ export default function ProcessoClient() {
   }
 
   useEffect(() => {
-    async function carregarAbas() {
+    // Sessão 4: LIP é parametrizado por assunto. Antes de buscar abas/campos,
+    // resolvemos o assunto_id do processo (via /api/processo/carregar). Se
+    // o processo é legado ou ainda não foi criado, caímos para fetch sem
+    // filtro (que retorna todas as abas — compat).
+    async function inicializar() {
       setCarregandoAbas(true);
-      const res = await fetch("/api/admin/lip");
+      let assuntoIdAlvo: string | null = null;
+      if (idUrl) {
+        try {
+          const resProc = await fetch(
+            `/api/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`,
+          );
+          const jsonProc = await resProc.json().catch(() => null);
+          if (jsonProc?.ok) {
+            assuntoIdAlvo = jsonProc.data?.assunto_id ?? null;
+          }
+        } catch {
+          // segue sem assunto_id (fallback)
+        }
+      }
+      const urlAbas = assuntoIdAlvo
+        ? `/api/admin/lip?assunto_id=${encodeURIComponent(assuntoIdAlvo)}`
+        : "/api/admin/lip";
+      const res = await fetch(urlAbas);
       const json = await res.json();
       if (json.ok) {
         setAbasDB(json.data);
@@ -216,8 +237,8 @@ export default function ProcessoClient() {
       }
       setCarregandoAbas(false);
     }
-    carregarAbas();
-  }, []);
+    inicializar();
+  }, [idUrl, tipoUrl]);
 
   async function carregarHistorico() {
     try {

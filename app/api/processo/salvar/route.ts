@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     // ACEITE do mesmo SEI colidem.
     const { data: existente, error: erroBusca } = await supabase
       .from("processos")
-      .select("id, codigo, analista_id, tipo_processo")
+      .select("id, codigo, analista_id, tipo_processo, assunto_id")
       .eq("codigo", id)
       .eq("tipo_processo", tipoProcesso)
       .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
@@ -64,6 +64,18 @@ export async function POST(req: NextRequest) {
     if (erroBusca) {
       return NextResponse.json({ ok: false, erro: erroBusca.message }, { status: 500 });
     }
+
+    // Sessão 4: resolve assunto_id a partir do tipo_processo (slug uppercase).
+    // O `tipoProcesso` aqui é "REGULARIZACAO" | "ACEITE" | "APROVACAO"; o
+    // slug em `assuntos` é minúsculo, então comparamos lowercase. Para
+    // assuntos novos (slot_02..slot_15), o front já envia o slug uppercase
+    // como `tipo`, então o lookup continua valendo.
+    const { data: assuntoRow } = await supabase
+      .from("assuntos")
+      .select("id")
+      .eq("slug", tipoProcesso.toLowerCase())
+      .maybeSingle();
+    const assuntoIdResolvido: string | null = assuntoRow?.id ?? null;
 
     let processoId: string | null = null;
     let acao = "inserido";
@@ -85,6 +97,13 @@ export async function POST(req: NextRequest) {
       // Só sobrescreve `dados` quando o cliente envia (a Home cria o
       // processo só com tipo + id; o LIP envia depois com `dados`).
       if (dados !== undefined) update.dados = dados;
+      // Sessão 4: backfill de assunto_id. Não rebatiza processos que já
+      // têm um assunto (proteção contra trocar assunto no meio do
+      // caminho); apenas preenche quando ainda está NULL e o lookup
+      // resolveu.
+      if (!existente.assunto_id && assuntoIdResolvido) {
+        update.assunto_id = assuntoIdResolvido;
+      }
 
       const { error } = await supabase
         .from("processos")
@@ -107,6 +126,10 @@ export async function POST(req: NextRequest) {
           tipo_processo: tipoProcesso,
           edicao_autorizada: true,
           analista_id: usuarioId,
+          // Sessão 4: grava o vínculo com o assunto. Pode ser NULL se o
+          // slug não bater com nenhum registro em `assuntos` (não deveria
+          // acontecer, mas não bloqueia o insert).
+          assunto_id: assuntoIdResolvido,
         }])
         .select();
 

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   // Sem tipo: mantém comportamento legado — primeira ocorrência (mais antiga).
   let query = supabase
     .from('processos')
-    .select('id, dados, analista_id, tipo_processo')
+    .select('id, dados, analista_id, tipo_processo, assunto_id')
     .eq('codigo', codigo)
 
   if (tipo) query = query.eq('tipo_processo', tipo)
@@ -49,8 +49,15 @@ export async function GET(req: NextRequest) {
   const ownerErr = verificarOwnership(auth, data.analista_id)
   if (ownerErr) return ownerErr
 
+  // Sessão 4: retorna assunto_id para o ProcessoClient saber qual
+  // conjunto de abas/campos do LIP carregar.
   return NextResponse.json({
     ok: true,
-    data: { id: data.id, dados: data.dados, tipo_processo: data.tipo_processo },
+    data: {
+      id: data.id,
+      dados: data.dados,
+      tipo_processo: data.tipo_processo,
+      assunto_id: data.assunto_id,
+    },
   })
 }
