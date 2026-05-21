@@ -6,10 +6,9 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const CHAVES_VALIDAS = new Set(["P1_TRIAGEM", "P2_EXTRACAO"]);
-
 // GET /api/admin/prompts/historico?chave=P1_TRIAGEM
-// Retorna snapshots mais recentes primeiro. P2_MAC é ignorada explicitamente.
+// Aceita qualquer chave com prefixo P1_ ou P2_ (suporte multi-assunto Sessão 5C).
+// Nota: lip_prompts_historico não tem assunto_id — snapshots são globais por chave.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const chave = searchParams.get("chave");
@@ -17,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!chave)
     return NextResponse.json({ ok: false, erro: "Parâmetro 'chave' obrigatório." }, { status: 400 });
 
-  if (!CHAVES_VALIDAS.has(chave))
+  if (!chave.startsWith("P1_") && !chave.startsWith("P2_"))
     return NextResponse.json({ ok: true, data: [] });
 
   const { data, error } = await supabaseAdmin
