@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("processos")
-      .select("id, codigo, numero_sei, tipo_processo, status, criado_em, atualizado_em, dados, analista_id, tags")
+      .select("id, codigo, numero_sei, tipo_processo, assunto_id, status, criado_em, atualizado_em, dados, analista_id, tags")
       .order("atualizado_em", { ascending: false })
       .limit(200);
 

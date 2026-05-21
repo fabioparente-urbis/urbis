@@ -19,6 +19,7 @@ type Modelo = {
   nome: string;
   tipo_processo: string | null;
   dono_id: string | null;
+  assunto_id: string | null;
 };
 
 export default function MacPage() {
@@ -73,6 +74,7 @@ export default function MacPage() {
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [modeloSelecionado, setModeloSelecionado] = useState<Modelo | null>(null);
   const [tipoProcesso, setTipoProcesso] = useState<string>("");
+  const [assuntoId, setAssuntoId] = useState<string | null>(null);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
   const grupoAtual = GRUPOS[abaAtual] ?? "";
@@ -112,11 +114,13 @@ export default function MacPage() {
     }
   }
 
-  async function carregarModelos(tipo: string) {
+  async function carregarModelos(tipo: string, assunto?: string | null) {
     const meRes = await fetch("/api/auth/me");
-const meJson = await meRes.json();
-const uid = meJson.ok ? meJson.data.id : "";
-const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
+    const meJson = await meRes.json();
+    const uid = meJson.ok ? meJson.data.id : "";
+    let url = `/api/mac/checklists?analista_id=${uid}`;
+    if (assunto) url += `&assunto_id=${encodeURIComponent(assunto)}`;
+    const res = await fetch(url);
     const json = await res.json();
     if (json.ok) {
       const filtrados = json.data.filter((m: Modelo) =>
@@ -135,11 +139,13 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
   async function carregar() {
     setCarregando(true);
 
-    // Busca tipo do processo
+    // Busca tipo e assunto do processo
     const resPoc = await fetch(`/api/processos?busca=${encodeURIComponent(codigo)}`);
     const jsonPoc = await resPoc.json();
     const tipo = jsonPoc.ok && jsonPoc.data.length > 0 ? jsonPoc.data[0].tipo_processo : "REGULARIZACAO";
+    const assunto: string | null = jsonPoc.ok && jsonPoc.data.length > 0 ? (jsonPoc.data[0].assunto_id ?? null) : null;
     setTipoProcesso(tipo);
+    setAssuntoId(assunto);
 
     const res = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
     const json = await res.json();
@@ -171,7 +177,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
       }
     } else {
       // Sem análise — abre modal de seleção de modelo
-      await carregarModelos(tipo);
+      await carregarModelos(tipo, assunto);
       setModalModelo(true);
       setNovaAnalise(true);
     }
@@ -430,7 +436,7 @@ const res = await fetch(`/api/mac/checklists?analista_id=${uid}`);
     setCauResponsavel(ultima?.cau_responsavel || "");
     setCreaResponsavel(ultima?.crea_responsavel || "");
     setNovaAnalise(true);
-    carregarModelos(tipoProcesso).then(() => setModalModelo(true));
+    carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
   }
 
   function selecionarAnalise(a: any) {

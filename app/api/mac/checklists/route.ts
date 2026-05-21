@@ -21,8 +21,10 @@ export async function GET(req: NextRequest) {
     .or(`dono_id.is.null${analista_id ? `,dono_id.eq.${analista_id}` : ""}`)
     .order("criado_em", { ascending: true });
 
+  // Inclui modelos globais (assunto_id null) E modelos do assunto solicitado.
+  // Sem assunto_id na query → compatibilidade legada, retorna tudo.
   if (assunto_id) {
-    query = query.eq("assunto_id", assunto_id);
+    query = query.or(`assunto_id.is.null,assunto_id.eq.${assunto_id}`);
   }
 
   const { data, error } = await query;
