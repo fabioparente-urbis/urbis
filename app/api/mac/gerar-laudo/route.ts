@@ -50,10 +50,14 @@ ${membro.cau_crea}`;
       }
     }
     // ── Buscar respostas do MAC ─────────────────────────────
+    // Sessão 5A: o nome correto da tabela é `analises_mac` (não `mac_analises`).
+    // Pega a análise mais recente por `numero_analise` para refletir a revisão
+    // atual que vai pro laudo.
     const { data: mac } = await supabase
-      .from("mac_analises")
+      .from("analises_mac")
       .select("*")
       .eq("processo_codigo", processoId)
+      .order("numero_analise", { ascending: false })
       .limit(1)
       .maybeSingle();
 

@@ -11,13 +11,24 @@ const TIPO = "REGULARIZACAO";
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const codigo = searchParams.get("codigo");
+  // Sessão 5A: filtro opcional por assunto. Se não vier, mantém compatibilidade
+  // legada (rota usada hoje só pelo front de Regularização, que segue passando
+  // apenas `codigo`).
+  const assunto_id = searchParams.get("assunto_id");
   if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
-  const { data, error } = await supabase
+
+  let query = supabase
     .from("analises_mac")
     .select("*")
     .eq("processo_codigo", codigo)
     .eq("tipo_processo", TIPO)
     .order("numero_analise", { ascending: false });
+
+  if (assunto_id) {
+    query = query.eq("assunto_id", assunto_id);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data: data ?? [] });
 }
@@ -28,6 +39,8 @@ export async function POST(req: NextRequest) {
     const {
       processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites,
       cau_responsavel, crea_responsavel,
+      // Sessão 5A: opcional, grava se vier.
+      assunto_id,
     } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
@@ -66,6 +79,7 @@ export async function POST(req: NextRequest) {
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
         ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
+        ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
       })
       .select()
       .maybeSingle();
@@ -80,7 +94,11 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites, cau_responsavel, crea_responsavel } = body;
+    const {
+      id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites, cau_responsavel, crea_responsavel,
+      // Sessão 5A: opcional, atualiza se vier.
+      assunto_id,
+    } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
     // ── Histórico BDI ────────────────────────────────────────
@@ -164,6 +182,7 @@ export async function PUT(req: NextRequest) {
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
         ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
+        ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", id);

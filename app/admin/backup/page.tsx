@@ -29,7 +29,6 @@ const SECOES: Secao[] = [
       "processos",
       "analises_mac",
       "mac_historico",
-      "mac_analises",
       "lip_resultados",
       "documentos",
       "documentos_processo",

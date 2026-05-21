@@ -10,23 +10,42 @@ const supabase = createClient(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const analista_id = searchParams.get("analista_id");
+  // Sessão 5A: filtro opcional por assunto. Se não vier, mantém compatibilidade
+  // legada e retorna todos os modelos (visíveis pelo dono_id) sem filtrar por
+  // assunto.
+  const assunto_id = searchParams.get("assunto_id");
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("mac_checklist_modelos")
     .select("*, mac_checklist_itens(*)")
     .or(`dono_id.is.null${analista_id ? `,dono_id.eq.${analista_id}` : ""}`)
     .order("criado_em", { ascending: true });
+
+  if (assunto_id) {
+    query = query.eq("assunto_id", assunto_id);
+  }
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data });
 }
 
 export async function POST(req: NextRequest) {
-  const { nome, tipo_processo, dono_id, copiar_de } = await req.json();
+  // Sessão 5A: aceita `assunto_id` opcional no body. Se não vier, a coluna
+  // (que é nullable) fica null — o backfill da migration já preencheu os
+  // modelos antigos com o slug `regularizacao`.
+  const { nome, tipo_processo, dono_id, copiar_de, assunto_id } = await req.json();
 
   const { data: modelo, error: em } = await supabase
     .from("mac_checklist_modelos")
-    .insert({ nome, tipo_processo: tipo_processo || null, dono_id: dono_id || null, criado_por: dono_id || null })
+    .insert({
+      nome,
+      tipo_processo: tipo_processo || null,
+      dono_id: dono_id || null,
+      criado_por: dono_id || null,
+      assunto_id: assunto_id || null,
+    })
     .select()
     .maybeSingle();
 
