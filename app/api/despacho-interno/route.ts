@@ -99,6 +99,23 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── MRP: grava o despacho interno automaticamente (falha silenciosa) ──
+    try {
+      const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
+      const tipoProc = String(tipoProcesso || (proc as any)?.tipo_processo || "REGULARIZACAO").toUpperCase();
+      await gravarRegistroMRP({
+        processo_codigo: codigo,
+        tipo_processo: tipoProc === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
+        tipo_despacho: "interno",
+        numero_despacho: String(numeroDespacho ?? ""),
+        analise_id: null,
+        numero_revisao: null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+    } catch (mrpErr) {
+      console.warn("[MRP] falha ao gravar despacho interno:", mrpErr);
+    }
+
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",

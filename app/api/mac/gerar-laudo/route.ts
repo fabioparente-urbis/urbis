@@ -177,6 +177,23 @@ ${membro.cau_crea}`;
     // Registrar último documento emitido
     await supabase.from("processos").update({ dados: { ...(p.dados || {}), ultimo_documento: "Laudo" }, atualizado_em: new Date().toISOString() }).eq("codigo", processoId);
 
+    // ── MRP: grava geração do laudo automaticamente (falha silenciosa) ──
+    try {
+      const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
+      const tipoProc = String(p.tipo_processo || "REGULARIZACAO").toUpperCase();
+      await gravarRegistroMRP({
+        processo_codigo: processoId,
+        tipo_processo: tipoProc === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
+        tipo_despacho: "laudo",
+        numero_despacho: null,
+        analise_id: mac?.id ?? null,
+        numero_revisao: null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+    } catch (mrpErr) {
+      console.warn("[MRP] falha ao gravar laudo:", mrpErr);
+    }
+
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {

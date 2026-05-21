@@ -8,12 +8,13 @@
 export const META_BASE = 100;
 
 export type Porte = 'PP' | 'MP' | 'GP';
-export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno';
+export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo';
 export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 
 // ─── Cálculo de pontos ─────────────────────────────────────
 // Regra: GP ou área > 2000 → 4.5 pts | MP (área entre 540 e 2000) → 3.5 | PP → 2.5
-export function calcularPontos(porte: string | null | undefined, area: number): number {
+// Laudo segue o mesmo peso do despacho normal (baseado em porte/área).
+export function calcularPontos(porte: string | null | undefined, area: number, tipoDespacho?: TipoDespacho): number {
   const p = String(porte ?? '').toUpperCase();
   if (p === 'GP' || area > 2000) return 4.5;
   if (area > 540) return 3.5;

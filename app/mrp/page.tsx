@@ -14,6 +14,23 @@ import MrpEquipeView from "@/components/MrpEquipeView";
 type AbaTopo = "usuario" | "equipe";
 type Aba = "dashboard" | "dossie" | "listona";
 
+type FormManual = {
+  data_despacho: string;
+  assunto: string;
+  tipo_despacho: string;
+  processo_codigo: string;
+  pontos: string;
+  observacoes: string;
+};
+
+const TIPOS_DESPACHO_MANUAL = [
+  ["despacho", "Despacho"],
+  ["indeferimento", "Indeferimento"],
+  ["arquivamento", "Arquivamento"],
+  ["interno", "Interno"],
+  ["laudo", "Laudo"],
+] as const;
+
 const MESES_PT = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
@@ -36,6 +53,18 @@ function MrpInner() {
 
   const [abaTopo, setAbaTopo] = useState<AbaTopo>("usuario");
   const [aba, setAba] = useState<Aba>("dashboard");
+  const [modalAberto, setModalAberto] = useState(false);
+  const [assuntos, setAssuntos] = useState<{ id: string; nome: string }[]>([]);
+  const [formManual, setFormManual] = useState<FormManual>({
+    data_despacho: new Date().toISOString().slice(0, 10),
+    assunto: "",
+    tipo_despacho: "despacho",
+    processo_codigo: "",
+    pontos: "2.5",
+    observacoes: "",
+  });
+  const [salvandoManual, setSalvandoManual] = useState(false);
+  const [msgManual, setMsgManual] = useState("");
   const hoje = new Date();
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [ano, setAno] = useState(hoje.getFullYear());
@@ -63,6 +92,67 @@ function MrpInner() {
   const ehIrrestrito = isPerfilIrrestrito(perfis);
   const ehGerente = perfis.some((p) => p.startsWith("Gerência "));
   const podeVerEquipe = ehIrrestrito || ehGerente;
+
+  async function abrirModalManual() {
+    if (assuntos.length === 0) {
+      try {
+        const r = await fetch("/api/admin/assuntos");
+        const j = await r.json();
+        if (j.ok) {
+          const ativos = (j.data as any[]).filter((a) => a.ativo);
+          setAssuntos(ativos);
+          if (ativos.length > 0 && !formManual.assunto) {
+            setFormManual((f) => ({ ...f, assunto: ativos[0].nome }));
+          }
+        }
+      } catch { /* usa lista vazia */ }
+    }
+    setMsgManual("");
+    setModalAberto(true);
+  }
+
+  async function salvarManual(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formManual.processo_codigo.trim()) {
+      setMsgManual("Número do processo é obrigatório.");
+      return;
+    }
+    setSalvandoManual(true);
+    setMsgManual("");
+    try {
+      const r = await fetch("/api/mrp/registros", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: formManual.processo_codigo.trim(),
+          tipo_despacho: formManual.tipo_despacho,
+          assunto: formManual.assunto || null,
+          data_despacho: new Date(formManual.data_despacho + "T12:00:00").toISOString(),
+          pontos: Number(formManual.pontos) || 2.5,
+          observacoes: formManual.observacoes || null,
+        }),
+      });
+      const j = await r.json();
+      if (j.ok) {
+        setMsgManual("✅ Registro salvo com sucesso.");
+        setFormManual({
+          data_despacho: new Date().toISOString().slice(0, 10),
+          assunto: assuntos.length > 0 ? assuntos[0].nome : "",
+          tipo_despacho: "despacho",
+          processo_codigo: "",
+          pontos: "2.5",
+          observacoes: "",
+        });
+        setTimeout(() => setModalAberto(false), 1200);
+      } else {
+        setMsgManual(`❌ ${j.erro ?? "Erro ao salvar."}`);
+      }
+    } catch (err: any) {
+      setMsgManual(`❌ ${err?.message ?? "Erro de rede."}`);
+    } finally {
+      setSalvandoManual(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -101,13 +191,22 @@ function MrpInner() {
 
       {/* Camada 2 — abas internas do painel do usuário (só na aba USUÁRIO) */}
       {abaTopo === "usuario" && (
-        <nav className="bg-white border-b px-8 flex gap-2">
-          {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setAba(k)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
-                aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
-              }`}>{l}</button>
-          ))}
+        <nav className="bg-white border-b px-8 flex items-center justify-between">
+          <div className="flex gap-2">
+            {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setAba(k)}
+                className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
+                  aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
+                }`}>{l}</button>
+            ))}
+          </div>
+          {!somenteLeitura && (
+            <button
+              onClick={abrirModalManual}
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded transition my-2">
+              ✏️ Registrar produção manual
+            </button>
+          )}
         </nav>
       )}
 
@@ -128,6 +227,126 @@ function MrpInner() {
           <MrpEquipeView mes={mes} ano={ano} ehAdmin={ehIrrestrito} />
         )}
       </main>
+
+      {/* ── Modal de alimentação manual ── */}
+      {modalAberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-base font-semibold text-gray-800">✏️ Registrar produção manual</h2>
+              <button onClick={() => setModalAberto(false)}
+                className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
+            </div>
+
+            <form onSubmit={salvarManual} className="px-6 py-5 space-y-4">
+              {/* Data */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
+                <input
+                  type="date"
+                  value={formManual.data_despacho}
+                  onChange={(e) => setFormManual((f) => ({ ...f, data_despacho: e.target.value }))}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              {/* Número do processo */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Número do processo</label>
+                <input
+                  type="text"
+                  value={formManual.processo_codigo}
+                  onChange={(e) => setFormManual((f) => ({ ...f, processo_codigo: e.target.value }))}
+                  placeholder="Ex.: 25.5.000082553-3"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  required
+                />
+              </div>
+
+              {/* Assunto */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assunto</label>
+                {assuntos.length > 0 ? (
+                  <select
+                    value={formManual.assunto}
+                    onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm">
+                    <option value="">— selecionar —</option>
+                    {assuntos.map((a) => (
+                      <option key={a.id} value={a.nome}>{a.nome}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={formManual.assunto}
+                    onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
+                    placeholder="Assunto do processo"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                )}
+              </div>
+
+              {/* Tipo de despacho + Pontos */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                  <select
+                    value={formManual.tipo_despacho}
+                    onChange={(e) => setFormManual((f) => ({ ...f, tipo_despacho: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm">
+                    {TIPOS_DESPACHO_MANUAL.map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pontos</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={formManual.pontos}
+                    onChange={(e) => setFormManual((f) => ({ ...f, pontos: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Observação */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Observação <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <textarea
+                  value={formManual.observacoes}
+                  onChange={(e) => setFormManual((f) => ({ ...f, observacoes: e.target.value }))}
+                  rows={3}
+                  placeholder="Informe o motivo do registro manual, ex.: URBIS indisponível"
+                  className="w-full border rounded px-3 py-2 text-sm resize-none"
+                />
+              </div>
+
+              {msgManual && (
+                <p className={`text-sm ${msgManual.startsWith("✅") ? "text-emerald-700" : "text-rose-600"}`}>
+                  {msgManual}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setModalAberto(false)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border rounded">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={salvandoManual}
+                  className="px-5 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white rounded disabled:opacity-50">
+                  {salvandoManual ? "Salvando…" : "Salvar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

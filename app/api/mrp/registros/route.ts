@@ -66,10 +66,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req);
   if (auth instanceof NextResponse) return auth;
-  if (!auth.irrestrito) return NextResponse.json({ ok: false, erro: "Apenas admin/diretora" }, { status: 403 });
+  // Qualquer usuário autenticado pode inserir registro manual.
+  // (A restrição irrestrito permanece apenas em PUT e DELETE.)
 
   const body = await req.json();
-  if (!body.usuario_id || !body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {
+  // Analista comum só pode registrar para si mesmo.
+  if (!auth.irrestrito && body.usuario_id && body.usuario_id !== auth.userId) {
+    return NextResponse.json({ ok: false, erro: "Sem permissão para registrar em nome de outro analista" }, { status: 403 });
+  }
+  // Se não informado, usa o próprio usuário autenticado.
+  if (!body.usuario_id) body.usuario_id = auth.userId;
+
+  if (!body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {
     return NextResponse.json({ ok: false, erro: "Campos obrigatórios faltando" }, { status: 400 });
   }
   const data_despacho = body.data_despacho ?? new Date().toISOString();
