@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import HeaderGlobal from "@/components/HeaderGlobal";
 import UrbiWrapper from "@/components/urbi/UrbiWrapper";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "URBIS",
@@ -10,16 +11,21 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body style={{
-        margin: 0,
-        backgroundColor: "#0b0f14",
-        color: "#e6edf3",
-        fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif",
-      }}>
-        <HeaderGlobal />
-        {children}
-        <UrbiWrapper />
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            const t = localStorage.getItem('urbis-theme') || 'dark';
+            if (t === 'dark') document.documentElement.classList.add('dark');
+          } catch(e) {}
+        `}} />
+      </head>
+      <body style={{ margin: 0 }}>
+        <ThemeProvider>
+          <HeaderGlobal />
+          {children}
+          <UrbiWrapper />
+        </ThemeProvider>
       </body>
     </html>
   );
