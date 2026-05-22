@@ -305,8 +305,8 @@ export default function ProcessosPage() {
                       ))}
                     </div>
                   )}
-                  <p className="text-slate-300 text-sm mt-0.5 truncate">{proprietario}</p>
-                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-500 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
+                  <p className="text-slate-600 text-sm mt-0.5 truncate">{proprietario}</p>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-600 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
                 </div>
 
                 {/* Tipo */}
