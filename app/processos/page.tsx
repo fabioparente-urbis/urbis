@@ -235,7 +235,7 @@ export default function ProcessosPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] p-4 md:p-6">
       {/* CABEÇALHO */}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
@@ -288,10 +288,10 @@ export default function ProcessosPage() {
             const proprietario = p.dados?.proprietario?.valor || "—";
             const numero = p.codigo || p.numero_sei || "—";
             return (
-              <div key={p.id} className="bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 flex items-center gap-4 transition-all">
+              <div key={p.id} className="bg-[var(--card)] border border-[var(--card-border)] hover:border-slate-400 rounded-xl p-4 flex items-center gap-4 transition-all">
                 {/* Clicavel */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
-                  <p className="font-mono text-yellow-400 font-semibold text-sm">{numero}</p>
+                  <p className="font-mono text-emerald-600 font-semibold text-sm">{numero}</p>
                   {Array.isArray(p.tags) && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {p.tags.map((t, i) => (
@@ -348,7 +348,7 @@ export default function ProcessosPage() {
               <h2 className="text-white font-bold text-lg">Editar Processo</h2>
               <button onClick={() => setEditando(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
             </div>
-            <p className="text-yellow-400 font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
+            <p className="text-emerald-600 font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
