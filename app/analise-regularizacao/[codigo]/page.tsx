@@ -242,6 +242,7 @@ export default function MacPage() {
     if (!modeloSelecionado) return;
     await carregarItensModelo(modeloSelecionado.id);
     setModalModelo(false);
+    await salvarSilencioso("em_andamento");
   }
 
   // Auto-save silencioso para disparar em troca de aba / clique de botão,
