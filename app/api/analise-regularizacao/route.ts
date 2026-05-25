@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     .order("numero_analise", { ascending: false });
 
   if (assunto_id) {
-    query = query.eq("assunto_id", assunto_id);
+    query = query.or(`assunto_id.eq.${assunto_id},assunto_id.is.null`);
   }
 
   const { data, error } = await query;
