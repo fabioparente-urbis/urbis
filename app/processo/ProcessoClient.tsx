@@ -162,6 +162,7 @@ export default function ProcessoClient() {
   const [motivosIndeferimentoLip, setMotivosIndeferimentoLip] = useState<string[]>([]);
   const [obsIndeferimentoLip, setObsIndeferimentoLip] = useState("");
   const [gerandoIndeferimento, setGerandoIndeferimento] = useState(false);
+  const [indeferimentoPendenteLip, setIndeferimentoPendenteLip] = useState<{motivos: string[], obs: string} | null>(null);
   const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
   const [logradouroBusca, setLogradouroBusca] = useState("");
@@ -717,34 +718,13 @@ export default function ProcessoClient() {
                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
-              <button disabled={gerandoIndeferimento}
-                onClick={async () => {
-                  setGerandoIndeferimento(true);
+              <button disabled={motivosIndeferimentoLip.length === 0}
+                onClick={() => {
+                  setIndeferimentoPendenteLip({ motivos: motivosIndeferimentoLip, obs: obsIndeferimentoLip });
                   setModalIndeferimentoLip(false);
-                  try {
-                    const res = await fetch("/api/despacho-regularizacao", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        processo: idUrl, tipo: "indeferimento", numeroDespacho: "",
-                        naoConformes: motivosIndeferimentoLip, observacoes: obsIndeferimentoLip,
-                        tipoProcesso: tipoUrl || "REGULARIZACAO",
-                      }),
-                    });
-                    if (res.ok) {
-                      const blob = await res.blob();
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url; a.download = `indeferimento_${idUrl}.docx`;
-                      document.body.appendChild(a); a.click();
-                      document.body.removeChild(a); URL.revokeObjectURL(url);
-                      setMotivosIndeferimentoLip([]); setObsIndeferimentoLip("");
-                      mostrarToast("✅ Indeferimento gerado!");
-                    }
-                  } finally { setGerandoIndeferimento(false); }
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
-                {gerandoIndeferimento ? "⏳ Gerando..." : "📄 Gerar Indeferimento"}
+                ✅ Confirmar
               </button>
             </div>
           </div>
