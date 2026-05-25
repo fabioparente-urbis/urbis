@@ -807,7 +807,8 @@ export default function ProcessoClient() {
 
       {/* CABEÇALHO */}
       <div className="flex items-start justify-between mb-6 gap-4">
-        <div className="flex items-start gap-3">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => router.push("/")}
             className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🏠 Home
@@ -830,22 +831,12 @@ export default function ProcessoClient() {
             className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📨 Despacho Interno
           </button>
-          <button onClick={() => setModalIndeferimentoLip(true)}
-            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-            ❌ Indeferimento
-          </button>
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
             className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Exportar Excel
           </a>
-          <button
-            type="button"
-            onClick={() => setModalLimparLip(true)}
-            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
-            🗑️ Limpar LIP
-          </button>
           <button
             type="button"
             onClick={() => inputImportRef.current?.click()}
@@ -863,6 +854,52 @@ export default function ProcessoClient() {
               if (f) importarExcel(f);
             }}
           />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setModalLimparLip(true)}
+            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🗑️ Limpar LIP
+          </button>
+          <button onClick={() => setModalIndeferimentoLip(true)}
+            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            ❌ Indeferimento
+          </button>
+          {indeferimentoPendenteLip && (
+            <button
+              disabled={gerandoIndeferimento}
+              onClick={async () => {
+                const { motivos, obs } = indeferimentoPendenteLip;
+                setGerandoIndeferimento(true);
+                try {
+                  const res = await fetch("/api/despacho-regularizacao", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      processo: idUrl, tipo: "indeferimento", numeroDespacho: "",
+                      naoConformes: motivos, observacoes: obs,
+                      tipoProcesso: tipoUrl || "REGULARIZACAO",
+                    }),
+                  });
+                  if (res.ok) {
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = `indeferimento_${idUrl}.docx`;
+                    document.body.appendChild(a); a.click();
+                    document.body.removeChild(a); URL.revokeObjectURL(url);
+                    setMotivosIndeferimentoLip([]); setObsIndeferimentoLip("");
+                    setIndeferimentoPendenteLip(null);
+                    mostrarToast("Indeferimento gerado!");
+                  }
+                } finally { setGerandoIndeferimento(false); }
+              }}
+              className="bg-orange-700 hover:bg-orange-600 disabled:opacity-50 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              {gerandoIndeferimento ? "Gerando..." : "Baixar Indeferimento"}
+            </button>
+          )}
+          </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-slate-400 text-sm mt-1">
