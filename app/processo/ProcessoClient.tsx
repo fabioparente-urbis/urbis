@@ -880,6 +880,7 @@ export default function ProcessoClient() {
                       processo: idUrl, tipo: "indeferimento", numeroDespacho: "",
                       naoConformes: motivos, observacoes: obs,
                       tipoProcesso: tipoUrl || "REGULARIZACAO",
+                      analises: [],
                     }),
                   });
                   if (res.ok) {
