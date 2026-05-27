@@ -75,6 +75,7 @@ export default function MacPage() {
   const [modeloSelecionado, setModeloSelecionado] = useState<Modelo | null>(null);
   const [tipoProcesso, setTipoProcesso] = useState<string>("");
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
   const grupoAtual = GRUPOS[abaAtual] ?? "";
@@ -146,6 +147,7 @@ export default function MacPage() {
     const assunto: string | null = jsonPoc.ok && jsonPoc.data.length > 0 ? (jsonPoc.data[0].assunto_id ?? null) : null;
     setTipoProcesso(tipo);
     setAssuntoId(assunto);
+    fetch("/api/auth/me").then(r=>r.json()).then(j=>{ if(j.ok){ const p=Array.isArray(j.data?.perfis)?j.data.perfis:[]; setIsAdmin(p.includes("Administrador")); } });
 
     const res = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
     const json = await res.json();
@@ -669,6 +671,12 @@ export default function MacPage() {
               className="bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📨 Despacho Interno
             </button>
+            {isAdmin && (
+              <button onClick={() => router.push("/admin/checklists")}
+                className="bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+                ⚙️ Gerenciar Checklist
+              </button>
+            )}
             <button
               type="button"
               onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank"); }}

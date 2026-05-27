@@ -159,8 +159,8 @@ export default function Home() {
     { chave: "bdi", nome: "BDI", descricao: "Banco de Dados e Inteligência", Icone: BrainCircuit, rota: "/admin/bdi", visivel: true },
     { chave: "bip", nome: "BIP", descricao: "Biblioteca de Leis", Icone: BookOpen, rota: "/admin/bdi/leis", visivel: irrestrito },
     { chave: "backups", nome: "BACKUPS", descricao: "Backup & Restauração", Icone: HardDrive, rota: "/admin/backup", visivel: souAdmin },
-    { chave: "prompts", nome: "PROMPTS", descricao: "Gerenciar Prompts", Icone: Wand2, rota: "/admin/prompts", visivel: true },
-    { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Gerenciar LIP, MAC e Assuntos", Icone: Settings2, rota: "/admin/configuracoes", visivel: true },
+    { chave: "prompts", nome: "PROMPTS", descricao: "Gerenciar Prompts", Icone: Wand2, rota: "/admin/prompts", visivel: souAdmin },
+    { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Gerenciar LIP, MAC e Assuntos", Icone: Settings2, rota: "/admin/configuracoes", visivel: souAdmin },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);

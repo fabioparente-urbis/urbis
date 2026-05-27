@@ -831,6 +831,12 @@ export default function ProcessoClient() {
             className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📨 Despacho Interno
           </button>
+          {perfisUsuario.includes("Administrador") && (
+            <button onClick={() => router.push("/admin/lip")}
+              className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              ⚙️ Gerenciar LIP
+            </button>
+          )}
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
