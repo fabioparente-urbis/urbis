@@ -83,6 +83,7 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
     <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
       <span>{msg}</span>
       <button onClick={onClose} className="text-white opacity-60 hover:opacity-100 ml-2">✕</button>
+
     </div>
   );
 }
@@ -172,6 +173,7 @@ export default function ProcessoClient() {
   const [carregando, setCarregando] = useState(true);
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
+  const [confirmarMac, setConfirmarMac] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
@@ -637,7 +639,7 @@ export default function ProcessoClient() {
           {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
         </label>
         <div className="relative">
-          <input value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+          <input value={val.valor} onChange={(e) => u(campo.chave, campo.chave === "iptu" ? e.target.value.replace(/\D/g, "") : e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
             className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
@@ -819,7 +821,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
-              if (t > 0) { setErroCampos(true); return; }
+              if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
               const rotaMac = "/analise-regularizacao"; // ACEITE slot pendente S5
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
@@ -1017,6 +1019,25 @@ export default function ProcessoClient() {
                         <li key={c.chave} className="text-orange-200 text-xs">{c.label}</li>
                       ))}
                     </ul>
+
+      {confirmarMac && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes</h2>
+            <p className="text-slate-300 text-sm mb-5">Tem certeza que quer ir para o MAC sem confirmar os itens em laranja?</p>
+            <div className="flex gap-3">
+              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
+                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
+                Ir assim mesmo
+              </button>
+              <button onClick={() => setConfirmarMac(false)}
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
+                Voltar e conferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
                   </div>
                 );
               })}
