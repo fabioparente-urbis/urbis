@@ -1004,7 +1004,7 @@ export default function ProcessoClient() {
           {mostrarPendentes && (
             <div className="bg-orange-950 border border-orange-500 border-t-0 rounded-b px-4 py-3 text-sm">
               {abasDB.map((a, i) => {
-                const pendentes = a.lip_campos.filter(c => (d[c.chave]?.valor ?? "").trim() === "X");
+                const pendentes = a.lip_campos.filter(c => d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === "");
                 if (pendentes.length === 0) return null;
                 return (
                   <div key={a.id} className="mb-2">
