@@ -775,7 +775,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
-              if (t > 0) { mostrarToast(`⚠️ ${t} campo(s) em laranja não conferidos.`, "info"); await new Promise(r => setTimeout(r, 1800)); }
+              if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
               const rotaMac = "/analise-regularizacao"; // ACEITE slot pendente S5
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
@@ -936,24 +936,6 @@ export default function ProcessoClient() {
                       ))}
                     </ul>
 
-      {confirmarMac && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes</h2>
-            <p className="text-slate-300 text-sm mb-5">Tem certeza que quer ir para o MAC sem confirmar os itens em laranja?</p>
-            <div className="flex gap-3">
-              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
-                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
-                Ir assim mesmo
-              </button>
-              <button onClick={() => setConfirmarMac(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
-                Voltar e conferir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
                   </div>
                 );
               })}
@@ -1118,5 +1100,24 @@ export default function ProcessoClient() {
         )}
       </div>
     </div>
+
+      {confirmarMac && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes</h2>
+            <p className="text-slate-300 text-sm mb-5">Tem certeza que quer ir para o MAC sem confirmar os itens em laranja?</p>
+            <div className="flex gap-3">
+              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
+                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
+                Ir assim mesmo
+              </button>
+              <button onClick={() => setConfirmarMac(false)}
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
+                Voltar e conferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   );
 }
