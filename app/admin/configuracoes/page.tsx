@@ -25,6 +25,13 @@ export default function ConfiguracoesPage() {
   const [edicao, setEdicao] = useState<Record<string, { nome: string; ativo: boolean }>>({});
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [sucessoId, setSucessoId] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [abaAtual, setAbaAtual] = useState<"geral" | "usuarios">("geral");
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(j => {
+      if (j.ok && Array.isArray(j.data?.perfis)) setIsAdmin(j.data.perfis.includes("Administrador"));
+    });
+  }, []);
 
   async function carregar() {
     try {
@@ -94,6 +101,22 @@ export default function ConfiguracoesPage() {
         <h1 className="text-xl font-semibold inline-flex items-center gap-2">
           <Settings2 size={20} aria-hidden="true" /> Configurações
         </h1>
+        <div className="flex gap-1 ml-6">
+          <button
+            onClick={() => setAbaAtual("geral")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white hover:bg-slate-800"}`}
+          >
+            ⚙️ Geral
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => router.push("/admin/usuarios")}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-slate-400 hover:text-white hover:bg-slate-800"
+            >
+              👤 Usuários
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="p-8 max-w-4xl mx-auto">
