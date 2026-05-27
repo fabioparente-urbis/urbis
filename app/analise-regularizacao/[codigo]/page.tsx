@@ -44,6 +44,7 @@ export default function MacPage() {
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
+  const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
@@ -987,6 +988,45 @@ export default function MacPage() {
           </div>
         </div>
 
+
+            {/* HISTÓRICO MAC — boinhas clicáveis */}
+            <div className="mt-8 mb-4">
+              <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
+              {historicoMac.length === 0 ? (
+                <p className="text-slate-500 text-sm">Nenhuma alteração registrada ainda.</p>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-700" />
+                  <div className="flex flex-col gap-4">
+                    {historicoMac.map((ev, hidx) => {
+                      const aberto = historicoAberto === hidx;
+                      return (
+                        <div key={hidx} className="relative flex items-start gap-4 pl-10">
+                          <div className="absolute left-2 w-5 h-5 rounded-full border-2 border-indigo-400 cursor-pointer transition-transform hover:scale-125 flex items-center justify-center"
+                            onClick={() => setHistoricoAberto(aberto ? null : hidx)}>
+                            <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                          </div>
+                          <div className="flex-1">
+                            <button onClick={() => setHistoricoAberto(aberto ? null : hidx)}
+                              className="text-xs font-mono text-indigo-300 hover:underline text-left">
+                              {new Date(ev.momento).toLocaleString("pt-BR")} — {ev.total} campo(s) alterado(s)
+                            </button>
+                            {aberto && (
+                              <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs text-slate-300 space-y-1">
+                                <p><span className="text-slate-400">Data:</span> {new Date(ev.momento).toLocaleString("pt-BR")}</p>
+                                <p><span className="text-slate-400">Analista:</span> {ev.analista || "—"}</p>
+                                <p><span className="text-slate-400">Itens alterados:</span> {ev.total}</p>
+                                {ev.abas.length > 0 && <p><span className="text-slate-400">Abas:</span> {ev.abas.join(", ")}</p>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
         {/* PAINEL LATERAL */}
         <div className="w-72 bg-slate-800 border-l border-slate-700 p-4 flex flex-col gap-4 overflow-y-auto">
           <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">Ações</h3>

@@ -225,7 +225,7 @@ export default function Home() {
               <button
                 onClick={validar}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
-                ENTRAR
+                CADASTRAR
               </button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 px-1">
