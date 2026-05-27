@@ -823,6 +823,7 @@ export default function ProcessoClient() {
             onClick={() => setModalLimparLip(true)}
             className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🗑️ Limpar LIP
+          </button>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
