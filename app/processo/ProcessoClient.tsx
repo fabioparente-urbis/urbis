@@ -775,7 +775,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
-              if (t > 0) { setConfirmarMac(true); return; }
+              if (t > 0) { mostrarToast(`⚠️ ${t} campo(s) em laranja não conferidos.`, "info"); }
               await salvar();
               const rotaMac = "/analise-regularizacao"; // ACEITE slot pendente S5
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
