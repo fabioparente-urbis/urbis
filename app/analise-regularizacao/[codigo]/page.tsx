@@ -1066,6 +1066,14 @@ export default function MacPage() {
             })}
           </div>
 
+          {/* Botão Via / Logradouro */}
+          <button
+            onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}`); }}
+            className="w-full py-2 rounded-lg text-sm font-bold border transition-all bg-slate-700 border-slate-500 text-slate-200 hover:bg-slate-600 mt-1"
+          >
+            🗺️ Via / Logradouro
+          </button>
+
           <button onClick={() => {
   carregarModelos(tipoProcesso).then(() => setModalModelo(true));
 }}

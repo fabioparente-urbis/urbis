@@ -1068,50 +1068,6 @@ export default function ProcessoClient() {
             <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">{aba + 1} / {abasDB.length}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {aba === 0 && (
-            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <h3 className="text-sm font-bold text-blue-800 mb-3">Via no Cadastro Imobiliário</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="relative">
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">Setor / Bairro</label>
-                  <input type="text" value={bairroBusca} onChange={(e) => buscarBairros(e.target.value)}
-                    placeholder="Digite para buscar..." className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                  {bairrosBusca.length > 0 && (
-                    <ul className="absolute z-20 bg-white border border-slate-200 rounded shadow-lg w-full max-h-48 overflow-y-auto mt-1">
-                      {bairrosBusca.map((b) => (<li key={b} onClick={() => selecionarBairro(b)} className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer">{b}</li>))}
-                    </ul>
-                  )}
-                </div>
-                <div className="relative">
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">Logradouro</label>
-                  <input type="text" value={logradouroBusca} onChange={(e) => buscarLogradouros(e.target.value, d["bairro"]?.valor || bairroBusca)}
-                    placeholder="Digite para buscar..." className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-                  {logradourosBusca.length > 0 && (
-                    <ul className="absolute z-20 bg-white border border-slate-200 rounded shadow-lg w-full max-h-48 overflow-y-auto mt-1">
-                      {logradourosBusca.map((l) => (<li key={l} onClick={() => selecionarLogradouro(l, d["bairro"]?.valor || bairroBusca)} className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer">{l}</li>))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-              {dadosLogradouro && (
-                <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {([
-                    ["Hierarquia", dadosLogradouro.hierarquia_viaria],
-                    ["Largura da Via", dadosLogradouro.largura_via ? `${dadosLogradouro.largura_via}m` : "—"],
-                    ["Larg. Calçada", dadosLogradouro.larg_calcada ? `${dadosLogradouro.larg_calcada}m` : "—"],
-                    ["Largura Pista", dadosLogradouro.largura_pista ? `${dadosLogradouro.largura_pista}m` : "—"],
-                    ["Largura Ilha", dadosLogradouro.largura_ilha ? `${dadosLogradouro.largura_ilha}m` : "—"],
-                    ["Área", dadosLogradouro.area ? `${dadosLogradouro.area}m²` : "—"],
-                  ] as [string,string][]).map(([label, valor]) => (
-                    <div key={label} className="bg-white border border-blue-100 rounded p-2 text-center">
-                      <div className="text-xs text-slate-500">{label}</div>
-                      <div className="text-sm font-bold text-slate-800">{valor}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
             {abaAtual.lip_campos.map((campo) => renderCampo(campo))}
           </div>
         </div>
