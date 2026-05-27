@@ -204,6 +204,7 @@ export default function UsuariosPage() {
     <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
+          <button onClick={() => router.push("/admin/configuracoes")} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">⚙️ Configurações</button>
           <button onClick={() => router.push("/")} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">🏠 Home</button>
           <div>
             <h1 className="text-2xl font-bold">👥 Gestão de Usuários</h1>
