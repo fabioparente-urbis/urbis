@@ -120,6 +120,22 @@ export default function ProcessosPage() {
   // Gerente de gerencia tambem pode filtrar por analista (dentro da sua gerencia).
   const ehGerente = perfisUsuario.some((p) => (PERFIS_GERENCIA as readonly string[]).includes(p));
   const podeFiltrarAnalista = irrestrito || ehGerente;
+  const souAdmin = perfisUsuario.includes("Administrador");
+
+  async function removerTag(processoId: string, codigo: string, tagId: string) {
+    await fetch("/api/processo/tag", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo, tagId }),
+    });
+    setProcessos((prev) =>
+      prev.map((p) =>
+        p.id === processoId
+          ? { ...p, tags: (p.tags ?? []).filter((t) => t.id !== tagId) }
+          : p
+      )
+    );
+  }
 
   async function carregar() {
     try {
@@ -298,9 +314,17 @@ export default function ProcessosPage() {
                         <span
                           key={t.id ?? `${t.tipo}-${i}`}
                           title={t.data ? `Emitido em ${t.data}` : undefined}
-                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
+                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
                         >
                           {rotuloTag(t)}
+                          {souAdmin && t.id && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removerTag(p.id, p.codigo, t.id!); }}
+                              className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                              title="Remover tag">
+                              ×
+                            </button>
+                          )}
                         </span>
                       ))}
                     </div>

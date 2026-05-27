@@ -43,6 +43,7 @@ export default function MacPage() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"salvando"|"salvo"|"erro">("");
+  const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
@@ -301,8 +302,10 @@ export default function MacPage() {
           }),
         });
       }
+      setStatusSalvo("salvo");
+      setTimeout(() => setStatusSalvo(""), 2500);
     } catch {
-      // silencioso por design
+      setStatusSalvo("erro");
     } finally {
       if (analiseAtual?.id) carregarHistoricoMac(analiseAtual.id);
     }
@@ -705,7 +708,7 @@ export default function MacPage() {
             />
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
-              <div className="text-xs h-4 mt-0.5">{statusSalvo==="salvando"&&<span className="text-yellow-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
+              <div className="text-xs h-4 mt-0.5">{statusSalvo==="salvando"&&<span className="text-orange-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
               <p className="text-yellow-400 font-mono text-sm">{codigo}</p>
 {modeloSelecionado && (
   <p className="text-slate-400 text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
@@ -1157,30 +1160,6 @@ export default function MacPage() {
             >
               🗑️ Limpar MAC
             </button>
-          </div>
-          {/* HISTÓRICO MAC */}
-          <div className="mt-4 border-t border-slate-700 pt-4 px-1">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">🕐 Histórico</h3>
-            {historicoMac.length === 0 ? (
-              <p className="text-slate-500 text-xs">Nenhuma alteração ainda.</p>
-            ) : (
-              <div className="relative">
-                <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-slate-700" />
-                <div className="flex flex-col gap-3">
-                  {historicoMac.map((ev, idx) => (
-                    <div key={idx} className="relative flex items-start gap-3 pl-8">
-                      <div className="absolute left-1.5 w-3 h-3 rounded-full bg-indigo-500 border-2 border-indigo-300 mt-0.5" />
-                      <div className="text-xs text-slate-400 font-mono leading-relaxed">
-                        {new Date(ev.momento).toLocaleString("pt-BR")}
-                        <br/>
-                        <span className="text-slate-300">{ev.total} item(ns) alterado(s)</span>
-                        {ev.abas.length > 0 && <span className="text-slate-500"> · {ev.abas.slice(0,3).join(", ")}{ev.abas.length > 3 ? ` +${ev.abas.length-3}` : ""}</span>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

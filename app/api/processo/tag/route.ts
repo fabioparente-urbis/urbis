@@ -77,7 +77,13 @@ export async function POST(req: NextRequest) {
     if (erroBusca) return NextResponse.json({ ok: false, erro: erroBusca.message }, { status: 500 });
     if (!proc) return NextResponse.json({ ok: false, erro: "Processo nao encontrado" }, { status: 404 });
 
-    const tags = Array.isArray((proc as any).tags) ? [...(proc as any).tags] : [];
+    const tagsExistentes = Array.isArray((proc as any).tags) ? [...(proc as any).tags] : [];
+    // Dedup: reemissão do mesmo tipo+numero_analise substitui a tag anterior
+    const tags = tagsExistentes.filter((t: any) => {
+      if (t?.tipo !== tagIn.tipo) return true;
+      const mesmaN = (t?.numero_analise ?? null) === (tagIn.numero_analise ?? null);
+      return !mesmaN;
+    });
     const novaTag = {
       id: novoIdLeve(),
       tipo: tagIn.tipo,
