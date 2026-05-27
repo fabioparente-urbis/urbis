@@ -245,7 +245,7 @@ export default function ProcessoClient() {
     try {
       const res = await fetch(`/api/processo/historico?id=${idUrl}`);
       const meRes = await fetch("/api/auth/me");
-      if (meRes.ok) { const meJson = await meRes.json(); setPerfisUsuario(meJson.perfis || (meJson.perfil ? [meJson.perfil] : [])); }
+      if (meRes.ok) { const meJson = await meRes.json(); const p = Array.isArray(meJson.data?.perfis) ? meJson.data.perfis : (meJson.data?.perfil ? [meJson.data.perfil] : []); setPerfisUsuario(p); }
       const json = await res.json();
       if (json?.ok) setHistorico(json.data ?? []);
     } catch {}

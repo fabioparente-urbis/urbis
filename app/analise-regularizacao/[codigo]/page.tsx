@@ -42,6 +42,7 @@ export default function MacPage() {
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  const [statusSalvo, setStatusSalvo] = useState<""|"salvando"|"salvo"|"erro">("");
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
@@ -255,6 +256,7 @@ export default function MacPage() {
       .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
   }
   async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
+    setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
         const res = await fetch("/api/analise-regularizacao", {
@@ -703,6 +705,7 @@ export default function MacPage() {
             />
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
+              <div className="text-xs h-4 mt-0.5">{statusSalvo==="salvando"&&<span className="text-yellow-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
               <p className="text-yellow-400 font-mono text-sm">{codigo}</p>
 {modeloSelecionado && (
   <p className="text-slate-400 text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
