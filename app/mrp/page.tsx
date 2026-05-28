@@ -813,7 +813,6 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           )}
         </table>
       </div>
-    </div>
 
       {/* Modal de edição — admin */}
       {editando && (
