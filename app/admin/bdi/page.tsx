@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +12,9 @@ type Stats = {
   por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
   por_bairro: { bairro: string; total_processos: number; area_total: number; assunto: string }[];
   produtividade: { analista: string; gerencia: string; mes: number; ano: number; tipo_processo: string; total_despachos: number; total_pontos: number }[];
+  analistas: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number; total_retornos: number; pontos_totais_mrp: number; despachos_mrp: number; assunto: string }[];
+  autores: { autor: string; tipo_registro: string; total_processos: number; total_analises: number; assunto: string; status_processo: string }[];
+  nao_conformidades: { grupo: string; texto: string; ref: string; assunto: string; frequencia: number }[];
 };
 
 const MESES = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -203,6 +207,23 @@ export default function BDIPage() {
             {loadingStats && <div style={{ color: "#ffffff44", fontSize: 12, textAlign: "center", padding: 40 }}>Carregando estatísticas…</div>}
             {!loadingStats && stats && (
               <>
+                {/* Sub-abas de estatísticas */}
+                {(() => {
+                  const [subAba, setSubAba] = React.useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros">("resumo");
+                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["autores","✍️ Autores"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"]];
+                  return (
+                    <>
+                      <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:"1px solid #ffffff11", paddingBottom:0 }}>
+                        {subAbas.map(([k,l]) => (
+                          <button key={k} onClick={() => setSubAba(k as any)}
+                            style={{ padding:"6px 14px", fontSize:10, letterSpacing:2, cursor:"pointer", border:"none", background:"transparent",
+                              color: subAba===k ? "#d946ef" : "#ffffff44", borderBottom: subAba===k ? "2px solid #d946ef" : "2px solid transparent" }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+
+                {subAba === "resumo" && <>
                 {/* Resumo geral */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 24 }}>
                   {[
@@ -318,6 +339,105 @@ export default function BDIPage() {
                     </tbody>
                   </table>
                 </div>
+                </>}
+
+                {subAba === "analistas" && <>
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:14 }}>DESEMPENHO POR ANALISTA</div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["ANALISTA","GERÊNCIA","ASSUNTO","PROCESSOS","ÁREA m²","T.MÉDIO(h)","RETORNOS","PTS MRP","DESPACHOS"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.analistas.map((r,i)=>(
+                        <tr key={i}>
+                          <td style={S.td}>{r.analista||"—"}</td>
+                          <td style={S.td}><span style={S.badge("#06b6d4")}>{r.gerencia||"DIRAAP"}</span></td>
+                          <td style={S.td}><span style={S.badge("#d946ef")}>{r.assunto||"—"}</span></td>
+                          <td style={S.td}>{r.total_processos}</td>
+                          <td style={S.td}>{Number(r.area_total).toLocaleString("pt-BR",{maximumFractionDigits:0})}</td>
+                          <td style={S.td}>{Number(r.tempo_medio_horas).toFixed(1)}</td>
+                          <td style={S.td}>{r.total_retornos}</td>
+                          <td style={S.td}>{Number(r.pontos_totais_mrp).toFixed(1)}</td>
+                          <td style={S.td}>{r.despachos_mrp}</td>
+                        </tr>
+                      ))}
+                      {stats.analistas.length===0 && <tr><td colSpan={9} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                {subAba === "autores" && <>
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:14 }}>AUTORES — CAU / CREA</div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["AUTOR","TIPO","ASSUNTO","PROCESSOS","ANÁLISES","STATUS"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.autores.map((r,i)=>(
+                        <tr key={i}>
+                          <td style={{...S.td,fontFamily:"monospace",fontSize:11}}>{r.autor}</td>
+                          <td style={S.td}><span style={S.badge(r.tipo_registro==="CAU"?"#f59e0b":"#06b6d4")}>{r.tipo_registro}</span></td>
+                          <td style={S.td}><span style={S.badge("#d946ef")}>{r.assunto||"—"}</span></td>
+                          <td style={S.td}>{r.total_processos}</td>
+                          <td style={S.td}>{r.total_analises}</td>
+                          <td style={S.td}><span style={S.badge("#22c55e")}>{r.status_processo||"—"}</span></td>
+                        </tr>
+                      ))}
+                      {stats.autores.length===0 && <tr><td colSpan={6} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados de CAU/CREA registrados ainda</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                {subAba === "conformidade" && <>
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:14 }}>NÃO CONFORMIDADES MAIS FREQUENTES</div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["GRUPO","ITEM","REF. LEGAL","ASSUNTO","FREQ."].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.nao_conformidades.map((r,i)=>(
+                        <tr key={i}>
+                          <td style={{...S.td,fontSize:10}}><span style={S.badge("#f59e0b")}>{r.grupo}</span></td>
+                          <td style={{...S.td,fontSize:11,maxWidth:300}}>{r.texto}</td>
+                          <td style={{...S.td,fontSize:10,fontFamily:"monospace"}}>{r.ref||"—"}</td>
+                          <td style={S.td}><span style={S.badge("#d946ef")}>{r.assunto||"—"}</span></td>
+                          <td style={{...S.td,fontWeight:700,color:"#ef4444"}}>{r.frequencia}</td>
+                        </tr>
+                      ))}
+                      {stats.nao_conformidades.length===0 && <tr><td colSpan={5} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados de MAC ainda</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                {subAba === "bairros" && <>
+                <div style={S.card}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                    <div style={S.label}>DISTRIBUIÇÃO POR BAIRRO</div>
+                    <select value={filtroAssunto} onChange={e => setFiltroAssunto(e.target.value)}
+                      style={{ background:"#0a0a0f", border:"1px solid #ffffff22", borderRadius:4, color:"#f0f0f0", padding:"4px 10px", fontSize:11, fontFamily:"inherit" }}>
+                      {assuntosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["BAIRRO","PROCESSOS","ÁREA TOTAL (m²)","ASSUNTO"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {porBairroFiltrado.map(row=>(
+                        <tr key={row.bairro+row.assunto}>
+                          <td style={S.td}>{row.bairro}</td>
+                          <td style={S.td}>{row.total_processos}</td>
+                          <td style={S.td}>{Number(row.area_total).toLocaleString("pt-BR",{maximumFractionDigits:0})}</td>
+                          <td style={S.td}><span style={S.badge("#f59e0b")}>{row.assunto}</span></td>
+                        </tr>
+                      ))}
+                      {porBairroFiltrado.length===0 && <tr><td colSpan={4} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                    </>
+                  );
+                })()}
               </>
             )}
           </div>
