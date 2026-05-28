@@ -789,9 +789,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                     <Td>
                       <div className="flex gap-1">
                         <button onClick={() => setEditando({ ...r })}
-                          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100">✏️</button>
+                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">✏️</button>
                         <button onClick={() => excluir(r.id)}
-                          className="text-xs px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100">🗑</button>
+                          className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">🗑</button>
                       </div>
                     </Td>
                   )}
