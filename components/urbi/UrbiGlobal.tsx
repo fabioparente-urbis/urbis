@@ -9,14 +9,21 @@ export default function UrbiGlobal() {
   const pathname = usePathname();
   const isHome = pathname === "/";
 
-  useEffect(() => {
+  const buscarUsuario = () => {
     fetch("/api/auth/me")
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.data?.nome) setUsuario(data.data); })
       .catch(() => {});
+  };
+
+  useEffect(() => {
+    buscarUsuario();
+    window.addEventListener("urbi:refresh", buscarUsuario);
+    return () => window.removeEventListener("urbi:refresh", buscarUsuario);
   }, []);
 
   if (!usuario?.nome) return null;
+  if (!usuario?.urbi_ativo) return null;
 
   return (
     <>

@@ -9,7 +9,7 @@ type Usuario = {
   perfil: string;
   perfis?: string[];
   gerencia?: string | null;
-  status: string; reducao_meta?: number; criado_em: string;
+  status: string; reducao_meta?: number; urbi_ativo?: boolean; criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
 
@@ -37,6 +37,7 @@ const vazio = () => ({
   gerencia: "" as string, // "" | "PP" | "MP" | "GP" | "DIRAAP"
   status: "Ativo",
   reducao_meta: 0,
+  urbi_ativo: false,
 });
 
 export default function UsuariosPage() {
@@ -98,6 +99,7 @@ export default function UsuariosPage() {
       gerencia: gerenciaForm,
       status: u.status,
       reducao_meta: u.reducao_meta ?? 0,
+      urbi_ativo: u.urbi_ativo ?? false,
     });
     setSenha(""); setErro(""); setModal(true);
   }
@@ -152,6 +154,7 @@ export default function UsuariosPage() {
         return;
       }
       setModal(false); await carregar();
+      window.dispatchEvent(new Event('urbi:refresh'));
     } finally { setSalvando(false); }
   }
 
@@ -339,6 +342,18 @@ export default function UsuariosPage() {
                   <option value="Ativo">Ativo</option>
                   <option value="Inativo">Inativo</option>
                 </select>
+              </div>
+              <div className="flex items-center justify-between bg-slate-700 border border-slate-600 rounded-lg px-3 py-2">
+                <div>
+                  <p className="text-sm text-white font-semibold">🤖 URBI — Assistente IA</p>
+                  <p className="text-xs text-slate-400">Habilita o robozinho URBI para este usuário</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => f("urbi_ativo", !(form as any).urbi_ativo)}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${(form as any).urbi_ativo ? "bg-blue-600" : "bg-slate-500"}`}>
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(form as any).urbi_ativo ? "left-7" : "left-1"}`} />
+                </button>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>

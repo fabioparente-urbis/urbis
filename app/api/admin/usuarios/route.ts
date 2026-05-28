@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       perfis,
       gerencia,
       status: status || "Ativo",
+      urbi_ativo: body.urbi_ativo === true,
     });
 
     if (dbError) {
@@ -121,7 +122,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
     const reducao_meta = typeof body.reducao_meta === "number" ? body.reducao_meta : (parseInt(body.reducao_meta) || 0);
-    const atualizacao: any = { nome, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status, reducao_meta };
+    const atualizacao: any = { nome, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status, reducao_meta, urbi_ativo: body.urbi_ativo === true };
     if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
     if (status === "Ativo") atualizacao.descadastrado_em = null;
 

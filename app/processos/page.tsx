@@ -310,7 +310,9 @@ export default function ProcessosPage() {
                   <p className="font-mono text-emerald-600 font-semibold text-sm">{numero}</p>
                   {Array.isArray(p.tags) && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
-                      {p.tags.map((t, i) => (
+                      {(p.tags.filter((t, idx, arr) =>
+                        arr.findIndex(x => x.tipo === t.tipo && (x.numero_analise ?? null) === (t.numero_analise ?? null)) === idx
+                      )).map((t, i) => (
                         <span
                           key={t.id ?? `${t.tipo}-${i}`}
                           title={t.data ? `Emitido em ${t.data}` : undefined}

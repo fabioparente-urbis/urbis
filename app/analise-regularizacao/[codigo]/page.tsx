@@ -42,7 +42,7 @@ export default function MacPage() {
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
-  const [statusSalvo, setStatusSalvo] = useState<""|"salvando"|"salvo"|"erro">("");
+  const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
@@ -68,8 +68,6 @@ export default function MacPage() {
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
   // CAU/CREA do responsável técnico do projeto (item 3 Cowork).
-  const [cauResponsavel, setCauResponsavel] = useState("");
-  const [creaResponsavel, setCreaResponsavel] = useState("");
 
   // Seleção de modelo
   const [modalModelo, setModalModelo] = useState(false);
@@ -168,8 +166,6 @@ export default function MacPage() {
       setObservacoesPorAba(ultima.observacoes_por_aba || {});
       setNumeroRevisao(Number(ultima.numero_revisao) || 1);
       setHistoricoAnalises(ultima.historico_analises || "");
-      setCauResponsavel(ultima.cau_responsavel || "");
-      setCreaResponsavel(ultima.crea_responsavel || "");
       setNovaAnalise(false);
 
       // Carrega itens do modelo salvo na análise
@@ -193,6 +189,7 @@ export default function MacPage() {
   // auto-save ao alterar itens/obs
   useEffect(() => {
     if (checklistItens.length === 0) return;
+    setStatusSalvo("pendente");
     const t = setTimeout(() => salvarSilencioso("em_andamento"), 400);
     return () => clearTimeout(t);
   }, [itens, observacoes, observacoesPorAba, fontes, aceites]);
@@ -274,8 +271,6 @@ export default function MacPage() {
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
-            cau_responsavel: cauResponsavel,
-            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json().catch(() => null);
@@ -297,8 +292,6 @@ export default function MacPage() {
             status,
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
-            cau_responsavel: cauResponsavel,
-            crea_responsavel: creaResponsavel,
           }),
         });
       }
@@ -329,8 +322,6 @@ export default function MacPage() {
             modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
-            cau_responsavel: cauResponsavel,
-            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json();
@@ -351,8 +342,6 @@ export default function MacPage() {
             status,
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
-            cau_responsavel: cauResponsavel,
-            crea_responsavel: creaResponsavel,
           }),
         });
         const json = await res.json();
@@ -442,8 +431,6 @@ export default function MacPage() {
     setObservacoes("");
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
-    setCauResponsavel(ultima?.cau_responsavel || "");
-    setCreaResponsavel(ultima?.crea_responsavel || "");
     setNovaAnalise(true);
     carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
   }
@@ -457,8 +444,6 @@ export default function MacPage() {
     setObservacoesPorAba(a.observacoes_por_aba || {});
     setNumeroRevisao(Number(a.numero_revisao) || 1);
     setHistoricoAnalises(a.historico_analises || "");
-    setCauResponsavel(a.cau_responsavel || "");
-    setCreaResponsavel(a.crea_responsavel || "");
     setNovaAnalise(false);
     if (a.modelo_id) carregarItensModelo(a.modelo_id);
   }
@@ -709,7 +694,7 @@ export default function MacPage() {
             />
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
-              <div className="text-xs h-4 mt-0.5">{statusSalvo==="salvando"&&<span className="text-orange-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
+              <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-orange-400">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-orange-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
               <p className="text-yellow-400 font-mono text-sm">{codigo}</p>
 {modeloSelecionado && (
   <p className="text-slate-400 text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
@@ -739,33 +724,7 @@ export default function MacPage() {
           />
         </div>
 
-        {/* CAU / CREA do responsável técnico (item 3 Cowork) */}
-        <div className="mt-2 flex flex-wrap gap-3">
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
-              CAU do responsável técnico
-            </label>
-            <input
-              value={cauResponsavel}
-              onChange={(e) => setCauResponsavel(e.target.value)}
-              onBlur={() => void salvarSilencioso()}
-              placeholder="Ex: A12345-6"
-              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex flex-col gap-1 flex-1 min-w-[180px]">
-            <label className="text-slate-400 text-xs font-semibold uppercase tracking-wide">
-              CREA do responsável técnico
-            </label>
-            <input
-              value={creaResponsavel}
-              onChange={(e) => setCreaResponsavel(e.target.value)}
-              onBlur={() => void salvarSilencioso()}
-              placeholder="Ex: 1234567/D-GO"
-              className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
+
 
       </div>
 

@@ -168,7 +168,6 @@ export default function ProcessoClient() {
   const [carregando, setCarregando] = useState(true);
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
-  const [confirmarMac, setConfirmarMac] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
@@ -775,7 +774,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
-              if (t > 0) { setConfirmarMac(true); return; }
+              if (t > 0) mostrarToast(`⚠️ ${t} campo(s) em laranja não conferidos — verifique o LIP.`, "info");
               await salvar();
               const rotaMac = "/analise-regularizacao"; // ACEITE slot pendente S5
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
@@ -947,12 +946,22 @@ export default function ProcessoClient() {
 
       {/* ABAS */}
       <div className="flex flex-wrap gap-2 mb-4">
-        {abasDB.map((a, i) => (
-          <button key={a.id} onClick={() => setAba(i)}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${aba === i ? "bg-blue-600 text-white" : "bg-slate-700 text-slate-300 hover:bg-slate-600"}`}>
-            {a.nome}
-          </button>
-        ))}
+        {abasDB.map((a, i) => {
+          const temPendente = a.lip_campos.some(
+            (c) => c.chave !== "coordenadas" && d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === ""
+          );
+          return (
+            <button key={a.id} onClick={() => setAba(i)}
+              className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                aba === i ? "bg-blue-600 text-white" :
+                temPendente ? "bg-orange-900 border border-orange-600 text-orange-200 hover:bg-orange-800" :
+                "bg-slate-700 text-slate-300 hover:bg-slate-600"
+              }`}>
+              {a.nome}
+              {temPendente && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full border border-slate-900" />}
+            </button>
+          );
+        })}
       </div>
 
       {/* FORMULÁRIO */}
@@ -1100,24 +1109,7 @@ export default function ProcessoClient() {
         )}
       </div>
 
-      {confirmarMac && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes</h2>
-            <p className="text-slate-300 text-sm mb-5">Tem certeza que quer ir para o MAC sem confirmar os itens em laranja?</p>
-            <div className="flex gap-3">
-              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
-                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
-                Ir assim mesmo
-              </button>
-              <button onClick={() => setConfirmarMac(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
-                Voltar e conferir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
 
 
     </div>

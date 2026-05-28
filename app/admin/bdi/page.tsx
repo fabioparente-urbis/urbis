@@ -13,7 +13,7 @@ type Stats = {
   por_bairro: { bairro: string; total_processos: number; area_total: number; assunto: string }[];
   produtividade: { analista: string; gerencia: string; mes: number; ano: number; tipo_processo: string; total_despachos: number; total_pontos: number }[];
   analistas: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number; total_retornos: number; pontos_totais_mrp: number; despachos_mrp: number; assunto: string }[];
-  autores: { autor: string; tipo_registro: string; total_processos: number; total_analises: number; assunto: string; status_processo: string }[];
+  autores: { autor: string; registro: string; tipo_registro: string; total_processos: number; total_analises: number; total_nao_conformidades: number; erros_por_processo: number; assunto: string; status_processo: string }[];
   nao_conformidades: { grupo: string; texto: string; ref: string; assunto: string; frequencia: number }[];
 };
 
@@ -378,21 +378,29 @@ export default function BDIPage() {
 
                 {subAba === "autores" && <>
                 <div style={S.card}>
-                  <div style={{ ...S.label, marginBottom:14 }}>AUTORES — CAU / CREA</div>
+                  <div style={{ ...S.label, marginBottom:4 }}>RANKING DE PROJETISTAS — CAU / CREA</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>Ordenado por erros por processo (maior → menor risco)</div>
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                    <thead><tr>{["AUTOR","TIPO","ASSUNTO","PROCESSOS","ANÁLISES","STATUS"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{["#","AUTOR","REGISTRO","TIPO","ASSUNTO","PROC.","NÃO CONF.","ERROS/PROC."].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
-                      {stats.autores.map((r,i)=>(
-                        <tr key={i}>
-                          <td style={{...S.td,fontFamily:"monospace",fontSize:11}}>{r.autor}</td>
+                      {stats.autores.map((r,i)=>{
+                        const cor = r.erros_por_processo===0 ? "#22c55e" : r.erros_por_processo<=2 ? "#f59e0b" : "#ef4444";
+                        return (
+                        <tr key={i} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
+                          <td style={{...S.td,fontWeight:700,color:"#ffffff55",width:32}}>{i+1}</td>
+                          <td style={{...S.td,fontSize:11}}>{r.autor||"—"}</td>
+                          <td style={{...S.td,fontFamily:"monospace",fontSize:11,color:"#facc15"}}>{r.registro||"—"}</td>
                           <td style={S.td}><span style={S.badge(r.tipo_registro==="CAU"?"#f59e0b":"#06b6d4")}>{r.tipo_registro}</span></td>
                           <td style={S.td}><span style={S.badge("#d946ef")}>{r.assunto||"—"}</span></td>
-                          <td style={S.td}>{r.total_processos}</td>
-                          <td style={S.td}>{r.total_analises}</td>
-                          <td style={S.td}><span style={S.badge("#22c55e")}>{r.status_processo||"—"}</span></td>
+                          <td style={{...S.td,textAlign:"center"}}>{r.total_processos}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#ef4444",fontWeight:700}}>{r.total_nao_conformidades}</td>
+                          <td style={{...S.td,textAlign:"center"}}>
+                            <span style={{...S.badge(cor), fontSize:13, fontWeight:800}}>{r.erros_por_processo}</span>
+                          </td>
                         </tr>
-                      ))}
-                      {stats.autores.length===0 && <tr><td colSpan={6} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados de CAU/CREA registrados ainda</td></tr>}
+                        );
+                      })}
+                      {stats.autores.length===0 && <tr><td colSpan={8} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados de CAU/CREA — preencha o LIP com os responsáveis técnicos</td></tr>}
                     </tbody>
                   </table>
                 </div>
