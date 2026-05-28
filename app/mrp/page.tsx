@@ -524,7 +524,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
             <BarH dados={data.stats.por_faixa_area.map((x) => ({ label: x.faixa, value: x.count }))} />
           </Card>
           <Card titulo="Top bairros">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm text-gray-800">
               <thead><tr className="text-gray-500 text-xs uppercase">
                 <th className="text-left py-1">Bairro</th>
                 <th className="text-right">Qtd</th>
@@ -737,7 +737,7 @@ function Listona({ mes, ano, usuarioId }: { mes: number; ano: number; usuarioId:
       </div>
 
       <div className="bg-white rounded-lg shadow border overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm text-gray-800">
           <thead className="bg-slate-100 text-gray-700 text-xs uppercase">
             <tr>
               <Th>Data</Th><Th>Processo</Th><Th>Interessado</Th><Th>Assunto</Th>
