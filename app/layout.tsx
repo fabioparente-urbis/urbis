@@ -3,6 +3,7 @@ import "./globals.css";
 import HeaderGlobal from "@/components/HeaderGlobal";
 import UrbiWrapper from "@/components/urbi/UrbiWrapper";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import SessionTracker from "@/components/SessionTracker";
 
 export const metadata: Metadata = {
   title: "URBIS",
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <HeaderGlobal />
           {children}
           <UrbiWrapper />
+          <SessionTracker />
         </ThemeProvider>
       </body>
     </html>

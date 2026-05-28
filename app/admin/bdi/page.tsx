@@ -27,6 +27,8 @@ export default function BDIPage() {
   const [historico, setHistorico] = useState<Historico[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [sessoes, setSessoes] = useState<any[]>([]);
+  const [loadingSessoes, setLoadingSessoes] = useState(false);
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
   const [toast, setToast] = useState("");
   const [modalLei, setModalLei] = useState(false);
@@ -46,6 +48,14 @@ export default function BDIPage() {
     if (aba === "estatisticas" && !stats) carregarStats();
   }, [aba]);
 
+  async function carregarSessoes() {
+    if (loadingSessoes) return;
+    setLoadingSessoes(true);
+    const res = await fetch("/api/sessao/stats");
+    const json = await res.json();
+    if (json.ok) setSessoes(json.data ?? []);
+    setLoadingSessoes(false);
+  }
   async function carregarTudo() {
     const [r1, r2, r3] = await Promise.all([
       fetch("/api/urbi/config").then(r => r.json()),
@@ -209,13 +219,13 @@ export default function BDIPage() {
               <>
                 {/* Sub-abas de estatísticas */}
                 {(() => {
-                  const [subAba, setSubAba] = React.useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros">("resumo");
-                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["autores","✍️ Autores"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"]];
+                  const [subAba, setSubAba] = React.useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
+                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["autores","✍️ Autores"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
                   return (
                     <>
                       <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:"1px solid #ffffff11", paddingBottom:0 }}>
                         {subAbas.map(([k,l]) => (
-                          <button key={k} onClick={() => setSubAba(k as any)}
+                          <button key={k} onClick={() => { setSubAba(k as any); if (k === 'sessoes') carregarSessoes(); }}
                             style={{ padding:"6px 14px", fontSize:10, letterSpacing:2, cursor:"pointer", border:"none", background:"transparent",
                               color: subAba===k ? "#d946ef" : "#ffffff44", borderBottom: subAba===k ? "2px solid #d946ef" : "2px solid transparent" }}>
                             {l}
