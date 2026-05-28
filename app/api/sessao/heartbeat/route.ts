@@ -13,31 +13,28 @@ export async function POST(req: NextRequest) {
   const sessao_id: string | undefined = body.sessao_id;
   const pagina: string = body.pagina ?? "/";
 
-  // Ping em sessão existente
   if (sessao_id) {
-    const { count } = await supabaseAdmin
+    const { data: rows } = await supabaseAdmin
       .from("urbis_sessoes")
       .update({ ultimo_ping: new Date().toISOString(), pagina })
       .eq("id", sessao_id)
       .eq("usuario_id", ctx.userId)
       .eq("status", "ativa")
-      .select("id", { count: "exact", head: true });
+      .select("id");
 
-    if ((count ?? 0) === 0) {
+    if (!rows || rows.length === 0) {
       return NextResponse.json({ ativa: false });
     }
 
     return NextResponse.json({ sessao_id, ativa: true });
   }
 
-  // Encerrar sessões antigas do mesmo usuário (limpeza lazy)
   await supabaseAdmin
     .from("urbis_sessoes")
     .update({ status: "encerrada", encerrada_em: new Date().toISOString() })
     .eq("usuario_id", ctx.userId)
     .eq("status", "ativa");
 
-  // Criar nova sessão
   const { data } = await supabaseAdmin
     .from("urbis_sessoes")
     .insert({ usuario_id: ctx.userId, pagina, status: "ativa" })
