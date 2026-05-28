@@ -455,9 +455,10 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
         </div>
 
         {/* Cards rápidos */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <Kpi label="Despachos" valor={String(data.total_despachos)} />
           <Kpi label="Área m²" valor={data.area_total.toLocaleString("pt-BR")} />
+          <Kpi label="Meta diária" valor={`${data.pontos_necessarios_por_dia.toFixed(1)} pts/dia`} />
           <Kpi label="Tempo méd." valor={`${data.stats.tempo_medio_analise_dias}d`} />
         </div>
 

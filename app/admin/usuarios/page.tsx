@@ -36,6 +36,7 @@ const vazio = () => ({
   perfis: ["Analista"] as string[],
   gerencia: "" as string, // "" | "PP" | "MP" | "GP" | "DIRAAP"
   status: "Ativo",
+  reducao_meta: 0,
 });
 
 export default function UsuariosPage() {
@@ -317,6 +318,17 @@ export default function UsuariosPage() {
                     <option value="GP">GP</option>
                     <option value="DIRAAP">DIRAAP (direto)</option>
                   </select>
+                </div>
+              )}
+              {form.perfis.includes("Analista") && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Redução de meta (%)</label>
+                  <input type="number" min="0" max="100" step="5"
+                    value={(form as any).reducao_meta ?? 0}
+                    onChange={(e) => f("reducao_meta", Number(e.target.value))}
+                    placeholder="0 = sem redução, 50 = meta pela metade"
+                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <span className="text-xs text-slate-400">Meta efetiva: {Math.round(100 * (1 - ((form as any).reducao_meta ?? 0) / 100))} pts/mês</span>
                 </div>
               )}
               <div className="flex flex-col gap-1">
