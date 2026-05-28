@@ -350,7 +350,7 @@ export default function UsuariosPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => f("urbi_ativo", !(form as any).urbi_ativo)}
+                  onClick={() => f("urbi_ativo", !(form as any).urbi_ativo as any)}
                   className={`relative w-12 h-6 rounded-full transition-colors ${(form as any).urbi_ativo ? "bg-blue-600" : "bg-slate-500"}`}>
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(form as any).urbi_ativo ? "left-7" : "left-1"}`} />
                 </button>
