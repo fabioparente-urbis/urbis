@@ -19,6 +19,10 @@ export default function ConfiguracoesPage() {
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [sucessoId, setSucessoId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [metaMensal, setMetaMensal] = useState<number>(100);
+  const [metaInput, setMetaInput] = useState<string>("100");
+  const [salvandoMeta, setSalvandoMeta] = useState(false);
+  const [sucessoMeta, setSucessoMeta] = useState(false);
   const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros">("geral");
   const [logFiltro, setLogFiltro] = useState("");
   const [logData, setLogData] = useState<LogRow[]>([]);
@@ -32,7 +36,18 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(j => {
-      if (j.ok && Array.isArray(j.data?.perfis)) setIsAdmin(j.data.perfis.includes("Administrador"));
+      if (j.ok && Array.isArray(j.data?.perfis)) {
+        const admin = j.data.perfis.includes("Administrador");
+        setIsAdmin(admin);
+        if (admin) {
+          fetch("/api/admin/config").then(r => r.json()).then(cfg => {
+            if (cfg.ok && cfg.data?.meta_processos_mensal) {
+              setMetaMensal(cfg.data.meta_processos_mensal);
+              setMetaInput(String(cfg.data.meta_processos_mensal));
+            }
+          });
+        }
+      }
     });
   }, []);
 
@@ -48,6 +63,16 @@ export default function ConfiguracoesPage() {
     } catch (e: any) { setErro(e?.message || "Erro inesperado."); } finally { setCarregando(false); }
   }
   useEffect(() => { carregar(); }, []);
+
+  async function salvarMeta() {
+    const val = parseInt(metaInput);
+    if (isNaN(val) || val < 1) return;
+    setSalvandoMeta(true); setSucessoMeta(false);
+    const res = await fetch("/api/admin/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ meta_processos_mensal: val }) });
+    const json = await res.json();
+    setSalvandoMeta(false);
+    if (json.ok) { setMetaMensal(val); setSucessoMeta(true); setTimeout(() => setSucessoMeta(false), 2500); }
+  }
 
   function atualizarLinha(id: string, patch: Partial<{ nome: string; ativo: boolean }>) {
     setEdicao((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -119,6 +144,23 @@ export default function ConfiguracoesPage() {
               <button onClick={() => setTheme("dark")} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${theme === "dark" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600"}`}><Moon size={16} /> Escuro</button>
             </div>
           </div>
+          {isAdmin && (
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-white">Meta de Produtividade</h2>
+              <p className="text-sm text-slate-400 mt-1 mb-4">Meta mensal de processos por analista. Visível apenas para Administradores.</p>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2">
+                  <span className="text-slate-400 text-sm">Meta mensal:</span>
+                  <input type="number" min={1} max={9999} value={metaInput} onChange={e => { setMetaInput(e.target.value); setSucessoMeta(false); }} className="w-20 bg-transparent text-white text-sm font-semibold text-center focus:outline-none" />
+                  <span className="text-slate-500 text-sm">processos</span>
+                </div>
+                <button onClick={salvarMeta} disabled={salvandoMeta || parseInt(metaInput) === metaMensal} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors">
+                  {salvandoMeta ? <><Loader2 size={14} className="animate-spin" /> Salvando</> : sucessoMeta ? <><Check size={14} /> Salvo</> : "Salvar"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-white">Assuntos</h2>
             <p className="text-sm text-slate-400 mt-1">Configure os 15 trilhos de processo do sistema. Regularização é fixa e sempre ativa.</p>
