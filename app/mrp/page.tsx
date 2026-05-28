@@ -360,8 +360,6 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
   const [data, setData] = useState<PainelResposta | null>(null);
   const [analista, setAnalista] = useState<{ nome: string; reducao_meta: number; meta_base_legal: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [editando, setEditando] = useState<any | null>(null);
-  const [salvando, setSalvando] = useState(false);
   const [cal, setCal] = useState({ dias_uteis: 22, ferias: 0, atestado: 0, feriados: 0, facultativo: 0 });
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
