@@ -218,7 +218,7 @@ function MrpInner() {
             )}
             {aba === "dossie" && <Dossie />}
             {aba === "listona" && (
-              <Listona mes={mes} ano={ano} usuarioId={usuarioIdParam} />
+              <Listona mes={mes} ano={ano} usuarioId={usuarioIdParam} isAdmin={perfis.some(p => p.toLowerCase().includes('admin') || p.toLowerCase().includes('diretora') || p.toLowerCase().includes('irrestrito'))} />
             )}
           </>
         )}
@@ -360,6 +360,8 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
   const [data, setData] = useState<PainelResposta | null>(null);
   const [analista, setAnalista] = useState<{ nome: string; reducao_meta: number; meta_base_legal: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editando, setEditando] = useState<any | null>(null);
+  const [salvando, setSalvando] = useState(false);
   const [cal, setCal] = useState({ dias_uteis: 22, ferias: 0, atestado: 0, feriados: 0, facultativo: 0 });
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState("");
@@ -673,12 +675,14 @@ function Dossie() {
 // ════════════════════════════════════════════════════════════
 // ABA 3 — LISTONA
 // ════════════════════════════════════════════════════════════
-function Listona({ mes, ano, usuarioId }: { mes: number; ano: number; usuarioId: string | null }) {
+function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; usuarioId: string | null; isAdmin: boolean }) {
   const [regs, setRegs] = useState<any[]>([]);
   const [filtros, setFiltros] = useState({
     tipo_processo: "", tipo_despacho: "", porte: "", revisao: "", q: "",
   });
   const [loading, setLoading] = useState(true);
+  const [editando, setEditando] = useState<any | null>(null);
+  const [salvando, setSalvando] = useState(false);
 
   async function carregar() {
     setLoading(true);
@@ -704,6 +708,21 @@ function Listona({ mes, ano, usuarioId }: { mes: number; ano: number; usuarioId:
     if (filtros.tipo_processo) qs.set("tipo_processo", filtros.tipo_processo);
     if (filtros.tipo_despacho) qs.set("tipo_despacho", filtros.tipo_despacho);
     window.open(`/api/mrp/exportar?${qs}`, "_blank");
+  }
+
+  async function excluir(id: string) {
+    if (!confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return;
+    await fetch("/api/mrp/registros", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    carregar();
+  }
+
+  async function salvarEdicao() {
+    if (!editando) return;
+    setSalvando(true);
+    await fetch("/api/mrp/registros", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editando) });
+    setSalvando(false);
+    setEditando(null);
+    carregar();
   }
 
   return (
@@ -767,6 +786,16 @@ function Listona({ mes, ano, usuarioId }: { mes: number; ano: number; usuarioId:
                   <Td className="text-right font-semibold">{Number(r.pontos).toFixed(1)}</Td>
                   <Td className="text-right">{dur !== null ? `${dur}d` : "—"}</Td>
                   <Td className="text-xs text-gray-500">{r.observacoes || ""}</Td>
+                  {isAdmin && (
+                    <Td>
+                      <div className="flex gap-1">
+                        <button onClick={() => setEditando({ ...r })}
+                          className="text-xs px-2 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100">✏️</button>
+                        <button onClick={() => excluir(r.id)}
+                          className="text-xs px-2 py-1 bg-red-50 text-red-700 border border-red-200 rounded hover:bg-red-100">🗑</button>
+                      </div>
+                    </Td>
+                  )}
                 </tr>
               );
             })}
@@ -784,6 +813,68 @@ function Listona({ mes, ano, usuarioId }: { mes: number; ano: number; usuarioId:
           )}
         </table>
       </div>
+    </div>
+
+      {/* Modal de edição — admin */}
+      {editando && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+            <h2 className="text-base font-semibold text-gray-800 mb-4">✏️ Editar registro MRP</h2>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Data despacho</label>
+                <input type="date" value={editando.data_despacho?.slice(0,10) || ""} onChange={e => setEditando((v: any) => ({...v, data_despacho: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Processo</label>
+                <input value={editando.processo_codigo || ""} onChange={e => setEditando((v: any) => ({...v, processo_codigo: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">Interessado</label>
+                <input value={editando.interessado || ""} onChange={e => setEditando((v: any) => ({...v, interessado: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Tipo despacho</label>
+                <select value={editando.tipo_despacho || ""} onChange={e => setEditando((v: any) => ({...v, tipo_despacho: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm">
+                  {["despacho","laudo","indeferimento","arquivamento","interno"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Tipo processo</label>
+                <select value={editando.tipo_processo || ""} onChange={e => setEditando((v: any) => ({...v, tipo_processo: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm">
+                  {["REGULARIZACAO","ACEITE","APROVACAO"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Pontos</label>
+                <input type="number" step="0.5" value={editando.pontos || ""} onChange={e => setEditando((v: any) => ({...v, pontos: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Área m²</label>
+                <input type="number" step="0.01" value={editando.area_construida || ""} onChange={e => setEditando((v: any) => ({...v, area_construida: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 block mb-1">Observações</label>
+                <input value={editando.observacoes || ""} onChange={e => setEditando((v: any) => ({...v, observacoes: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm text-gray-600 border rounded hover:bg-gray-50">Cancelar</button>
+              <button onClick={salvarEdicao} disabled={salvando} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                {salvando ? "Salvando…" : "Salvar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
