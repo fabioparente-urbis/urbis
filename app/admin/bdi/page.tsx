@@ -30,6 +30,7 @@ export default function BDIPage() {
   const [sessoes, setSessoes] = useState<any[]>([]);
   const [loadingSessoes, setLoadingSessoes] = useState(false);
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
+  const [subAba, setSubAba] = useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
   const [toast, setToast] = useState("");
   const [modalLei, setModalLei] = useState(false);
   const [editandoLei, setEditandoLei] = useState<Lei | null>(null);
@@ -219,7 +220,6 @@ export default function BDIPage() {
               <>
                 {/* Sub-abas de estatísticas */}
                 {(() => {
-                  const [subAba, setSubAba] = React.useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
                   const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["autores","✍️ Autores"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
                   return (
                     <>

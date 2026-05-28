@@ -44,7 +44,7 @@ export default function MacPage() {
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
-  const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string}[]>([]);
+  const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;conformes:number;nao_conformes:number;nao_aplica:number}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
   const [abaAtual, setAbaAtual] = useState(0);
@@ -171,8 +171,13 @@ export default function MacPage() {
       // Carrega itens do modelo salvo na análise
       if (ultima.modelo_id) {
         await carregarItensModelo(ultima.modelo_id);
+      } else if (!ultima.modelo_id && Object.keys(ultima.itens || {}).length === 0) {
+        // Análise existe mas sem modelo e sem itens — força seleção de modelo
+        await carregarModelos(tipo, assunto);
+        setModeloSelecionado(null);
+        setModalModelo(true);
+        setNovaAnalise(false);
       } else {
-        // Sem modelo salvo — carrega o PADRÃO
         await carregarItensModelo("00000000-0000-0000-0000-000000000001");
       }
     } else {
@@ -976,6 +981,11 @@ export default function MacPage() {
                                 <p><span className="text-slate-400">Analista:</span> {ev.analista || "—"}</p>
                                 <p><span className="text-slate-400">Itens alterados:</span> {ev.total}</p>
                                 {ev.abas.length > 0 && <p><span className="text-slate-400">Abas:</span> {ev.abas.join(", ")}</p>}
+                                <div className="flex gap-2 mt-1">
+                                  {ev.conformes > 0 && <span className="px-2 py-0.5 rounded bg-green-900 text-green-300 font-bold">✅ {ev.conformes}</span>}
+                                  {ev.nao_conformes > 0 && <span className="px-2 py-0.5 rounded bg-red-900 text-red-300 font-bold">❌ {ev.nao_conformes}</span>}
+                                  {ev.nao_aplica > 0 && <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold">⬜ {ev.nao_aplica}</span>}
+                                </div>
                               </div>
                             )}
                           </div>
