@@ -9,7 +9,7 @@ type Usuario = {
   perfil: string;
   perfis?: string[];
   gerencia?: string | null;
-  status: string; criado_em: string;
+  status: string; reducao_meta?: number; criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
 
@@ -97,6 +97,7 @@ export default function UsuariosPage() {
       perfis: perfisIniciais,
       gerencia: gerenciaForm,
       status: u.status,
+      reducao_meta: u.reducao_meta ?? 0,
     });
     setSenha(""); setErro(""); setModal(true);
   }
@@ -325,7 +326,7 @@ export default function UsuariosPage() {
                   <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Redução de meta (%)</label>
                   <input type="number" min="0" max="100" step="5"
                     value={(form as any).reducao_meta ?? 0}
-                    onChange={(e) => f("reducao_meta", Number(e.target.value))}
+                    onChange={(e) => f("reducao_meta", e.target.value as any)}
                     placeholder="0 = sem redução, 50 = meta pela metade"
                     className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   <span className="text-xs text-slate-400">Meta efetiva: {Math.round(100 * (1 - ((form as any).reducao_meta ?? 0) / 100))} pts/mês</span>
