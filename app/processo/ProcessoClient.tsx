@@ -294,6 +294,7 @@ export default function ProcessoClient() {
   }, [d["bairro"]?.valor, d["logradouro"]?.valor]);
 
   const inputImportRef = useRef<HTMLInputElement>(null);
+  const [confirmarMac, setConfirmarMac] = useState(false);
   const [importando, setImportando] = useState(false);
   async function importarExcel(file: File) {
     if (!file) return;
@@ -774,9 +775,9 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
-              if (t > 0) mostrarToast(`⚠️ ${t} campo(s) em laranja não conferidos — verifique o LIP.`, "info");
+              if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
-              const rotaMac = "/analise-regularizacao"; // ACEITE slot pendente S5
+              const rotaMac = "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
             className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
@@ -1111,6 +1112,27 @@ export default function ProcessoClient() {
 
 
 
+
+
+
+      {confirmarMac && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes no LIP</h2>
+            <p className="text-slate-300 text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
+            <div className="flex gap-3">
+              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
+                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
+                Ir assim mesmo
+              </button>
+              <button onClick={() => setConfirmarMac(false)}
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
+                Voltar e conferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

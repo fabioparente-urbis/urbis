@@ -44,7 +44,7 @@ export default function MacPage() {
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
-  const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;conformes:number;nao_conformes:number;nao_aplica:number}[]>([]);
+  const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;itens:{aba:string;texto:string;ref:string|null;de:string|null;para:string}[]}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
   const [toast, setToast] = useState("");
   const [abaAtual, setAbaAtual] = useState(0);
@@ -976,16 +976,32 @@ export default function MacPage() {
                               {new Date(ev.momento).toLocaleString("pt-BR")} — {ev.total} campo(s) alterado(s)
                             </button>
                             {aberto && (
-                              <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs text-slate-300 space-y-1">
+                              <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs text-slate-300 space-y-2">
                                 <p><span className="text-slate-400">Data:</span> {new Date(ev.momento).toLocaleString("pt-BR")}</p>
                                 <p><span className="text-slate-400">Analista:</span> {ev.analista || "—"}</p>
                                 <p><span className="text-slate-400">Itens alterados:</span> {ev.total}</p>
-                                {ev.abas.length > 0 && <p><span className="text-slate-400">Abas:</span> {ev.abas.join(", ")}</p>}
-                                <div className="flex gap-2 mt-1">
-                                  {ev.conformes > 0 && <span className="px-2 py-0.5 rounded bg-green-900 text-green-300 font-bold">✅ {ev.conformes}</span>}
-                                  {ev.nao_conformes > 0 && <span className="px-2 py-0.5 rounded bg-red-900 text-red-300 font-bold">❌ {ev.nao_conformes}</span>}
-                                  {ev.nao_aplica > 0 && <span className="px-2 py-0.5 rounded bg-slate-700 text-slate-300 font-bold">⬜ {ev.nao_aplica}</span>}
-                                </div>
+                                {ev.itens.length > 0 && (
+                                  <table className="w-full mt-2 border-collapse">
+                                    <thead>
+                                      <tr className="text-slate-500 text-[10px] uppercase">
+                                        <th className="text-left pb-1 pr-2">Aba</th>
+                                        <th className="text-left pb-1 pr-2">Item</th>
+                                        <th className="text-left pb-1 pr-2">De</th>
+                                        <th className="text-left pb-1">Para</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {ev.itens.map((it, ii) => (
+                                        <tr key={ii} className="border-t border-slate-700">
+                                          <td className="py-1 pr-2 text-slate-400 whitespace-nowrap">{it.aba}</td>
+                                          <td className="py-1 pr-2 text-slate-200 max-w-[200px]">{it.texto}{it.ref && <span className="text-slate-500 ml-1">({it.ref})</span>}</td>
+                                          <td className="py-1 pr-2 text-slate-500 whitespace-nowrap">{it.de || "—"}</td>
+                                          <td className="py-1 whitespace-nowrap font-bold text-white">{it.para}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
                               </div>
                             )}
                           </div>
