@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao } = body;
+    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id } = body;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const { data: proc } = await supabase
       .from("processos")
-      .select("dados, numero_processo_fisico, analista_id")
+      .select("dados, numero_processo_fisico, analista_id, tipo_processo")
       .eq("codigo", processo)
       .maybeSingle();
 
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
       await gravarRegistroMRP({
         processo_codigo: processo,
-        tipo_processo: "REGULARIZACAO",
+        tipo_processo: ((proc as any)?.tipo_processo ?? "REGULARIZACAO").toUpperCase() === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
         tipo_despacho: tipo === "despacho" ? "despacho" : tipo === "indeferimento" ? "indeferimento" : "arquivamento",
         numero_despacho: numeroDespacho ?? null,
         analise_id: analiseId ?? null,

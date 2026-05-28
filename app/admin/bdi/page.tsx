@@ -5,13 +5,25 @@ import { useRouter } from "next/navigation";
 type Config = { chave: string; valor: string; descricao: string };
 type Lei = { id: string; titulo: string; tipo: string; numero: string; url_pdf: string; resumo: string; tags: string[]; ativo: boolean };
 type Historico = { id: string; usuario_nome: string; linha: string; mensagem_usuario: string; resposta_urbi: string; criado_em: string };
+type Stats = {
+  resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
+  por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
+  por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
+  por_bairro: { bairro: string; total_processos: number; area_total: number; assunto: string }[];
+  produtividade: { analista: string; gerencia: string; mes: number; ano: number; tipo_processo: string; total_despachos: number; total_pontos: number }[];
+};
+
+const MESES = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 export default function BDIPage() {
   const router = useRouter();
-  const [aba, setAba] = useState<"painel"|"capacidades"|"legislacao"|"historico">("painel");
+  const [aba, setAba] = useState<"painel"|"estatisticas"|"capacidades"|"legislacao"|"historico">("painel");
   const [config, setConfig] = useState<Config[]>([]);
   const [leis, setLeis] = useState<Lei[]>([]);
   const [historico, setHistorico] = useState<Historico[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [filtroAssunto, setFiltroAssunto] = useState("Todos");
   const [toast, setToast] = useState("");
   const [modalLei, setModalLei] = useState(false);
   const [editandoLei, setEditandoLei] = useState<Lei | null>(null);
@@ -26,6 +38,10 @@ export default function BDIPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (aba === "estatisticas" && !stats) carregarStats();
+  }, [aba]);
+
   async function carregarTudo() {
     const [r1, r2, r3] = await Promise.all([
       fetch("/api/urbi/config").then(r => r.json()),
@@ -37,8 +53,18 @@ export default function BDIPage() {
     if (r3.ok) setHistorico(r3.data);
   }
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(""), 3000); }
+  async function carregarStats() {
+    setLoadingStats(true);
+    try {
+      const r = await fetch("/api/bdi/stats");
+      const j = await r.json();
+      if (j.ok) setStats(j);
+    } finally {
+      setLoadingStats(false);
+    }
+  }
 
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(""), 3000); }
   function getConfig(chave: string) { return config.find(c => c.chave === chave)?.valor ?? ""; }
 
   async function toggleConfig(chave: string) {
@@ -58,8 +84,7 @@ export default function BDIPage() {
       await fetch("/api/urbi/legislacao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       showToast("Lei cadastrada.");
     }
-    setModalLei(false);
-    setEditandoLei(null);
+    setModalLei(false); setEditandoLei(null);
     setForm({ titulo: "", tipo: "lei", numero: "", url_pdf: "", resumo: "", tags: "" });
     carregarTudo();
   }
@@ -72,8 +97,7 @@ export default function BDIPage() {
   async function deletarLei(id: string) {
     if (!confirm("Remover esta lei?")) return;
     await fetch("/api/urbi/legislacao", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    showToast("Lei removida.");
-    carregarTudo();
+    showToast("Lei removida."); carregarTudo();
   }
 
   function abrirEdicao(lei: Lei) {
@@ -93,11 +117,24 @@ export default function BDIPage() {
   const leiAtivas = leis.filter(l => l.ativo).length;
   const urbiAtivo = getConfig("urbi_ativo") === "true";
 
+  // Stats filtradas por assunto
+  const assuntosDisponiveis = ["Todos", ...Array.from(new Set((stats?.por_assunto ?? []).map(x => x.assunto)))];
+  const porBairroFiltrado = filtroAssunto === "Todos"
+    ? stats?.por_bairro ?? []
+    : (stats?.por_bairro ?? []).filter(b => b.assunto === filtroAssunto);
+  const porAssuntoAgrupado = (stats?.por_assunto ?? []).reduce((acc, row) => {
+    if (!acc[row.assunto]) acc[row.assunto] = { assunto: row.assunto, total_processos: 0, area_total: 0, total_retornos: 0 };
+    acc[row.assunto].total_processos += Number(row.total_processos);
+    acc[row.assunto].area_total += Number(row.area_total);
+    acc[row.assunto].total_retornos += Number(row.total_retornos);
+    return acc;
+  }, {} as Record<string, { assunto: string; total_processos: number; area_total: number; total_retornos: number }>);
+
   const S: Record<string, any> = {
     page: { background: "#0a0a0f", minHeight: "100vh", fontFamily: "'JetBrains Mono', monospace", color: "#e2e8f0" },
     header: { borderBottom: "1px solid #d946ef33", padding: "14px 28px", display: "flex", alignItems: "center", justifyContent: "space-between", background: "#0d0d14" },
-    abas: { display: "flex", gap: 4, padding: "16px 28px 0", borderBottom: "1px solid #ffffff11" },
-    aba: (ativa: boolean): React.CSSProperties => ({ padding: "8px 18px", fontSize: 11, letterSpacing: 2, cursor: "pointer", border: "none", background: "transparent", color: ativa ? "#d946ef" : "#ffffff44", borderBottom: ativa ? "2px solid #d946ef" : "2px solid transparent", transition: "all 0.15s" }),
+    abas: { display: "flex", gap: 4, padding: "16px 28px 0", borderBottom: "1px solid #ffffff11", overflowX: "auto" as const },
+    aba: (ativa: boolean): React.CSSProperties => ({ padding: "8px 18px", fontSize: 11, letterSpacing: 2, cursor: "pointer", border: "none", background: "transparent", color: ativa ? "#d946ef" : "#ffffff44", borderBottom: ativa ? "2px solid #d946ef" : "2px solid transparent", transition: "all 0.15s", whiteSpace: "nowrap" as const }),
     content: { padding: "24px 28px" },
     card: { background: "#0d0d14", border: "1px solid #ffffff11", borderRadius: 8, padding: 20, marginBottom: 16 },
     label: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, marginBottom: 6 },
@@ -105,11 +142,13 @@ export default function BDIPage() {
     toggle: (ativo: boolean): React.CSSProperties => ({ width: 42, height: 22, borderRadius: 11, background: ativo ? "#d946ef" : "#ffffff22", border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }),
     input: { background: "#0a0a0f", border: "1px solid #ffffff22", borderRadius: 6, color: "#f0f0f0", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", width: "100%", outline: "none", marginBottom: 10 },
     btn: (cor: string): React.CSSProperties => ({ background: cor + "22", border: `1px solid ${cor}55`, color: cor, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1 }),
+    th: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, padding: "8px 12px", textAlign: "left" as const, borderBottom: "1px solid #ffffff11" },
+    td: { color: "#f0f0f0", fontSize: 12, padding: "8px 12px", borderBottom: "1px solid #ffffff08" },
+    badge: (cor: string): React.CSSProperties => ({ background: cor + "22", border: `1px solid ${cor}44`, color: cor, fontSize: 9, padding: "2px 8px", borderRadius: 10, letterSpacing: 1 }),
   };
 
   return (
     <div style={S.page}>
-      {/* Header */}
       <div style={S.header}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <img src="/urbi/urbi-botao.jpg" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} />
@@ -122,18 +161,16 @@ export default function BDIPage() {
         </div>
       </div>
 
-      {/* Abas */}
       <div style={S.abas}>
-        {(["painel","capacidades","legislacao","historico"] as const).map(a => (
+        {(["painel","estatisticas","capacidades","legislacao","historico"] as const).map(a => (
           <button key={a} style={S.aba(aba === a)} onClick={() => setAba(a)}>
-            {{ painel: "📊 PAINEL", capacidades: "⚙️ CAPACIDADES", legislacao: "📚 LEGISLAÇÃO", historico: "🕘 HISTÓRICO" }[a]}
+            {{ painel: "📊 PAINEL", estatisticas: "🧠 ESTATÍSTICAS", capacidades: "⚙️ CAPACIDADES", legislacao: "📚 LEGISLAÇÃO", historico: "🕘 HISTÓRICO" }[a]}
           </button>
         ))}
       </div>
 
       <div style={S.content}>
 
-        {/* PAINEL */}
         {aba === "painel" && (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
@@ -161,7 +198,131 @@ export default function BDIPage() {
           </div>
         )}
 
-        {/* CAPACIDADES */}
+        {aba === "estatisticas" && (
+          <div>
+            {loadingStats && <div style={{ color: "#ffffff44", fontSize: 12, textAlign: "center", padding: 40 }}>Carregando estatísticas…</div>}
+            {!loadingStats && stats && (
+              <>
+                {/* Resumo geral */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 12, marginBottom: 24 }}>
+                  {[
+                    { label: "PROCESSOS", valor: stats.resumo.total_processos ?? 0 },
+                    { label: "ANALISTAS", valor: stats.resumo.total_analistas ?? 0 },
+                    { label: "BAIRROS", valor: stats.resumo.total_bairros ?? 0 },
+                    { label: "RETORNOS", valor: stats.resumo.total_retornos ?? 0 },
+                    { label: "ÁREA TOTAL (m²)", valor: Number(stats.resumo.area_total_construida ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) },
+                    { label: "ÁREA MÉDIA (m²)", valor: Number(stats.resumo.area_media ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) },
+                  ].map(({ label, valor }) => (
+                    <div key={label} style={{ ...S.card, marginBottom: 0 }}>
+                      <div style={S.label}>{label}</div>
+                      <div style={{ ...S.valor, fontSize: 18 }}>{valor}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Por assunto */}
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom: 14 }}>PROCESSOS POR ASSUNTO</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {["ASSUNTO","PROCESSOS","ÁREA TOTAL (m²)","ÁREA MÉDIA (m²)","RETORNOS"].map(h => <th key={h} style={S.th}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.values(porAssuntoAgrupado).map(row => (
+                        <tr key={row.assunto}>
+                          <td style={S.td}><span style={S.badge("#d946ef")}>{row.assunto}</span></td>
+                          <td style={S.td}>{row.total_processos}</td>
+                          <td style={S.td}>{Number(row.area_total).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
+                          <td style={S.td}>{row.total_processos > 0 ? Number(row.area_total / row.total_processos).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) : "—"}</td>
+                          <td style={S.td}>{row.total_retornos}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Por analista */}
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom: 14 }}>PRODUTIVIDADE POR ANALISTA</div>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        {["ANALISTA","GERÊNCIA","PROCESSOS","ÁREA TOTAL (m²)","T. MÉDIO (h)"].map(h => <th key={h} style={S.th}>{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.por_analista.map(row => (
+                        <tr key={row.analista}>
+                          <td style={S.td}>{row.analista}</td>
+                          <td style={S.td}><span style={S.badge("#06b6d4")}>{row.gerencia ?? "—"}</span></td>
+                          <td style={S.td}>{row.total_processos}</td>
+                          <td style={S.td}>{Number(row.area_total).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
+                          <td style={S.td}>{Number(row.tempo_medio_horas).toFixed(1)}</td>
+                        </tr>
+                      ))}
+                      {stats.por_analista.length === 0 && <tr><td colSpan={5} style={{ ...S.td, color: "#ffffff33", textAlign: "center" }}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Top bairros */}
+                <div style={S.card}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div style={S.label}>TOP BAIRROS</div>
+                    <select value={filtroAssunto} onChange={e => setFiltroAssunto(e.target.value)}
+                      style={{ background: "#0a0a0f", border: "1px solid #ffffff22", borderRadius: 4, color: "#f0f0f0", padding: "4px 10px", fontSize: 11, fontFamily: "inherit" }}>
+                      {assuntosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>{["BAIRRO","PROCESSOS","ÁREA TOTAL (m²)","ASSUNTO"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {porBairroFiltrado.map(row => (
+                        <tr key={row.bairro + row.assunto}>
+                          <td style={S.td}>{row.bairro}</td>
+                          <td style={S.td}>{row.total_processos}</td>
+                          <td style={S.td}>{Number(row.area_total).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
+                          <td style={S.td}><span style={S.badge("#f59e0b")}>{row.assunto}</span></td>
+                        </tr>
+                      ))}
+                      {porBairroFiltrado.length === 0 && <tr><td colSpan={4} style={{ ...S.td, color: "#ffffff33", textAlign: "center" }}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Produtividade MRP */}
+                <div style={S.card}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div style={S.label}>PRODUTIVIDADE MRP (DESPACHOS)</div>
+                    <button onClick={carregarStats} style={S.btn("#d946ef")}>↻ Atualizar</button>
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>{["ANALISTA","PERÍODO","TIPO","DESPACHOS","PONTOS"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr>
+                    </thead>
+                    <tbody>
+                      {stats.produtividade.slice(0, 30).map((row, i) => (
+                        <tr key={i}>
+                          <td style={S.td}>{row.analista}</td>
+                          <td style={S.td}>{MESES[row.mes]}/{row.ano}</td>
+                          <td style={S.td}><span style={S.badge("#22c55e")}>{row.tipo_processo}</span></td>
+                          <td style={S.td}>{row.total_despachos}</td>
+                          <td style={S.td}>{Number(row.total_pontos).toFixed(1)}</td>
+                        </tr>
+                      ))}
+                      {stats.produtividade.length === 0 && <tr><td colSpan={5} style={{ ...S.td, color: "#ffffff33", textAlign: "center" }}>Sem dados de MRP ainda</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {aba === "capacidades" && (
           <div>
             {linhas.map(({ chave, label, desc, emoji }) => {
@@ -185,7 +346,6 @@ export default function BDIPage() {
           </div>
         )}
 
-        {/* LEGISLAÇÃO */}
         {aba === "legislacao" && (
           <div>
             <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
@@ -197,7 +357,7 @@ export default function BDIPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ background: "#d946ef22", border: "1px solid #d946ef44", color: "#d946ef", fontSize: 9, padding: "2px 8px", borderRadius: 10, letterSpacing: 1 }}>{lei.tipo.toUpperCase()}</span>
+                      <span style={S.badge("#d946ef")}>{lei.tipo.toUpperCase()}</span>
                       {lei.numero && <span style={{ color: "#ffffff44", fontSize: 11 }}>Nº {lei.numero}</span>}
                     </div>
                     <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{lei.titulo}</div>
@@ -220,7 +380,6 @@ export default function BDIPage() {
           </div>
         )}
 
-        {/* HISTÓRICO */}
         {aba === "historico" && (
           <div>
             {historico.length === 0 && <div style={{ color: "#ffffff33", fontSize: 12, textAlign: "center", padding: 40 }}>Nenhuma conversa registrada ainda.</div>}
@@ -229,7 +388,7 @@ export default function BDIPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                   <span style={{ color: "#d946ef", fontSize: 11 }}>{h.usuario_nome}</span>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {h.linha && <span style={{ background: "#06b6d422", color: "#06b6d4", fontSize: 9, padding: "2px 8px", borderRadius: 10 }}>{h.linha}</span>}
+                    {h.linha && <span style={S.badge("#06b6d4")}>{h.linha}</span>}
                     <span style={{ color: "#ffffff33", fontSize: 10 }}>{new Date(h.criado_em).toLocaleString("pt-BR")}</span>
                   </div>
                 </div>
@@ -241,7 +400,6 @@ export default function BDIPage() {
         )}
       </div>
 
-      {/* Modal Lei */}
       {modalLei && (
         <div style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
           <div style={{ background: "#0d0d14", border: "1px solid #d946ef44", borderRadius: 10, padding: 28, width: 500, maxWidth: "90vw" }}>

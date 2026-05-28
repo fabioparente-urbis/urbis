@@ -44,7 +44,7 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
         .from("analises_mac")
         .select("id, numero_analise, numero_revisao, criado_em, analista_id")
         .eq("processo_codigo", input.processo_codigo)
-        .eq("tipo_processo", input.tipo_processo)
+        
         .order("numero_analise", { ascending: false })
         .limit(1).maybeSingle();
       analise = data;
@@ -55,7 +55,7 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
       .from("processos")
       .select("dados, analista_id, tipo_processo")
       .eq("codigo", input.processo_codigo)
-      .eq("tipo_processo", input.tipo_processo)
+      
       .maybeSingle();
 
     if (!proc) return { ok: false, motivo: "processo não encontrado" };
