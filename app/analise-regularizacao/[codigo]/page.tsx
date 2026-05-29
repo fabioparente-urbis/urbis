@@ -579,66 +579,6 @@ export default function MacPage() {
         </div>
       )}
 
-      {/* HISTÓRICO MAC */}
-          <div className="mt-8 px-2 pb-6">
-            <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
-            {historicoMac.length === 0 ? (
-              <p className="text-slate-500 text-sm">Nenhuma alteração registrada ainda.</p>
-            ) : (
-              <div className="relative">
-                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-700" />
-                <div className="flex flex-col gap-4">
-                  {historicoMac.map((ev, hidx) => {
-                    const aberto = historicoAberto === hidx;
-                    return (
-                      <div key={hidx} className="relative flex items-start gap-4 pl-10">
-                        <div className="absolute left-2 w-5 h-5 rounded-full border-2 border-indigo-400 cursor-pointer transition-transform hover:scale-125 flex items-center justify-center"
-                          onClick={() => setHistoricoAberto(aberto ? null : hidx)}>
-                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                        </div>
-                        <div className="flex-1">
-                          <button onClick={() => setHistoricoAberto(aberto ? null : hidx)}
-                            className="text-xs font-mono text-indigo-300 hover:underline text-left">
-                            {new Date(ev.momento).toLocaleString("pt-BR")} — {ev.total} campo(s) alterado(s)
-                          </button>
-                          {aberto && (
-                            <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs text-slate-300 space-y-2">
-                              <p><span className="text-slate-400">Data:</span> {new Date(ev.momento).toLocaleString("pt-BR")}</p>
-                              <p><span className="text-slate-400">Analista:</span> {ev.analista || "—"}</p>
-                              <p><span className="text-slate-400">Itens alterados:</span> {ev.total}</p>
-                              {ev.itens.length > 0 && (
-                                <table className="w-full mt-2 border-collapse">
-                                  <thead>
-                                    <tr className="text-slate-500 text-[10px] uppercase">
-                                      <th className="text-left pb-1 pr-2">Aba</th>
-                                      <th className="text-left pb-1 pr-2">Item</th>
-                                      <th className="text-left pb-1 pr-2">De</th>
-                                      <th className="text-left pb-1">Para</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {ev.itens.map((it, ii) => (
-                                      <tr key={ii} className="border-t border-slate-700">
-                                        <td className="py-1 pr-2 text-slate-400 whitespace-nowrap">{it.aba}</td>
-                                        <td className="py-1 pr-2 text-slate-200 max-w-[200px]">{it.texto}{it.ref && <span className="text-slate-500 ml-1">({it.ref})</span>}</td>
-                                        <td className="py-1 pr-2 text-slate-500 whitespace-nowrap">{it.de || "—"}</td>
-                                        <td className="py-1 whitespace-nowrap font-bold text-white">{it.para}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
       {/* MODAL GERAR DESPACHO */}
       {modalDespacho && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -1009,6 +949,65 @@ export default function MacPage() {
                 Próxima →
               </button>
             </div>
+          {/* HISTÓRICO MAC */}
+          <div className="mt-8 px-2 pb-6">
+            <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
+            {historicoMac.length === 0 ? (
+              <p className="text-slate-500 text-sm">Nenhuma alteração registrada ainda.</p>
+            ) : (
+              <div className="relative">
+                <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-700" />
+                <div className="flex flex-col gap-4">
+                  {historicoMac.map((ev, hidx) => {
+                    const aberto = historicoAberto === hidx;
+                    return (
+                      <div key={hidx} className="relative flex items-start gap-4 pl-10">
+                        <div className="absolute left-2 w-5 h-5 rounded-full border-2 border-indigo-400 cursor-pointer transition-transform hover:scale-125 flex items-center justify-center"
+                          onClick={() => setHistoricoAberto(aberto ? null : hidx)}>
+                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                        </div>
+                        <div className="flex-1">
+                          <button onClick={() => setHistoricoAberto(aberto ? null : hidx)}
+                            className="text-xs font-mono text-indigo-300 hover:underline text-left">
+                            {new Date(ev.momento).toLocaleString("pt-BR")} — {ev.total} campo(s) alterado(s)
+                          </button>
+                          {aberto && (
+                            <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs text-slate-300 space-y-2">
+                              <p><span className="text-slate-400">Data:</span> {new Date(ev.momento).toLocaleString("pt-BR")}</p>
+                              <p><span className="text-slate-400">Analista:</span> {ev.analista || "—"}</p>
+                              <p><span className="text-slate-400">Itens alterados:</span> {ev.total}</p>
+                              {ev.itens.length > 0 && (
+                                <table className="w-full mt-2 border-collapse">
+                                  <thead>
+                                    <tr className="text-slate-500 text-[10px] uppercase">
+                                      <th className="text-left pb-1 pr-2">Aba</th>
+                                      <th className="text-left pb-1 pr-2">Item</th>
+                                      <th className="text-left pb-1 pr-2">De</th>
+                                      <th className="text-left pb-1">Para</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {ev.itens.map((it, ii) => (
+                                      <tr key={ii} className="border-t border-slate-700">
+                                        <td className="py-1 pr-2 text-slate-400 whitespace-nowrap">{it.aba}</td>
+                                        <td className="py-1 pr-2 text-slate-200 max-w-[200px]">{it.texto}{it.ref && <span className="text-slate-500 ml-1">({it.ref})</span>}</td>
+                                        <td className="py-1 pr-2 text-slate-500 whitespace-nowrap">{it.de || "—"}</td>
+                                        <td className="py-1 whitespace-nowrap font-bold text-white">{it.para}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
           </div>
         </div>
 
