@@ -32,6 +32,8 @@ export default function MacPage() {
   const [itens, setItens] = useState<Record<string, StatusItem>>({});
   const [fontes, setFontes] = useState<Record<string, "auto" | "p2" | "manual" | null>>({});
   const [aceites, setAceites] = useState<Record<string, boolean>>({});
+  const [itensPendentesIA, setItensPendentesIA] = useState<any[]>([]);
+  const [modalItensPendentesIA, setModalItensPendentesIA] = useState(false);
   const [analisandoP2, setAnalisandoP2] = useState(false);
   const [modalLimparMac, setModalLimparMac] = useState(false);
   const [progressoP2, setProgressoP2] = useState(0);
@@ -1134,7 +1136,8 @@ export default function MacPage() {
                 (i) => fontes[i.id] === "p2" && !aceites[i.id]
               );
               if (pendentesAceite.length > 0) {
-                mostrarToast(`⚠️ ${pendentesAceite.length} item(ns) sugeridos pela IA aguardam aceite.`);
+                setItensPendentesIA(pendentesAceite);
+                setModalItensPendentesIA(true);
                 return;
               }
               await salvarSilencioso();
@@ -1340,6 +1343,34 @@ export default function MacPage() {
                 Confirmar Indeferimento
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL — Itens IA pendentes de confirmação */}
+      {modalItensPendentesIA && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-yellow-500/40 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-2xl">🤖</span>
+              <h2 className="text-white font-bold text-lg">Itens sugeridos pela IA aguardam confirmação</h2>
+            </div>
+            <p className="text-slate-400 text-sm mb-4">
+              Revise e aceite os itens abaixo antes de emitir o despacho:
+            </p>
+            <ul className="space-y-2 max-h-64 overflow-y-auto mb-5">
+              {itensPendentesIA.map((item) => (
+                <li key={item.id} className="flex items-start gap-2 bg-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200">
+                  <span className="text-yellow-400 mt-0.5">⚠</span>
+                  <span>{item.descricao || item.label || item.id}</span>
+                </li>
+              ))}
+            </ul>
+            <button
+              onClick={() => setModalItensPendentesIA(false)}
+              className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+              Voltar e revisar
+            </button>
           </div>
         </div>
       )}
