@@ -25,15 +25,46 @@ export default function LogradouroPage() {
   const tL = useRef<any[]>([null, null, null, null]);
 
   useEffect(() => {
-    fetch(`/api/processo/logradouro?codigo=${encodeURIComponent(codigo)}`)
-      .then(r => r.json()).then(j => {
-        if (!j.ok || !Array.isArray(j.data)) return;
+    async function carregar() {
+      // 1. Tenta carregar vias já salvas
+      const r = await fetch(`/api/processo/logradouro?codigo=${encodeURIComponent(codigo)}`);
+      const j = await r.json();
+      let bairroSlot0 = "";
+      let logSlot0 = "";
+      if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
         setSlots(prev => prev.map((s, i) => {
           const v: DadosVia = j.data[i];
           if (!v) return s;
           return { ...s, bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v };
         }));
-      });
+        bairroSlot0 = j.data[0]?.bairro || "";
+      } else {
+        // 2. Sem vias salvas — pré-preenche slot 0 com bairro+logradouro do LIP
+        const rp = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}&tipo=REGULARIZACAO`);
+        const jp = await rp.json();
+        const dados = jp?.data?.dados ?? jp?.data ?? {};
+        bairroSlot0 = dados?.bairro || dados?.["bairro"]?.valor || "";
+        logSlot0 = dados?.logradouro || dados?.["logradouro"]?.valor || "";
+        if (bairroSlot0) {
+          setSlots(prev => prev.map((s, i) => i === 0
+            ? { ...s, bairroBusca: bairroSlot0, logradouroBusca: logSlot0 }
+            : s
+          ));
+        }
+      }
+      // 3. Para o slot 0 com bairro definido, pré-carrega lista de ruas
+      if (bairroSlot0) {
+        try {
+          const rl = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairroSlot0)}&q=`);
+          const jl = await rl.json();
+          setSlots(prev => prev.map((s, i) => i === 0
+            ? { ...s, logradouroOpcoes: jl.data || [] }
+            : s
+          ));
+        } catch { /* silencioso */ }
+      }
+    }
+    carregar();
   }, [codigo]);
 
   function up(i: number, patch: Partial<Slot>) {
@@ -49,14 +80,20 @@ export default function LogradouroPage() {
       up(i, { bairroOpcoes: j.data || [] });
     }, 300);
   }
-  function selBairro(i: number, b: string) {
+  async function selBairro(i: number, b: string) {
     up(i, { bairroBusca: b, bairroOpcoes: [], logradouroBusca: "", logradouroOpcoes: [], dados: null });
+    // Carrega todas as ruas do bairro imediatamente
+    try {
+      const r = await fetch(`/api/logradouros?bairro=${encodeURIComponent(b)}&q=`);
+      const j = await r.json();
+      up(i, { logradouroOpcoes: j.data || [] });
+    } catch { /* silencioso */ }
   }
   async function buscarLogradouros(i: number, q: string) {
     up(i, { logradouroBusca: q, dados: null });
     clearTimeout(tL.current[i]);
     const bairro = slots[i].bairroBusca;
-    if (!bairro || q.length < 1) { up(i, { logradouroOpcoes: [] }); return; }
+    if (!bairro) { up(i, { logradouroOpcoes: [] }); return; }
     tL.current[i] = setTimeout(async () => {
       const r = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairro)}&q=${encodeURIComponent(q)}`);
       const j = await r.json();
