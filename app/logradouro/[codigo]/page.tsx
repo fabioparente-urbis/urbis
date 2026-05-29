@@ -42,7 +42,7 @@ export default function LogradouroPage() {
               logOpcoes = jl.data || [];
             } catch { /* silencioso */ }
           }
-          return { ...vazio(), bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v, logradouroOpcoes: logOpcoes };
+          return { ...vazio(), bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v, logradouroOpcoes: [] };
         }));
         setSlots(prev => prev.map((s, i) => novosSlots[i] || s));
         bairroSlot0 = j.data[0]?.bairro || "";
@@ -54,7 +54,7 @@ export default function LogradouroPage() {
         logSlot0 = jp?.logradouro || "";
         if (bairroSlot0) {
           setSlots(prev => prev.map((s, i) => i === 0
-            ? { ...s, bairroBusca: bairroSlot0, logradouroBusca: logSlot0 }
+            ? { ...s, bairroBusca: bairroSlot0, logradouroBusca: logSlot0, logradouroOpcoes: [] }
             : s
           ));
         }
@@ -109,7 +109,7 @@ export default function LogradouroPage() {
   }
   async function selLog(i: number, l: string) {
     const bairro = slots[i].bairroBusca;
-    up(i, { logradouroBusca: l, logradouroOpcoes: [] });
+    up(i, { logradouroBusca: l, logradouroOpcoes: [], bairroOpcoes: [] });
     const r = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairro)}&logradouro=${encodeURIComponent(l)}`);
     const j = await r.json();
     if (j.ok && j.data) up(i, { dados: j.data });

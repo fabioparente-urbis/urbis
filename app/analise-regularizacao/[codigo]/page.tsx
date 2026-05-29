@@ -1149,10 +1149,11 @@ export default function MacPage() {
                 const procJson = await procRes.json();
                 const lipJson = await lipRes.json();
                 const dados = procJson?.data?.dados || procJson?.dados || {};
-                const campos = (lipJson?.data || []).flatMap((a: any) => a.lip_campos || []);
-                const pendentesLipX = campos
-                  .filter((c: any) => dados[c.chave]?.valor === "X")
-                  .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: "LIP" }));
+                const pendentesLipX = (lipJson?.data || []).flatMap((a: any) =>
+                  (a.lip_campos || [])
+                    .filter((c: any) => dados[c.chave]?.valor === "X")
+                    .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: `LIP — ${a.nome || "LIP"}` }))
+                );
                 const todosAvisos = [
                   ...pendentesIA,
                   ...pendentesLipX,

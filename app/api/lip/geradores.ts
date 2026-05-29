@@ -145,11 +145,17 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   });
   children.push(vazio(120));
   children.push(p([txt("A PARTIR DE 13/12/2018 ENTROU EM VIGOR O DECRETO N° 2559/2018, QUE DEFINE NOVOS PROCEDIMENTOS E AMPLIA AUTOMAÇÃO DE PROCESSOS DA ANÁLISE E APROVAÇÃO DE PROJETOS ARQUITETÔNICOS NO MUNICÍPIO DE GOIÂNIA. O MANUAL TAMBÉM DEFINE TODAS AS ETAPAS DE ANÁLISE. OS PROCESSOS AUTUADOS ANTERIORMENTE A ESSA DATA SERÃO ANALISADOS CONFORME AS NOVAS REGRAS VIGENTES.")], { after: 160 }));
+  const totalAnalises = dados.analises.length;
   dados.analises.forEach((a, idx) => {
-    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}`;
-    children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
+    const label = `${a.numero}ª ANÁLISE:       ${a.data}`;
+    children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < totalAnalises - 1, children: [txt(label)] }));
   });
-  children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  // Observação condicional por número de análises
+  if (totalAnalises === 4) {
+    children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 900 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  } else if (totalAnalises >= 5) {
+    children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 900 }, children: [txt("Observação: *O processo/projeto está indeferido.", { size: 18, italics: true })] }));
+  }
   children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
   children.push(secao("DOCUMENTAÇÃO PERTINENTE À ANÁLISE DO PROJETO:"));
