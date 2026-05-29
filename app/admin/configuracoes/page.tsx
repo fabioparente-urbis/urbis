@@ -11,7 +11,7 @@ const SLUG_FIXO = "regularizacao";
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  const { tema, setTema } = useTheme();
   const [assuntos, setAssuntos] = useState<Assunto[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -140,8 +140,12 @@ export default function ConfiguracoesPage() {
             <h2 className="text-lg font-semibold text-white">Aparência</h2>
             <p className="text-sm text-slate-400 mt-1 mb-4">Tema visual do sistema. Preferência salva por navegador.</p>
             <div className="flex gap-3">
-              <button onClick={() => setTheme("light")} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${theme === "light" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600"}`}><Sun size={16} /> Claro</button>
-              <button onClick={() => setTheme("dark")} className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${theme === "dark" ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600"}`}><Moon size={16} /> Escuro</button>
+              {(["institucional", "moderno", "minimalista"] as const).map(t => (
+                <button key={t} onClick={() => setTema(t)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${tema === t ? "border-blue-500 bg-blue-600 text-white" : "border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600"}`}>
+                  {t === "institucional" ? "🏛 Institucional" : t === "moderno" ? "🌙 Moderno" : "◻ Minimalista"}
+                </button>
+              ))}
             </div>
           </div>
           {isAdmin && (
