@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     // Visibilidade de processos (briefing Cowork — item 2):
     // - Admin / Diretora / Diretor       → todos (perfis irrestritos)
-    // - Gerência PP/MP/GP                → processos dos analistas da sua gerência
+    // - Gerência GERECCO/MP/GP                → processos dos analistas da sua gerência
     // - Analista com gerencia != null    → apenas os próprios (atribuídos)
     // - Analista com gerencia = null     → apenas os próprios (atribuídos)
     //   (antes via todos os processos — bug fixado conforme briefing:

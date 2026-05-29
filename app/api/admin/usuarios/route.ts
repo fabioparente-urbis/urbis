@@ -32,10 +32,10 @@ export async function GET() {
   return NextResponse.json({ ok: true, data });
 }
 
-// Normaliza usuarios.gerencia: aceita 'PP'|'MP'|'GP' ou null. Qualquer outro
+// Normaliza usuarios.gerencia: aceita 'GERECCO'|'GERAED'|'GERAGP' ou null. Qualquer outro
 // valor (incluindo ''/undefined/'DIRAAP') vira null = analista DIRAAP direto.
-function normalizarGerencia(v: unknown): "PP" | "MP" | "GP" | null {
-  if (v === "PP" || v === "MP" || v === "GP") return v;
+function normalizarGerencia(v: unknown): "GERECCO" | "GERAED" | "GERAGP" | "GERAP" | null {
+  if (v === "GERECCO" || v === "GERAED" || v === "GERAGP" || v === "GERAP") return v;
   return null;
 }
 

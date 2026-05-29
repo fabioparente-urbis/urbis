@@ -16,8 +16,8 @@ export type AuthContext = {
   perfis: string[];
   irrestrito: boolean;
   // Gerencia do usuario:
-  // - usuarios.gerencia para analistas ('PP' | 'MP' | 'GP' | null)
-  // - derivada do perfil 'Gerência PP/MP/GP' para gerentes
+  // - usuarios.gerencia para analistas ('GERECCO' | 'GERAED' | 'GERAGP' | null)
+  // - derivada do perfil 'Gerência GERECCO/MP/GP' para gerentes
   // - null para Administrador / Diretora / outros
   gerencia: Gerencia | null;
 };
@@ -60,7 +60,7 @@ export async function autenticar(
     perfisArr.push(usuario.perfil);
   }
 
-  // gerencia: prioridade ao perfil de gerente (Gerência PP/MP/GP); se nao
+  // gerencia: prioridade ao perfil de gerente (Gerência GERECCO/MP/GP); se nao
   // for gerente, usa usuarios.gerencia (caso seja analista).
   const gerenciaPerfil = gerenciaDoPerfil(perfisArr);
   const gerenciaUsuario = (usuario as any).gerencia as Gerencia | null | undefined;

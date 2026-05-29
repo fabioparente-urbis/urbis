@@ -7,7 +7,7 @@
 
 export const META_BASE = 100;
 
-export type Porte = 'PP' | 'MP' | 'GP';
+export type Porte = 'GERECCO' | 'GERAED' | 'GERAGP';
 export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo';
 export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 
@@ -16,17 +16,17 @@ export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 // Laudo segue o mesmo peso do despacho normal (baseado em porte/área).
 export function calcularPontos(porte: string | null | undefined, area: number, tipoDespacho?: TipoDespacho): number {
   const p = String(porte ?? '').toUpperCase();
-  if (p === 'GP' || area > 2000) return 4.5;
+  if (p === 'GERAGP' || area > 2000) return 4.5;
   if (area > 540) return 3.5;
   return 2.5;
 }
 
 export function inferirPorte(area: number, porteInformado?: string | null): Porte {
   const p = String(porteInformado ?? '').toUpperCase();
-  if (p === 'GP' || p === 'MP' || p === 'PP') return p as Porte;
-  if (area > 2000) return 'GP';
-  if (area > 540) return 'MP';
-  return 'PP';
+  if (p === 'GERAGP' || p === 'GERAED' || p === 'GERECCO') return p as Porte;
+  if (area > 2000) return 'GERAGP';
+  if (area > 540) return 'GERAED';
+  return 'GERECCO';
 }
 
 // ─── Meta efetiva (com redução legal) ──────────────────────

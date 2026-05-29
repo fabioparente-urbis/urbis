@@ -735,7 +735,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           options={[["", "Todos"], ["despacho", "Despacho"], ["aceite", "Aceite"], ["indeferimento", "Indeferimento"], ["arquivamento", "Arquivamento"]]} />
         <FiltroSel label="Porte" value={filtros.porte}
           onChange={(v) => setFiltros((f) => ({ ...f, porte: v }))}
-          options={[["", "Todos"], ["PP", "PP"], ["MP", "MP"], ["GP", "GP"]]} />
+          options={[["", "Todos"], ["GERECCO", "GERECCO"], ["GERAED", "GERAED"], ["GERAGP", "GERAGP"]]} />
         <FiltroSel label="Revisão" value={filtros.revisao}
           onChange={(v) => setFiltros((f) => ({ ...f, revisao: v }))}
           options={[["", "Todas"], ["true", "Sim"], ["false", "Não"]]} />

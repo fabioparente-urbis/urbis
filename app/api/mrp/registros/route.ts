@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
     tipo_processo: body.tipo_processo ?? "REGULARIZACAO",
     interessado: body.interessado ?? null,
     assunto: body.assunto ?? null,
-    porte: body.porte ?? "MP",
+    porte: body.porte ?? "GERAED",
     area_construida: Number(body.area_construida ?? 0),
     bairro: body.bairro ?? null,
     setor: body.setor ?? null,

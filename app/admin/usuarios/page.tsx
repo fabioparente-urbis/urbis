@@ -18,12 +18,12 @@ type Usuario = {
 const PERFIS = [
   "Administrador",
   "Diretora",
-  "Gerência PP",
-  "Gerência MP",
-  "Gerência GP",
+  "Gerência GERECCO",
+  "Gerência GERAED",
+  "Gerência GERAGP",
   "Analista",
 ];
-const PERFIS_GERENCIA = ["Gerência PP", "Gerência MP", "Gerência GP"];
+const PERFIS_GERENCIA = ["Gerência GERECCO", "Gerência GERAED", "Gerência GERAGP"];
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
 
 const vazio = () => ({
@@ -34,7 +34,7 @@ const vazio = () => ({
   cargo: "",
   cau_crea: "",
   perfis: ["Analista"] as string[],
-  gerencia: "" as string, // "" | "PP" | "MP" | "GP" | "DIRAAP"
+  gerencia: "" as string, // "" | "GERECCO" | "GERAED" | "GERAGP" | "DIRAAP"
   status: "Ativo",
   reducao_meta: 0,
   urbi_ativo: false,
@@ -86,7 +86,7 @@ export default function UsuariosPage() {
     const perfisIniciais = Array.isArray(u.perfis) && u.perfis.length > 0
       ? u.perfis
       : (u.perfil ? [u.perfil] : ["Analista"]);
-    // gerencia: '' = analista DIRAAP direto (gerencia=null); 'PP'/'MP'/'GP' = analista de gerencia
+    // gerencia: '' = analista DIRAAP direto (gerencia=null); 'GERECCO'/'GERAED'/'GERAGP' = analista de gerencia
     const gerenciaForm = u.gerencia ?? "";
     setForm({
       nome: u.nome,
@@ -317,9 +317,9 @@ export default function UsuariosPage() {
                     onChange={(e) => f("gerencia", e.target.value === "DIRAAP" ? "" : e.target.value)}
                     className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="PP">PP</option>
-                    <option value="MP">MP</option>
-                    <option value="GP">GP</option>
+                    <option value="GERECCO">PP</option>
+                    <option value="GERAED">MP</option>
+                    <option value="GERAGP">GP</option>
                     <option value="DIRAAP">DIRAAP (direto)</option>
                   </select>
                 </div>

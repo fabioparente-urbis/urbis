@@ -11,20 +11,21 @@ export type PerfilIrrestrito = (typeof PERFIS_IRRESTRITOS)[number];
 
 // Perfis das 3 gerencias da DIRAAP. Cada um e unico no sistema (constraint
 // no banco) e ve apenas processos dos seus analistas (usuarios.gerencia).
-export const PERFIS_GERENCIA = ["Gerência PP", "Gerência MP", "Gerência GP"] as const;
+export const PERFIS_GERENCIA = ["Gerência GERECCO", "Gerência GERAED", "Gerência GERAGP", "Gerência GERAP"] as const;
 export type PerfilGerencia = (typeof PERFIS_GERENCIA)[number];
 
 // Codigos de gerencia armazenados em usuarios.gerencia. NULL = DIRAAP direto.
-export const GERENCIAS = ["PP", "MP", "GP"] as const;
+export const GERENCIAS = ["GERECCO", "GERAED", "GERAGP", "GERAP"] as const;
 export type Gerencia = (typeof GERENCIAS)[number];
 
 // Catalogo canonico de perfis para o checkbox em /admin/usuarios.
 export const PERFIS_DISPONIVEIS = [
   "Administrador",
   "Diretora",
-  "Gerência PP",
-  "Gerência MP",
-  "Gerência GP",
+  "Gerência GERECCO",
+  "Gerência GERAED",
+  "Gerência GERAGP",
+  "Gerência GERAP",
   "Analista",
 ] as const;
 
@@ -43,7 +44,7 @@ export function isPerfilIrrestrito(
 }
 
 /**
- * Retorna a gerencia associada ao perfil ("Gerência PP" -> "PP"). Aceita
+ * Retorna a gerencia associada ao perfil ("Gerência GERECCO" -> "GERECCO"). Aceita
  * string unica ou array. Retorna null quando nao ha perfil de gerencia.
  */
 export function gerenciaDoPerfil(
@@ -52,9 +53,10 @@ export function gerenciaDoPerfil(
   if (!perfil) return null;
   const lista = Array.isArray(perfil) ? perfil : [perfil];
   for (const p of lista) {
-    if (p === "Gerência PP") return "PP";
-    if (p === "Gerência MP") return "MP";
-    if (p === "Gerência GP") return "GP";
+    if (p === "Gerência GERECCO") return "GERECCO";
+    if (p === "Gerência GERAED") return "GERAED";
+    if (p === "Gerência GERAGP") return "GERAGP";
+    if (p === "Gerência GERAP") return "GERAP";
   }
   return null;
 }
