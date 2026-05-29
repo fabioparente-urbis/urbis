@@ -84,11 +84,12 @@ type Props = {
   aberto: boolean;
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
+  assuntoId?: string | null;
 };
 
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center" }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null }: Props) {
   const router = useRouter();
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
@@ -228,7 +229,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     try {
       const res = await fetch("/api/urbi/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: texto, history, usuario }),
+        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId }),
       });
       const json = await res.json();
       if (json.ok) {

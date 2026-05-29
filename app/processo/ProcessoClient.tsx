@@ -644,7 +644,21 @@ export default function ProcessoClient() {
           {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
         </label>
         <div className="relative">
-          <input value={val.valor} onChange={(e) => u(campo.chave, campo.chave === "iptu" ? e.target.value.replace(/\D/g, "") : e.target.value)}
+          <input value={val.valor} onChange={(e) => {
+            const v = e.target.value;
+            if (campo.chave === "iptu") { u(campo.chave, v.replace(/\D/g, "")); return; }
+            if (campo.chave === "cau") {
+              // CAU-AXXXXXXX ou CAU AXXXXXXX → normaliza para CAU AXXXXXXX
+              const norm = v.toUpperCase().replace(/[^A-Z0-9\s\-]/g, "");
+              u(campo.chave, norm); return;
+            }
+            if (campo.chave === "crea") {
+              // CREA XXXXX/UF → aceita números, letras, barra, hífen
+              const norm = v.toUpperCase().replace(/[^A-Z0-9\/\-\s]/g, "");
+              u(campo.chave, norm); return;
+            }
+            u(campo.chave, v);
+          }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
             className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
@@ -784,7 +798,8 @@ export default function ProcessoClient() {
             🚪 Sair
           </button>
           <button onClick={async () => {
-              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
+              // Só bloqueia se houver campos marcados com X (pendências reais)
+              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.valor.trim().toUpperCase() === "X").length;
               if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
               const rotaMac = "/analise-regularizacao";

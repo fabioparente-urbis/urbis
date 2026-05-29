@@ -39,6 +39,7 @@ export default function MacPage() {
   const [progressoP2, setProgressoP2] = useState(0);
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputP2Ref = useRef<HTMLInputElement>(null);
+  const carregandoHistoricoRef = useRef(false);
   const [checklistItens, setChecklistItens] = useState<Item[]>([]);
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
@@ -257,8 +258,12 @@ export default function MacPage() {
   // sem chamar carregar() (que resetaria estado da UI).
 
   function carregarHistoricoMac(id: string) {
+    if (carregandoHistoricoRef.current) return;
+    carregandoHistoricoRef.current = true;
     fetch(`/api/mac/historico?analiseId=${id}`)
-      .then(r => r.json()).then(j => { if (j.ok) setHistoricoMac(j.eventos); });
+      .then(r => r.json())
+      .then(j => { if (j.ok) setHistoricoMac(j.eventos); })
+      .finally(() => { carregandoHistoricoRef.current = false; });
   }
   async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
     setStatusSalvo("salvando");

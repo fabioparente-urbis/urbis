@@ -40,11 +40,10 @@ export default function LogradouroPage() {
         bairroSlot0 = j.data[0]?.bairro || "";
       } else {
         // 2. Sem vias salvas — pré-preenche slot 0 com bairro+logradouro do LIP
-        const rp = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`);
+        const rp = await fetch(`/api/processo/dados-lip?codigo=${encodeURIComponent(codigo)}`);
         const jp = await rp.json();
-        const dados = jp?.data?.dados ?? jp?.data ?? {};
-        bairroSlot0 = dados?.bairro || dados?.["bairro"]?.valor || "";
-        logSlot0 = dados?.logradouro || dados?.["logradouro"]?.valor || "";
+        bairroSlot0 = jp?.bairro || "";
+        logSlot0 = jp?.logradouro || "";
         if (bairroSlot0) {
           setSlots(prev => prev.map((s, i) => i === 0
             ? { ...s, bairroBusca: bairroSlot0, logradouroBusca: logSlot0 }

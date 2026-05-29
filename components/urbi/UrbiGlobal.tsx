@@ -6,8 +6,20 @@ import UrbiChat from "./UrbiChat";
 export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
   const [urbiAberto, setUrbiAberto] = useState(false);
+  const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const pathname = usePathname();
   const isHome = pathname === "/";
+
+  // Extrai codigo do processo da URL e busca assunto_id
+  useEffect(() => {
+    const match = pathname.match(/\/(processo|analise-regularizacao)\/([^/?]+)/);
+    const codigo = match ? decodeURIComponent(match[2]) : null;
+    if (!codigo) { setAssuntoId(null); return; }
+    fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (j?.ok) setAssuntoId(j.data?.assunto_id ?? null); })
+      .catch(() => {});
+  }, [pathname]);
 
   const buscarUsuario = () => {
     fetch("/api/auth/me")
@@ -57,6 +69,7 @@ export default function UrbiGlobal() {
         aberto={urbiAberto}
         setAberto={setUrbiAberto}
         modo={isHome ? "center" : "corner"}
+        assuntoId={assuntoId}
       />
     </>
   );
