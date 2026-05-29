@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, data: [...new Set((data||[]).map((r:any)=>r.bairro))].sort() });
   }
   if (bairro && !logradouro) {
-    const { data, error } = await supabase.from("logradouros").select("nome_logradouro").eq("bairro", bairro).ilike("nome_logradouro", `%${q}%`).limit(50);
+    const { data, error } = await supabase.from("logradouros").select("nome_logradouro").eq("bairro", bairro).ilike("nome_logradouro", `%${q}%`).limit(500);
     if (error) return NextResponse.json({ ok: false, erro: error.message });
     return NextResponse.json({ ok: true, data: [...new Set((data||[]).map((r:any)=>r.nome_logradouro))].sort() });
   }
