@@ -578,7 +578,8 @@ export default function MacPage() {
           </div>
         </div>
       )}
-          {/* HISTÓRICO MAC */}
+
+      {/* HISTÓRICO MAC */}
           <div className="mt-8 px-2 pb-6">
             <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
             {historicoMac.length === 0 ? (
@@ -637,7 +638,6 @@ export default function MacPage() {
               </div>
             )}
           </div>
-      )}
 
       {/* MODAL GERAR DESPACHO */}
       {modalDespacho && (
