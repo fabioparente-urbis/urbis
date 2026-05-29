@@ -577,6 +577,7 @@ export default function MacPage() {
             </div>
           </div>
         </div>
+      )}
       {/* MODAL GERAR DESPACHO */}
       {modalDespacho && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -1009,8 +1010,9 @@ export default function MacPage() {
             )}
           </div>
         </div>
+        </div>
+      </div>
 
-      )}
 
         {/* PAINEL LATERAL */}
         <div className="w-72 bg-slate-800 border-l border-slate-700 p-4 flex flex-col gap-4 overflow-y-auto">
