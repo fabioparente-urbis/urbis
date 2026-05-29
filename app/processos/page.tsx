@@ -122,7 +122,6 @@ export default function ProcessosPage() {
   const podeFiltrarAnalista = irrestrito || ehGerente;
   const souAdmin = perfisUsuario.includes("Administrador");
   const [avisoLipVazio, setAvisoLipVazio] = useState(false);
-  const [avisoLipVazio, setAvisoLipVazio] = useState(false);
 
   async function removerTag(processoId: string, codigo: string, tagId: string) {
     await fetch("/api/processo/tag", {
