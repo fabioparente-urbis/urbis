@@ -32,11 +32,19 @@ export default function LogradouroPage() {
       let bairroSlot0 = "";
       let logSlot0 = "";
       if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
-        setSlots(prev => prev.map((s, i) => {
-          const v: DadosVia = j.data[i];
-          if (!v) return s;
-          return { ...s, bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v };
+        const novosSlots = await Promise.all(j.data.map(async (v: DadosVia, idx: number) => {
+          if (!v) return vazio();
+          let logOpcoes: string[] = [];
+          if (v.bairro) {
+            try {
+              const rl = await fetch(`/api/logradouros?bairro=${encodeURIComponent(v.bairro)}&q=`);
+              const jl = await rl.json();
+              logOpcoes = jl.data || [];
+            } catch { /* silencioso */ }
+          }
+          return { ...vazio(), bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v, logradouroOpcoes: logOpcoes };
         }));
+        setSlots(prev => prev.map((s, i) => novosSlots[i] || s));
         bairroSlot0 = j.data[0]?.bairro || "";
       } else {
         // 2. Sem vias salvas — pré-preenche slot 0 com bairro+logradouro do LIP

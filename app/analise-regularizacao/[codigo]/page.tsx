@@ -1136,16 +1136,11 @@ export default function MacPage() {
             <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-3">Documentos</h3>
 
             <button onClick={async () => {
-              // Bloqueia emissão se há sugestões IA não aceitas
-              const pendentesAceite = checklistItens.filter(
+              await salvarSilencioso();
+              // Coleta avisos — nunca bloqueia, só informa
+              const pendentesIA = checklistItens.filter(
                 (i) => fontes[i.id] === "p2" && !aceites[i.id]
               );
-              if (pendentesAceite.length > 0) {
-                setItensPendentesIA(pendentesAceite);
-                setModalItensPendentesIA(true);
-                return;
-              }
-              await salvarSilencioso();
               try {
                 const [procRes, lipRes] = await Promise.all([
                   fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`),
@@ -1153,21 +1148,22 @@ export default function MacPage() {
                 ]);
                 const procJson = await procRes.json();
                 const lipJson = await lipRes.json();
-                const dados = procJson?.dados || {};
+                const dados = procJson?.data?.dados || procJson?.dados || {};
                 const campos = (lipJson?.data || []).flatMap((a: any) => a.lip_campos || []);
-                const pendentes = campos
-                  .filter((c: any) => {
-                    const v = dados[c.chave]?.valor;
-                    return v === "X";
-                  })
-                  .map((c: any) => c.label);
-                if (pendentes.length > 0) {
-                  setPendenciasLip(pendentes);
-                  setModalPendenciasLip(true);
-                } else {
-                  setModalDespacho(true);
+                const pendentesLipX = campos
+                  .filter((c: any) => dados[c.chave]?.valor === "X")
+                  .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: "LIP" }));
+                const todosAvisos = [
+                  ...pendentesIA,
+                  ...pendentesLipX,
+                ];
+                if (todosAvisos.length > 0) {
+                  setItensPendentesIA(todosAvisos);
+                  setModalItensPendentesIA(true);
+                  return;
                 }
-              } catch { setModalDespacho(true); }
+              } catch { /* silencioso */ }
+              setModalDespacho(true);
             }} disabled={gerandoDespacho}
               className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
@@ -1355,27 +1351,37 @@ export default function MacPage() {
       {/* MODAL — Itens IA pendentes de confirmação */}
       {modalItensPendentesIA && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-yellow-500/40 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
+          <div className="bg-slate-800 border border-yellow-500/40 rounded-2xl p-6 w-full max-w-3xl shadow-2xl">
+            <div className="flex items-center gap-3 mb-3">
               <span className="text-2xl">🤖</span>
-              <h2 className="text-white font-bold text-lg">Itens sugeridos pela IA aguardam aprovação</h2>
+              <h2 className="text-white font-bold text-xl">Itens sugeridos pela IA aguardam aprovação</h2>
             </div>
             <p className="text-slate-400 text-sm mb-4">
-              Revise e aprove os itens abaixo antes de emitir o despacho:
+              Os itens abaixo foram marcados pela IA e precisam ser revisados antes de emitir o despacho. Localize cada item no MAC e confirme ou rejeite:
             </p>
-            <ul className="space-y-2 max-h-64 overflow-y-auto mb-5">
+            <ul className="space-y-3 max-h-[60vh] overflow-y-auto mb-5 pr-1">
               {itensPendentesIA.map((item) => (
-                <li key={item.id} className="flex items-start gap-2 bg-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200">
-                  <span className="text-yellow-400 mt-0.5">⚠</span>
-                  <span>{(item.texto || item.id).split(" ").slice(0, 4).join(" ")}…</span>
+                <li key={item.id} className="flex items-start gap-3 bg-slate-700/60 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-slate-200">
+                  <span className="text-yellow-400 mt-0.5 text-lg shrink-0">⚠</span>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    <span className="text-xs text-yellow-400 font-semibold uppercase tracking-wide">MAC — {item.grupo || "Checklist"}</span>
+                    <span className="text-slate-100 leading-relaxed">{item.texto || item.id}</span>
+                  </div>
                 </li>
               ))}
             </ul>
-            <button
-              onClick={() => setModalItensPendentesIA(false)}
-              className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-              Voltar e aprovar
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setModalItensPendentesIA(false); setModalDespacho(true); }}
+                className="flex-1 bg-purple-700 hover:bg-purple-600 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                Emitir mesmo assim
+              </button>
+              <button
+                onClick={() => setModalItensPendentesIA(false)}
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                Voltar e revisar
+              </button>
+            </div>
           </div>
         </div>
       )}
