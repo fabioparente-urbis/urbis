@@ -80,9 +80,9 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
   const bg = tipo === "sucesso" ? "bg-green-700 border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-blue-500";
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
   return (
-    <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-white px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
+    <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
       <span>{msg}</span>
-      <button onClick={onClose} className="text-white opacity-60 hover:opacity-100 ml-2">✕</button>
+      <button onClick={onClose} className="text-[var(--text-primary)] opacity-60 hover:opacity-100 ml-2">✕</button>
 
     </div>
   );
@@ -698,8 +698,8 @@ export default function ProcessoClient() {
 
   if (carregandoAbas) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <p className="text-slate-400">Carregando estrutura do formulário...</p>
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)]">Carregando estrutura do formulário...</p>
       </div>
     );
   }
@@ -708,18 +708,18 @@ export default function ProcessoClient() {
   const isUltimaAba = aba === abasDB.length - 1;
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
+    <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
       {modalLimparLip && (
         <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
+          <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
-            <p className="text-sm text-slate-200 mb-2">Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo.</p>
+            <p className="text-sm text-[var(--text-primary)] mb-2">Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo.</p>
             <p className="text-sm text-red-300 font-semibold mb-4">Todos os campos preenchidos serão zerados. Esta ação não pode ser desfeita.</p>
-            <p className="text-xs text-slate-400 mb-4">Recomendamos exportar o Excel antes de continuar.</p>
+            <p className="text-xs text-[var(--text-muted)] mb-4">Recomendamos exportar o Excel antes de continuar.</p>
             <div className="flex gap-3">
               <button onClick={() => setModalLimparLip(false)}
-                className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
               <button onClick={() => {
@@ -727,7 +727,7 @@ export default function ProcessoClient() {
                 setModalLimparLip(false);
                 mostrarToast("🗑️ LIP zerado.");
               }}
-                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-red-700 hover:bg-red-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Confirmar — Limpar tudo
               </button>
             </div>
@@ -736,25 +736,25 @@ export default function ProcessoClient() {
       )}
       {modalDI && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-white font-bold text-lg">📨 Despacho Interno</h2>
-              <button onClick={() => setModalDI(false)} className="text-slate-400 hover:text-white text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
+              <button onClick={() => setModalDI(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Nº Despacho</label>
-                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
+                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Data</label>
-                  <input value={dataDI} onChange={e => setDataDI(e.target.value)} className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
+                  <input value={dataDI} onChange={e => setDataDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Destinatário</label>
-                <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Destinatário</label>
+                <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Selecione...</option>
                   <option value="Gerência de Pequeno Porte — DIRAAP/SEFIC">Gerência de Pequeno Porte — DIRAAP</option>
                   <option value="Gerência de Médio Porte — DIRAAP/SEFIC">Gerência de Médio Porte — DIRAAP</option>
@@ -763,21 +763,21 @@ export default function ProcessoClient() {
                   <option value="outro">Outro...</option>
                 </select>
                 {destinoDI === "outro" && (
-                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Conteúdo</label>
-                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !destinoDI || !corpoDI}
-                className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDI(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -790,11 +790,11 @@ export default function ProcessoClient() {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => router.push("/")}
-            className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🏠 Home
           </button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
-            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
           <button onClick={async () => {
@@ -805,30 +805,30 @@ export default function ProcessoClient() {
               const rotaMac = "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
-            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
           <button onClick={() => setModalDI(true)}
-            className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📨 Despacho Interno
           </button>
           {perfisUsuario.includes("Administrador") && (
             <button onClick={() => router.push("/admin/lip")}
-              className="mt-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ⚙️ Gerenciar LIP
             </button>
           )}
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
-            className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Exportar Excel
           </a>
           <button
             type="button"
             onClick={() => inputImportRef.current?.click()}
             disabled={importando || !idUrl}
-            className="mt-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             {importando ? "⏳ Importando..." : "📥 Importar Excel"}
           </button>
           <input
@@ -846,15 +846,15 @@ export default function ProcessoClient() {
           <button
             type="button"
             onClick={() => setModalLimparLip(true)}
-            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🗑️ Limpar LIP
           </button>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
-            <p className="text-slate-400 text-sm mt-1">
+            <p className="text-[var(--text-muted)] text-sm mt-1">
               Processo: <span className="text-emerald-400 font-mono">{idUrl || "—"}</span>
-              {" · "}<span className="text-slate-500">{rotuloTipo(tipoUrl)}</span>
+              {" · "}<span className="text-[var(--text-muted)]">{rotuloTipo(tipoUrl)}</span>
             </p>
           </div>
         </div>
@@ -868,7 +868,7 @@ export default function ProcessoClient() {
             {legenda.map((l) => (
               <div key={l.label} className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${l.cor}`} />
-                <span className="text-slate-400">{l.label}</span>
+                <span className="text-[var(--text-muted)]">{l.label}</span>
               </div>
             ))}
           </div>
@@ -876,38 +876,38 @@ export default function ProcessoClient() {
       </div>
 
       {/* NAVEGAÇÃO */}
-      <div className="bg-slate-800 border border-slate-600 rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
-        <span className="text-slate-400 text-sm whitespace-nowrap">🔍 Ir para processo:</span>
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
+        <span className="text-[var(--text-muted)] text-sm whitespace-nowrap">🔍 Ir para processo:</span>
         <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
           placeholder="Ex: 25.5.000082553-3"
-          className="flex-1 min-w-[180px] bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
-          className="bg-slate-700 border border-slate-500 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="Regularização">Regularização</option>
           <option value="Aceite">Aceite</option>
           <option value="Aprovação">Aprovação</option>
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
+          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-[var(--text-primary)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
           Abrir →
         </button>
       </div>
 
       {/* BLOCO LIP */}
-      <div className="bg-slate-800 border border-slate-600 rounded-xl p-4 mb-4">
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
         <div className="flex items-center gap-4 flex-wrap">
           <div>
-            <p className="text-sm font-bold text-white">📄 Leitura Inteligente do LIP</p>
-            <p className="text-xs text-slate-400 mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">📄 Leitura Inteligente do LIP</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-white"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-[var(--text-muted)] cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-[var(--text-primary)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Ler PDF com Prompt P1"}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-slate-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-white"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-[var(--text-muted)] cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
               <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
                 onChange={(e) => {
@@ -921,12 +921,12 @@ export default function ProcessoClient() {
       </div>
 
       {progresso > 0 && (
-        <div className="bg-slate-800 border border-slate-600 rounded-xl p-3 mb-4">
-          <div className="flex justify-between text-xs text-slate-300 mb-1">
+        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4">
+          <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
             <span>🤖 Lendo PDF com IA...</span>
             <span>{progresso}%</span>
           </div>
-          <div className="w-full bg-slate-700 rounded-full h-2">
+          <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
             <div className="bg-purple-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
           </div>
         </div>
@@ -979,9 +979,9 @@ export default function ProcessoClient() {
           return (
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                aba === i ? "bg-blue-600 text-white" :
+                aba === i ? "bg-blue-600 text-[var(--text-primary)]" :
                 temPendente ? "bg-orange-900 border border-orange-600 text-orange-200 hover:bg-orange-800" :
-                "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
               {a.nome}
               {temPendente && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full border border-slate-900" />}
@@ -996,9 +996,9 @@ export default function ProcessoClient() {
           <div className="flex items-start justify-between mb-2">
             <div>
               <h2 className="text-lg font-bold text-slate-800">{abaAtual.nome}</h2>
-              {abaAtual.dica && <p className="text-xs text-slate-400 mt-0.5">💡 {abaAtual.dica}</p>}
+              {abaAtual.dica && <p className="text-xs text-[var(--text-muted)] mt-0.5">💡 {abaAtual.dica}</p>}
             </div>
-            <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded">{aba + 1} / {abasDB.length}</span>
+            <span className="text-xs bg-slate-100 text-[var(--text-muted)] px-2 py-1 rounded">{aba + 1} / {abasDB.length}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {abaAtual.lip_campos.map((campo) => renderCampo(campo))}
@@ -1026,10 +1026,10 @@ export default function ProcessoClient() {
 
       {/* PROGRESSO */}
       <div className="mt-4">
-        <div className="flex justify-between text-xs text-slate-400 mb-1">
+        <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
           <span>Progresso</span><span>{aba + 1} de {abasDB.length} abas</span>
         </div>
-        <div className="w-full bg-slate-700 rounded-full h-1.5">
+        <div className="w-full bg-[var(--bg-secondary)] rounded-full h-1.5">
           <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
             style={{ width: `${((aba + 1) / abasDB.length) * 100}%` }} />
         </div>
@@ -1037,12 +1037,12 @@ export default function ProcessoClient() {
 
       {/* HISTÓRICO */}
       <div className="mt-8">
-        <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
+        <h3 className="text-sm font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
         {historico.length === 0 ? (
-          <p className="text-slate-500 text-sm">Nenhuma alteração registrada ainda.</p>
+          <p className="text-[var(--text-muted)] text-sm">Nenhuma alteração registrada ainda.</p>
         ) : (
           <div className="relative">
-            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-slate-700" />
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[var(--bg-secondary)]" />
             <div className="flex flex-col gap-4">
               {historico.map((ev, idx) => {
                 const cores = corParaData(ev.criado_em);
@@ -1063,17 +1063,17 @@ export default function ProcessoClient() {
                         {formatarDataCompleta(ev.criado_em)} — {ev.operacao === "LIP_LEITURA" ? `📄 LIP lido por IA — ${ev.meta?.camposPreenchidos ?? 0} campos extraídos` : ev.campos.length > 0 ? `${ev.campos.length} campo(s) alterado(s)` : ev.operacao}
                       </button>
                       {aberto && (
-                        <div className="mt-2 bg-slate-800 border border-slate-600 rounded-lg p-3 text-xs">
+                        <div className="mt-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-3 text-xs">
                           {ev.operacao === "LIP_LEITURA" ? (
-                            <div className="text-slate-300 space-y-1">
-                              <p>📄 <span className="text-slate-400">Arquivo:</span> {ev.meta?.arquivo ?? "—"}</p>
-                              <p>✅ <span className="text-slate-400">Campos preenchidos:</span> {ev.meta?.camposPreenchidos ?? 0}</p>
-                              <p>🟢 <span className="text-slate-400">Status:</span> {ev.meta?.status ?? "—"}</p>
+                            <div className="text-[var(--text-secondary)] space-y-1">
+                              <p>📄 <span className="text-[var(--text-muted)]">Arquivo:</span> {ev.meta?.arquivo ?? "—"}</p>
+                              <p>✅ <span className="text-[var(--text-muted)]">Campos preenchidos:</span> {ev.meta?.camposPreenchidos ?? 0}</p>
+                              <p>🟢 <span className="text-[var(--text-muted)]">Status:</span> {ev.meta?.status ?? "—"}</p>
                             </div>
                           ) : ev.campos.length > 0 ? (
                             <table className="w-full mb-3">
                               <thead>
-                                <tr className="text-slate-400">
+                                <tr className="text-[var(--text-muted)]">
                                   <th className="text-left pb-1 font-semibold">Campo</th>
                                   <th className="text-left pb-1 font-semibold">De</th>
                                   <th className="text-left pb-1 font-semibold">Para</th>
@@ -1081,8 +1081,8 @@ export default function ProcessoClient() {
                               </thead>
                               <tbody>
                                 {ev.campos.map((c, i) => (
-                                  <tr key={i} className="border-t border-slate-700">
-                                    <td className="py-1 text-slate-300 pr-3">{c.campo}</td>
+                                  <tr key={i} className="border-t border-[var(--border)]">
+                                    <td className="py-1 text-[var(--text-secondary)] pr-3">{c.campo}</td>
                                     <td className="py-1 text-red-400 pr-3 font-mono">{c.de || "—"}</td>
                                     <td className="py-1 text-green-400 font-mono">{c.para || "—"}</td>
                                   </tr>
@@ -1090,16 +1090,16 @@ export default function ProcessoClient() {
                               </tbody>
                             </table>
                           ) : (
-                            <p className="text-slate-400 mb-3">Processo criado.</p>
+                            <p className="text-[var(--text-muted)] mb-3">Processo criado.</p>
                           )}
                           {ev.snapshot && !esteConfirmando && (
                             <button onClick={() => setConfirmando(ev.id)}
-                              className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                               ↩ Restaurar para este momento
                             </button>
                           )}
                           {esteConfirmando && (
-                            <div className="bg-slate-700 border border-orange-500 rounded p-3 mt-2">
+                            <div className="bg-[var(--bg-secondary)] border border-orange-500 rounded p-3 mt-2">
                               <p className="text-orange-300 text-xs font-semibold mb-2">
                                 ⚠️ Tem certeza? Todas as alterações feitas após este momento serão revertidas.
                               </p>
@@ -1107,17 +1107,17 @@ export default function ProcessoClient() {
                                 {perfisUsuario.some(p => ["Administrador","Diretora","Diretor"].includes(p)) ? (
                                   <>
                                     <button onClick={() => restaurar(ev)} disabled={!!esteRestaurando}
-                                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                                       {esteRestaurando ? "Restaurando..." : "✓ Confirmar restauração"}
                                     </button>
                                     <button onClick={() => setConfirmando(null)}
-                                      className="bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                                       Cancelar
                                     </button>
                                   </>
                                 ) : (
                                   <button onClick={() => setConfirmando(null)}
-                                    className="bg-slate-600 hover:bg-slate-500 text-slate-200 text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                    className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                                     Cancelar
                                   </button>
                                 )}
@@ -1142,16 +1142,16 @@ export default function ProcessoClient() {
 
       {confirmarMac && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-[var(--bg-card)] border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes no LIP</h2>
-            <p className="text-slate-300 text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
+            <p className="text-[var(--text-secondary)] text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
             <div className="flex gap-3">
               <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
-                className="flex-1 bg-orange-700 hover:bg-orange-600 text-white font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-orange-700 hover:bg-orange-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Ir assim mesmo
               </button>
               <button onClick={() => setConfirmarMac(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-slate-200 font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Voltar e conferir
               </button>
             </div>

@@ -1,27 +1,48 @@
 "use client";
 import { createContext, useContext, useEffect, useState } from "react";
+import { temaConfig, Tema, TEMAS } from "@/lib/themes";
 
-type Theme = "light" | "dark";
-interface ThemeContextType { theme: Theme; setTheme: (t: Theme) => void; }
+const ThemeContext = createContext<{ tema: Tema; setTema: (t: Tema) => void }>({
+  tema: "moderno",
+  setTema: () => {},
+});
 
-const ThemeContext = createContext<ThemeContextType>({ theme: "dark", setTheme: () => {} });
+export function useTheme() { return useContext(ThemeContext); }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [tema, setTemaState] = useState<Tema>("moderno");
 
   useEffect(() => {
-    const saved = (localStorage.getItem("urbis-theme") as Theme) ?? "dark";
-    setThemeState(saved);
-    document.documentElement.classList.toggle("dark", saved === "dark");
+    // Carrega tema do servidor
+    fetch("/api/auth/me")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const t = data?.data?.tema;
+        if (t && TEMAS.includes(t)) setTemaState(t as Tema);
+      })
+      .catch(() => {});
   }, []);
 
-  const setTheme = (t: Theme) => {
-    setThemeState(t);
-    localStorage.setItem("urbis-theme", t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-  };
+  useEffect(() => {
+    const vars = temaConfig[tema];
+    const root = document.documentElement;
+    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    root.setAttribute("data-tema", tema);
+  }, [tema]);
 
-  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
+  function setTema(t: Tema) {
+    setTemaState(t);
+    // Salva no banco
+    fetch("/api/usuario/tema", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tema: t }),
+    }).catch(() => {});
+  }
+
+  return (
+    <ThemeContext.Provider value={{ tema, setTema }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
-
-export const useTheme = () => useContext(ThemeContext);

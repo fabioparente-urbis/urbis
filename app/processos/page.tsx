@@ -29,7 +29,7 @@ type Processo = {
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
   despacho: "bg-blue-900 text-blue-200 border-blue-700",
   indeferimento: "bg-red-900 text-red-200 border-red-700",
-  arquivamento: "bg-slate-700 text-slate-200 border-slate-500",
+  arquivamento: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
   laudo: "bg-green-900 text-green-200 border-green-700",
 };
 
@@ -68,7 +68,7 @@ const STATUS_COR: Record<string, string> = {
   CONCLUIDO: "bg-green-900 text-green-300",
   PENDENTE: "bg-yellow-900 text-yellow-300",
   cancelado: "bg-red-900 text-red-300",
-  CADASTRADO: "bg-slate-700 text-slate-300",
+  CADASTRADO: "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
   arquivado_duplicado: "bg-orange-900 text-orange-300",
   aguardando_assinaturas: "bg-purple-900 text-purple-300",
 };
@@ -271,37 +271,37 @@ export default function ProcessosPage() {
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/")}
-            className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🏠 Home
           </button>
           <div>
             <h1 className="text-2xl font-bold">📋 Processos</h1>
-            <p className="text-slate-400 text-sm">Todos os processos cadastrados no URBIS</p>
+            <p className="text-[var(--text-muted)] text-sm">Todos os processos cadastrados no URBIS</p>
           </div>
         </div>
-        <span className="text-slate-500 text-sm">{processos.length} processo(s)</span>
+        <span className="text-[var(--text-muted)] text-sm">{processos.length} processo(s)</span>
       </div>
 
       {/* FILTROS */}
       <div className="flex flex-wrap gap-3 mb-6">
         <input value={busca} onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por numero SEI ou codigo..."
-          className="flex-1 min-w-[200px] bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 min-w-[200px] bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}
-          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os tipos</option>
           <option value="REGULARIZACAO">Regularização</option>
           <option value="ACEITE">Aceite</option>
           <option value="APROVACAO">Aprovação</option>
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
-          className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
         {podeFiltrarAnalista && (
           <select value={analista} onChange={(e) => setAnalista(e.target.value)}
-            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Todos os analistas</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
@@ -310,9 +310,9 @@ export default function ProcessosPage() {
 
       {/* LISTA */}
       {carregando ? (
-        <div className="text-slate-400 text-sm text-center py-12">Carregando...</div>
+        <div className="text-[var(--text-muted)] text-sm text-center py-12">Carregando...</div>
       ) : processos.length === 0 ? (
-        <div className="text-slate-500 text-sm text-center py-12">Nenhum processo encontrado.</div>
+        <div className="text-[var(--text-muted)] text-sm text-center py-12">Nenhum processo encontrado.</div>
       ) : (
         <div className="flex flex-col gap-2">
           {processos.map((p) => {
@@ -351,23 +351,23 @@ export default function ProcessosPage() {
                 </div>
 
                 {/* Tipo */}
-                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-slate-700 text-slate-300"}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {TIPO_ROTULO[p.tipo_processo] || p.tipo_processo || "—"}
                 </span>
 
                 {/* Status */}
-                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${STATUS_COR[p.status] || "bg-slate-700 text-slate-300"}`}>
+                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${STATUS_COR[p.status] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.status?.replace(/_/g, " ") || "—"}
                 </span>
 
                 {/* Data */}
-                <p className="text-slate-500 text-xs whitespace-nowrap hidden lg:block">{formatar(p.atualizado_em)}</p>
+                <p className="text-[var(--text-muted)] text-xs whitespace-nowrap hidden lg:block">{formatar(p.atualizado_em)}</p>
 
                 {/* Ações */}
                 <div className="flex gap-2">
                   <button onClick={(e) => { e.stopPropagation(); abrirEditar(p); }}
                     title="Abrir LIP do processo"
-                    className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">
+                    className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">
                     ✏️
                   </button>
                   <button onClick={() => deletar(p)} disabled={deletando === p.id}
@@ -384,27 +384,27 @@ export default function ProcessosPage() {
       {/* MODAL EDITAR */}
       {editando && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white font-bold text-lg">Editar Processo</h2>
-              <button onClick={() => setEditando(null)} className="text-slate-400 hover:text-white text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">Editar Processo</h2>
+              <button onClick={() => setEditando(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <p className="text-emerald-600 font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Status</label>
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Status</label>
                 <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Manter atual</option>
                   {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
                 </select>
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Atribuir Analista</label>
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Atribuir Analista</label>
                 <select value={novoAnalista} onChange={(e) => setNovoAnalista(e.target.value)}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">Sem analista</option>
                   {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} — {u.perfil}</option>)}
                 </select>
@@ -413,11 +413,11 @@ export default function ProcessosPage() {
 
             <div className="flex gap-3 mt-6">
               <button onClick={salvarEdicao} disabled={salvando}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : "💾 Salvar"}
               </button>
               <button onClick={() => setEditando(null)}
-                className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -427,15 +427,15 @@ export default function ProcessosPage() {
       {/* AVISO LIP NÃO PREENCHIDO */}
       {avisoLipVazio && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
             <div className="text-4xl mb-3">⚠️</div>
-            <h2 className="text-white font-bold text-lg mb-2">LIP não preenchido</h2>
-            <p className="text-slate-400 text-sm mb-5">
+            <h2 className="text-[var(--text-primary)] font-bold text-lg mb-2">LIP não preenchido</h2>
+            <p className="text-[var(--text-muted)] text-sm mb-5">
               O LIP deste processo ainda não foi preenchido. Preencha o LIP antes de acessar o MAC.
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>
@@ -445,15 +445,15 @@ export default function ProcessosPage() {
       {/* AVISO LIP NÃO PREENCHIDO */}
       {avisoLipVazio && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
             <div className="text-4xl mb-3">⚠️</div>
-            <h2 className="text-white font-bold text-lg mb-2">LIP não preenchido</h2>
-            <p className="text-slate-400 text-sm mb-5">
+            <h2 className="text-[var(--text-primary)] font-bold text-lg mb-2">LIP não preenchido</h2>
+            <p className="text-[var(--text-muted)] text-sm mb-5">
               O LIP deste processo ainda não foi preenchido. Preencha o LIP antes de acessar o MAC.
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>

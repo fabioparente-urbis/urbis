@@ -25,3 +25,5 @@ export default function HeaderGlobal() {
     </>
   );
 }
+// Selector de tema — adicionar no JSX do header
+// <ThemeSelector />
