@@ -121,6 +121,7 @@ export default function ProcessosPage() {
   const ehGerente = perfisUsuario.some((p) => (PERFIS_GERENCIA as readonly string[]).includes(p));
   const podeFiltrarAnalista = irrestrito || ehGerente;
   const souAdmin = perfisUsuario.includes("Administrador");
+  const [avisoLipVazio, setAvisoLipVazio] = useState(false);
 
   async function removerTag(processoId: string, codigo: string, tagId: string) {
     await fetch("/api/processo/tag", {
@@ -239,10 +240,24 @@ export default function ProcessosPage() {
 
   function abrirProcesso(p: Processo) {
     const id = p.codigo || p.numero_sei;
-    // Passa o tipo do processo na URL para que o cadastro/LIP saiba qual
-    // dos processos (REG vs ACEITE com mesmo SEI) abrir.
     const tipoNorm = String(p.tipo_processo || "REGULARIZACAO").toUpperCase();
-    router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
+    const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+    const destino = params.get("destino");
+    if (destino === "mac") {
+      // Verifica se LIP tem algum campo preenchido antes de ir pro MAC
+      fetch(`/api/processo/lip-preenchido?codigo=${encodeURIComponent(id)}&tipo=${encodeURIComponent(tipoNorm)}`)
+        .then(r => r.json())
+        .then(({ preenchido }) => {
+          if (preenchido) {
+            router.push(`/analise-regularizacao/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
+          } else {
+            setAvisoLipVazio(true);
+          }
+        })
+        .catch(() => setAvisoLipVazio(true));
+    } else {
+      router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
+    }
   }
 
   function nomeAnalista(id: string | null) {
@@ -410,5 +425,23 @@ export default function ProcessosPage() {
         </div>
       )}
     </div>
+
+      {/* AVISO LIP NÃO PREENCHIDO */}
+      {avisoLipVazio && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <div className="text-4xl mb-3">⚠️</div>
+            <h2 className="text-white font-bold text-lg mb-2">LIP não preenchido</h2>
+            <p className="text-slate-400 text-sm mb-5">
+              O LIP deste processo ainda não foi preenchido. Preencha o LIP antes de acessar o MAC.
+            </p>
+            <button
+              onClick={() => setAvisoLipVazio(false)}
+              className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
   );
 }
