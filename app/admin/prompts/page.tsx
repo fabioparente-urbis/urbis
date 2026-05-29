@@ -359,7 +359,7 @@ export default function AdminPrompts() {
   // ── Loading ─────────────────────────────────────────────────────────────────
 
   if (carregando) return (
-    <div style={{ background: "#0a0a0f", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ background: "#f8fafc", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ color: "#d946ef", fontFamily: "monospace", fontSize: 14, letterSpacing: 2 }}>CARREGANDO SISTEMA...</div>
     </div>
   );
@@ -375,12 +375,12 @@ export default function AdminPrompts() {
         @media print { body { display: none !important; } }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a0f; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
         ::-webkit-scrollbar-thumb { background: #d946ef44; border-radius: 3px; }
       `}</style>
 
       <div ref={containerRef} style={{
-        background: "#0a0a0f", minHeight: "100vh",
+        background: "#f8fafc", minHeight: "100vh",
         fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         backgroundImage: watermark(adminNome),
         transition: "filter 0.3s ease",
@@ -391,7 +391,7 @@ export default function AdminPrompts() {
         <div style={{
           borderBottom: "1px solid #d946ef33", padding: "16px 32px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          background: "#0d0d14",
+          background: "#ffffff",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#d946ef", boxShadow: "0 0 8px #d946ef" }} />
@@ -400,9 +400,9 @@ export default function AdminPrompts() {
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ color: "#ffffff33", fontSize: 11, letterSpacing: 1 }}>{adminNome.toUpperCase()}</span>
+            <span style={{ color: "#cbd5e1", fontSize: 11, letterSpacing: 1 }}>{adminNome.toUpperCase()}</span>
             <button onClick={() => router.push("/")} style={{
-              background: "transparent", border: "1px solid #ffffff22", color: "#ffffff66",
+              background: "transparent", border: "1px solid #e2e8f0", color: "#64748b",
               padding: "4px 12px", borderRadius: 4, cursor: "pointer", fontSize: 11, letterSpacing: 1,
             }}>← HOME</button>
           </div>
@@ -411,7 +411,7 @@ export default function AdminPrompts() {
         {/* ── ABAS DE ASSUNTO ── */}
         <div style={{
           borderBottom: "1px solid #d946ef22",
-          background: "#0d0d14",
+          background: "#ffffff",
           display: "flex", gap: 0, overflowX: "auto",
           padding: "0 32px",
         }}>
@@ -420,7 +420,7 @@ export default function AdminPrompts() {
               background: "transparent",
               borderBottom: abaIdx === idx ? "2px solid #d946ef" : "2px solid transparent",
               borderTop: "none", borderLeft: "none", borderRight: "none",
-              color: abaIdx === idx ? "#d946ef" : a.ativo ? "#ffffff66" : "#ffffff22",
+              color: abaIdx === idx ? "#d946ef" : a.ativo ? "#64748b" : "#e2e8f0",
               padding: "10px 16px",
               cursor: "pointer",
               fontSize: 10, letterSpacing: 2, fontFamily: "monospace", whiteSpace: "nowrap",
@@ -445,9 +445,9 @@ export default function AdminPrompts() {
           {/* Sem prompts — botão inicializar */}
           {entryAtiva?.loaded && !entryAtiva.hasPrompts && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "60px 0" }}>
-              <span style={{ color: "#ffffff33", fontSize: 12, letterSpacing: 2 }}>
+              <span style={{ color: "#cbd5e1", fontSize: 12, letterSpacing: 2 }}>
                 Nenhum prompt configurado para{" "}
-                <span style={{ color: "#ffffff66" }}>{assuntoAtivo?.nome?.toUpperCase()}</span>
+                <span style={{ color: "#64748b" }}>{assuntoAtivo?.nome?.toUpperCase()}</span>
               </span>
               <button
                 disabled={entryAtiva.inicializando}
@@ -465,7 +465,7 @@ export default function AdminPrompts() {
                   ? "⏳ INICIALIZANDO..."
                   : "⚡ INICIALIZAR PROMPTS COPIANDO DE REGULARIZAÇÃO"}
               </button>
-              <span style={{ color: "#ffffff22", fontSize: 9, letterSpacing: 1 }}>
+              <span style={{ color: "#e2e8f0", fontSize: 9, letterSpacing: 1 }}>
                 Copia os 4 prompts ativos de Regularização para este assunto.
               </span>
             </div>
@@ -500,8 +500,8 @@ export default function AdminPrompts() {
                         border: `1px solid ${meta.cor}66`, padding: "3px 8px", borderRadius: 4,
                         background: meta.cor + "11",
                       }}>{meta.label}</span>
-                      <span style={{ color: "#ffffff44", fontSize: 10, letterSpacing: 2 }}>{meta.sublabel}</span>
-                      <span style={{ color: "#ffffff22", fontSize: 10, marginLeft: "auto" }}>v{state.versao}</span>
+                      <span style={{ color: "#94a3b8", fontSize: 10, letterSpacing: 2 }}>{meta.sublabel}</span>
+                      <span style={{ color: "#e2e8f0", fontSize: 10, marginLeft: "auto" }}>v{state.versao}</span>
                     </div>
 
                     {/* Grid 2 colunas: histórico | produção */}
@@ -510,13 +510,13 @@ export default function AdminPrompts() {
                       {/* Coluna esquerda — Histórico */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <div style={{
-                          color: "#ffffff88", fontSize: 10, letterSpacing: 2, fontWeight: 700,
+                          color: "#475569", fontSize: 10, letterSpacing: 2, fontWeight: 700,
                           paddingBottom: 6, borderBottom: `1px solid ${meta.cor}33`,
                         }}>
                           BACKUP / HISTÓRICO — somente leitura
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-                          <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 2 }}>
+                          <span style={{ color: "#cbd5e1", fontSize: 10, letterSpacing: 2 }}>
                             SNAPSHOTS {state.historico.length > 0 && `(${state.historico.length})`}
                           </span>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -530,8 +530,8 @@ export default function AdminPrompts() {
                             value={state.historicoSelId ?? ""}
                             onChange={(e) => updatePrompt(assuntoId, chave, { historicoSelId: Number(e.target.value) })}
                             style={{
-                              background: "#0d0d14", border: `1px solid ${meta.cor}44`, borderRadius: 4,
-                              color: "#ffffff88", fontSize: 10, padding: "4px 8px",
+                              background: "#ffffff", border: `1px solid ${meta.cor}44`, borderRadius: 4,
+                              color: "#475569", fontSize: 10, padding: "4px 8px",
                               fontFamily: "inherit", outline: "none", letterSpacing: 1,
                             }}
                           >
@@ -546,8 +546,8 @@ export default function AdminPrompts() {
                           readOnly
                           value={conteudoEsquerda || "(sem versão anterior)"}
                           style={{
-                            background: "#0d0d14", border: `1px solid ${meta.cor}22`, borderRadius: 6,
-                            color: "#ffffff44", fontSize: 11, lineHeight: 1.6, padding: 14,
+                            background: "#ffffff", border: `1px solid ${meta.cor}22`, borderRadius: 6,
+                            color: "#94a3b8", fontSize: 11, lineHeight: 1.6, padding: 14,
                             height: 320, fontFamily: "inherit", outline: "none", resize: "vertical",
                           }}
                         />
@@ -556,22 +556,22 @@ export default function AdminPrompts() {
                       {/* Coluna direita — Produção */}
                       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <div style={{
-                          color: "#ffffff88", fontSize: 10, letterSpacing: 2, fontWeight: 700,
+                          color: "#475569", fontSize: 10, letterSpacing: 2, fontWeight: 700,
                           paddingBottom: 6, borderBottom: `1px solid ${meta.cor}33`,
                           display: "flex", alignItems: "center", justifyContent: "space-between",
                         }}>
                           <span>PRODUÇÃO — versão ativa</span>
                           {state.naoSalvo && (
                             <span style={{
-                              color: "#facc15", fontSize: 9, letterSpacing: 2, fontWeight: 700,
-                              border: "1px solid #facc1566", padding: "2px 6px", borderRadius: 3,
-                              background: "#facc1511",
+                              color: "#92400e", fontSize: 9, letterSpacing: 2, fontWeight: 700,
+                              border: "1px solid #d9770666", padding: "2px 6px", borderRadius: 3,
+                              background: "#fef3c7",
                             }}>● ALTERADO — NÃO SALVO</span>
                           )}
                         </div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ color: "#ffffff66", fontSize: 10, letterSpacing: 2 }}>ESTADO</span>
+                            <span style={{ color: "#64748b", fontSize: 10, letterSpacing: 2 }}>ESTADO</span>
                             <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 6px #22c55e" }} />
                           </div>
                           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -596,15 +596,15 @@ export default function AdminPrompts() {
                           value={state.atual}
                           onChange={(e) => updatePrompt(assuntoId, chave, { atual: e.target.value, naoSalvo: true })}
                           style={{
-                            background: state.editando ? "#0d1117" : "#0d0d14",
-                            border: `1px solid ${state.naoSalvo ? "#facc15" : state.editando ? meta.cor : meta.cor + "33"}`,
+                            background: state.editando ? "#f1f5f9" : "#ffffff",
+                            border: `1px solid ${state.naoSalvo ? "#d97706" : state.editando ? meta.cor : meta.cor + "33"}`,
                             borderRadius: 6,
-                            color: state.editando ? "#f0f0f0" : "#ffffff88",
+                            color: state.editando ? "#1e293b" : "#475569",
                             fontSize: 11, lineHeight: 1.6, padding: 14,
                             height: 320, fontFamily: "inherit", outline: "none",
                             transition: "all 0.2s ease", resize: "vertical",
                             boxShadow: state.naoSalvo
-                              ? "0 0 0 1px #facc1555"
+                              ? "0 0 0 1px #d9770655"
                               : state.editando ? `0 0 0 1px ${meta.cor}44` : "none",
                           }}
                         />
@@ -621,7 +621,7 @@ export default function AdminPrompts() {
         {toast && (
           <div style={{
             position: "fixed", bottom: 24, right: 24, zIndex: 999,
-            background: toast.tipo === "ok" ? "#052e16" : "#1c0a09",
+            background: toast.tipo === "ok" ? "#f0fdf4" : "#fef2f2",
             border: `1px solid ${toast.tipo === "ok" ? "#22c55e55" : "#ef444455"}`,
             color: toast.tipo === "ok" ? "#22c55e" : "#ef4444",
             padding: "10px 18px", borderRadius: 6, fontSize: 12,
@@ -653,8 +653,8 @@ function Btn({
       disabled={disabled}
       style={{
         background: destaque && !disabled ? cor + "22" : "transparent",
-        border: `1px solid ${disabled ? "#ffffff11" : cor + (destaque ? "88" : "44")}`,
-        color: disabled ? "#ffffff22" : destaque ? cor : "#ffffff88",
+        border: `1px solid ${disabled ? "#f1f5f9" : cor + (destaque ? "88" : "44")}`,
+        color: disabled ? "#e2e8f0" : destaque ? cor : "#475569",
         padding: "4px 10px", borderRadius: 4,
         cursor: disabled ? "not-allowed" : "pointer",
         fontSize: 10, letterSpacing: 1, fontFamily: "monospace",

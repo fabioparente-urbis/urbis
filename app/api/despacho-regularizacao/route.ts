@@ -97,15 +97,15 @@ export async function POST(req: NextRequest) {
     if (analiseId) {
       const { data: analise } = await supabase
         .from("analises_mac")
-        .select("itens, modelo_id, cau_responsavel, crea_responsavel")
+        .select("itens, modelo_id")
         .eq("id", analiseId)
         .maybeSingle();
-      // item 3 Cowork: propaga CAU/CREA do responsável técnico ao despacho.
-      if ((analise as any)?.cau_responsavel || (analise as any)?.crea_responsavel) {
-        responsavelTecnico = {
-          cau: (analise as any).cau_responsavel,
-          crea: (analise as any).crea_responsavel,
-        };
+      // CAU/CREA vêm do LIP (processos.dados) — S63
+      const dadosProc = (proc as any)?.dados || {};
+      const cauLip = dadosProc?.cau?.valor || null;
+      const creaLip = dadosProc?.crea?.valor || null;
+      if (cauLip || creaLip) {
+        responsavelTecnico = { cau: cauLip, crea: creaLip };
       }
       const mapa = (analise?.itens as Record<string, string> | null) || {};
       const idsNaoConformes = Object.keys(mapa).filter((k) => mapa[k] === "nao_conforme");

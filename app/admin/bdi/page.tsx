@@ -453,6 +453,48 @@ export default function BDIPage() {
                 </div>
                 </>}
 
+
+                {subAba === "sessoes" && <>
+                <div style={S.card}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                    <div style={S.label}>SESSÕES DE TRABALHO</div>
+                    <button onClick={carregarSessoes} style={S.btn("#d946ef")}>↻ Atualizar</button>
+                  </div>
+                  {loadingSessoes && <div style={{ color:"#ffffff44", fontSize:12, textAlign:"center", padding:20 }}>Carregando…</div>}
+                  {!loadingSessoes && sessoes.length === 0 && (
+                    <div style={{ color:"#ffffff33", fontSize:12, textAlign:"center", padding:20 }}>Nenhuma sessão registrada ainda.</div>
+                  )}
+                  {!loadingSessoes && sessoes.length > 0 && (
+                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                      <thead>
+                        <tr>
+                          {["ANALISTA","INÍCIO","ENCERRAMENTO","DURAÇÃO","STATUS"].map(h=>(
+                            <th key={h} style={S.th}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sessoes.map((s:any, i:number) => {
+                          const inicio = new Date(s.iniciada_em);
+                          const fim = s.encerrada_em ? new Date(s.encerrada_em) : null;
+                          const duracaoMs = fim ? fim.getTime() - inicio.getTime() : s.ultimo_heartbeat ? new Date(s.ultimo_heartbeat).getTime() - inicio.getTime() : null;
+                          const duracaoMin = duracaoMs ? Math.round(duracaoMs / 60000) : null;
+                          const corStatus = s.status === "ativa" ? "#22c55e" : "#ffffff44";
+                          return (
+                            <tr key={i}>
+                              <td style={S.td}>{s.usuario_nome || s.usuario_id || "—"}</td>
+                              <td style={{...S.td, fontFamily:"monospace", fontSize:11}}>{inicio.toLocaleString("pt-BR")}</td>
+                              <td style={{...S.td, fontFamily:"monospace", fontSize:11}}>{fim ? fim.toLocaleString("pt-BR") : "—"}</td>
+                              <td style={S.td}>{duracaoMin !== null ? `${duracaoMin} min` : "—"}</td>
+                              <td style={S.td}><span style={S.badge(corStatus)}>{(s.status || "encerrada").toUpperCase()}</span></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                </>}
                     </>
                   );
                 })()}

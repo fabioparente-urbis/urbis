@@ -117,5 +117,110 @@ export async function PUT(req: NextRequest) {
   if (errUp) {
     return NextResponse.json({ ok: false, erro: errUp.message }, { status: 500 });
   }
+
+  // 5. Auto-clone: se o slot acabou de ser ativado (false → true), clona
+  //    LIP + MAC + prompts de Regularização automaticamente.
+  if (patch.ativo === true && atual.ativo === false) {
+    try {
+      await clonarDeRegularizacao(id, atualizado.slug, atualizado.nome);
+    } catch (e: any) {
+      // Falha silenciosa no clone — não bloqueia a ativação
+      console.error("[assuntos] auto-clone falhou:", e?.message);
+    }
+  }
+
   return NextResponse.json({ ok: true, data: atualizado });
+}
+
+const SLUG_REG = "regularizacao";
+
+async function clonarDeRegularizacao(destino_id: string, destino_slug: string, destino_nome: string) {
+  // Busca ID da Regularização
+  const { data: reg } = await supabaseAdmin
+    .from("assuntos")
+    .select("id")
+    .eq("slug", SLUG_REG)
+    .maybeSingle();
+  if (!reg?.id) return;
+  const origem_id = reg.id;
+
+  // ── LIP: clonar abas + campos ──────────────────────────────────────────
+  // Só clona se destino ainda não tem abas
+  const { data: abasExistentes } = await supabaseAdmin
+    .from("lip_abas")
+    .select("id")
+    .eq("assunto_id", destino_id)
+    .limit(1);
+  if (!abasExistentes || abasExistentes.length === 0) {
+    const { data: abasOrigem } = await supabaseAdmin
+      .from("lip_abas")
+      .select("*, lip_campos(*)")
+      .eq("assunto_id", origem_id)
+      .order("ordem", { ascending: true });
+    for (const aba of abasOrigem ?? []) {
+      const { data: novaAba } = await supabaseAdmin
+        .from("lip_abas")
+        .insert({ nome: aba.nome, dica: aba.dica ?? "", ordem: aba.ordem, ativo: true, assunto_id: destino_id })
+        .select().single();
+      const campos = (aba.lip_campos ?? []).map((c: any) => ({
+        aba_id: novaAba.id, chave: c.chave, label: c.label, tipo: c.tipo,
+        opcoes: c.opcoes, placeholder: c.placeholder ?? "", valor_padrao: c.valor_padrao ?? "",
+        ordem: c.ordem, ativo: true,
+      }));
+      if (campos.length > 0) await supabaseAdmin.from("lip_campos").insert(campos);
+    }
+  }
+
+  // ── MAC: clonar modelo + itens ─────────────────────────────────────────
+  // Só clona se destino ainda não tem modelo
+  const { data: modelosExistentes } = await supabaseAdmin
+    .from("mac_checklist_modelos")
+    .select("id")
+    .eq("assunto_id", destino_id)
+    .limit(1);
+  if (!modelosExistentes || modelosExistentes.length === 0) {
+    const { data: modeloOrigem } = await supabaseAdmin
+      .from("mac_checklist_modelos")
+      .select("id")
+      .eq("assunto_id", origem_id)
+      .limit(1)
+      .maybeSingle();
+    if (modeloOrigem?.id) {
+      const { data: novoModelo } = await supabaseAdmin
+        .from("mac_checklist_modelos")
+        .insert({ nome: `PADRÃO — ${destino_nome.toUpperCase()}`, tipo_processo: destino_slug.toUpperCase(), assunto_id: destino_id, dono_id: null, criado_por: null })
+        .select().single();
+      const { data: itens } = await supabaseAdmin
+        .from("mac_checklist_itens")
+        .select("grupo, texto, ref, ordem, ativo, chave_lip")
+        .eq("modelo_id", modeloOrigem.id);
+      if (itens && itens.length > 0) {
+        await supabaseAdmin.from("mac_checklist_itens").insert(
+          itens.map((i: any) => ({ ...i, modelo_id: novoModelo.id }))
+        );
+      }
+    }
+  }
+
+  // ── Prompts: clonar de Regularização ──────────────────────────────────
+  const { data: promptsExistentes } = await supabaseAdmin
+    .from("lip_prompts")
+    .select("id")
+    .eq("assunto_id", destino_id)
+    .limit(1);
+  if (!promptsExistentes || promptsExistentes.length === 0) {
+    const { data: promptsOrigem } = await supabaseAdmin
+      .from("lip_prompts")
+      .select("chave, nome, conteudo, versao, ativo")
+      .eq("assunto_id", origem_id);
+    if (promptsOrigem && promptsOrigem.length > 0) {
+      await supabaseAdmin.from("lip_prompts").insert(
+        promptsOrigem.map((p: any) => ({
+          chave: p.chave, nome: p.nome, conteudo: p.conteudo,
+          versao: 1, ativo: p.ativo, assunto_id: destino_id,
+          versao_anterior: null, conteudo_backup: "",
+        }))
+      );
+    }
+  }
 }

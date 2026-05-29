@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const {
       processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites,
-      cau_responsavel, crea_responsavel,
       // Sessão 5A: opcional, grava se vier.
       assunto_id,
     } = body;
@@ -77,8 +76,6 @@ export async function POST(req: NextRequest) {
         modelo_id: body.modelo_id || null,
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
-        ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
-        ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
         ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
       })
       .select()
@@ -95,7 +92,7 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites, cau_responsavel, crea_responsavel,
+      id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites,
       // Sessão 5A: opcional, atualiza se vier.
       assunto_id,
     } = body;
@@ -180,8 +177,6 @@ export async function PUT(req: NextRequest) {
         ...(modelo_id ? { modelo_id } : {}),
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
-        ...(cau_responsavel !== undefined ? { cau_responsavel: cau_responsavel ?? null } : {}),
-        ...(crea_responsavel !== undefined ? { crea_responsavel: crea_responsavel ?? null } : {}),
         ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
         atualizado_em: new Date().toISOString(),
       })
