@@ -214,9 +214,19 @@ export default function ProcessoClient() {
           // segue sem assunto_id (fallback)
         }
       }
+      // Fallback: se processo não tem assunto_id, usa Regularização (slot_01)
+      // NUNCA busca sem filtro — evita misturar abas de slots diferentes
+      if (!assuntoIdAlvo) {
+        try {
+          const resAssunto = await fetch("/api/admin/assuntos");
+          const jsonAssunto = await resAssunto.json().catch(() => null);
+          const reg = jsonAssunto?.data?.find((a: {slug: string; id: string}) => a.slug === "regularizacao");
+          if (reg?.id) assuntoIdAlvo = reg.id;
+        } catch { /* mantém null */ }
+      }
       const urlAbas = assuntoIdAlvo
         ? `/api/admin/lip?assunto_id=${encodeURIComponent(assuntoIdAlvo)}`
-        : "/api/admin/lip";
+        : "/api/admin/lip?assunto_id=none"; // fallback seguro — retorna vazio
       const res = await fetch(urlAbas);
       const json = await res.json();
       if (json.ok) {
