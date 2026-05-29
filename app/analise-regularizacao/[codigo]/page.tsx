@@ -1353,23 +1353,23 @@ export default function MacPage() {
           <div className="bg-slate-800 border border-yellow-500/40 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">🤖</span>
-              <h2 className="text-white font-bold text-lg">Itens sugeridos pela IA aguardam confirmação</h2>
+              <h2 className="text-white font-bold text-lg">Itens sugeridos pela IA aguardam aprovação</h2>
             </div>
             <p className="text-slate-400 text-sm mb-4">
-              Revise e aceite os itens abaixo antes de emitir o despacho:
+              Revise e aprove os itens abaixo antes de emitir o despacho:
             </p>
             <ul className="space-y-2 max-h-64 overflow-y-auto mb-5">
               {itensPendentesIA.map((item) => (
                 <li key={item.id} className="flex items-start gap-2 bg-slate-700/50 rounded-lg px-3 py-2 text-sm text-slate-200">
                   <span className="text-yellow-400 mt-0.5">⚠</span>
-                  <span>{item.descricao || item.label || item.id}</span>
+                  <span>{(item.texto || item.id).split(" ").slice(0, 4).join(" ")}…</span>
                 </li>
               ))}
             </ul>
             <button
               onClick={() => setModalItensPendentesIA(false)}
               className="w-full bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
-              Voltar e revisar
+              Voltar e aprovar
             </button>
           </div>
         </div>
