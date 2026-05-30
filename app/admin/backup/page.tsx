@@ -283,23 +283,23 @@ export default function BackupPage() {
 
   if (carregandoPerfil) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-6">
-        <p className="text-slate-400 text-sm">Carregando...</p>
+      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-6">
+        <p className="text-[var(--text-muted)] text-sm">Carregando...</p>
       </div>
     );
   }
 
   if (!souAdmin) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white p-6">
-        <div className="max-w-xl mx-auto bg-slate-800 border border-red-700 rounded-xl p-6 mt-12">
+      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-6">
+        <div className="max-w-xl mx-auto bg-[var(--surface)] border border-red-700 rounded-xl p-6 mt-12">
           <h1 className="text-xl font-bold mb-2">🚫 Acesso restrito</h1>
-          <p className="text-slate-300 text-sm mb-4">
+          <p className="text-[var(--text-secondary)] text-sm mb-4">
             Esta tela é exclusiva do perfil <b>Administrador</b>.
           </p>
           <button
             onClick={() => router.push("/")}
-            className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--primary-text)] px-4 py-2 rounded-lg text-sm font-medium"
           >
             🏠 Voltar para a home
           </button>
@@ -309,18 +309,18 @@ export default function BackupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 md:p-6">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-4 md:p-6">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push("/")}
-            className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors"
           >
             🏠 Home
           </button>
           <div>
             <h1 className="text-2xl font-bold">🗄 Backup & Restauração</h1>
-            <p className="text-slate-400 text-sm">
+            <p className="text-[var(--text-muted)] text-sm">
               Exporte os dados do URBIS em arquivos JSON e restaure quando precisar.
               Importação faz <b>upsert por id</b> (registros existentes são sobrescritos).
             </p>
@@ -339,10 +339,10 @@ export default function BackupPage() {
           return (
             <div
               key={secao.tipo}
-              className={`bg-slate-800 border rounded-xl p-5 flex flex-col gap-3 ${
+              className={`bg-[var(--surface)] border rounded-xl p-5 flex flex-col gap-3 ${
                 secao.tipo === "tudo"
                   ? "border-purple-700 lg:col-span-2"
-                  : "border-slate-700"
+                  : "border-[var(--border)]"
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -350,17 +350,17 @@ export default function BackupPage() {
                   <h2 className="text-lg font-bold">
                     {secao.emoji} {secao.titulo}
                   </h2>
-                  <p className="text-slate-400 text-sm mt-1">{secao.descricao}</p>
+                  <p className="text-[var(--text-muted)] text-sm mt-1">{secao.descricao}</p>
                 </div>
               </div>
 
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-[var(--text-muted)]">
                 <div>
-                  <span className="font-semibold text-slate-400">Tabelas:</span>{" "}
+                  <span className="font-semibold text-[var(--text-muted)]">Tabelas:</span>{" "}
                   <span className="font-mono">{tabelasResumo}</span>
                 </div>
                 <div className="mt-1">
-                  <span className="font-semibold text-slate-400">Arquivo:</span>{" "}
+                  <span className="font-semibold text-[var(--text-muted)]">Arquivo:</span>{" "}
                   <span className="font-mono">{nomeArquivo}</span>
                 </div>
               </div>
@@ -369,7 +369,7 @@ export default function BackupPage() {
                 <button
                   onClick={() => exportar(secao)}
                   disabled={st.exportando || st.importando}
-                  className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
                   title="Gerar Backup (exporta a seção e registra snapshot BDI)"
                 >
                   {st.exportando ? "Gerando backup..." : "⬇ Gerar Backup"}
@@ -377,7 +377,7 @@ export default function BackupPage() {
                 <button
                   onClick={() => abrirSeletor(secao.tipo)}
                   disabled={st.exportando || st.importando}
-                  className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
                 >
                   {st.importando ? "Importando..." : "⬆ Importar"}
                 </button>
@@ -400,7 +400,7 @@ export default function BackupPage() {
                   className={`text-xs px-3 py-2 rounded-lg border ${
                     st.erro
                       ? "bg-red-900/50 border-red-700 text-red-200"
-                      : "bg-slate-900 border-slate-700 text-slate-300"
+                      : "bg-[var(--bg-primary)] border-[var(--border)] text-[var(--text-secondary)]"
                   }`}
                 >
                   {st.msg}
@@ -411,8 +411,8 @@ export default function BackupPage() {
         })}
       </div>
 
-      <div className="mt-6 bg-slate-800 border border-slate-700 rounded-xl p-4 text-xs text-slate-400">
-        <p className="font-semibold text-slate-300 mb-1">⚠️ Cuidados na restauração</p>
+      <div className="mt-6 bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 text-xs text-[var(--text-muted)]">
+        <p className="font-semibold text-[var(--text-secondary)] mb-1">⚠️ Cuidados na restauração</p>
         <ul className="list-disc list-inside space-y-1">
           <li>
             A importação faz <b>upsert por id</b>: registros com mesmo id são

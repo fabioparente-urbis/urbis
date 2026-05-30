@@ -47,22 +47,22 @@ export default function AdminMrpPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-slate-950 text-white px-8 py-4 flex items-center justify-between">
+      <header className="bg-[var(--bg-primary)] text-[var(--primary-text)] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push("/")} className="text-slate-300 hover:text-white text-sm">← Início</button>
+          <button onClick={() => router.push("/")} className="text-[var(--text-secondary)] hover:text-[var(--primary-text)] text-sm">← Início</button>
           <h1 className="text-xl font-semibold">👥 MRP — Visão da Equipe</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <select value={mes} onChange={(e) => setMes(Number(e.target.value))}
-            className="bg-slate-800 px-2 py-1 rounded border border-slate-700">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
             {MESES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-            className="bg-slate-800 px-2 py-1 rounded border border-slate-700">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
             {[ano - 1, ano, ano + 1].map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
           <button onClick={() => router.push(`/mrp`)}
-            className="bg-blue-600 px-3 py-1 rounded hover:bg-blue-700">📊 Meu painel</button>
+            className="bg-[var(--accent)] px-3 py-1 rounded hover:bg-[var(--accent-hover)]">📊 Meu painel</button>
         </div>
       </header>
 

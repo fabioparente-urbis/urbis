@@ -89,7 +89,7 @@ export default function MrpEquipeView({
         <KpiBox titulo="Área total m²" valor={(Math.round(totArea * 100) / 100).toLocaleString("pt-BR")} />
       </div>
 
-      {msg && <div className="bg-emerald-50 text-emerald-800 px-4 py-2 rounded text-sm">{msg}</div>}
+      {msg && <div className="bg-[var(--success-bg)] text-[var(--success)] px-4 py-2 rounded text-sm">{msg}</div>}
 
       {/* Tabela equipe */}
       <div className="bg-white rounded-lg shadow border overflow-x-auto">
@@ -128,8 +128,8 @@ export default function MrpEquipeView({
                 <td className="px-3 py-2 text-right">{l.projecao.toFixed(1)}</td>
                 <td className="px-3 py-2 text-center">
                   <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    l.status === "EXCELENTE" ? "bg-emerald-100 text-emerald-800"
-                    : l.status === "OK" ? "bg-blue-100 text-blue-800"
+                    l.status === "EXCELENTE" ? "bg-[var(--success-bg)] text-[var(--success)]"
+                    : l.status === "OK" ? "bg-[var(--info-bg)] text-[var(--accent)]"
                     : "bg-rose-100 text-rose-800"
                   }`}>{l.status}</span>
                 </td>
@@ -186,7 +186,7 @@ export default function MrpEquipeView({
                 Cancelar
               </button>
               <button onClick={() => salvarMeta(editando)} disabled={salvando}
-                className="px-4 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 rounded bg-[var(--accent)] text-[var(--primary-text)] text-sm hover:bg-[var(--accent-hover)] disabled:opacity-50">
                 {salvando ? "Salvando…" : "Salvar"}
               </button>
             </div>

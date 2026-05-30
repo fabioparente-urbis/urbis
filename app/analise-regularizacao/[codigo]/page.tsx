@@ -651,7 +651,7 @@ export default function MacPage() {
                   value={numeroDespacho}
                   onChange={(e) => setNumeroDespacho(e.target.value)}
                   placeholder="Ex: 042"
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
               </div>
               {tipoDespacho === "despacho" && naoConformes.length > 0 && (
@@ -668,7 +668,7 @@ export default function MacPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={gerarDespacho} disabled={gerandoDespacho}
-                className="flex-1 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespacho(false)}
@@ -711,14 +711,14 @@ export default function MacPage() {
               type="button"
               onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank"); }}
               disabled={!analiseAtual?.id}
-              className="bg-green-700 hover:bg-green-600 disabled:opacity-50 text-green-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📊 Exportar Excel
             </button>
             <button
               type="button"
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
-              className="bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               {importando ? "⏳ Importando..." : "📥 Importar Excel"}
             </button>
             <input
@@ -744,7 +744,7 @@ export default function MacPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
-          <span className="flex items-center gap-1"><span className="bg-green-700 px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
+          <span className="flex items-center gap-1"><span className="bg-[var(--success)] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-red-700 px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[var(--bg-secondary)] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
         </div>
@@ -759,7 +759,7 @@ export default function MacPage() {
             onBlur={() => void salvarSilencioso()}
             placeholder="Ex: 1ª análise: Analista João — 2ª análise: Analista Maria"
             rows={2}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
           />
         </div>
 
@@ -791,7 +791,7 @@ export default function MacPage() {
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="flex flex-wrap gap-2 pt-3 pb-1">
               <button onClick={() => marcarGrupo(grupoAtual, "conforme")}
-                className="flex items-center gap-1.5 bg-green-900 hover:bg-green-800 border border-green-700 text-green-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[var(--success-bg)] hover:bg-[var(--success-bg)] border border-[var(--border)] text-[var(--accent-fg)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 ✅ Todos Conformes
               </button>
               <button onClick={() => marcarGrupo(grupoAtual, "nao_conforme")}
@@ -893,7 +893,7 @@ export default function MacPage() {
                 return (
                   <div key={item.id}
                     className={`rounded-xl border p-4 transition-all ${
-                      status === "conforme" ? "bg-green-950 border-green-800" :
+                      status === "conforme" ? "bg-[var(--success-bg)] border-green-800" :
                       status === "nao_conforme" ? "bg-red-950 border-red-800" :
                       status === "nao_aplica" ? "bg-[var(--bg-card)] border-[var(--border)] opacity-50" :
                       "bg-[var(--bg-card)] border-[var(--border)]"
@@ -915,7 +915,7 @@ export default function MacPage() {
                         {fonte === "p2" && aceito && (
                           <span
                             title="Sugestão da IA aceita"
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-green-600 bg-green-900/40 text-green-200">
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-[var(--border)] bg-[var(--success-bg)]/40 text-[var(--accent-fg)]">
                             🤖 IA ✓
                           </span>
                         )}
@@ -932,7 +932,7 @@ export default function MacPage() {
                               onClick={() => setItem(item.id, status === s ? null : s)}
                               className={`px-2 py-1 rounded text-xs font-bold border transition-all ${
                                 status === s
-                                  ? s === "conforme" ? "bg-green-700 border-green-500 text-[var(--text-primary)]" :
+                                  ? s === "conforme" ? "bg-[var(--success)] border-green-500 text-[var(--text-primary)]" :
                                     s === "nao_conforme" ? "bg-red-700 border-red-500 text-[var(--text-primary)]" :
                                     "bg-[var(--bg-secondary)] border-slate-400 text-[var(--text-primary)]"
                                   : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:border-slate-400"
@@ -956,7 +956,7 @@ export default function MacPage() {
                   onChange={(e) => setObservacoesPorAba((prev) => ({ ...prev, [grupoAtual]: e.target.value }))}
                   placeholder={`Observações específicas de ${grupoAtual}...`}
                   rows={3}
-                  className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
                 />
               </div>
 
@@ -968,7 +968,7 @@ export default function MacPage() {
                   <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)}
                     placeholder="Observações gerais para o despacho final..."
                     rows={4}
-                    className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
+                    className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none" />
                 </div>
               )}
             </div>
@@ -1072,12 +1072,12 @@ export default function MacPage() {
                     ativa
                       ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
                       : jaEmitida
-                        ? "bg-green-900 border-green-700 text-green-300 hover:bg-green-800"
+                        ? "bg-[var(--success-bg)] border-[var(--border)] text-[var(--accent-fg)] hover:bg-[var(--success-bg)]"
                         : existente
                           ? "bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
                           : liberada
                             ? "bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
-                            : "bg-[var(--bg-primary)] border-slate-800 text-slate-600 cursor-not-allowed opacity-50"
+                            : "bg-[var(--bg-primary)] border-[var(--border)] text-slate-600 cursor-not-allowed opacity-50"
                   }`}
                 >
                   {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
@@ -1111,7 +1111,7 @@ export default function MacPage() {
           </button>
 
           <button onClick={() => salvar("deferido")} disabled={salvando || naoConformes.length > 0}
-            className="w-full bg-green-700 hover:bg-green-600 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            className="w-full bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ✅ Deferir
           </button>
 
@@ -1193,7 +1193,7 @@ export default function MacPage() {
               } catch { /* silencioso */ }
               setModalDespacho(true);
             }} disabled={gerandoDespacho}
-              className="w-full bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-[var(--ia)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
             <div className="mt-2">
@@ -1240,7 +1240,7 @@ export default function MacPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
-                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
@@ -1258,12 +1258,12 @@ export default function MacPage() {
                   <option value="outro">Outro...</option>
                 </select>
                 {destinoDI === "outro" && (
-                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 )}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
-                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -1401,7 +1401,7 @@ export default function MacPage() {
             <div className="flex gap-3">
               <button
                 onClick={() => { setModalItensPendentesIA(false); setModalDespacho(true); }}
-                className="flex-1 bg-purple-700 hover:bg-purple-600 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Emitir mesmo assim
               </button>
               <button

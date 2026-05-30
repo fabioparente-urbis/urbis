@@ -30,7 +30,7 @@ const TAG_COR: Record<ProcessoTag["tipo"], string> = {
   despacho: "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent-hover)]",
   indeferimento: "bg-red-900 text-red-200 border-red-700",
   arquivamento: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
-  laudo: "bg-green-900 text-green-200 border-green-700",
+  laudo: "bg-[var(--success-bg)] text-[var(--accent-fg)] border-[var(--border)]",
 };
 
 function rotuloTag(t: ProcessoTag): string {
@@ -65,18 +65,18 @@ const STATUS_OPCOES = [
 
 const STATUS_COR: Record<string, string> = {
   EM_ANALISE: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  CONCLUIDO: "bg-green-900 text-green-300",
+  CONCLUIDO: "bg-[var(--success-bg)] text-[var(--accent-fg)]",
   PENDENTE: "bg-yellow-900 text-yellow-300",
   cancelado: "bg-red-900 text-red-300",
   CADASTRADO: "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
   arquivado_duplicado: "bg-orange-900 text-orange-300",
-  aguardando_assinaturas: "bg-purple-900 text-purple-300",
+  aguardando_assinaturas: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
 };
 
 const TIPO_COR: Record<string, string> = {
   // Regularizacao → roxo, Aceite → azul (item 6).
-  Regularizacao: "bg-purple-900 text-purple-300",
-  REGULARIZACAO: "bg-purple-900 text-purple-300",
+  Regularizacao: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
+  REGULARIZACAO: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
   Aceite: "bg-[var(--accent)] text-[var(--accent-fg)]",
   ACEITE: "bg-[var(--accent)] text-[var(--accent-fg)]",
   Aprovacao: "bg-orange-900 text-orange-300",
@@ -286,22 +286,22 @@ export default function ProcessosPage() {
       <div className="flex flex-wrap gap-3 mb-6">
         <input value={busca} onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por numero SEI ou codigo..."
-          className="flex-1 min-w-[200px] bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 min-w-[200px] bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}
-          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="">Todos os tipos</option>
           <option value="REGULARIZACAO">Regularização</option>
           <option value="ACEITE">Aceite</option>
           <option value="APROVACAO">Aprovação</option>
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
-          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="">Todos os status</option>
           {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
         </select>
         {podeFiltrarAnalista && (
           <select value={analista} onChange={(e) => setAnalista(e.target.value)}
-            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
             <option value="">Todos os analistas</option>
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
@@ -347,7 +347,7 @@ export default function ProcessosPage() {
                     </div>
                   )}
                   <p className="text-slate-600 text-sm mt-0.5 truncate">{proprietario}</p>
-                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-600 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-emerald-900 text-emerald-300 px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-600 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-[var(--success-bg)] text-[var(--accent-fg)] px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
                 </div>
 
                 {/* Tipo */}
@@ -395,7 +395,7 @@ export default function ProcessosPage() {
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Status</label>
                 <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Manter atual</option>
                   {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
                 </select>
@@ -404,7 +404,7 @@ export default function ProcessosPage() {
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Atribuir Analista</label>
                 <select value={novoAnalista} onChange={(e) => setNovoAnalista(e.target.value)}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Sem analista</option>
                   {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} — {u.perfil}</option>)}
                 </select>

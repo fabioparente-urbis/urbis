@@ -61,7 +61,7 @@ const CORES_DIA = [
   { bg: "bg-red-500",    border: "border-red-500",    text: "text-red-500"    },
   { bg: "bg-cyan-400",   border: "border-cyan-400",   text: "text-cyan-400"   },
   { bg: "bg-pink-400",   border: "border-pink-400",   text: "text-pink-400"   },
-  { bg: "bg-green-500",  border: "border-green-500",  text: "text-green-500"  },
+  { bg: "bg-[var(--success)]",  border: "border-green-500",  text: "text-green-500"  },
 ];
 
 function corParaData(dataEvento: string) {
@@ -77,7 +77,7 @@ function opacidadeEvento(indice: number, total: number): number {
 }
 
 function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" | "info"; onClose: () => void }) {
-  const bg = tipo === "sucesso" ? "bg-green-700 border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-blue-500";
+  const bg = tipo === "sucesso" ? "bg-[var(--success)] border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-[var(--accent-hover)]";
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
   return (
     <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
@@ -759,7 +759,7 @@ export default function ProcessoClient() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
-                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
@@ -777,12 +777,12 @@ export default function ProcessoClient() {
                   <option value="outro">Outro...</option>
                 </select>
                 {destinoDI === "outro" && (
-                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                 )}
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
-                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -819,7 +819,7 @@ export default function ProcessoClient() {
               const rotaMac = "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
-            className="mt-1 bg-purple-700 hover:bg-purple-600 text-purple-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
           <button onClick={() => setModalDI(true)}
@@ -835,14 +835,14 @@ export default function ProcessoClient() {
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
-            className="mt-1 bg-green-700 hover:bg-green-600 text-green-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Exportar Excel
           </a>
           <button
             type="button"
             onClick={() => inputImportRef.current?.click()}
             disabled={importando || !idUrl}
-            className="mt-1 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-emerald-100 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             {importando ? "⏳ Importando..." : "📥 Importar Excel"}
           </button>
           <input
@@ -895,9 +895,9 @@ export default function ProcessoClient() {
         <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
           placeholder="Ex: 25.5.000082553-3"
-          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
-          className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-blue-500">
+          className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="Regularização">Regularização</option>
           <option value="Aceite">Aceite</option>
           <option value="Aprovação">Aprovação</option>
@@ -1028,7 +1028,7 @@ export default function ProcessoClient() {
         </button>
         {!isUltimaAba && (
           <button onClick={() => setAba((a) => a + 1)}
-            className="bg-green-600 hover:bg-green-500 px-4 py-2 rounded font-medium text-sm transition-colors">
+            className="bg-[var(--success)] hover:bg-[var(--accent-hover)] px-4 py-2 rounded font-medium text-sm transition-colors">
             Próxima →
           </button>
         )}
@@ -1044,7 +1044,7 @@ export default function ProcessoClient() {
           <span>Progresso</span><span>{aba + 1} de {abasDB.length} abas</span>
         </div>
         <div className="w-full bg-[var(--bg-secondary)] rounded-full h-1.5">
-          <div className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+          <div className="bg-[var(--accent)] h-1.5 rounded-full transition-all duration-300"
             style={{ width: `${((aba + 1) / abasDB.length) * 100}%` }} />
         </div>
       </div>

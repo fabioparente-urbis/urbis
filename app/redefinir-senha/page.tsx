@@ -75,16 +75,16 @@ export default function RedefinirSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-md text-center">
         <img src="/logo_urbis.png" alt="URBIS" className="mx-auto mb-6 w-44 h-auto" />
         <h2 className="text-2xl font-bold text-slate-700 mb-2">Redefinir senha</h2>
-        <p className="text-sm text-slate-400 mb-6">
+        <p className="text-sm text-[var(--text-muted)] mb-6">
           Escolha uma nova senha para acessar o URBIS.
         </p>
 
         {carregandoSessao ? (
-          <p className="text-sm text-slate-500">Validando link...</p>
+          <p className="text-sm text-[var(--text-muted)]">Validando link...</p>
         ) : !sessaoOk ? (
           <div className="bg-red-50 border border-red-300 text-red-600 text-sm px-3 py-3 rounded-lg text-left">
             Link inválido ou expirado. Volte ao login e solicite um novo
@@ -92,21 +92,21 @@ export default function RedefinirSenhaPage() {
             <div className="mt-3 text-center">
               <button
                 onClick={() => router.push("/login")}
-                className="bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded"
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--surface)] text-[var(--primary-text)] text-xs font-semibold px-3 py-1.5 rounded"
               >
                 Voltar ao login
               </button>
             </div>
           </div>
         ) : sucesso ? (
-          <div className="bg-green-50 border border-green-300 text-green-700 text-sm px-3 py-3 rounded-lg">
+          <div className="bg-green-50 border border-[var(--border)] text-[var(--success)] text-sm px-3 py-3 rounded-lg">
             ✅ Senha atualizada com sucesso. Redirecionando...
           </div>
         ) : (
           <>
             <div className="flex flex-col gap-4 text-left">
               <div>
-                <label className="text-xs text-slate-500 font-semibold uppercase tracking-wide block mb-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">
                   Nova senha
                 </label>
                 <input
@@ -115,11 +115,11 @@ export default function RedefinirSenhaPage() {
                   onChange={(e) => { setNovaSenha(e.target.value); setErro(""); }}
                   onKeyDown={(e) => e.key === "Enter" && salvar()}
                   placeholder="••••••••"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
               </div>
               <div>
-                <label className="text-xs text-slate-500 font-semibold uppercase tracking-wide block mb-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">
                   Confirmar nova senha
                 </label>
                 <input
@@ -128,7 +128,7 @@ export default function RedefinirSenhaPage() {
                   onChange={(e) => { setConfirmar(e.target.value); setErro(""); }}
                   onKeyDown={(e) => e.key === "Enter" && salvar()}
                   placeholder="••••••••"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
               </div>
             </div>
@@ -142,7 +142,7 @@ export default function RedefinirSenhaPage() {
             <button
               onClick={salvar}
               disabled={salvando}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-lg text-sm transition-colors"
+              className="w-full mt-6 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold py-3 rounded-lg text-sm transition-colors"
             >
               {salvando ? "Salvando..." : "SALVAR NOVA SENHA"}
             </button>

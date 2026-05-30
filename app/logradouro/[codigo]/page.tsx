@@ -137,52 +137,52 @@ export default function LogradouroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center gap-4">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <header className="bg-[var(--bg-primary)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4">
         <button onClick={() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`)}
-          className="text-slate-400 hover:text-white text-sm">← Voltar ao MAC</button>
+          className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-sm">← Voltar ao MAC</button>
         <h1 className="text-lg font-bold">🗺️ Via no Cadastro Imobiliário</h1>
-        <span className="ml-2 text-slate-400 text-sm font-mono">{codigo}</span>
+        <span className="ml-2 text-[var(--text-muted)] text-sm font-mono">{codigo}</span>
       </header>
       <main className="p-6 max-w-5xl mx-auto">
-        <p className="text-slate-400 text-sm mb-6">Informe até 4 logradouros para este processo.</p>
+        <p className="text-[var(--text-muted)] text-sm mb-6">Informe até 4 logradouros para este processo.</p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {slots.map((slot, i) => (
-            <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+            <div key={i} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Logradouro {i + 1}</span>
+                <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide">Logradouro {i + 1}</span>
                 {(slot.dados || slot.bairroBusca) && (
-                  <button onClick={() => limpar(i)} className="text-xs text-slate-500 hover:text-red-400 transition-colors">✕ Limpar</button>
+                  <button onClick={() => limpar(i)} className="text-xs text-[var(--text-muted)] hover:text-red-400 transition-colors">✕ Limpar</button>
                 )}
               </div>
               <div className="relative mb-2">
-                <label className="text-xs text-slate-500 mb-1 block">Setor / Bairro</label>
+                <label className="text-xs text-[var(--text-muted)] mb-1 block">Setor / Bairro</label>
                 <input value={slot.bairroBusca} onChange={e => buscarBairros(i, e.target.value)}
                   placeholder="Digite para buscar..."
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 {slot.bairroOpcoes.length > 0 && (
-                  <ul className="absolute z-20 bg-slate-800 border border-slate-600 rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
-                    {slot.bairroOpcoes.map(b => <li key={b} onClick={() => selBairro(i, b)} className="px-3 py-2 text-sm hover:bg-slate-700 cursor-pointer">{b}</li>)}
+                  <ul className="absolute z-20 bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
+                    {slot.bairroOpcoes.map(b => <li key={b} onClick={() => selBairro(i, b)} className="px-3 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer">{b}</li>)}
                   </ul>
                 )}
               </div>
               <div className="relative mb-3">
-                <label className="text-xs text-slate-500 mb-1 block">Logradouro</label>
+                <label className="text-xs text-[var(--text-muted)] mb-1 block">Logradouro</label>
                 <input value={slot.logradouroBusca} onChange={e => buscarLogradouros(i, e.target.value)}
                   placeholder="Digite para buscar..." disabled={!slot.bairroBusca}
-                  className="w-full bg-slate-700 border border-slate-600 rounded px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-40" />
                 {slot.logradouroOpcoes.length > 0 && (
-                  <ul className="absolute z-20 bg-slate-800 border border-slate-600 rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
-                    {slot.logradouroOpcoes.map(l => <li key={l} onClick={() => selLog(i, l)} className="px-3 py-2 text-sm hover:bg-slate-700 cursor-pointer">{l}</li>)}
+                  <ul className="absolute z-20 bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
+                    {slot.logradouroOpcoes.map(l => <li key={l} onClick={() => selLog(i, l)} className="px-3 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer">{l}</li>)}
                   </ul>
                 )}
               </div>
               {slot.dados ? (
                 <div className="grid grid-cols-3 gap-2">
                   {CAMPOS.map(([label, key]) => (
-                    <div key={label} className="bg-slate-900 border border-slate-700 rounded p-2 text-center">
-                      <div className="text-xs text-slate-500">{label}</div>
-                      <div className="text-sm font-bold text-slate-200">{fmt(label, slot.dados![key])}</div>
+                    <div key={label} className="bg-[var(--bg-primary)] border border-[var(--border)] rounded p-2 text-center">
+                      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+                      <div className="text-sm font-bold text-[var(--text-primary)]">{fmt(label, slot.dados![key])}</div>
                     </div>
                   ))}
                 </div>
@@ -194,11 +194,11 @@ export default function LogradouroPage() {
         </div>
         <div className="mt-8 flex gap-3">
           <button onClick={salvar} disabled={salvando || salvo}
-            className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition-colors">
+            className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold px-8 py-3 rounded-xl text-sm transition-colors">
             {salvo ? "✓ Salvo!" : salvando ? "Salvando..." : "💾 Salvar"}
           </button>
           <button onClick={() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`)}
-            className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold px-6 py-3 rounded-xl text-sm transition-colors">
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold px-6 py-3 rounded-xl text-sm transition-colors">
             Voltar ao MAC
           </button>
         </div>

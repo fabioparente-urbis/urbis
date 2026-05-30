@@ -26,6 +26,10 @@ export const temaConfig: Record<Tema, Record<string, string>> = {
     "--ia-bg":          "#F5F3FF",
     "--shadow":         "0 1px 3px rgba(15,23,42,0.08)",
     "--btn-radius":     "4px",
+    "--surface":        "#FFFFFF",
+    "--primary-text":   "#FFFFFF",
+    "--secondary":      "#E2E8F0",
+    "--secondary-text": "#334155",
     "--card-radius":    "8px",
   },
   moderno: {
@@ -53,6 +57,10 @@ export const temaConfig: Record<Tema, Record<string, string>> = {
     "--ia-bg":          "#1A0A2E",
     "--shadow":         "0 1px 4px rgba(0,0,0,0.40)",
     "--btn-radius":     "8px",
+    "--surface":        "#151D30",
+    "--primary-text":   "#0B0F19",
+    "--secondary":      "#1E293B",
+    "--secondary-text": "#94A3B8",
     "--card-radius":    "12px",
   },
   minimalista: {
@@ -80,6 +88,10 @@ export const temaConfig: Record<Tema, Record<string, string>> = {
     "--ia-bg":          "#FAF5FF",
     "--shadow":         "0 1px 2px rgba(0,0,0,0.06)",
     "--btn-radius":     "0px",
+    "--surface":        "#FFFFFF",
+    "--primary-text":   "#FFFFFF",
+    "--secondary":      "#E4E4E7",
+    "--secondary-text": "#52525B",
     "--card-radius":    "4px",
   },
 };

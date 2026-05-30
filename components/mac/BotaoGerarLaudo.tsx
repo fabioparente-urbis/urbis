@@ -56,7 +56,7 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess }: Props) {
     <button
       onClick={handleGerar}
       disabled={disabled || gerando}
-      className="w-full bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
+      className="w-full bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
     >
       {gerando
         ? <Loader2 className="h-4 w-4 animate-spin" />

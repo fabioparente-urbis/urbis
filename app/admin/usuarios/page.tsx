@@ -196,38 +196,38 @@ export default function UsuariosPage() {
   const isAdminFixo = (u: Usuario) => u.perfil === "Administrador" && u.nome === ADMIN_FIXO;
 
   const corPerfil = (p: string) => {
-    if (p === "Administrador") return "bg-purple-900 text-purple-300";
+    if (p === "Administrador") return "bg-[var(--ia-bg)] text-[var(--accent-fg)]";
     if (p === "Diretora" || p === "Diretor") return "bg-red-900 text-red-300";
     if (PERFIS_GERENCIA.includes(p)) return "bg-yellow-900 text-yellow-300";
-    return "bg-blue-900 text-blue-300";
+    return "bg-[var(--accent)] text-[var(--accent-fg)]";
   };
 
   // Lista de perfis exibida no checkbox: oculta "Administrador" para nao-admins.
   const perfisVisiveis = PERFIS.filter((p) => p !== "Administrador" || souAdmin);
 
   return (
-    <div className="min-h-screen bg-slate-900 p-4 md:p-6 text-white">
+    <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--primary-text)]">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/admin/configuracoes")} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">⚙️ Configurações</button>
-          <button onClick={() => router.push("/")} className="bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1.5 rounded text-sm font-medium transition-colors">🏠 Home</button>
+          <button onClick={() => router.push("/admin/configuracoes")} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">⚙️ Configurações</button>
+          <button onClick={() => router.push("/")} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">🏠 Home</button>
           <div>
             <h1 className="text-2xl font-bold">👥 Gestão de Usuários</h1>
-            <p className="text-slate-400 text-sm">Cadastro e controle de acesso ao URBIS</p>
+            <p className="text-[var(--text-muted)] text-sm">Cadastro e controle de acesso ao URBIS</p>
           </div>
         </div>
-        <button onClick={abrirNovo} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
+        <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
       </div>
 
       <div className="mb-4">
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, email ou matrícula..."
-          className="w-full max-w-md bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
       </div>
 
-      {carregando ? <p className="text-slate-400 text-sm">Carregando...</p> : (
-        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+      {carregando ? <p className="text-[var(--text-muted)] text-sm">Carregando...</p> : (
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-slate-700 text-slate-300 text-xs uppercase tracking-wide">
+            <thead className="bg-[var(--bg-secondary)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left px-4 py-3">Nome</th>
                 <th className="text-left px-4 py-3">Email</th>
@@ -240,25 +240,25 @@ export default function UsuariosPage() {
             </thead>
             <tbody>
               {filtrados.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">Nenhum usuário encontrado.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">Nenhum usuário encontrado.</td></tr>
               ) : filtrados.map((u) => (
-                <tr key={u.id} className="border-t border-slate-700">
+                <tr key={u.id} className="border-t border-[var(--border)]">
                   <td className="px-4 py-3 font-medium">{u.nome}</td>
-                  <td className="px-4 py-3 text-slate-400">{u.email}</td>
-                  <td className="px-4 py-3 text-slate-400">{u.matricula || "—"}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{u.email}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)]">{u.matricula || "—"}</td>
                   <td className="px-4 py-3">
                     {(u.perfis && u.perfis.length > 0 ? u.perfis : [u.perfil]).map((p, i) => (<span key={i} className={`px-2 py-0.5 rounded text-xs font-bold mr-1 ${corPerfil(p)}`}>{p}</span>))}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.status === "Ativo" ? "bg-green-900 text-green-300" : "bg-slate-700 text-slate-400"}`}>{u.status}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.status === "Ativo" ? "bg-[var(--success-bg)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-muted)]"}`}>{u.status}</span>
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">{formatar(u.ultimo_acesso)}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{formatar(u.ultimo_acesso)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
-                      <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-white text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
+                      <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
+                      <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
                       {!isAdminFixo(u) && (
-                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-white text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
+                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
                       )}
                     </div>
                   </td>
@@ -271,27 +271,27 @@ export default function UsuariosPage() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-white font-bold text-lg">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
-              <button onClick={() => setModal(false)} className="text-slate-400 hover:text-white text-xl">✕</button>
+              <h2 className="text-[var(--primary-text)] font-bold text-lg">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
+              <button onClick={() => setModal(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
               {([ ["nome","Nome completo","text"],["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"], ["cau_crea","CAU / CREA","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
                 <div key={campo} className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{label}</label>
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{label}</label>
                   <input type={tipo} value={(form as any)[campo]} onChange={(e) => f(campo, e.target.value)}
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 </div>
               ))}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Perfis</label>
-                <div className="flex flex-wrap gap-3 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Perfis</label>
+                <div className="flex flex-wrap gap-3 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2">
                   {perfisVisiveis.map((p) => {
                     const marcado = form.perfis.includes(p);
                     const ehAdminFixoBloqueado = p === "Administrador" && form.nome.trim() === ADMIN_FIXO;
                     return (
-                      <label key={p} className="flex items-center gap-1.5 text-sm text-white cursor-pointer">
+                      <label key={p} className="flex items-center gap-1.5 text-sm text-[var(--primary-text)] cursor-pointer">
                         <input
                           type="checkbox"
                           checked={marcado}
@@ -305,17 +305,17 @@ export default function UsuariosPage() {
                   })}
                 </div>
                 {souAdmin && form.nome.trim() === ADMIN_FIXO && (
-                  <p className="text-xs text-slate-400 italic">O perfil <b>Administrador</b> é fixo para {ADMIN_FIXO}.</p>
+                  <p className="text-xs text-[var(--text-muted)] italic">O perfil <b>Administrador</b> é fixo para {ADMIN_FIXO}.</p>
                 )}
               </div>
               {/* Select de Gerencia — exibido somente para analistas. */}
               {form.perfis.includes("Analista") && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Gerência</label>
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Gerência</label>
                   <select
                     value={form.gerencia || "DIRAAP"}
                     onChange={(e) => f("gerencia", e.target.value === "DIRAAP" ? "" : e.target.value)}
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   >
                     <option value="GERECCO">PP</option>
                     <option value="GERAED">MP</option>
@@ -326,49 +326,49 @@ export default function UsuariosPage() {
               )}
               {form.perfis.includes("Analista") && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Redução de meta (%)</label>
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Redução de meta (%)</label>
                   <input type="number" min="0" max="100" step="5"
                     value={(form as any).reducao_meta ?? 0}
                     onChange={(e) => f("reducao_meta", e.target.value as any)}
                     placeholder="0 = sem redução, 50 = meta pela metade"
-                    className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                  <span className="text-xs text-slate-400">Meta efetiva: {Math.round(100 * (1 - ((form as any).reducao_meta ?? 0) / 100))} pts/mês</span>
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  <span className="text-xs text-[var(--text-muted)]">Meta efetiva: {Math.round(100 * (1 - ((form as any).reducao_meta ?? 0) / 100))} pts/mês</span>
                 </div>
               )}
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Status</label>
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => f("status", e.target.value)}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="Ativo">Ativo</option>
                   <option value="Inativo">Inativo</option>
                 </select>
               </div>
-              <div className="flex items-center justify-between bg-slate-700 border border-slate-600 rounded-lg px-3 py-2">
+              <div className="flex items-center justify-between bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2">
                 <div>
-                  <p className="text-sm text-white font-semibold">🤖 URBI — Assistente IA</p>
-                  <p className="text-xs text-slate-400">Habilita o robozinho URBI para este usuário</p>
+                  <p className="text-sm text-[var(--primary-text)] font-semibold">🤖 URBI — Assistente IA</p>
+                  <p className="text-xs text-[var(--text-muted)]">Habilita o robozinho URBI para este usuário</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => f("urbi_ativo", !(form as any).urbi_ativo as any)}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${(form as any).urbi_ativo ? "bg-blue-600" : "bg-slate-500"}`}>
+                  className={`relative w-12 h-6 rounded-full transition-colors ${(form as any).urbi_ativo ? "bg-[var(--accent)]" : "bg-slate-500"}`}>
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(form as any).urbi_ativo ? "left-7" : "left-1"}`} />
                 </button>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-400 font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>
                 <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
                   placeholder={editando ? "••••••••" : "Mínimo 6 caracteres"}
-                  className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             {erro && <div className="bg-red-900 border border-red-600 text-red-200 text-xs px-3 py-2 rounded-lg mt-4">❌ {erro}</div>}
             <div className="flex gap-3 mt-6">
               <button onClick={salvar} disabled={salvando}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : editando ? "💾 Salvar alterações" : "✅ Cadastrar"}
               </button>
-              <button onClick={() => setModal(false)} className="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">Cancelar</button>
+              <button onClick={() => setModal(false)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">Cancelar</button>
             </div>
           </div>
         </div>

@@ -156,19 +156,19 @@ function MrpInner() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-slate-950 text-white px-8 py-4 flex items-center justify-between">
+      <header className="bg-[var(--bg-primary)] text-[var(--primary-text)] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push("/")}
-            className="text-slate-300 hover:text-white text-sm">← Início</button>
+            className="text-[var(--text-secondary)] hover:text-[var(--primary-text)] text-sm">← Início</button>
           <h1 className="text-xl font-semibold">📊 MRP — Mapa de Resultados e Produtividade</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <select value={mes} onChange={(e) => setMes(Number(e.target.value))}
-            className="bg-slate-800 px-2 py-1 rounded border border-slate-700">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
             {MESES_PT.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-            className="bg-slate-800 px-2 py-1 rounded border border-slate-700">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
             {[ano - 1, ano, ano + 1].map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
@@ -196,14 +196,14 @@ function MrpInner() {
             {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setAba(k)}
                 className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
-                  aba === k ? "border-blue-600 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
+                  aba === k ? "border-[var(--accent-hover)] text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
                 }`}>{l}</button>
             ))}
           </div>
           {!somenteLeitura && (
             <button
               onClick={abrirModalManual}
-              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded transition my-2">
+              className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-[var(--primary-text)] text-sm font-medium px-4 py-2 rounded transition my-2">
               ✏️ Registrar produção manual
             </button>
           )}
@@ -339,7 +339,7 @@ function MrpInner() {
                   Cancelar
                 </button>
                 <button type="submit" disabled={salvandoManual}
-                  className="px-5 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 text-white rounded disabled:opacity-50">
+                  className="px-5 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 text-[var(--primary-text)] rounded disabled:opacity-50">
                   {salvandoManual ? "Salvando…" : "Salvar"}
                 </button>
               </div>
@@ -402,12 +402,12 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
   if (!data) return <div className="text-red-600">Sem dados.</div>;
 
   const cores: Record<StatusMRP, string> = {
-    EXCELENTE: "bg-emerald-100 text-emerald-800 border-emerald-300",
-    OK: "bg-blue-100 text-blue-800 border-blue-300",
+    EXCELENTE: "bg-[var(--success-bg)] text-[var(--success)] border-emerald-300",
+    OK: "bg-[var(--info-bg)] text-[var(--accent)] border-blue-300",
     RUIM: "bg-rose-100 text-rose-800 border-rose-300",
   };
   const barColor: Record<StatusMRP, string> = {
-    EXCELENTE: "bg-emerald-500", OK: "bg-blue-500", RUIM: "bg-rose-500",
+    EXCELENTE: "bg-[var(--success-bg)]0", OK: "bg-[var(--accent)]", RUIM: "bg-rose-500",
   };
   const pct = Math.min(100, (data.pontos_acumulados / Math.max(1, data.meta_efetiva)) * 100);
 
@@ -493,7 +493,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
           ))}
           {!somenteLeitura && (
             <button onClick={salvarCal} disabled={salvando}
-              className="mt-4 w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50">
+              className="mt-4 w-full bg-[var(--accent)] text-[var(--primary-text)] py-2 rounded hover:bg-[var(--accent-hover)] transition disabled:opacity-50">
               {salvando ? "Salvando…" : "Salvar calendário"}
             </button>
           )}
@@ -584,7 +584,7 @@ function Dossie() {
             onKeyDown={(e) => e.key === "Enter" && buscar()}
             className="flex-1 border rounded px-3 py-2 text-sm" />
           <button onClick={buscar}
-            className="bg-blue-600 text-white px-5 py-2 rounded hover:bg-blue-700 transition">
+            className="bg-[var(--accent)] text-[var(--primary-text)] px-5 py-2 rounded hover:bg-[var(--accent-hover)] transition">
             Buscar
           </button>
         </div>
@@ -612,7 +612,7 @@ function Dossie() {
             {data.processo.tags?.length > 0 && (
               <div className="mt-4 flex gap-2 flex-wrap">
                 {data.processo.tags.map((t: string) => (
-                  <span key={t} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">{t}</span>
+                  <span key={t} className="bg-[var(--info-bg)] text-[var(--accent)] px-2 py-1 rounded text-xs">{t}</span>
                 ))}
               </div>
             )}
@@ -624,8 +624,8 @@ function Dossie() {
               <h3 className="font-semibold text-gray-800 mb-3">Score de complexidade</h3>
               <div className="text-4xl font-bold text-gray-800">{data.complexidade.score}</div>
               <div className={`mt-2 inline-block px-3 py-1 rounded-full text-xs font-semibold ${
-                data.complexidade.classificacao === "Simples" ? "bg-emerald-100 text-emerald-800"
-                : data.complexidade.classificacao === "Moderado" ? "bg-blue-100 text-blue-800"
+                data.complexidade.classificacao === "Simples" ? "bg-[var(--success-bg)] text-[var(--success)]"
+                : data.complexidade.classificacao === "Moderado" ? "bg-[var(--info-bg)] text-[var(--accent)]"
                 : data.complexidade.classificacao === "Complexo" ? "bg-amber-100 text-amber-800"
                 : "bg-rose-100 text-rose-800"
               }`}>{data.complexidade.classificacao}</div>
@@ -652,7 +652,7 @@ function Dossie() {
               {data.timeline.map((ev: any, i: number) => (
                 <li key={i} className="ml-6 mb-5">
                   <span className={`absolute -left-2 w-3 h-3 rounded-full ${
-                    ev.tipo === "despacho" ? "bg-blue-500" : "bg-gray-400"
+                    ev.tipo === "despacho" ? "bg-[var(--accent)]" : "bg-gray-400"
                   }`} />
                   <div className="flex items-baseline gap-2">
                     <strong className="text-gray-800">{ev.titulo}</strong>
@@ -747,11 +747,11 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
             className="w-full border rounded px-3 py-1.5 text-sm" />
         </div>
         <button onClick={carregar}
-          className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700">Filtrar</button>
+          className="bg-[var(--accent)] text-[var(--primary-text)] px-4 py-1.5 rounded text-sm hover:bg-[var(--accent-hover)]">Filtrar</button>
         <button onClick={() => exportar("xlsx")}
-          className="bg-emerald-600 text-white px-4 py-1.5 rounded text-sm hover:bg-emerald-700">📊 Excel</button>
+          className="bg-[var(--success)] text-[var(--primary-text)] px-4 py-1.5 rounded text-sm hover:bg-[var(--success)]">📊 Excel</button>
         <button onClick={() => exportar("docx")}
-          className="bg-slate-700 text-white px-4 py-1.5 rounded text-sm hover:bg-slate-800">📝 Word (DIRAAP)</button>
+          className="bg-[var(--bg-secondary)] text-[var(--primary-text)] px-4 py-1.5 rounded text-sm hover:bg-[var(--surface)]">📝 Word (DIRAAP)</button>
       </div>
 
       <div className="bg-white rounded-lg shadow border overflow-x-auto">
@@ -789,9 +789,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                     <Td>
                       <div className="flex gap-1">
                         <button onClick={() => setEditando({ ...r })}
-                          className="text-xs px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">✏️</button>
+                          className="text-xs px-2 py-1 bg-[var(--accent)] text-[var(--primary-text)] rounded hover:bg-[var(--accent-hover)]">✏️</button>
                         <button onClick={() => excluir(r.id)}
-                          className="text-xs px-2 py-1 bg-red-600 text-white rounded hover:bg-red-700">🗑</button>
+                          className="text-xs px-2 py-1 bg-red-600 text-[var(--primary-text)] rounded hover:bg-red-700">🗑</button>
                       </div>
                     </Td>
                   )}
@@ -866,7 +866,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
             </div>
             <div className="flex justify-end gap-2">
               <button onClick={() => setEditando(null)} className="px-4 py-2 text-sm text-gray-600 border rounded hover:bg-gray-50">Cancelar</button>
-              <button onClick={salvarEdicao} disabled={salvando} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+              <button onClick={salvarEdicao} disabled={salvando} className="px-5 py-2 text-sm font-medium bg-[var(--accent)] text-[var(--primary-text)] rounded hover:bg-[var(--accent-hover)] disabled:opacity-50">
                 {salvando ? "Salvando…" : "Salvar"}
               </button>
             </div>
@@ -1017,7 +1017,7 @@ function BarH({ dados, sufixo = "" }: { dados: { label: string; value: number }[
             <span>{d.value.toLocaleString("pt-BR")}{sufixo}</span>
           </div>
           <div className="w-full bg-gray-100 rounded h-2 overflow-hidden">
-            <div className="bg-blue-500 h-full" style={{ width: `${(d.value / max) * 100}%` }} />
+            <div className="bg-[var(--accent)] h-full" style={{ width: `${(d.value / max) * 100}%` }} />
           </div>
         </li>
       ))}

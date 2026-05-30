@@ -201,7 +201,7 @@ export default function Home() {
               <select
                 value={tipo}
                 onChange={(e) => { setTipo(e.target.value as TipoProcesso); setErro(""); }}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px]">
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-w-[180px]">
                 {assuntosAtivos.length === 0 ? (
                   // Fallback enquanto o GET nao retornou: mostra Regularizacao
                   // (sempre ativa) para nao deixar o select vazio.
@@ -220,11 +220,11 @@ export default function Home() {
                 onChange={(e) => { setNumero(e.target.value); setErro(""); }}
                 onKeyDown={(e) => e.key === "Enter" && validar()}
                 placeholder={getPlaceholder()}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
               <button
                 onClick={validar}
-                className="bg-blue-600 hover:bg-blue-700 text-[var(--text-primary)] font-semibold px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-semibold px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
                 CADASTRAR
               </button>
             </div>
@@ -244,7 +244,7 @@ export default function Home() {
                   key={chave}
                   onClick={() => router.push(rota)}
                   className="group bg-white rounded-xl border border-gray-200 p-6 text-left shadow-sm hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5 transition-all">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 group-hover:bg-blue-100 flex items-center justify-center mb-4 transition-colors">
+                  <div className="w-12 h-12 rounded-lg bg-blue-50 group-hover:bg-[var(--info-bg)] flex items-center justify-center mb-4 transition-colors">
                     <Icone className="text-blue-600" size={24} aria-hidden="true" />
                   </div>
                   <h2 className="text-lg font-bold text-gray-800 tracking-wide">{nome}</h2>
