@@ -83,33 +83,33 @@ const FORM_VAZIO: FormLei = {
 
 const S: Record<string, any> = {
   page: {
-    background: "#0a0a0f",
+    background: "var(--bg-primary)",
     minHeight: "100vh",
-    fontFamily: "'JetBrains Mono', monospace",
-    color: "#e2e8f0",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    color: "var(--text-primary)",
   },
   header: {
-    borderBottom: "1px solid #d946ef33",
-    padding: "14px 28px",
+    borderBottom: "1px solid var(--border)",
+    padding: "12px 28px",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    background: "#0d0d14",
+    background: "var(--surface)",
   },
   content: { padding: "24px 28px" },
   card: {
-    background: "#0d0d14",
-    border: "1px solid #ffffff11",
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
     borderRadius: 8,
     padding: 18,
     marginBottom: 12,
   },
-  label: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, marginBottom: 6 },
-  titulo: { color: "#f0f0f0", fontSize: 13, fontWeight: 600, marginBottom: 4 },
-  meta: { color: "#ffffff55", fontSize: 11 },
+  label: { color: "var(--text-muted)", fontSize: 10, letterSpacing: 2, marginBottom: 6 },
+  titulo: { color: "var(--text-primary)", fontSize: 13, fontWeight: 600, marginBottom: 4 },
+  meta: { color: "var(--text-secondary)", fontSize: 11 },
   badge: (cor: string): React.CSSProperties => ({
-    background: cor + "22",
-    border: `1px solid ${cor}55`,
+    background: cor + "18",
+    border: `1px solid ${cor}`,
     color: cor,
     fontSize: 9,
     padding: "2px 10px",
@@ -119,15 +119,14 @@ const S: Record<string, any> = {
     whiteSpace: "nowrap",
   }),
   btn: (cor: string, disabled = false): React.CSSProperties => ({
-    background: cor + "22",
-    border: `1px solid ${cor}55`,
+    background: cor + "18",
+    border: `1.5px solid ${cor}`,
     color: cor,
-    padding: "8px 16px",
+    padding: "7px 14px",
     borderRadius: 4,
     cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: 11,
-    fontFamily: "inherit",
-    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: 600,
     opacity: disabled ? 0.4 : 1,
     whiteSpace: "nowrap",
   }),
@@ -468,31 +467,36 @@ export default function BDILeisPage() {
   return (
     <div style={S.page}>
       <div style={S.header}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <span style={{ color: "#d946ef", fontSize: 11, letterSpacing: 3, fontWeight: 700 }}>
-            BIP — BIBLIOTECA INTELIGENTE E PESQUISA
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => router.push("/")}
+            style={{ background: "#1E293B", border: "none", color: "#fff", fontWeight: 700, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
+            🏠 Home
+          </button>
+          <button onClick={() => { fetch("/api/auth/logout", { method: "POST" }).then(() => router.push("/login")); }}
+            style={{ background: "#FEF2F2", border: "1.5px solid #DC2626", color: "#DC2626", fontWeight: 700, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 12 }}>
+            🚪 Sair
+          </button>
+          <span style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 700, marginLeft: 8 }}>
+            📚 BIP — Biblioteca Inteligente para Pesquisas
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={abrirCriar}
-            style={S.btn("#22c55e", algumaAcaoBloqueante)}
+            style={S.btn("#059669", algumaAcaoBloqueante)}
             disabled={algumaAcaoBloqueante}
           >
-            + NOVA LEI
+            + Nova Lei
           </button>
           <button
             onClick={carregar}
-            style={S.btn("#06b6d4", algumaAcaoBloqueante)}
+            style={S.btn("#2563EB", algumaAcaoBloqueante)}
             disabled={algumaAcaoBloqueante}
           >
-            ↻ ATUALIZAR
+            ↻ Atualizar
           </button>
-          <button onClick={() => router.push("/admin/bdi")} style={S.btn("#ffffff66")}>
+          <button onClick={() => router.push("/admin/bdi")} style={S.btn("#475569")}>
             ← BDI
-          </button>
-          <button onClick={() => router.push("/")} style={S.btn("#ffffff66")}>
-            ⌂ HOME
           </button>
         </div>
       </div>
