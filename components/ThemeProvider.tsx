@@ -10,7 +10,7 @@ const ThemeContext = createContext<{ tema: Tema; setTema: (t: Tema) => void }>({
 export function useTheme() { return useContext(ThemeContext); }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [tema, setTemaState] = useState<Tema>("moderno");
+  const [tema, setTemaState] = useState<Tema>("institucional");
 
   useEffect(() => {
     // Carrega tema do servidor
@@ -19,6 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       .then(data => {
         const t = data?.data?.tema;
         if (t && TEMAS.includes(t)) setTemaState(t as Tema);
+        else setTemaState("institucional");
       })
       .catch(() => {});
   }, []);

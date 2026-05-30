@@ -27,7 +27,7 @@ type Processo = {
 };
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
-  despacho: "bg-blue-900 text-blue-200 border-blue-700",
+  despacho: "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent-hover)]",
   indeferimento: "bg-red-900 text-red-200 border-red-700",
   arquivamento: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
   laudo: "bg-green-900 text-green-200 border-green-700",
@@ -64,7 +64,7 @@ const STATUS_OPCOES = [
 ];
 
 const STATUS_COR: Record<string, string> = {
-  EM_ANALISE: "bg-blue-900 text-blue-300",
+  EM_ANALISE: "bg-[var(--accent)] text-[var(--accent-fg)]",
   CONCLUIDO: "bg-green-900 text-green-300",
   PENDENTE: "bg-yellow-900 text-yellow-300",
   cancelado: "bg-red-900 text-red-300",
@@ -77,8 +77,8 @@ const TIPO_COR: Record<string, string> = {
   // Regularizacao → roxo, Aceite → azul (item 6).
   Regularizacao: "bg-purple-900 text-purple-300",
   REGULARIZACAO: "bg-purple-900 text-purple-300",
-  Aceite: "bg-blue-900 text-blue-300",
-  ACEITE: "bg-blue-900 text-blue-300",
+  Aceite: "bg-[var(--accent)] text-[var(--accent-fg)]",
+  ACEITE: "bg-[var(--accent)] text-[var(--accent-fg)]",
   Aprovacao: "bg-orange-900 text-orange-300",
   APROVACAO: "bg-orange-900 text-orange-300",
 };
@@ -367,7 +367,7 @@ export default function ProcessosPage() {
                 <div className="flex gap-2">
                   <button onClick={(e) => { e.stopPropagation(); abrirEditar(p); }}
                     title="Abrir LIP do processo"
-                    className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">
+                    className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">
                     ✏️
                   </button>
                   <button onClick={() => deletar(p)} disabled={deletando === p.id}
@@ -413,11 +413,11 @@ export default function ProcessosPage() {
 
             <div className="flex gap-3 mt-6">
               <button onClick={salvarEdicao} disabled={salvando}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : "💾 Salvar"}
               </button>
               <button onClick={() => setEditando(null)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -435,7 +435,7 @@ export default function ProcessosPage() {
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>
@@ -453,7 +453,7 @@ export default function ProcessosPage() {
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>

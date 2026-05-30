@@ -706,7 +706,7 @@ export default function ProcessoClient() {
   const legenda = [
     { cor: "bg-black", label: "Original (documento)" },
     { cor: "bg-red-600", label: "Urbis (automático)" },
-    { cor: "bg-blue-600", label: "Manual (digitado)" },
+    { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
     { cor: "bg-orange-500", label: "Padrão (conferir!)" },
   ];
 
@@ -725,7 +725,7 @@ export default function ProcessoClient() {
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
       {modalLimparLip && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
             <p className="text-sm text-[var(--text-primary)] mb-2">Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo.</p>
@@ -749,7 +749,7 @@ export default function ProcessoClient() {
         </div>
       )}
       {modalDI && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
@@ -791,7 +791,7 @@ export default function ProcessoClient() {
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDI(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -903,7 +903,7 @@ export default function ProcessoClient() {
           <option value="Aprovação">Aprovação</option>
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
-          className="bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-[var(--text-primary)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
+          className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
           Abrir →
         </button>
       </div>
@@ -916,12 +916,12 @@ export default function ProcessoClient() {
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-[var(--text-muted)] cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-[var(--text-primary)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-[var(--text-primary)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Ler PDF com Prompt P1"}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-slate-600 text-[var(--text-muted)] cursor-not-allowed" : "bg-blue-600 hover:bg-blue-500 text-[var(--text-primary)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
               <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
                 onChange={(e) => {
@@ -993,7 +993,7 @@ export default function ProcessoClient() {
           return (
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                aba === i ? "bg-blue-600 text-[var(--text-primary)]" :
+                aba === i ? "bg-[var(--accent)] text-[var(--text-primary)]" :
                 temPendente ? "bg-orange-900 border border-orange-600 text-orange-200 hover:bg-orange-800" :
                 "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
@@ -1023,7 +1023,7 @@ export default function ProcessoClient() {
       {/* NAVEGAÇÃO ABAS */}
       <div className="flex items-center gap-3 mt-4">
         <button onClick={() => setAba((a) => a - 1)} disabled={aba === 0}
-          className="bg-slate-600 hover:bg-slate-500 disabled:opacity-40 px-4 py-2 rounded font-medium text-sm transition-colors">
+          className="bg-[var(--bg-secondary)] hover:bg-slate-500 disabled:opacity-40 px-4 py-2 rounded font-medium text-sm transition-colors">
           ← Voltar
         </button>
         {!isUltimaAba && (
@@ -1125,13 +1125,13 @@ export default function ProcessoClient() {
                                       {esteRestaurando ? "Restaurando..." : "✓ Confirmar restauração"}
                                     </button>
                                     <button onClick={() => setConfirmando(null)}
-                                      className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                                       Cancelar
                                     </button>
                                   </>
                                 ) : (
                                   <button onClick={() => setConfirmando(null)}
-                                    className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                    className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                                     Cancelar
                                   </button>
                                 )}
@@ -1155,7 +1155,7 @@ export default function ProcessoClient() {
 
 
       {confirmarMac && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes no LIP</h2>
             <p className="text-[var(--text-secondary)] text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
@@ -1165,7 +1165,7 @@ export default function ProcessoClient() {
                 Ir assim mesmo
               </button>
               <button onClick={() => setConfirmarMac(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Voltar e conferir
               </button>
             </div>

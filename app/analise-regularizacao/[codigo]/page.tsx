@@ -552,9 +552,9 @@ export default function MacPage() {
       {bannerCritico && (
         <div style={{
           position: "sticky", top: 0, zIndex: 100,
-          background: "#dc2626", color: "#fff",
+          background: "var(--error)", color: "var(--accent-fg)",
           padding: "10px 16px", fontSize: 13, fontWeight: 600,
-          borderBottom: "2px solid #b91c1c"
+          borderBottom: "2px solid var(--border-strong)"
         }}>
           {bannerCritico}
         </div>
@@ -567,7 +567,7 @@ export default function MacPage() {
 
       {/* MODAL SELEÇÃO DE MODELO */}
       {modalModelo && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="mb-5">
               <h2 className="text-[var(--text-primary)] font-bold text-lg mb-1">📋 Selecione o Checklist</h2>
@@ -580,7 +580,7 @@ export default function MacPage() {
                   onClick={() => setModeloSelecionado(m)}
                   className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
                     modeloSelecionado?.id === m.id
-                      ? "bg-blue-900 border-blue-500 text-[var(--text-primary)]"
+                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
                       : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                   }`}>
                   <div className="flex-1">
@@ -605,7 +605,7 @@ export default function MacPage() {
               <button
                 onClick={confirmarModelo}
                 disabled={!modeloSelecionado}
-                className="flex-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Usar este checklist →
               </button>
             </div>
@@ -615,7 +615,7 @@ export default function MacPage() {
 
       {/* MODAL GERAR DESPACHO */}
       {modalDespacho && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-[var(--text-primary)] font-bold text-lg">📄 Gerar Despacho</h2>
@@ -634,7 +634,7 @@ export default function MacPage() {
                       onClick={() => setTipoDespacho(op.value as any)}
                       className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
                         tipoDespacho === op.value
-                          ? "bg-blue-900 border-blue-500 text-[var(--text-primary)]"
+                          ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
                           : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                       }`}>
                       <div>
@@ -672,7 +672,7 @@ export default function MacPage() {
                 {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespacho(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -746,7 +746,7 @@ export default function MacPage() {
         <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
           <span className="flex items-center gap-1"><span className="bg-green-700 px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-red-700 px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
-          <span className="flex items-center gap-1"><span className="bg-slate-600 px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
+          <span className="flex items-center gap-1"><span className="bg-[var(--bg-secondary)] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
         </div>
 
         <div className="mt-2 flex flex-col gap-1">
@@ -778,7 +778,7 @@ export default function MacPage() {
               return (
                 <button key={grupo} onClick={() => { void salvarSilencioso(); setAbaAtual(idx); }}
                   className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    abaAtual === idx ? "bg-blue-600 text-[var(--text-primary)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
+                    abaAtual === idx ? "bg-[var(--accent)] text-[var(--text-primary)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                   }`}>
                   {grupo}
                   <span className="ml-1.5 text-xs opacity-60">{respondidos}/{total}</span>
@@ -934,7 +934,7 @@ export default function MacPage() {
                                 status === s
                                   ? s === "conforme" ? "bg-green-700 border-green-500 text-[var(--text-primary)]" :
                                     s === "nao_conforme" ? "bg-red-700 border-red-500 text-[var(--text-primary)]" :
-                                    "bg-slate-600 border-slate-400 text-[var(--text-primary)]"
+                                    "bg-[var(--bg-secondary)] border-slate-400 text-[var(--text-primary)]"
                                   : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:border-slate-400"
                               }`}>
                               {s === "conforme" ? "✅" : s === "nao_conforme" ? "❌" : "⬜"}
@@ -1070,7 +1070,7 @@ export default function MacPage() {
                   onClick={() => selecionarOuCriarAnalise(n)}
                   className={`w-full py-2 rounded-lg text-sm font-bold border transition-all ${
                     ativa
-                      ? "bg-blue-700 border-blue-500 text-[var(--text-primary)]"
+                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
                       : jaEmitida
                         ? "bg-green-900 border-green-700 text-green-300 hover:bg-green-800"
                         : existente
@@ -1097,7 +1097,7 @@ export default function MacPage() {
           <button onClick={() => {
   carregarModelos(tipoProcesso).then(() => setModalModelo(true));
 }}
-  className="w-full bg-slate-600 hover:bg-slate-500 text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
+  className="w-full bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
   🔄 Trocar Checklist
 </button>
 <button onClick={() => router.push("/admin/checklists")}
@@ -1106,7 +1106,7 @@ export default function MacPage() {
 </button>
 
           <button onClick={() => salvar("em_andamento")} disabled={salvando}
-            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             {salvando ? "Salvando..." : "💾 Salvar"}
           </button>
 
@@ -1230,7 +1230,7 @@ export default function MacPage() {
       </div>
 
       {modalDespachoInterno && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
@@ -1272,7 +1272,7 @@ export default function MacPage() {
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespachoInterno(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -1280,7 +1280,7 @@ export default function MacPage() {
         </div>
       )}
       {modalPendenciasLip && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-orange-600 rounded-xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-bold text-orange-400 mb-2">⚠️ Pendências no LIP</h2>
             <p className="text-[var(--text-secondary)] text-sm mb-3">Os seguintes campos estão vazios ou marcados com X. Deseja emitir o despacho mesmo assim?</p>
@@ -1293,7 +1293,7 @@ export default function MacPage() {
                 Emitir mesmo assim
               </button>
               <button onClick={() => setModalPendenciasLip(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
             </div>
@@ -1301,7 +1301,7 @@ export default function MacPage() {
         </div>
       )}
       {modalLimparMac && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
             <p className="text-sm text-[var(--text-primary)] mb-2">Você está prestes a <strong>apagar toda a análise MAC</strong> deste processo.</p>
@@ -1329,7 +1329,7 @@ export default function MacPage() {
         </div>
       )}
       {modalIndeferimento && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-red-700 rounded-xl p-6 w-full max-w-lg">
             <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento por Impossibilidade de Análise</h2>
             <p className="text-xs text-[var(--text-muted)] mb-3">Selecione o(s) motivo(s):</p>
@@ -1378,7 +1378,7 @@ export default function MacPage() {
 
       {/* MODAL — Itens IA pendentes de confirmação */}
       {modalItensPendentesIA && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-yellow-500/40 rounded-2xl p-6 w-full max-w-3xl shadow-2xl">
             <div className="flex items-center gap-3 mb-3">
               <span className="text-2xl">🤖</span>
@@ -1406,7 +1406,7 @@ export default function MacPage() {
               </button>
               <button
                 onClick={() => setModalItensPendentesIA(false)}
-                className="flex-1 bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Voltar e revisar
               </button>
             </div>

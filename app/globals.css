@@ -2,25 +2,31 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-border: #e2e8f0;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --header-bg: #ffffff;
-  --header-border: #e2e8f0;
-}
-
-.dark {
-  --background: #0b0f14;
-  --foreground: #e6edf3;
-  --card: #1e293b;
-  --card-border: #334155;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --header-bg: #0f172a;
-  --header-border: #1e293b;
+  --bg-primary: #F8FAFC;
+  --bg-secondary: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F8FAFC;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --accent: #1E3A8A;
+  --accent-hover: #1E40AF;
+  --accent-fg: #ffffff;
+  --border: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --error: #991B1B;
+  --warning: #EA580C;
+  --ia: #6D28D9;
+  --btn-radius: 4px;
+  --card-radius: 8px;
+  --background: var(--bg-primary);
+  --foreground: var(--text-primary);
+  --card: var(--bg-card);
+  --card-border: var(--border);
+  --muted: var(--bg-secondary);
+  --muted-foreground: var(--text-muted);
+  --header-bg: var(--bg-card);
+  --header-border: var(--border);
 }
 
 @theme inline {
