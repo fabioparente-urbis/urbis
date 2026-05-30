@@ -803,7 +803,7 @@ export default function MacPage() {
                 ⬜ Todos N/A
               </button>
               <button onClick={() => limparGrupo(grupoAtual)}
-                className="flex items-center gap-1.5 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white border border-[#2563EB] text-[#2563EB] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
               </button>
 
@@ -879,8 +879,8 @@ export default function MacPage() {
             )}
             {/* Legenda de status (movida do cabeçalho) — STEP 1g */}
             <div className="flex flex-wrap gap-4 text-xs px-1 py-2 border-b border-[var(--border)] mb-2">
-              <span className="text-green-400">✅ {conformes.length} conformes</span>
-              <span className="text-red-400">❌ {naoConformes.length} não conformes</span>
+              <span className="text-[#059669]">✅ {conformes.length} conformes</span>
+              <span className="text-[#DC2626]">❌ {naoConformes.length} não conformes</span>
               <span className="text-[var(--text-muted)]">⬜ {naoAplica.length} não se aplica</span>
               <span className="text-yellow-400">⏳ {naoRespondidos.length} não respondidos</span>
             </div>
@@ -893,9 +893,9 @@ export default function MacPage() {
                 return (
                   <div key={item.id}
                     className={`rounded-xl border p-4 transition-all ${
-                      status === "conforme" ? "bg-[var(--success-bg)] border-green-800" :
+                      status === "conforme" ? "bg-[#ECFDF5] border-[#059669]" :
                       status === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626]" :
-                      status === "nao_aplica" ? "bg-[var(--bg-card)] border-[var(--border)] opacity-50" :
+                      status === "nao_aplica" ? "bg-[#EFF6FF] border-[#2563EB]" :
                       "bg-[var(--bg-card)] border-[var(--border)]"
                     }`}>
                     <div className="flex items-start gap-3">
@@ -932,8 +932,8 @@ export default function MacPage() {
                               onClick={() => setItem(item.id, status === s ? null : s)}
                               className={`px-2 py-1 rounded text-xs font-bold border transition-all ${
                                 status === s
-                                  ? s === "conforme" ? "bg-[var(--success)] border-green-500 text-[var(--text-primary)]" :
-                                    s === "nao_conforme" ? "bg-red-700 border-red-500 text-[var(--text-primary)]" :
+                                  ? s === "conforme" ? "bg-[#ECFDF5] border-[#059669] text-[#059669]" :
+                                    s === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626] text-[#DC2626]" :
                                     "bg-[var(--bg-secondary)] border-slate-400 text-[var(--text-primary)]"
                                   : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:border-slate-400"
                               }`}>
