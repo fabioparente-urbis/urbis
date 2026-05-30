@@ -668,11 +668,11 @@ export default function MacPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={gerarDespacho} disabled={gerandoDespacho}
-                className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[#EA580C] hover:bg-[#C2410C] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespacho(false)}
-                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -1280,7 +1280,7 @@ export default function MacPage() {
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespachoInterno(false)}
-                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
