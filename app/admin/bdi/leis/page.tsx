@@ -177,6 +177,7 @@ export default function BDILeisPage() {
   const router = useRouter();
   const [carregando, setCarregando] = useState(true);
   const [autorizado, setAutorizado] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [leis, setLeis] = useState<Lei[]>([]);
   const [erro, setErro] = useState<string>("");
   const [toast, setToast] = useState<string>("");
@@ -221,6 +222,8 @@ export default function BDILeisPage() {
           return;
         }
         setAutorizado(true);
+        const ADMIN_PERFIS = ["Administrador", "Diretora", "Diretor"];
+        setIsAdmin(perfis.some(p => ADMIN_PERFIS.includes(p)));
         await carregar();
       } catch {
         router.push("/");
@@ -481,13 +484,13 @@ export default function BDILeisPage() {
           </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
+          {isAdmin && <button
             onClick={abrirCriar}
             style={S.btn("#059669", algumaAcaoBloqueante)}
             disabled={algumaAcaoBloqueante}
           >
             + Nova Lei
-          </button>
+          </button>}
           <button
             onClick={carregar}
             style={S.btn("#2563EB", algumaAcaoBloqueante)}
@@ -601,7 +604,7 @@ export default function BDILeisPage() {
                   />
                   <button
                     onClick={() => dispararUpload(lei)}
-                    style={S.btn("#d946ef", desabilitar || indexando || reindexando)}
+                    style={{...S.btn("#d946ef", desabilitar || indexando || reindexando), display: isAdmin ? "block" : "none"}}
                     disabled={desabilitar || indexando || reindexando}
                     title="Enviar/substituir PDF e indexar"
                   >
@@ -609,7 +612,7 @@ export default function BDILeisPage() {
                   </button>
                   <button
                     onClick={() => reindexar(lei)}
-                    style={S.btn("#06b6d4", desabilitar || indexando || reindexando || !lei.url_pdf)}
+                    style={{...S.btn("#06b6d4", desabilitar || indexando || reindexando || !lei.url_pdf), display: isAdmin ? "block" : "none"}}
                     disabled={desabilitar || indexando || reindexando || !lei.url_pdf}
                     title="Re-processar PDF existente no R2"
                   >
@@ -617,7 +620,7 @@ export default function BDILeisPage() {
                   </button>
                   <button
                     onClick={() => abrirEditar(lei)}
-                    style={S.btn("#f59e0b", desabilitar || indexando || reindexando)}
+                    style={{...S.btn("#f59e0b", desabilitar || indexando || reindexando), display: isAdmin ? "block" : "none"}}
                     disabled={desabilitar || indexando || reindexando}
                   >
                     ✎ EDITAR</button>
@@ -630,7 +633,7 @@ export default function BDILeisPage() {
                   </button>
                   <button
                     onClick={() => abrirExcluir(lei)}
-                    style={S.btn("#ef4444", desabilitar || indexando || reindexando)}
+                    style={{...S.btn("#ef4444", desabilitar || indexando || reindexando), display: isAdmin ? "block" : "none"}}
                     disabled={desabilitar || indexando || reindexando}
                   >
                     🗑 EXCLUIR
