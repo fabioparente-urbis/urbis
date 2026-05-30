@@ -219,7 +219,7 @@ export default function BipCanvas({
             <div style={{
               position: 'relative', background: cor, borderRadius: 10,
               padding: '6px 26px 6px 10px', minWidth: 100, maxWidth: 220,
-              fontSize: 12, fontWeight: 600, color: '#1a1a1a',
+              fontSize: 12, fontWeight: 600, color: (cor === '#1976D2' || cor === '#212121') ? '#ffffff' : '#1a1a1a',
               boxShadow: '0 2px 8px rgba(0,0,0,0.25)', wordBreak: 'break-word',
               lineHeight: 1.4, border: '1.5px solid rgba(0,0,0,0.15)', userSelect: 'none',
             }}>
