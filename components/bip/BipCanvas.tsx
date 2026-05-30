@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useCallback, useState, useId } from 'react'
 import * as fabric from 'fabric'
 import { v4 as uuid } from 'uuid'
 import type { ElementoCanvas } from '@/hooks/useBipAnotacoes'
@@ -167,14 +167,17 @@ export default function BipCanvas({
 
   const confirmarBalao = useCallback(() => {
     if (!balaoEditando || !balaoEditando.texto.trim()) { setBalaoEditando(null); return }
+    // coords[0] = ancora (ponto clicado), coords[1] = posicao do balao
+    const bx = balaoEditando.x + 150 / largura
+    const by = Math.max(0, balaoEditando.y - 120 / altura)
     onAdicionarElemento(pagina, {
       id: require('uuid').v4(), tipo: 'balao', cor: corAtiva, espessura: 1,
-      coords: [[balaoEditando.x, balaoEditando.y]],
+      coords: [[balaoEditando.x, balaoEditando.y], [bx, by]],
       texto: balaoEditando.texto.trim(),
       criado_em: new Date().toISOString(),
     })
     setBalaoEditando(null)
-  }, [balaoEditando, corAtiva, pagina, onAdicionarElemento])
+  }, [balaoEditando, corAtiva, pagina, largura, altura, onAdicionarElemento])
 
   const balaosExistentes = elementos.filter(el => el.tipo === 'balao')
 
