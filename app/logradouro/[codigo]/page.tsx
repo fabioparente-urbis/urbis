@@ -159,7 +159,7 @@ export default function LogradouroPage() {
                 <label className="text-xs text-[var(--text-muted)] mb-1 block">Setor / Bairro</label>
                 <input value={slot.bairroBusca} onChange={e => buscarBairros(i, e.target.value)}
                   placeholder="Digite para buscar..."
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[#2563EB] font-medium placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 {slot.bairroOpcoes.length > 0 && (
                   <ul className="absolute z-20 bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
                     {slot.bairroOpcoes.map(b => <li key={b} onClick={() => selBairro(i, b)} className="px-3 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer">{b}</li>)}
@@ -170,7 +170,7 @@ export default function LogradouroPage() {
                 <label className="text-xs text-[var(--text-muted)] mb-1 block">Logradouro</label>
                 <input value={slot.logradouroBusca} onChange={e => buscarLogradouros(i, e.target.value)}
                   placeholder="Digite para buscar..." disabled={!slot.bairroBusca}
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-40" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[#2563EB] font-medium placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-40" />
                 {slot.logradouroOpcoes.length > 0 && (
                   <ul className="absolute z-20 bg-[var(--surface)] border border-[var(--border)] rounded shadow-xl w-full max-h-40 overflow-y-auto mt-1">
                     {slot.logradouroOpcoes.map(l => <li key={l} onClick={() => selLog(i, l)} className="px-3 py-2 text-sm hover:bg-[var(--bg-secondary)] cursor-pointer">{l}</li>)}
@@ -187,14 +187,14 @@ export default function LogradouroPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-xs text-slate-600 text-center py-4">Selecione bairro e logradouro</div>
+                <div className="text-xs text-[var(--text-muted)] text-center py-4">Selecione bairro e logradouro</div>
               )}
             </div>
           ))}
         </div>
         <div className="mt-8 flex gap-3">
           <button onClick={salvar} disabled={salvando || salvo}
-            className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold px-8 py-3 rounded-xl text-sm transition-colors">
+            className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition-colors">
             {salvo ? "✓ Salvo!" : salvando ? "Salvando..." : "💾 Salvar"}
           </button>
           <button onClick={() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`)}
