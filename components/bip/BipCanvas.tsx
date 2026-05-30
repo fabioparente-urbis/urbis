@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback, useState, useId } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import * as fabric from 'fabric'
 import { v4 as uuid } from 'uuid'
 import type { ElementoCanvas } from '@/hooks/useBipAnotacoes'
@@ -27,16 +27,11 @@ export default function BipCanvas({
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricRef = useRef<fabric.Canvas | null>(null)
+  const [balaoEditando, setBalaoEditando] = useState<{x:number,y:number,texto:string}|null>(null)
 
-  // Inicializa fabric canvas
   useEffect(() => {
     if (!canvasRef.current) return
-    const fc = new fabric.Canvas(canvasRef.current, {
-      width: largura,
-      height: altura,
-      selection: false,
-    })
-    // Fabric v7: posiciona o wrapperEl corretamente
+    const fc = new fabric.Canvas(canvasRef.current, { width: largura, height: altura, selection: false })
     if (fc.wrapperEl) {
       fc.wrapperEl.style.position = 'absolute'
       fc.wrapperEl.style.top = '0'
@@ -46,7 +41,6 @@ export default function BipCanvas({
     return () => { fc.dispose(); fabricRef.current = null }
   }, [largura, altura])
 
-  // Carrega elementos do banco no canvas
   useEffect(() => {
     const fc = fabricRef.current
     if (!fc) return
@@ -54,19 +48,13 @@ export default function BipCanvas({
     elementos.forEach((el) => {
       if (el.tipo === 'traco' && el.coords.length >= 2) {
         const pontos = el.coords.map(([x, y]) => ({ x: x * largura, y: y * altura }))
-        const poly = new fabric.Polyline(pontos, {
-          stroke: el.cor, strokeWidth: el.espessura,
-          fill: 'transparent', selectable: false,
-        })
+        const poly = new fabric.Polyline(pontos, { stroke: el.cor, strokeWidth: el.espessura, fill: 'transparent', selectable: false })
         ;(poly as any)._bipId = el.id
         fc.add(poly)
       }
       if (el.tipo === 'comentario' && el.coords[0]) {
         const [cx, cy] = el.coords[0]
-        const circle = new fabric.Circle({
-          left: cx * largura - 8, top: cy * altura - 8,
-          radius: 8, fill: el.cor, selectable: false,
-        })
+        const circle = new fabric.Circle({ left: cx * largura - 8, top: cy * altura - 8, radius: 8, fill: el.cor, selectable: false })
         ;(circle as any)._bipId = el.id
         fc.add(circle)
       }
@@ -74,7 +62,6 @@ export default function BipCanvas({
     fc.renderAll()
   }, [elementos, largura, altura])
 
-  // Modo caneta
   useEffect(() => {
     const fc = fabricRef.current
     if (!fc) return
@@ -84,7 +71,6 @@ export default function BipCanvas({
       brush.color = corAtiva
       brush.width = espessuraAtiva
       fc.freeDrawingBrush = brush
-
       const onPathCreated = (e: any) => {
         const path = e.path as fabric.Path
         fc.remove(path)
@@ -97,11 +83,7 @@ export default function BipCanvas({
             coords.push([Math.min(1, Math.max(0, x)), Math.min(1, Math.max(0, y))])
           }
         })
-        onAdicionarElemento(pagina, {
-          id: uuid(), tipo: 'traco', cor: corAtiva,
-          espessura: espessuraAtiva, coords,
-          criado_em: new Date().toISOString(),
-        })
+        onAdicionarElemento(pagina, { id: uuid(), tipo: 'traco', cor: corAtiva, espessura: espessuraAtiva, coords, criado_em: new Date().toISOString() })
       }
       fc.on('path:created', onPathCreated)
       return () => { fc.off('path:created', onPathCreated); fc.isDrawingMode = false }
@@ -110,7 +92,6 @@ export default function BipCanvas({
     }
   }, [ferramentaAtiva, corAtiva, espessuraAtiva, pagina, largura, altura, onAdicionarElemento])
 
-  // Modo borracha
   useEffect(() => {
     const fc = fabricRef.current
     if (!fc || ferramentaAtiva !== 'borracha') return
@@ -124,18 +105,13 @@ export default function BipCanvas({
     return () => { fc.off('mouse:down', handler) }
   }, [ferramentaAtiva, pagina, onRemoverElemento])
 
-  // Modo comentário
   const comentarioHandler = useCallback((e: any) => {
     const fc = fabricRef.current
     if (!fc) return
     const pointer = fc.getScenePoint(e.e)
     const texto = prompt('Comentário:')
     if (!texto) return
-    onAdicionarElemento(pagina, {
-      id: uuid(), tipo: 'comentario', cor: corAtiva, espessura: 1,
-      coords: [[pointer.x / largura, pointer.y / altura]],
-      texto, criado_em: new Date().toISOString(),
-    })
+    onAdicionarElemento(pagina, { id: uuid(), tipo: 'comentario', cor: corAtiva, espessura: 1, coords: [[pointer.x / largura, pointer.y / altura]], texto, criado_em: new Date().toISOString() })
   }, [corAtiva, largura, altura, pagina, onAdicionarElemento])
 
   useEffect(() => {
@@ -145,17 +121,11 @@ export default function BipCanvas({
     return () => { fc.off('mouse:down', comentarioHandler) }
   }, [ferramentaAtiva, comentarioHandler])
 
-  // Balão editando
-  const [balaoEditando, setBalaoEditando] = useState<{id:string,x:number,y:number,texto:string}|null>(null)
-
-  // Handler balão
   const balaoHandler = useCallback((e: any) => {
     const fc = fabricRef.current
     if (!fc) return
     const pointer = fc.getScenePoint(e.e)
-    const nx = pointer.x / largura
-    const ny = pointer.y / altura
-    setBalaoEditando({ id: '', x: nx, y: ny, texto: '' })
+    setBalaoEditando({ x: pointer.x / largura, y: pointer.y / altura, texto: '' })
   }, [largura, altura])
 
   useEffect(() => {
@@ -167,11 +137,11 @@ export default function BipCanvas({
 
   const confirmarBalao = useCallback(() => {
     if (!balaoEditando || !balaoEditando.texto.trim()) { setBalaoEditando(null); return }
-    // coords[0] = ancora (ponto clicado), coords[1] = posicao do balao
-    const bx = balaoEditando.x + 150 / largura
-    const by = Math.max(0, balaoEditando.y - 120 / altura)
+    // coords[0] = ancora, coords[1] = posicao inicial do balao (deslocado)
+    const bx = Math.min(0.95, balaoEditando.x + 160 / largura)
+    const by = Math.max(0.02, balaoEditando.y - 100 / altura)
     onAdicionarElemento(pagina, {
-      id: require('uuid').v4(), tipo: 'balao', cor: corAtiva, espessura: 1,
+      id: uuid(), tipo: 'balao', cor: corAtiva, espessura: 1,
       coords: [[balaoEditando.x, balaoEditando.y], [bx, by]],
       texto: balaoEditando.texto.trim(),
       criado_em: new Date().toISOString(),
@@ -181,90 +151,113 @@ export default function BipCanvas({
 
   const balaosExistentes = elementos.filter(el => el.tipo === 'balao')
 
+  // Drag balao
+  const iniciarDrag = useCallback((e: React.MouseEvent, el: ElementoCanvas) => {
+    e.stopPropagation()
+    const startX = e.clientX, startY = e.clientY
+    const origBx = (el.coords[1]?.[0] ?? el.coords[0][0] + 0.15) * largura
+    const origBy = (el.coords[1]?.[1] ?? Math.max(0, el.coords[0][1] - 0.1)) * altura
+    const div = document.getElementById('balao-' + el.id)
+    const onMove = (mv: MouseEvent) => {
+      if (div) { div.style.left = (origBx + mv.clientX - startX) + 'px'; div.style.top = (origBy + mv.clientY - startY) + 'px' }
+    }
+    const onUp = (mv: MouseEvent) => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      const newBx = (origBx + mv.clientX - startX) / largura
+      const newBy = (origBy + mv.clientY - startY) / altura
+      onRemoverElemento(pagina, el.id)
+      setTimeout(() => onAdicionarElemento(pagina, { ...el, id: uuid(), coords: [el.coords[0], [newBx, newBy]] }), 50)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [largura, altura, pagina, onRemoverElemento, onAdicionarElemento])
+
   return (
-    <div
-      ref={containerRef}
-      style={{
-        position: 'absolute', top: 0, left: 0,
-        width: largura, height: altura, zIndex: 10,
-        pointerEvents: ferramentaAtiva ? 'all' : 'none',
-        cursor: ferramentaAtiva === 'caneta' ? 'crosshair'
-          : ferramentaAtiva === 'borracha' ? 'cell'
-          : ferramentaAtiva === 'comentario' ? 'text'
-          : ferramentaAtiva === 'balao' ? 'crosshair' : 'default',
-      }}
-    >
+    <div ref={containerRef} style={{
+      position: 'absolute', top: 0, left: 0, width: largura, height: altura, zIndex: 10,
+      pointerEvents: ferramentaAtiva ? 'all' : 'none',
+      cursor: ferramentaAtiva === 'caneta' ? 'crosshair'
+        : ferramentaAtiva === 'borracha' ? 'cell'
+        : ferramentaAtiva === 'comentario' ? 'text'
+        : ferramentaAtiva === 'balao' ? 'crosshair' : 'default',
+    }}>
       <canvas ref={canvasRef} />
 
-      {/* Balões existentes */}
+      {/* Setas SVG ancora→balao */}
+      <svg style={{ position: 'absolute', top: 0, left: 0, width: largura, height: altura, zIndex: 25, pointerEvents: 'none', overflow: 'visible' }}>
+        <defs>
+          <marker id={`arr-${pagina}`} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="context-stroke" />
+          </marker>
+        </defs>
+        {balaosExistentes.map((el) => {
+          const ax = el.coords[0][0] * largura
+          const ay = el.coords[0][1] * altura
+          const bx2 = (el.coords[1]?.[0] ?? el.coords[0][0] + 0.15) * largura + 60
+          const by2 = (el.coords[1]?.[1] ?? Math.max(0, el.coords[0][1] - 0.1)) * altura + 16
+          const cor = el.cor || '#FFD600'
+          return (
+            <line key={el.id + '-seta'}
+              x1={bx2} y1={by2} x2={ax} y2={ay}
+              stroke={cor} strokeWidth="2.5" strokeLinecap="round"
+              markerEnd={`url(#arr-${pagina})`}
+            />
+          )
+        })}
+      </svg>
+
+      {/* Balões draggable */}
       {balaosExistentes.map((el) => {
-        const px = el.coords[0][0] * largura
-        const py = el.coords[0][1] * altura
+        const bx2 = (el.coords[1]?.[0] ?? el.coords[0][0] + 0.15) * largura
+        const by2 = (el.coords[1]?.[1] ?? Math.max(0, el.coords[0][1] - 0.1)) * altura
         const cor = el.cor || '#FFD600'
-        // Balão fica ACIMA do ponto clicado; rabicho nasce na base do balão apontando para baixo
         return (
-          <div key={el.id} style={{ position: 'absolute', left: px - 90, top: py - 110, zIndex: 30, pointerEvents: 'all' }}>
-            {/* Balão */}
+          <div id={'balao-' + el.id} key={el.id}
+            onMouseDown={(e) => iniciarDrag(e, el)}
+            style={{ position: 'absolute', left: bx2, top: by2, zIndex: 30, pointerEvents: 'all', cursor: 'grab' }}>
             <div style={{
-              position: 'relative',
-              background: cor, borderRadius: 10,
-              padding: '6px 10px', minWidth: 120, maxWidth: 200,
+              position: 'relative', background: cor, borderRadius: 10,
+              padding: '6px 26px 6px 10px', minWidth: 100, maxWidth: 220,
               fontSize: 12, fontWeight: 600, color: '#1a1a1a',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-              wordBreak: 'break-word', lineHeight: 1.4,
-              border: '1.5px solid rgba(0,0,0,0.12)',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)', wordBreak: 'break-word',
+              lineHeight: 1.4, border: '1.5px solid rgba(0,0,0,0.15)', userSelect: 'none',
             }}>
               {el.texto}
-              <button
-                onClick={() => onRemoverElemento(pagina, el.id)}
+              <button onMouseDown={e => e.stopPropagation()} onClick={() => onRemoverElemento(pagina, el.id)}
                 style={{
-                  position: 'absolute', top: -8, right: -8,
-                  width: 18, height: 18, borderRadius: '50%',
-                  background: '#ef4444', color: '#fff', border: 'none',
-                  fontSize: 10, cursor: 'pointer', lineHeight: 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700,
+                  position: 'absolute', top: -7, right: -7, width: 18, height: 18,
+                  borderRadius: '50%', background: '#ef4444', color: '#fff', border: 'none',
+                  fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontWeight: 700,
                 }}>×</button>
             </div>
-            {/* Rabicho: nasce na base do balão, aponta para o ponto clicado (baixo) */}
-            <svg width="20" height="16" style={{ display: 'block', marginLeft: 80 }} viewBox="0 0 20 16">
-              <polygon points="0,0 20,0 10,16" fill={cor} stroke={cor} strokeWidth="1" />
-            </svg>
-              background: cor, borderRadius: br,
-              padding: '6px 10px', minWidth: 120, maxWidth: 200,
-              fontSize: 12, fontWeight: 600, color: '#1a1a1a',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-              wordBreak: 'break-word', lineHeight: 1.4,
           </div>
         )
       })}
 
-      {/* Input balão novo */}
+      {/* Input novo balao */}
       {balaoEditando && (
         <div style={{
           position: 'absolute',
-          left: balaoEditando.x * largura - 90,
-          top: balaoEditando.y * altura - 130,
+          left: Math.min(largura - 220, balaoEditando.x * largura + 10),
+          top: Math.max(10, balaoEditando.y * altura - 130),
           zIndex: 50, pointerEvents: 'all',
         }}>
           <div style={{
             background: corAtiva, borderRadius: 10, padding: '8px 10px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-            border: '1.5px solid rgba(0,0,0,0.15)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)', border: '1.5px solid rgba(0,0,0,0.15)',
           }}>
-            <textarea
-              autoFocus
-              placeholder="Digite a observação..."
+            <textarea autoFocus placeholder="Digite a observação..."
               value={balaoEditando.texto}
-              onChange={e => setBalaoEditando(b => b ? {...b, texto: e.target.value} : b)}
+              onChange={e => setBalaoEditando(b => b ? { ...b, texto: e.target.value } : b)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmarBalao() } if (e.key === 'Escape') setBalaoEditando(null) }}
               style={{
                 width: 180, height: 70, resize: 'none',
                 background: 'rgba(255,255,255,0.85)', border: 'none', borderRadius: 6,
                 padding: '4px 6px', fontSize: 12, fontWeight: 500, color: '#1a1a1a',
                 outline: 'none', display: 'block',
-              }}
-            />
+              }} />
             <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
               <button onClick={() => setBalaoEditando(null)}
                 style={{ padding: '2px 10px', borderRadius: 5, border: 'none', background: 'rgba(0,0,0,0.15)', color: '#333', cursor: 'pointer', fontSize: 11 }}>
@@ -276,10 +269,6 @@ export default function BipCanvas({
               </button>
             </div>
           </div>
-          {/* Rabicho apontando para o ponto clicado */}
-          <svg width="20" height="16" style={{ display: 'block', marginLeft: 80 }} viewBox="0 0 20 16">
-            <polygon points="0,0 20,0 10,16" fill={corAtiva} stroke={corAtiva} strokeWidth="1" />
-          </svg>
         </div>
       )}
     </div>
