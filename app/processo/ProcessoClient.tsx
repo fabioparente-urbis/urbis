@@ -38,10 +38,10 @@ type AbaDB = {
 function base(valor = ""): Campo { return { valor, origem: "original" }; }
 function padrao(valor: string): Campo { return { valor, origem: "padrao" }; }
 function cor(origem: Origem) {
-  if (origem === "urbis") return "text-red-600";
-  if (origem === "manual") return "text-blue-600";
-  if (origem === "padrao") return "text-orange-500";
-  return "text-black";
+  if (origem === "urbis") return "text-[var(--error)]";
+  if (origem === "manual") return "text-[var(--accent)]";
+  if (origem === "padrao") return "text-[var(--warning)]";
+  return "text-[var(--text-primary)]";
 }
 function borderCor(origem: Origem, valor: string) {
   if (origem === "padrao" && valor.trim() === "") return "border-orange-400 border-2";
@@ -57,10 +57,10 @@ function formatarDataCompleta(dataStr: string) {
 
 const CORES_DIA = [
   { bg: "bg-yellow-400", border: "border-yellow-400", text: "text-yellow-400" },
-  { bg: "bg-orange-500", border: "border-orange-500", text: "text-orange-500" },
-  { bg: "bg-red-500",    border: "border-red-500",    text: "text-red-500"    },
-  { bg: "bg-cyan-400",   border: "border-cyan-400",   text: "text-cyan-400"   },
-  { bg: "bg-pink-400",   border: "border-pink-400",   text: "text-pink-400"   },
+  { bg: "bg-[var(--warning)]", border: "border-[var(--warning)]", text: "text-[var(--warning)]" },
+  { bg: "bg-[var(--error)]",  border: "border-[var(--error)]",  text: "text-[var(--error)]"  },
+  { bg: "bg-[var(--accent)]", border: "border-[var(--accent)]", text: "text-[var(--accent)]" },
+  { bg: "bg-[var(--ia)]",     border: "border-[var(--ia)]",     text: "text-[var(--ia)]"     },
   { bg: "bg-[var(--success)]",  border: "border-green-500",  text: "text-green-500"  },
 ];
 
@@ -704,10 +704,10 @@ export default function ProcessoClient() {
   }
 
   const legenda = [
-    { cor: "bg-black", label: "Original (documento)" },
-    { cor: "bg-red-600", label: "Urbis (automático)" },
+    { cor: "bg-[var(--text-primary)]", label: "Original (documento)" },
+    { cor: "bg-[var(--error)]", label: "Urbis (automático)" },
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
-    { cor: "bg-orange-500", label: "Padrão (conferir!)" },
+    { cor: "bg-[var(--warning)]", label: "Padrão (conferir!)" },
   ];
 
   if (carregandoAbas) {
@@ -819,11 +819,11 @@ export default function ProcessoClient() {
               const rotaMac = "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
-            className="mt-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🔍 MAC
           </button>
           <button onClick={() => setModalDI(true)}
-            className="mt-1 bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📨 Despacho Interno
           </button>
           {perfisUsuario.includes("Administrador") && (
@@ -835,14 +835,14 @@ export default function ProcessoClient() {
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
-            className="mt-1 bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             📊 Exportar Excel
           </a>
           <button
             type="button"
             onClick={() => inputImportRef.current?.click()}
             disabled={importando || !idUrl}
-            className="mt-1 bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] disabled:opacity-50 text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             {importando ? "⏳ Importando..." : "📥 Importar Excel"}
           </button>
           <input
@@ -860,23 +860,23 @@ export default function ProcessoClient() {
           <button
             type="button"
             onClick={() => setModalLimparLip(true)}
-            className="mt-1 bg-red-900 hover:bg-red-800 text-red-300 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-[var(--accent-fg)] text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🗑️ Limpar LIP
           </button>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-[var(--text-muted)] text-sm mt-1">
-              Processo: <span className="text-emerald-400 font-mono">{idUrl || "—"}</span>
+              Processo: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
               {" · "}<span className="text-[var(--text-muted)]">{rotuloTipo(tipoUrl)}</span>
             </p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="text-xs h-5">
-            {statusSalvo === "salvando" && <span className="text-yellow-400 animate-pulse">⏳ Salvando...</span>}
-            {statusSalvo === "salvo" && <span className="text-green-400">✓ Salvo automaticamente</span>}
-            {statusSalvo === "erro" && <span className="text-red-400">✗ Erro ao salvar</span>}
+            {statusSalvo === "salvando" && <span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}
+            {statusSalvo === "salvo" && <span className="text-[var(--success)]">✓ Salvo automaticamente</span>}
+            {statusSalvo === "erro" && <span className="text-[var(--error)]">✗ Erro ao salvar</span>}
           </div>
           <div className="hidden md:flex flex-col gap-1 text-xs">
             {legenda.map((l) => (
@@ -895,7 +895,7 @@ export default function ProcessoClient() {
         <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
           placeholder="Ex: 25.5.000082553-3"
-          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="Regularização">Regularização</option>
@@ -916,7 +916,7 @@ export default function ProcessoClient() {
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-purple-600 hover:bg-purple-500 text-[var(--text-primary)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Ler PDF com Prompt P1"}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
@@ -954,7 +954,7 @@ export default function ProcessoClient() {
             onClick={() => setMostrarPendentes(!mostrarPendentes)}
           >
             <span>⚠️ <strong>{totalPadrao} campo(s)</strong> em laranja precisam ser conferidos. Pressione <strong>Enter</strong> para confirmar.</span>
-            <span className="ml-4 text-orange-300">{mostrarPendentes ? "▲ Fechar" : "▼ Ver campos"}</span>
+            <span className="ml-4 text-[var(--warning)]">{mostrarPendentes ? "▲ Fechar" : "▼ Ver campos"}</span>
           </div>
           {mostrarPendentes && (
             <div className="bg-orange-950 border border-orange-500 border-t-0 rounded-b px-4 py-3 text-sm">
@@ -994,7 +994,7 @@ export default function ProcessoClient() {
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 aba === i ? "bg-[var(--accent)] text-[var(--accent-fg)]" :
-                temPendente ? "bg-orange-900 border border-orange-600 text-orange-200 hover:bg-orange-800" :
+                temPendente ? "bg-[var(--warning-bg)] border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--border)]" :
                 "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
               {a.nome}
