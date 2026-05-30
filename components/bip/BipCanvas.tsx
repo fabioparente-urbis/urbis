@@ -198,17 +198,13 @@ export default function BipCanvas({
         const px = el.coords[0][0] * largura
         const py = el.coords[0][1] * altura
         const cor = el.cor || '#FFD600'
-        const bw = 180, bh = 'auto', br = 10
+        // Balão fica ACIMA do ponto clicado; rabicho nasce na base do balão apontando para baixo
         return (
-          <div key={el.id} style={{ position: 'absolute', left: px, top: py, zIndex: 30, pointerEvents: 'all' }}>
-            {/* Rabicho SVG */}
-            <svg width="24" height="20" style={{ position: 'absolute', left: -4, top: -20, overflow: 'visible' }} viewBox="0 0 24 20">
-              <polygon points="0,20 12,0 18,20" fill={cor} stroke={cor} strokeWidth="1" />
-            </svg>
+          <div key={el.id} style={{ position: 'absolute', left: px - 90, top: py - 110, zIndex: 30, pointerEvents: 'all' }}>
             {/* Balão */}
             <div style={{
-              position: 'absolute', left: 8, top: -90,
-              background: cor, borderRadius: br,
+              position: 'relative',
+              background: cor, borderRadius: 10,
               padding: '6px 10px', minWidth: 120, maxWidth: 200,
               fontSize: 12, fontWeight: 600, color: '#1a1a1a',
               boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
@@ -227,6 +223,15 @@ export default function BipCanvas({
                   fontWeight: 700,
                 }}>×</button>
             </div>
+            {/* Rabicho: nasce na base do balão, aponta para o ponto clicado (baixo) */}
+            <svg width="20" height="16" style={{ display: 'block', marginLeft: 80 }} viewBox="0 0 20 16">
+              <polygon points="0,0 20,0 10,16" fill={cor} stroke={cor} strokeWidth="1" />
+            </svg>
+              background: cor, borderRadius: br,
+              padding: '6px 10px', minWidth: 120, maxWidth: 200,
+              fontSize: 12, fontWeight: 600, color: '#1a1a1a',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+              wordBreak: 'break-word', lineHeight: 1.4,
           </div>
         )
       })}
@@ -235,13 +240,10 @@ export default function BipCanvas({
       {balaoEditando && (
         <div style={{
           position: 'absolute',
-          left: balaoEditando.x * largura,
-          top: balaoEditando.y * altura - 110,
+          left: balaoEditando.x * largura - 90,
+          top: balaoEditando.y * altura - 130,
           zIndex: 50, pointerEvents: 'all',
         }}>
-          <svg width="24" height="20" style={{ position: 'absolute', left: -4, top: 100, overflow: 'visible' }} viewBox="0 0 24 20">
-            <polygon points="0,20 12,0 18,20" fill={corAtiva} stroke={corAtiva} strokeWidth="1" />
-          </svg>
           <div style={{
             background: corAtiva, borderRadius: 10, padding: '8px 10px',
             boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
@@ -271,6 +273,10 @@ export default function BipCanvas({
               </button>
             </div>
           </div>
+          {/* Rabicho apontando para o ponto clicado */}
+          <svg width="20" height="16" style={{ display: 'block', marginLeft: 80 }} viewBox="0 0 20 16">
+            <polygon points="0,0 20,0 10,16" fill={corAtiva} stroke={corAtiva} strokeWidth="1" />
+          </svg>
         </div>
       )}
     </div>
