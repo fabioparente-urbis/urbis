@@ -791,7 +791,7 @@ export default function MacPage() {
           <div className="flex-1 overflow-y-auto px-6 pb-6">
             <div className="flex flex-wrap gap-2 pt-3 pb-1">
               <button onClick={() => marcarGrupo(grupoAtual, "conforme")}
-                className="flex items-center gap-1.5 bg-[var(--success-bg)] hover:bg-[var(--success-bg)] border border-[var(--border)] text-[var(--accent-fg)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 ✅ Todos Conformes
               </button>
               <button onClick={() => marcarGrupo(grupoAtual, "nao_conforme")}
@@ -896,7 +896,7 @@ export default function MacPage() {
                       status === "conforme" ? "bg-[#ECFDF5] border-[#059669]" :
                       status === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626]" :
                       status === "nao_aplica" ? "bg-[#EFF6FF] border-[#2563EB]" :
-                      "bg-[var(--bg-card)] border-[var(--border)]"
+                      "bg-[var(--surface)] border-[var(--border)]"
                     }`}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
