@@ -43,16 +43,16 @@ export default function BipLeiPage() {
     })()
   }, [leiId, router])
 
-  const base: React.CSSProperties = { background: '#0a0a0f', minHeight: '100vh', fontFamily: "'JetBrains Mono', monospace", color: '#e2e8f0', display: 'flex', flexDirection: 'column' }
-  const header: React.CSSProperties = { borderBottom: '1px solid #d946ef33', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#0d0d14', flexShrink: 0 }
+  const base: React.CSSProperties = { background: 'var(--bg-primary)', minHeight: '100vh', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", color: 'var(--text-primary)', display: 'flex', flexDirection: 'column' }
+  const header: React.CSSProperties = { borderBottom: '1px solid var(--border)', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', flexShrink: 0 }
   const center: React.CSSProperties = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ffffff44', fontSize: 12, letterSpacing: 2 }
 
   if (carregando) return <div style={base}><div style={center}>CARREGANDO…</div></div>
   if (erro || !lei) return (
     <div style={base}>
       <div style={header}>
-        <span style={{ color: '#d946ef', fontSize: 11, letterSpacing: 3, fontWeight: 700 }}>BDI — BIP</span>
-        <button onClick={() => router.push('/admin/bdi/leis')} style={btn('#ffffff66')}>← VOLTAR</button>
+        <span style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 700 }}>BDI — BIP</span>
+        <button onClick={() => router.push('/admin/bdi/leis')} style={{ background: 'var(--bg-secondary)', border: '1.5px solid var(--border-strong)', color: 'var(--text-secondary)', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>← VOLTAR</button>
       </div>
       <div style={{ ...center, color: '#fca5a5' }}>⚠ {erro || 'Lei não encontrada.'}</div>
     </div>
@@ -62,14 +62,14 @@ export default function BipLeiPage() {
     <div style={base}>
       <div style={header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ color: '#d946ef', fontSize: 11, letterSpacing: 3, fontWeight: 700 }}>BIP</span>
-          <span style={{ color: '#ffffff55', fontSize: 11 }}>·</span>
-          <span style={{ color: '#e2e8f0', fontSize: 12, fontWeight: 600 }}>{lei.titulo}</span>
-          {lei.numero && <span style={{ color: '#ffffff44', fontSize: 11 }}>Nº {lei.numero}</span>}
-          {lei.ano && <span style={{ color: '#ffffff44', fontSize: 11 }}>· {lei.ano}</span>}
+          <button onClick={() => router.push('/')} style={{ background: '#1E293B', border: 'none', color: '#fff', fontWeight: 700, padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12, marginRight: 8 }}>🏠 Home</button><span style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 700 }}>📚 BIP — Biblioteca Inteligente para Pesquisas</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>·</span>
+          <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 600 }}>{lei.titulo}</span>
+          {lei.numero && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Nº {lei.numero}</span>}
+          {lei.ano && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· {lei.ano}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => router.push('/admin/bdi/leis')} style={btn('#ffffff66')}>← LEIS</button>
+          <button onClick={() => router.push('/admin/bdi/leis')} style={{ background: 'var(--bg-secondary)', border: '1.5px solid var(--border-strong)', color: 'var(--text-secondary)', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>← LEIS</button>
           <button onClick={() => router.push('/')} style={btn('#ffffff66')}>⌂ HOME</button>
         </div>
       </div>

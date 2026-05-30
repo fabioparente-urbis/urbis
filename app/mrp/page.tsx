@@ -162,15 +162,15 @@ function MrpInner() {
             className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
-          <h1 className="text-xl font-semibold">📊 MRP — Mapa de Resultados e Produtividade</h1>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)]">📊 MRP — Mapa de Resultados e Produtividade</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
           <select value={mes} onChange={(e) => setMes(Number(e.target.value))}
-            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] font-medium">
             {MESES_PT.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
           </select>
           <select value={ano} onChange={(e) => setAno(Number(e.target.value))}
-            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)]">
+            className="bg-[var(--surface)] px-2 py-1 rounded border border-[var(--border)] text-[var(--text-primary)] font-medium">
             {[ano - 1, ano, ano + 1].map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
