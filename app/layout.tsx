@@ -13,14 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: `
-          try {
-            const t = localStorage.getItem('urbis-theme') || 'dark';
-            if (t === 'dark') document.documentElement.classList.add('dark');
-          } catch(e) {}
-        `}} />
-      </head>
+      <head />
       <body style={{ margin: 0 }}>
         <ThemeProvider>
           <HeaderGlobal />
