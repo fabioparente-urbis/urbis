@@ -125,12 +125,29 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     if (!abertoProp && (fase === "idle" || fase === "entrando")) fechar();
   }, [abertoProp]);
 
+
+  async function saudacaoOnMount() {
+    try {
+      const res = await fetch("/api/urbi/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo: "OnMount", assunto_id: assuntoId, usuario }),
+      });
+      const json = await res.json();
+      if (json.ok && json.resposta) {
+        setMsgs([{ role: "urbi", texto: json.resposta }]);
+        return;
+      }
+    } catch (_) {}
+    setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Como posso ajudar?` }]);
+  }
   function abrir() {
     if (modo === "corner") {
       setFase("idle");
       setPoseId("tudo-ok");
       setBalaoVisivel(true);
-      setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Como posso ajudar?` }]);
+      setMsgs([{ role: "urbi", texto: "..." }]);
+      saudacaoOnMount();
       return;
     }
     setOverlayVisivel(true);
@@ -149,7 +166,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setPoseId("tudo-ok");
         setFase("idle");
         setBalaoVisivel(true);
-        setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Sou o URBI. Como posso ajudar?` }]);
+        setMsgs([{ role: "urbi", texto: "..." }]);
+        saudacaoOnMount();
       }, 900);
     }, 800);
   }

@@ -44,6 +44,8 @@ export default function MacPage() {
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
+  const [dadosLip, setDadosLip] = useState<Record<string,any>>({});
+  const [bannerCritico, setBannerCritico] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
@@ -170,6 +172,10 @@ export default function MacPage() {
       setNumeroRevisao(Number(ultima.numero_revisao) || 1);
       setHistoricoAnalises(ultima.historico_analises || "");
       setNovaAnalise(false);
+      // Carrega campos LIP para o banner crítico
+      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)
+        .then(r => r.json())
+        .then(j => setDadosLip(j?.data?.dados || j?.dados || {}));
 
       // Carrega itens do modelo salvo na análise
       if (ultima.modelo_id) {
@@ -530,8 +536,27 @@ export default function MacPage() {
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
+
+  useEffect(() => {
+    const pendentes: string[] = [];
+    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") pendentes.push("Área do Lote");
+    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") pendentes.push("Recuo Obrigatório");
+    setBannerCritico(pendentes.length > 0
+      ? `⚠ Campos críticos em rascunho no LIP: ${pendentes.join(", ")}. Finalize antes de prosseguir.`
+      : null);
+  }, [dadosLip]);
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
+      {bannerCritico && (
+        <div style={{
+          position: "sticky", top: 0, zIndex: 100,
+          background: "#dc2626", color: "#fff",
+          padding: "10px 16px", fontSize: 13, fontWeight: 600,
+          borderBottom: "2px solid #b91c1c"
+        }}>
+          {bannerCritico}
+        </div>
+      )}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm">
           {toast}

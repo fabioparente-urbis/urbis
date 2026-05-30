@@ -142,6 +142,16 @@ function parseCoords(val: string): string {
 }
 
 
+
+function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {
+  if (!v) return v;
+  const clean = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const prefix = tipo === "cau" ? "CAU" : "CREA";
+  const digits = clean.replace(/^(CAU|CREA)/, "");
+  const m = digits.match(/^(\d+)([A-Z]{2})?$/);
+  if (m) return m[2] ? `${prefix}-${m[1]}/${m[2]}` : `${prefix}-${m[1]}`;
+  return `${prefix}-${digits}`;
+}
 export default function ProcessoClient() {
   const params = useParams();
   const router = useRouter();
@@ -659,6 +669,10 @@ export default function ProcessoClient() {
             }
             u(campo.chave, v);
           }}
+            onBlur={(e) => {
+              if (campo.chave === "cau") u(campo.chave, normalizarRegistro(e.target.value, "cau"));
+              if (campo.chave === "crea") u(campo.chave, normalizarRegistro(e.target.value, "crea"));
+            }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
             className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
