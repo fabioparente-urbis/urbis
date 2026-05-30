@@ -53,27 +53,46 @@ const POSE_MAP: Record<string, string> = {
   planejando:       "/urbi/poses/urbi-planejando.png",
   "dados-errados":  "/urbi/poses/urbi-dados-errados.png",
   bravo:            "/urbi/poses/urbi-bravo.png",
+  euforia:          "/urbi/poses/urbi-euforia.png",
+  corrigindo:       "/urbi/poses/urbi-corrigindo.png",
+  medindo:          "/urbi/poses/urbi-medindo.png",
+  manutencao:       "/urbi/poses/urbi-manutencao.png",
+  pressao:          "/urbi/poses/urbi-pressao.png",
+  checklist:        "/urbi/poses/urbi-checklist.png",
+  reprovado:        "/urbi/poses/urbi-reprovado.png",
+  bip:              "/urbi/poses/urbi-bip.png",
+  falando:          "/urbi/poses/urbi-falando.png",
+  idle:             "/urbi/poses/urbi-idle.png",
 };
 
-function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"idle", atual?: string): string {
+function selectPose(tipo: "pensando"|"positivo"|"negativo"|"atencao"|"critico"|"idle"|"bip"|"checklist"|"falando"|"pressao"|"euforia", atual?: string): string {
   const map: Record<string, string[]> = {
-    pensando: ["analisando","planejando"],
-    positivo: ["sucesso","tudo-ok"],
-    negativo: ["oops","algo-errado"],
-    atencao:  ["atencao","oh-nao"],
-    critico:  ["bravo","dados-errados"],
-    idle:     ["sucesso","tudo-ok"],
+    pensando:  ["analisando", "planejando", "medindo", "manutencao"],
+    positivo:  ["sucesso", "tudo-ok", "euforia"],
+    negativo:  ["oops", "algo-errado", "reprovado"],
+    atencao:   ["atencao", "oh-nao", "pressao"],
+    critico:   ["bravo", "dados-errados", "corrigindo"],
+    idle:      ["idle", "sucesso", "tudo-ok"],
+    bip:       ["bip", "medindo", "analisando"],
+    checklist: ["checklist", "planejando", "analisando"],
+    falando:   ["falando", "tudo-ok", "sucesso"],
+    pressao:   ["pressao", "atencao", "oh-nao"],
+    euforia:   ["euforia", "sucesso", "tudo-ok"],
   };
-  const ids = map[tipo];
+  const ids = map[tipo] ?? map["positivo"];
   const opcoes = ids.filter(id => id !== atual);
   return opcoes.length > 0 ? opcoes[Math.floor(Math.random() * opcoes.length)] : ids[0];
 }
 
-function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico" {
+function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"bip"|"checklist"|"pressao"|"euforia" {
   const t = texto.toLowerCase();
-  if (t.includes("erro crítico")||t.includes("inválido")) return "critico";
-  if (t.includes("atenção")||t.includes("pendência")||t.includes("verificar")) return "atencao";
-  if (t.includes("erro")||t.includes("não encontrado")) return "negativo";
+  if (t.includes("parabéns") || t.includes("excelente") || t.includes("rápido") || t.includes("bateu a meta")) return "euforia";
+  if (t.includes("lei") || t.includes("artigo") || t.includes("lc ") || t.includes("nbr") || t.includes("plano diretor")) return "bip";
+  if (t.includes("checklist") || t.includes("mac") || t.includes("item")) return "checklist";
+  if (t.includes("prazo") || t.includes("urgente") || t.includes("atrasado")) return "pressao";
+  if (t.includes("erro crítico") || t.includes("inválido") || t.includes("reprovado")) return "critico";
+  if (t.includes("atenção") || t.includes("pendência") || t.includes("verificar")) return "atencao";
+  if (t.includes("erro") || t.includes("não encontrado") || t.includes("falhou")) return "negativo";
   return "positivo";
 }
 
@@ -106,6 +125,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ----- Web Speech (STT + TTS) ------------------------------------------
   const { estado: speech, alternarEscuta, falar, pararFala, alternarMudo, setMudo } =
@@ -125,6 +145,21 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     if (!abertoProp && (fase === "idle" || fase === "entrando")) fechar();
   }, [abertoProp]);
 
+  useEffect(() => {
+    if (speech.falando) {
+      setPoseOpacity(0);
+      setTimeout(() => { setPoseId("falando"); setPoseOpacity(1); }, 200);
+    }
+  }, [speech.falando]);
+
+
+  function resetIdleTimer() {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => {
+      setPoseOpacity(0);
+      setTimeout(() => { setPoseId("idle"); setPoseOpacity(1); }, 200);
+    }, 120000); // 2 minutos
+  }
 
   async function saudacaoOnMount() {
     try {
@@ -136,10 +171,12 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       const json = await res.json();
       if (json.ok && json.resposta) {
         setMsgs([{ role: "urbi", texto: json.resposta }]);
+        resetIdleTimer();
         return;
       }
     } catch (_) {}
     setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Como posso ajudar?` }]);
+    resetIdleTimer();
   }
   function abrir() {
     if (modo === "corner") {
@@ -173,6 +210,25 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   }
 
   function fechar() {
+    // Limpar idle timer
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+
+    // OnDismiss: registrar sessão no MRP
+    try {
+      if (usuario?.id) {
+        fetch("/api/mrp/registros", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario_id: usuario.id,
+            tipo: "urbi_sessao",
+            descricao: `Sessão URBI encerrada — ${msgs.length} mensagens`,
+            data: new Date().toISOString(),
+          }),
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
     setBalaoVisivel(false);
     setFase("saindo");
     setAberto(false);
@@ -227,6 +283,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   async function enviar(textoForcado?: string) {
     const texto = (textoForcado ?? input).trim();
     if (!texto || carregando) return;
+    resetIdleTimer();
     setInput("");
     setMsgs(m => [...m, { role: "user", texto }]);
     setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("pensando", poseId)); setPoseOpacity(1); }, 200);

@@ -25,13 +25,50 @@ REGRAS:
 - Quando citar lei, informa o artigo específico se souber.
 - Se o analista disser "tchau", "pode ir", "dispensado", "valeu URBI" ou similar, responda com uma despedida curta e inclua exatamente o texto: [URBI_SAIR]`;
 
-    // OnMount: saudação contextualizada pelo assunto do processo
+    // OnMount: saudação com clima + fila
     if (tipo === "OnMount") {
       const nome = usuario?.nome?.split(" ")[0] ?? "Analista";
-      const contexto = assunto_id
-        ? `O analista está em um processo com assunto_id "${assunto_id}". Cumprimente-o pelo nome e ofereça ajuda específica para esse tipo de processo (regularização, alvará, etc.) em no máximo 1 frase curta e direta.`
-        : `Cumprimente o analista pelo nome em 1 frase curta e ofereça ajuda.`;
-      const onMountPrompt = `${systemPrompt}\n\nCONTEXTO DE ABERTURA: ${contexto}\nNome do analista: ${nome}`;
+
+      // 1. Buscar clima de Goiânia (Open-Meteo, gratuito, sem API key)
+      let climaTexto = "";
+      try {
+        const climaRes = await fetch(
+          "https://api.open-meteo.com/v1/forecast?latitude=-16.6869&longitude=-49.2648&current=temperature_2m,weathercode&timezone=America%2FSao_Paulo"
+        );
+        const climaJson = await climaRes.json();
+        const temp = climaJson.current?.temperature_2m;
+        const code = climaJson.current?.weathercode;
+        const descricao = code <= 1 ? "céu limpo" : code <= 3 ? "parcialmente nublado" : code <= 67 ? "chuva" : "tempo variável";
+        if (temp !== undefined) climaTexto = `Clima em Goiânia agora: ${temp}°C, ${descricao}.`;
+      } catch (_) {}
+
+      // 2. Buscar fila de processos
+      let filaTexto = "";
+      try {
+        const { createClient } = await import("@supabase/supabase-js");
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        const filtro = assunto_id ? { assunto_id } : {};
+        const { count } = await supabase
+          .from("processos")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "aguardando")
+          .match(filtro);
+        if (count !== null) filaTexto = `Há ${count} processo(s) aguardando análise na fila.`;
+      } catch (_) {}
+
+      const contexto = [climaTexto, filaTexto].filter(Boolean).join(" ");
+
+      const onMountPrompt = `${systemPrompt}
+
+CONTEXTO DE ABERTURA:
+${contexto || "Sem dados de contexto disponíveis no momento."}
+Nome do analista: ${nome}
+
+Cumprimente o analista pelo nome em 1 frase curta e direta, mencionando o clima e/ou a fila se disponíveis. Seja natural e direto, sem enrolação.`;
+
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
