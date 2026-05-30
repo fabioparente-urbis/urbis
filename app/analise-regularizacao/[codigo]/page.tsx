@@ -1105,7 +1105,7 @@ export default function MacPage() {
           <button onClick={() => {
   carregarModelos(tipoProcesso).then(() => setModalModelo(true));
 }}
-  className="w-full bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
+  className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
   🔄 Trocar Checklist
 </button>
 <button onClick={() => router.push("/admin/checklists")}
@@ -1119,7 +1119,7 @@ export default function MacPage() {
           </button>
 
           <button onClick={() => salvar("deferido")} disabled={salvando || naoConformes.length > 0}
-            className="w-full bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ✅ Deferir
           </button>
 
@@ -1158,12 +1158,12 @@ export default function MacPage() {
                 }
               } finally { setGerandoDespacho(false); }
             }}
-            className="w-full bg-orange-700 hover:bg-orange-600 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm">
+            className="w-full bg-[#FFF7ED] hover:bg-[#EA580C] hover:text-white border border-[#EA580C] text-[#EA580C] font-bold py-2.5 rounded-lg text-sm">
               📄 Baixar Indeferimento
             </button>
           )}
           <button onClick={async () => { await salvarSilencioso(); setModalIndeferimento(true); }} disabled={salvando}
-            className="w-full bg-red-800 hover:bg-red-700 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
 
@@ -1201,7 +1201,7 @@ export default function MacPage() {
               } catch { /* silencioso */ }
               setModalDespacho(true);
             }} disabled={gerandoDespacho}
-              className="w-full bg-[var(--ia)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
             </button>
             <div className="mt-2">
@@ -1222,14 +1222,14 @@ export default function MacPage() {
               onClick={() => inputP2Ref.current?.click()}
               disabled={analisandoP2 || checklistItens.length === 0}
               title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
-              className="w-full mt-2 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors"
+              className="w-full mt-2 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"
             >
               {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P2"}
             </button>
             <button
               type="button"
               onClick={() => setModalLimparMac(true)}
-              className="w-full mt-2 bg-red-900 hover:bg-red-800 text-red-300 hover:text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors"
+              className="w-full mt-2 bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors"
             >
               🗑️ Limpar MAC
             </button>
@@ -1276,7 +1276,7 @@ export default function MacPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !destinoDI || !corpoDI}
-                className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespachoInterno(false)}
