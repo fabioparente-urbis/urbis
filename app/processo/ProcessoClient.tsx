@@ -821,7 +821,7 @@ export default function ProcessoClient() {
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
-            🔍 MAC
+            MAC →
           </button>
           <button onClick={() => setModalDI(true)}
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
