@@ -413,7 +413,7 @@ export default function ProcessosPage() {
 
             <div className="flex gap-3 mt-6">
               <button onClick={salvarEdicao} disabled={salvando}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : "💾 Salvar"}
               </button>
               <button onClick={() => setEditando(null)}
@@ -435,7 +435,7 @@ export default function ProcessosPage() {
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>
@@ -453,7 +453,7 @@ export default function ProcessosPage() {
             </p>
             <button
               onClick={() => setAvisoLipVazio(false)}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold px-6 py-2 rounded-lg text-sm transition-colors w-full">
               Entendido
             </button>
           </div>

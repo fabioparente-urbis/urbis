@@ -580,7 +580,7 @@ export default function MacPage() {
                   onClick={() => setModeloSelecionado(m)}
                   className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-colors ${
                     modeloSelecionado?.id === m.id
-                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
+                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
                       : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                   }`}>
                   <div className="flex-1">
@@ -634,7 +634,7 @@ export default function MacPage() {
                       onClick={() => setTipoDespacho(op.value as any)}
                       className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
                         tipoDespacho === op.value
-                          ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
+                          ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
                           : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                       }`}>
                       <div>
@@ -778,7 +778,7 @@ export default function MacPage() {
               return (
                 <button key={grupo} onClick={() => { void salvarSilencioso(); setAbaAtual(idx); }}
                   className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                    abaAtual === idx ? "bg-[var(--accent)] text-[var(--text-primary)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
+                    abaAtual === idx ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
                   }`}>
                   {grupo}
                   <span className="ml-1.5 text-xs opacity-60">{respondidos}/{total}</span>
@@ -1070,7 +1070,7 @@ export default function MacPage() {
                   onClick={() => selecionarOuCriarAnalise(n)}
                   className={`w-full py-2 rounded-lg text-sm font-bold border transition-all ${
                     ativa
-                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--text-primary)]"
+                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
                       : jaEmitida
                         ? "bg-[var(--success-bg)] border-[var(--border)] text-[var(--accent-fg)] hover:bg-[var(--success-bg)]"
                         : existente
@@ -1106,7 +1106,7 @@ export default function MacPage() {
 </button>
 
           <button onClick={() => salvar("em_andamento")} disabled={salvando}
-            className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             {salvando ? "Salvando..." : "💾 Salvar"}
           </button>
 

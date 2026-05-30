@@ -903,7 +903,7 @@ export default function ProcessoClient() {
           <option value="Aprovação">Aprovação</option>
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
-          className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
+          className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
           Abrir →
         </button>
       </div>
@@ -921,7 +921,7 @@ export default function ProcessoClient() {
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
               <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
                 onChange={(e) => {
@@ -993,7 +993,7 @@ export default function ProcessoClient() {
           return (
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-                aba === i ? "bg-[var(--accent)] text-[var(--text-primary)]" :
+                aba === i ? "bg-[var(--accent)] text-[var(--accent-fg)]" :
                 temPendente ? "bg-orange-900 border border-orange-600 text-orange-200 hover:bg-orange-800" :
                 "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
