@@ -28,9 +28,9 @@ type Processo = {
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
   despacho: "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent-hover)]",
-  indeferimento: "bg-red-900 text-red-200 border-red-700",
+  indeferimento: "bg-[var(--error-bg)] text-[var(--error)] border-[var(--error)]",
   arquivamento: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
-  laudo: "bg-[var(--success-bg)] text-[var(--accent-fg)] border-[var(--border)]",
+  laudo: "bg-[var(--success-bg)] text-[var(--success)] border-[var(--border)]",
 };
 
 function rotuloTag(t: ProcessoTag): string {
@@ -65,22 +65,22 @@ const STATUS_OPCOES = [
 
 const STATUS_COR: Record<string, string> = {
   EM_ANALISE: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  CONCLUIDO: "bg-[var(--success-bg)] text-[var(--accent-fg)]",
-  PENDENTE: "bg-yellow-900 text-yellow-300",
-  cancelado: "bg-red-900 text-red-300",
+  CONCLUIDO: "bg-[var(--success-bg)] text-[var(--success)]",
+  PENDENTE: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  cancelado: "bg-[var(--error-bg)] text-[var(--error)]",
   CADASTRADO: "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
-  arquivado_duplicado: "bg-orange-900 text-orange-300",
-  aguardando_assinaturas: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
+  arquivado_duplicado: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  aguardando_assinaturas: "bg-[var(--ia-bg)] text-[var(--ia)]",
 };
 
 const TIPO_COR: Record<string, string> = {
   // Regularizacao → roxo, Aceite → azul (item 6).
-  Regularizacao: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
-  REGULARIZACAO: "bg-[var(--ia-bg)] text-[var(--accent-fg)]",
+  Regularizacao: "bg-[var(--ia-bg)] text-[var(--ia)]",
+  REGULARIZACAO: "bg-[var(--ia-bg)] text-[var(--ia)]",
   Aceite: "bg-[var(--accent)] text-[var(--accent-fg)]",
   ACEITE: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  Aprovacao: "bg-orange-900 text-orange-300",
-  APROVACAO: "bg-orange-900 text-orange-300",
+  Aprovacao: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  APROVACAO: "bg-[var(--warning-bg)] text-[var(--warning)]",
 };
 
 const TIPO_ROTULO: Record<string, string> = {
@@ -319,10 +319,10 @@ export default function ProcessosPage() {
             const proprietario = p.dados?.proprietario?.valor || "—";
             const numero = p.codigo || p.numero_sei || "—";
             return (
-              <div key={p.id} className="bg-[var(--card)] border border-[var(--card-border)] hover:border-slate-400 rounded-xl p-4 flex items-center gap-4 transition-all">
+              <div key={p.id} className="bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--border-strong)] rounded-xl p-4 flex items-center gap-4 transition-all">
                 {/* Clicavel */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
-                  <p className="font-mono text-emerald-600 font-semibold text-sm">{numero}</p>
+                  <p className="font-mono text-[var(--accent)] font-semibold text-sm">{numero}</p>
                   {Array.isArray(p.tags) && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {(p.tags.filter((t, idx, arr) =>
@@ -346,8 +346,8 @@ export default function ProcessosPage() {
                       ))}
                     </div>
                   )}
-                  <p className="text-slate-600 text-sm mt-0.5 truncate">{proprietario}</p>
-                  <div className="flex items-center gap-2 mt-0.5"><p className="text-slate-600 text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-[var(--success-bg)] text-[var(--accent-fg)] px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
+                  <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-[var(--success-bg)] text-[var(--success)] px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
                 </div>
 
                 {/* Tipo */}
@@ -367,11 +367,11 @@ export default function ProcessosPage() {
                 <div className="flex gap-2">
                   <button onClick={(e) => { e.stopPropagation(); abrirEditar(p); }}
                     title="Abrir LIP do processo"
-                    className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">
+                    className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] text-xs px-2 py-1 rounded transition-colors">
                     ✏️
                   </button>
                   <button onClick={() => deletar(p)} disabled={deletando === p.id}
-                    className="bg-red-900 hover:bg-red-800 disabled:opacity-50 text-red-300 text-xs px-2 py-1 rounded transition-colors">
+                    className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-[var(--accent-fg)] disabled:opacity-50 text-[var(--error)] text-xs px-2 py-1 rounded transition-colors">
                     {deletando === p.id ? "..." : "🗑️"}
                   </button>
                 </div>
@@ -389,7 +389,7 @@ export default function ProcessosPage() {
               <h2 className="text-[var(--text-primary)] font-bold text-lg">Editar Processo</h2>
               <button onClick={() => setEditando(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
-            <p className="text-emerald-600 font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
+            <p className="text-[var(--accent)] font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
 
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
@@ -417,7 +417,7 @@ export default function ProcessosPage() {
                 {salvando ? "Salvando..." : "💾 Salvar"}
               </button>
               <button onClick={() => setEditando(null)}
-                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
