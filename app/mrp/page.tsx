@@ -155,11 +155,13 @@ function MrpInner() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--bg-primary)]">
       <header className="bg-[var(--bg-primary)] text-[var(--primary-text)] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button onClick={() => router.push("/")}
-            className="text-[var(--text-secondary)] hover:text-[var(--primary-text)] text-sm">← Início</button>
+            className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
           <h1 className="text-xl font-semibold">📊 MRP — Mapa de Resultados e Produtividade</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">
