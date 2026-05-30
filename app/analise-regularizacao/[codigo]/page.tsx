@@ -591,7 +591,7 @@ export default function MacPage() {
                       <p className="text-xs opacity-60 mt-0.5">{m.tipo_processo}</p>
                     )}
                     {m.dono_id === null && (
-                      <p className="text-xs text-yellow-400 mt-0.5">Padrão global</p>
+                      <p className="text-xs text-[var(--warning)] mt-0.5">Padrão global</p>
                     )}
                   </div>
                   {modeloSelecionado?.id === m.id && (
@@ -655,8 +655,8 @@ export default function MacPage() {
                 />
               </div>
               {tipoDespacho === "despacho" && naoConformes.length > 0 && (
-                <div className="bg-red-950 border border-red-800 rounded-lg p-3">
-                  <p className="text-xs text-red-300 font-semibold mb-1">{naoConformes.length} item(ns) não conforme(s):</p>
+                <div className="bg-[#FEF2F2] border border-[#DC2626] rounded-lg p-3">
+                  <p className="text-xs text-[#DC2626] font-semibold mb-1">{naoConformes.length} item(ns) não conforme(s):</p>
                   <ul className="space-y-0.5">
                     {naoConformes.slice(0, 5).map((i) => (
                       <li key={i.id} className="text-xs text-red-400">• {i.texto.slice(0, 60)}...</li>
@@ -689,16 +689,16 @@ export default function MacPage() {
               🏠 Home
             </button>
             <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
-              className="bg-red-800 hover:bg-red-700 text-red-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
                         <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
-              className="bg-fuchsia-700 hover:bg-fuchsia-600 text-fuchsia-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
             
             <button onClick={() => setModalDespachoInterno(true)}
-              className="bg-indigo-700 hover:bg-indigo-600 text-indigo-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               📨 Despacho Interno
             </button>
             {isAdmin && (
@@ -711,14 +711,14 @@ export default function MacPage() {
               type="button"
               onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank"); }}
               disabled={!analiseAtual?.id}
-              className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               📊 Exportar Excel
             </button>
             <button
               type="button"
               onClick={() => inputImportRef.current?.click()}
               disabled={importando || !analiseAtual?.id}
-              className="bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               {importando ? "⏳ Importando..." : "📥 Importar Excel"}
             </button>
             <input
@@ -733,8 +733,8 @@ export default function MacPage() {
             />
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
-              <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-orange-400">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-orange-400 animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-green-400">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-red-400">✗ Erro ao salvar</span>}</div>
-              <p className="text-yellow-400 font-mono text-sm">{codigo}</p>
+              <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-[var(--warning)]">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-[var(--success)]">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-[var(--error)]">✗ Erro ao salvar</span>}</div>
+              <p className="text-[var(--accent)] font-mono text-sm">{codigo}</p>
 {modeloSelecionado && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
 )}
@@ -744,9 +744,9 @@ export default function MacPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
-          <span className="flex items-center gap-1"><span className="bg-[var(--success)] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
-          <span className="flex items-center gap-1"><span className="bg-red-700 px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
-          <span className="flex items-center gap-1"><span className="bg-[var(--bg-secondary)] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
+          <span className="flex items-center gap-1"><span className="bg-[#ECFDF5] border border-[#059669] text-[#059669] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
+          <span className="flex items-center gap-1"><span className="bg-[#FEF2F2] border border-[#DC2626] text-[#DC2626] px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
+          <span className="flex items-center gap-1"><span className="bg-[#EFF6FF] border border-[#2563EB] text-[#2563EB] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
         </div>
 
         <div className="mt-2 flex flex-col gap-1">
@@ -782,7 +782,7 @@ export default function MacPage() {
                   }`}>
                   {grupo}
                   <span className="ml-1.5 text-xs opacity-60">{respondidos}/{total}</span>
-                  {temErro && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-slate-900" />}
+                  {temErro && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[var(--error)] rounded-full border border-[var(--bg-card)]" />}
                 </button>
               );
             })}
@@ -795,7 +795,7 @@ export default function MacPage() {
                 ✅ Todos Conformes
               </button>
               <button onClick={() => marcarGrupo(grupoAtual, "nao_conforme")}
-                className="flex items-center gap-1.5 bg-red-900 hover:bg-red-800 border border-red-700 text-red-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white border border-[#DC2626] text-[#DC2626] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 ❌ Todos Não Conformes
               </button>
               <button onClick={() => marcarGrupo(grupoAtual, "nao_aplica")}
@@ -803,7 +803,7 @@ export default function MacPage() {
                 ⬜ Todos N/A
               </button>
               <button onClick={() => limparGrupo(grupoAtual)}
-                className="flex items-center gap-1.5 bg-yellow-900 hover:bg-yellow-800 border border-yellow-700 text-yellow-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white border border-[#2563EB] text-[#2563EB] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
               </button>
 
@@ -873,7 +873,7 @@ export default function MacPage() {
                   <span>{progressoP2}%</span>
                 </div>
                 <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
-                  <div className="bg-indigo-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
+                  <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
                 </div>
               </div>
             )}
@@ -894,7 +894,7 @@ export default function MacPage() {
                   <div key={item.id}
                     className={`rounded-xl border p-4 transition-all ${
                       status === "conforme" ? "bg-[var(--success-bg)] border-green-800" :
-                      status === "nao_conforme" ? "bg-red-950 border-red-800" :
+                      status === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626]" :
                       status === "nao_aplica" ? "bg-[var(--bg-card)] border-[var(--border)] opacity-50" :
                       "bg-[var(--bg-card)] border-[var(--border)]"
                     }`}>
@@ -908,7 +908,7 @@ export default function MacPage() {
                           <button
                             onClick={() => setAceites((prev) => ({ ...prev, [item.id]: true }))}
                             title="Sugestão da IA — clique para aceitar"
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-yellow-500 bg-yellow-900/40 text-yellow-200 hover:bg-yellow-800/60 transition-colors">
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-[var(--warning)] bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[var(--border)] transition-colors">
                             🤖 IA — Aceitar
                           </button>
                         )}
@@ -994,15 +994,23 @@ export default function MacPage() {
                 <div className="flex flex-col gap-4">
                   {historicoMac.map((ev, hidx) => {
                     const aberto = historicoAberto === hidx;
+                    const diasUnicosMac = [...new Set(historicoMac.map(e => { const d = new Date(e.momento); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; }))];
+                    const diaEvMac = (() => { const d = new Date(ev.momento); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; })();
+                    const indiceDiaMac = diasUnicosMac.indexOf(diaEvMac);
+                    const coresMac = indiceDiaMac === 0 ? { border: "border-[#0F172A]", bg: "bg-[#0F172A]", text: "text-[#000000] font-bold" }
+                      : indiceDiaMac === 1 ? { border: "border-[#1E3A8A]", bg: "bg-[#1E3A8A]", text: "text-[#1E3A8A] font-semibold" }
+                      : indiceDiaMac === 2 ? { border: "border-[#334155]", bg: "bg-[#334155]", text: "text-[#334155] font-medium" }
+                      : indiceDiaMac === 3 ? { border: "border-[#065F46]", bg: "bg-[#065F46]", text: "text-[#065F46]" }
+                      : { border: "border-[#94A3B8]", bg: "bg-[#94A3B8]", text: "text-[#94A3B8]" };
                     return (
                       <div key={hidx} className="relative flex items-start gap-4 pl-10">
-                        <div className="absolute left-2 w-5 h-5 rounded-full border-2 border-indigo-400 cursor-pointer transition-transform hover:scale-125 flex items-center justify-center"
+                        <div className={`absolute left-2 w-5 h-5 rounded-full border-2 ${coresMac.border} cursor-pointer transition-transform hover:scale-125 flex items-center justify-center`}
                           onClick={() => setHistoricoAberto(aberto ? null : hidx)}>
-                          <div className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                          <div className={`w-2.5 h-2.5 rounded-full ${coresMac.bg}`} />
                         </div>
                         <div className="flex-1">
                           <button onClick={() => setHistoricoAberto(aberto ? null : hidx)}
-                            className="text-xs font-mono text-indigo-300 hover:underline text-left">
+                            className={`text-xs font-mono ${coresMac.text} hover:underline text-left`}>
                             {new Date(ev.momento).toLocaleString("pt-BR")} — {ev.total} campo(s) alterado(s)
                           </button>
                           {aberto && (
@@ -1116,7 +1124,7 @@ export default function MacPage() {
           </button>
 
           {naoConformes.length > 0 && (
-            <p className="text-xs text-yellow-400">⚠️ {naoConformes.length} item(ns) não conforme(s) — impossível deferir.</p>
+            <p className="text-xs text-[var(--warning)]">⚠️ {naoConformes.length} item(ns) não conforme(s) — impossível deferir.</p>
           )}
 
           {indeferimentoPendente && (
@@ -1392,7 +1400,7 @@ export default function MacPage() {
                 <li key={item.id} className="flex items-start gap-3 bg-[var(--bg-secondary)]/60 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-[var(--text-primary)]">
                   <span className="text-yellow-400 mt-0.5 text-lg shrink-0">⚠</span>
                   <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-xs text-yellow-400 font-semibold uppercase tracking-wide">MAC — {item.grupo || "Checklist"}</span>
+                    <span className="text-xs text-[var(--warning)] font-semibold uppercase tracking-wide">MAC — {item.grupo || "Checklist"}</span>
                     <span className="text-[var(--text-primary)] leading-relaxed">{item.texto || item.id}</span>
                   </div>
                 </li>
