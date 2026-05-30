@@ -84,7 +84,7 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
         {historico.map((h) => {
           const dt = new Date(h.criado_em)
           const hora = dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          const data = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+          const data = dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
           const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
           const label = `${data} ${hora}`
           return (
@@ -93,11 +93,11 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
               title={h.acao}
               style={{
                 background: 'transparent', border: 'none',
-                borderLeft: h.pagina ? '2px solid #1976D2' : '2px solid #333',
-                paddingLeft: 8, color: '#ffffff99', cursor: h.pagina ? 'pointer' : 'default',
+                borderLeft: h.pagina ? '2px solid #1E3A8A' : '2px solid var(--border)',
+                paddingLeft: 8, color: 'var(--text-secondary)', cursor: h.pagina ? 'pointer' : 'default',
                 textAlign: 'left', fontSize: 11, lineHeight: 1.5, width: '100%',
               }}>
-              <span style={{ color: '#ffffff44', fontSize: 10, display: 'block' }}>{label}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 10, display: 'block' }}>{label}</span>
               <span>{h.acao.slice(0, 40)}</span>
             </button>
           )
