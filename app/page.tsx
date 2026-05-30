@@ -171,18 +171,18 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col">
       {/* HEADER — logo grande centralizado + Sair no canto direito */}
-      <header className="relative bg-white border-b border-gray-200 px-6 md:px-10 py-8">
+      <header className="relative bg-[var(--surface)] border-b border-[var(--border)] px-6 md:px-10 py-8">
         <div className="flex flex-col items-center gap-2">
           <img src="/logo_urbis.png" alt="URBIS" className="h-40 w-auto" />
-          <p className="text-sm font-medium text-gray-600">
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
             Sistema de Análise de Projetos — Prefeitura de Goiânia
           </p>
         </div>
         <button
           onClick={sair}
-          className="absolute top-4 right-4 md:top-6 md:right-6 inline-flex items-center gap-2 bg-white border border-gray-200 text-gray-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
+          className="absolute top-4 right-4 md:top-6 md:right-6 inline-flex items-center gap-2 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] hover:bg-red-50 hover:text-red-700 hover:border-red-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm">
           <LogOut size={16} />
           Sair
         </button>
@@ -193,15 +193,15 @@ export default function Home() {
         <div className="w-full max-w-6xl mx-auto space-y-6">
 
           {/* Barra compacta — assunto + número + ENTRAR */}
-          <section className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+          <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-sm p-4">
             <div className="flex flex-col md:flex-row md:items-center gap-3">
-              <label className="text-xs uppercase tracking-wider text-gray-500 font-semibold md:mr-1">
+              <label className="text-xs uppercase tracking-wider text-[var(--text-muted)] font-semibold md:mr-1">
                 Abrir processo
               </label>
               <select
                 value={tipo}
                 onChange={(e) => { setTipo(e.target.value as TipoProcesso); setErro(""); }}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-w-[180px]">
+                className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] bg-[var(--surface)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-w-[180px]">
                 {assuntosAtivos.length === 0 ? (
                   // Fallback enquanto o GET nao retornou: mostra Regularizacao
                   // (sempre ativa) para nao deixar o select vazio.
@@ -220,35 +220,35 @@ export default function Home() {
                 onChange={(e) => { setNumero(e.target.value); setErro(""); }}
                 onKeyDown={(e) => e.key === "Enter" && validar()}
                 placeholder={getPlaceholder()}
-                className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                className="flex-1 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
               <button
                 onClick={validar}
-                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-semibold px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
+                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-semibold px-6 py-2 rounded-lg text-sm transition-colors whitespace-nowrap">
                 CADASTRAR
               </button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 px-1">
-              <p className="text-xs text-gray-500">{getAjuda()}</p>
+              <p className="text-xs text-[var(--text-muted)]">{getAjuda()}</p>
               {erro && <p className="text-xs text-red-600 font-medium">{erro}</p>}
             </div>
           </section>
 
           {/* Grid de cards de módulos */}
           {carregandoAuth ? (
-            <p className="text-center text-gray-500 text-sm">Carregando…</p>
+            <p className="text-center text-[var(--text-muted)] text-sm">Carregando…</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
               {visiveis.map(({ chave, nome, descricao, Icone, rota }) => (
                 <button
                   key={chave}
                   onClick={() => router.push(rota)}
-                  className="group bg-white rounded-xl border border-gray-200 p-6 text-left shadow-sm hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5 transition-all">
-                  <div className="w-12 h-12 rounded-lg bg-blue-50 group-hover:bg-[var(--info-bg)] flex items-center justify-center mb-4 transition-colors">
-                    <Icone className="text-blue-600" size={24} aria-hidden="true" />
+                  className="group bg-[var(--surface)] rounded-lg border border-[var(--border)] p-6 text-left shadow-sm hover:shadow-md hover:border-[var(--accent)] hover:-translate-y-0.5 transition-all">
+                  <div className="w-12 h-12 rounded-lg bg-[var(--bg-secondary)] group-hover:bg-[var(--border)] flex items-center justify-center mb-4 transition-colors">
+                    <Icone className="text-[var(--accent)]" size={24} aria-hidden="true" />
                   </div>
-                  <h2 className="text-lg font-bold text-gray-800 tracking-wide">{nome}</h2>
-                  <p className="text-sm text-gray-500 mt-1 leading-snug">{descricao}</p>
+                  <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-wide">{nome}</h2>
+                  <p className="text-sm text-[var(--text-muted)] mt-1 leading-snug">{descricao}</p>
                 </button>
               ))}
             </div>
@@ -258,7 +258,7 @@ export default function Home() {
 
       {/* RODAPÉ */}
       <footer className="px-6 md:px-10 py-4 text-center">
-        <p className="text-xs text-gray-400">by Fábio Parente — Prefeitura de Goiânia</p>
+        <p className="text-xs text-[var(--text-muted)]">by Fábio Parente — Prefeitura de Goiânia</p>
       </footer>
     </div>
   );
