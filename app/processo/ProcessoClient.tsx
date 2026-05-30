@@ -55,20 +55,17 @@ function formatarDataCompleta(dataStr: string) {
   });
 }
 
-const CORES_DIA = [
-  { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#0F172A] font-bold" },
-  { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A]" },
-  { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155]" },
-  { bg: "bg-[#64748B]", border: "border-[#64748B]", text: "text-[#64748B]" },
-  { bg: "bg-[#94A3B8]", border: "border-[#94A3B8]", text: "text-[#94A3B8]" },
-  { bg: "bg-[#CBD5E1]", border: "border-[#CBD5E1]", text: "text-[#CBD5E1]" },
-];
+
 
 function corParaData(dataEvento: string) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const data = new Date(dataEvento); data.setHours(0, 0, 0, 0);
   const diffDias = Math.floor((hoje.getTime() - data.getTime()) / (1000 * 60 * 60 * 24));
-  return CORES_DIA[Math.min(diffDias, CORES_DIA.length - 1)];
+  if (diffDias === 0) return { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#000000] font-bold" };
+  if (diffDias === 1) return { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A] font-semibold" };
+  if (diffDias === 2) return { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155] font-medium" };
+  if (diffDias === 3) return { bg: "bg-[#065F46]", border: "border-[#065F46]", text: "text-[#065F46]" };
+  return { bg: "bg-[#94A3B8]", border: "border-[#94A3B8]", text: "text-[#94A3B8]" };
 }
 
 function opacidadeEvento(indice: number, total: number): number {
