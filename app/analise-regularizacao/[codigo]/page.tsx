@@ -799,7 +799,7 @@ export default function MacPage() {
                 ❌ Todos Não Conformes
               </button>
               <button onClick={() => marcarGrupo(grupoAtual, "nao_aplica")}
-                className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-strong)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                className="flex items-center gap-1.5 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white border border-[#2563EB] text-[#2563EB] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 ⬜ Todos N/A
               </button>
               <button onClick={() => limparGrupo(grupoAtual)}
@@ -908,7 +908,7 @@ export default function MacPage() {
                           <button
                             onClick={() => setAceites((prev) => ({ ...prev, [item.id]: true }))}
                             title="Sugestão da IA — clique para aceitar"
-                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-[var(--warning)] bg-[var(--warning-bg)] text-[var(--warning)] hover:bg-[var(--border)] transition-colors">
+                            className="px-2 py-0.5 rounded text-[10px] font-bold border border-[var(--border-strong)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors">
                             🤖 IA — Aceitar
                           </button>
                         )}
@@ -934,8 +934,8 @@ export default function MacPage() {
                                 status === s
                                   ? s === "conforme" ? "bg-[#ECFDF5] border-[#059669] text-[#059669]" :
                                     s === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626] text-[#DC2626]" :
-                                    "bg-[var(--bg-secondary)] border-slate-400 text-[var(--text-primary)]"
-                                  : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)] hover:border-slate-400"
+                                    "bg-[#EFF6FF] border-[#2563EB] text-[#2563EB]"
+                                  : "bg-[var(--bg-card)] border-[var(--border)] text-[var(--text-muted)] hover:border-[#2563EB]"
                               }`}>
                               {s === "conforme" ? "✅" : s === "nao_conforme" ? "❌" : "⬜"}
                             </button>
