@@ -38,10 +38,10 @@ type AbaDB = {
 function base(valor = ""): Campo { return { valor, origem: "original" }; }
 function padrao(valor: string): Campo { return { valor, origem: "padrao" }; }
 function cor(origem: Origem) {
-  if (origem === "urbis") return "text-[var(--error)]";
-  if (origem === "manual") return "text-[var(--accent)]";
-  if (origem === "padrao") return "text-[var(--warning)]";
-  return "text-[var(--text-primary)]";
+  if (origem === "urbis") return "text-[#2563EB]";
+  if (origem === "manual") return "text-[#475569]";
+  if (origem === "padrao") return "text-[#EA580C]";
+  return "text-[#000000]";
 }
 function borderCor(origem: Origem, valor: string) {
   if (origem === "padrao" && valor.trim() === "") return "border-orange-400 border-2";
@@ -56,12 +56,12 @@ function formatarDataCompleta(dataStr: string) {
 }
 
 const CORES_DIA = [
-  { bg: "bg-yellow-400", border: "border-yellow-400", text: "text-yellow-400" },
-  { bg: "bg-[var(--warning)]", border: "border-[var(--warning)]", text: "text-[var(--warning)]" },
-  { bg: "bg-[var(--error)]",  border: "border-[var(--error)]",  text: "text-[var(--error)]"  },
-  { bg: "bg-[var(--accent)]", border: "border-[var(--accent)]", text: "text-[var(--accent)]" },
-  { bg: "bg-[var(--ia)]",     border: "border-[var(--ia)]",     text: "text-[var(--ia)]"     },
-  { bg: "bg-[var(--success)]",  border: "border-green-500",  text: "text-green-500"  },
+  { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#0F172A] font-bold" },
+  { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A]" },
+  { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155]" },
+  { bg: "bg-[#64748B]", border: "border-[#64748B]", text: "text-[#64748B]" },
+  { bg: "bg-[#94A3B8]", border: "border-[#94A3B8]", text: "text-[#94A3B8]" },
+  { bg: "bg-[#CBD5E1]", border: "border-[#CBD5E1]", text: "text-[#CBD5E1]" },
 ];
 
 function corParaData(dataEvento: string) {
@@ -77,7 +77,7 @@ function opacidadeEvento(indice: number, total: number): number {
 }
 
 function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" | "info"; onClose: () => void }) {
-  const bg = tipo === "sucesso" ? "bg-[var(--success)] border-green-500" : tipo === "erro" ? "bg-red-800 border-red-500" : "bg-blue-800 border-[var(--accent-hover)]";
+  const bg = tipo === "sucesso" ? "bg-[var(--success-bg)] border-[var(--success)]" : tipo === "erro" ? "bg-[var(--error-bg)] border-[var(--error)]" : "bg-[var(--info-bg)] border-[var(--accent)]";
   useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
   return (
     <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
@@ -705,9 +705,9 @@ export default function ProcessoClient() {
 
   const legenda = [
     { cor: "bg-[var(--text-primary)]", label: "Original (documento)" },
-    { cor: "bg-[var(--error)]", label: "Urbis (automático)" },
+    { cor: "bg-[#2563EB]", label: "Urbis (automático)" },
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
-    { cor: "bg-[var(--warning)]", label: "Padrão (conferir!)" },
+    { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
   ];
 
   if (carregandoAbas) {
@@ -819,11 +819,11 @@ export default function ProcessoClient() {
               const rotaMac = "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
-            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             🔍 MAC
           </button>
           <button onClick={() => setModalDI(true)}
-            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             📨 Despacho Interno
           </button>
           {perfisUsuario.includes("Administrador") && (
@@ -835,7 +835,7 @@ export default function ProcessoClient() {
           <a
             href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
             download
-            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             📊 Exportar Excel
           </a>
           <button
@@ -860,7 +860,7 @@ export default function ProcessoClient() {
           <button
             type="button"
             onClick={() => setModalLimparLip(true)}
-            className="mt-1 bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-[var(--accent-fg)] text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🗑️ Limpar LIP
           </button>
           </div>
@@ -916,12 +916,12 @@ export default function ProcessoClient() {
             <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
           </div>
           <div className="ml-auto flex gap-2">
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Ler PDF com Prompt P1"}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]"}`}>
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
               {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
               <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
                 onChange={(e) => {
@@ -994,7 +994,7 @@ export default function ProcessoClient() {
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 aba === i ? "bg-[var(--accent)] text-[var(--accent-fg)]" :
-                temPendente ? "bg-[var(--warning-bg)] border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--border)]" :
+                temPendente ? "bg-[#FEE2E2] border border-[#991B1B] text-[#991B1B] hover:bg-[#FECACA]" :
                 "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
               {a.nome}
@@ -1097,7 +1097,7 @@ export default function ProcessoClient() {
                                 {ev.campos.map((c, i) => (
                                   <tr key={i} className="border-t border-[var(--border)]">
                                     <td className="py-1 text-[var(--text-secondary)] pr-3">{c.campo}</td>
-                                    <td className="py-1 text-red-400 pr-3 font-mono">{c.de || "—"}</td>
+                                    <td className="py-1 text-[var(--text-muted)] pr-3 font-mono">{c.de || "—"}</td>
                                     <td className="py-1 text-green-400 font-mono">{c.para || "—"}</td>
                                   </tr>
                                 ))}
