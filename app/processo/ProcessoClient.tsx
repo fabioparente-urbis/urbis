@@ -57,15 +57,19 @@ function formatarDataCompleta(dataStr: string) {
 
 
 
-function corParaData(dataEvento: string) {
-  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-  const data = new Date(dataEvento); data.setHours(0, 0, 0, 0);
-  const diffDias = Math.floor((hoje.getTime() - data.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDias === 0) return { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#000000] font-bold" };
-  if (diffDias === 1) return { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A] font-semibold" };
-  if (diffDias === 2) return { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155] font-medium" };
-  if (diffDias === 3) return { bg: "bg-[#065F46]", border: "border-[#065F46]", text: "text-[#065F46]" };
+function diaKey(dataEvento: string): string {
+  const d = new Date(dataEvento);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function corPorIndiceDia(idx: number) {
+  if (idx === 0) return { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#000000] font-bold" };
+  if (idx === 1) return { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A] font-semibold" };
+  if (idx === 2) return { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155] font-medium" };
+  if (idx === 3) return { bg: "bg-[#065F46]", border: "border-[#065F46]", text: "text-[#065F46]" };
   return { bg: "bg-[#94A3B8]", border: "border-[#94A3B8]", text: "text-[#94A3B8]" };
+}
+function corParaData(dataEvento: string) {
+  return corPorIndiceDia(0);
 }
 
 function opacidadeEvento(indice: number, total: number): number {
@@ -839,7 +843,7 @@ export default function ProcessoClient() {
             type="button"
             onClick={() => inputImportRef.current?.click()}
             disabled={importando || !idUrl}
-            className="mt-1 bg-[var(--secondary)] hover:bg-[var(--border)] disabled:opacity-50 text-[var(--secondary-text)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             {importando ? "⏳ Importando..." : "📥 Importar Excel"}
           </button>
           <input
@@ -1056,7 +1060,9 @@ export default function ProcessoClient() {
             <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[var(--bg-secondary)]" />
             <div className="flex flex-col gap-4">
               {historico.map((ev, idx) => {
-                const cores = corParaData(ev.criado_em);
+                const diasUnicos = [...new Set(historico.map(e => diaKey(e.criado_em)))];
+                const indiceDia = diasUnicos.indexOf(diaKey(ev.criado_em));
+                const cores = corPorIndiceDia(indiceDia);
                 const opacidade = opacidadeEvento(idx, historico.length);
                 const aberto = eventoAberto === ev.id;
                 const esteConfirmando = confirmando === ev.id;
