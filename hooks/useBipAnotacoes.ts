@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-export type TipoElemento = 'traco' | 'comentario' | 'clipe'
+export type TipoElemento = 'traco' | 'comentario' | 'clipe' | 'balao'
 
 export interface ElementoCanvas {
   id: string

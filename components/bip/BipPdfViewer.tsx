@@ -109,10 +109,10 @@ export default function BipPdfViewer({ leiId, pdfUrl, nomeLei }: BipPdfViewerPro
         {/* Toolbar */}
         <div style={{ background: '#fff', borderBottom: '1px solid #E0E0E0', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           {nomeLei && <span style={{ fontWeight: 600, fontSize: 13, color: '#333', marginRight: 8 }}>{nomeLei}</span>}
-          {(['caneta','borracha','comentario'] as Ferramenta[]).map((id) => (
+          {(['caneta','borracha','comentario','balao'] as Ferramenta[]).map((id) => (
             <button key={id!} onClick={() => setFerramentaAtiva(ferramentaAtiva === id ? null : id)}
               style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid', borderColor: ferramentaAtiva === id ? '#1976D2' : '#DDD', background: ferramentaAtiva === id ? '#E3F2FD' : '#FAFAFA', color: ferramentaAtiva === id ? '#1976D2' : '#555', fontWeight: ferramentaAtiva === id ? 700 : 400, cursor: 'pointer', fontSize: 13 }}>
-              {id === 'caneta' ? '✏️ Caneta' : id === 'borracha' ? '🧹 Borracha' : '💬 Comentário'}
+              {id === 'caneta' ? '✏️ Caneta' : id === 'borracha' ? '🧹 Borracha' : id === 'comentario' ? '💬 Comentário' : '💬 Balão'}
             </button>
           ))}
           <div style={{ width: 1, height: 24, background: '#E0E0E0' }} />
