@@ -1158,7 +1158,7 @@ export default function MacPage() {
                 }
               } finally { setGerandoDespacho(false); }
             }}
-            className="w-full bg-[#FFF7ED] hover:bg-[#EA580C] hover:text-white border border-[#EA580C] text-[#EA580C] font-bold py-2.5 rounded-lg text-sm">
+            className="w-full bg-[#EA580C] hover:bg-[#C2410C] border border-[#EA580C] text-white font-bold py-2.5 rounded-lg text-sm">
               📄 Baixar Indeferimento
             </button>
           )}
