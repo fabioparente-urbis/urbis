@@ -513,6 +513,15 @@ export default function MacPage() {
     return checklistItens.filter((i) => i.grupo === GRUPOS[idx]).some((i) => itens[i.id] === "nao_conforme");
   }
 
+  useEffect(() => {
+    const pendentes: string[] = [];
+    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") pendentes.push("Área do Lote");
+    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") pendentes.push("Recuo Obrigatório");
+    setBannerCritico(pendentes.length > 0
+      ? `⚠ Campos críticos em rascunho no LIP: ${pendentes.join(", ")}. Finalize antes de prosseguir.`
+      : null);
+  }, [dadosLip]);
+
   if (carregando) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
@@ -537,14 +546,7 @@ export default function MacPage() {
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
 
-  useEffect(() => {
-    const pendentes: string[] = [];
-    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") pendentes.push("Área do Lote");
-    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") pendentes.push("Recuo Obrigatório");
-    setBannerCritico(pendentes.length > 0
-      ? `⚠ Campos críticos em rascunho no LIP: ${pendentes.join(", ")}. Finalize antes de prosseguir.`
-      : null);
-  }, [dadosLip]);
+
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
       {bannerCritico && (
