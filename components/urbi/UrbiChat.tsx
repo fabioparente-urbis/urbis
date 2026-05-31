@@ -125,6 +125,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
   const [modoBip, setModoBip] = useState(false);
+  const prefsCarregadasRef = useRef(false);
   const [aguardandoLei, setAguardandoLei] = useState(false);
   const [leisDisponiveis, setLeisDisponiveis] = useState<{id:string;nome:string}[]>([]);
   const [cornerPos, setCornerPos] = useState(DEFAULT_CORNER);
@@ -134,11 +135,41 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ----- Web Speech (STT + TTS) ------------------------------------------
+  // Carregar preferências ao montar
+  useEffect(() => {
+    if (!prefsCarregadasRef.current && usuario?.id) {
+      prefsCarregadasRef.current = true;
+      if (usuario.urbi_mudo !== undefined) setMudo(usuario.urbi_mudo);
+      if (usuario.urbi_bip !== undefined) setModoBip(usuario.urbi_bip);
+    }
+  }, [usuario]);
+
   const { estado: speech, alternarEscuta, pararEscuta, falar, pararFala, alternarMudo, setMudo } =
     useWebSpeech({
       idioma: "pt-BR",
       aoTranscrever: (texto) => {
-        // Reflete a transcrição no input e dispara o envio direto.
+        const norm = texto.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (norm.includes("ligar microfone") || norm.includes("ligar o microfone")) {
+          if (!speech.ouvindo) alternarEscuta(); return;
+        }
+        if (norm.includes("desligar microfone") || norm.includes("desligar o microfone")) {
+          if (speech.ouvindo) pararEscuta(); return;
+        }
+        if (norm.includes("ligar som") || norm.includes("ligar o som") || norm.includes("ligar alto falante")) {
+          setMudo(false); return;
+        }
+        if (norm.includes("desligar som") || norm.includes("desligar o som")) {
+          setMudo(true); return;
+        }
+        if (norm.includes("ligar bip") || norm.includes("ligar o bip")) {
+          setModoBip(true); return;
+        }
+        if (norm.includes("desligar bip") || norm.includes("desligar o bip")) {
+          setModoBip(false); return;
+        }
+        if (norm.includes("tchau") || norm.includes("pode ir") || norm.includes("dispensado")) {
+          setTimeout(() => fechar(), 500); return;
+        }
         setInput(texto);
         void enviar(texto);
       },
@@ -156,6 +187,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       if (cmd === "desligar_mic") { if (speech.ouvindo) pararEscuta(); }
       if (cmd === "ligar_bip") { setModoBip(true); }
       if (cmd === "desligar_bip") { setModoBip(false); }
+      if (cmd === "tchau") { setTimeout(() => fechar(), 500); }
     };
     window.addEventListener("urbi:cmd", handler);
     return () => window.removeEventListener("urbi:cmd", handler);
@@ -252,6 +284,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       }
     } catch (_) {}
 
+    // Salvar preferências
+    if (usuario?.id) {
+      fetch("/api/urbi/preferencias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuario_id: usuario.id, urbi_mudo: speech.mudo, urbi_bip: modoBip }),
+      }).catch(() => {});
+    }
     setBalaoVisivel(false);
     setFase("saindo");
     setAberto(false);
