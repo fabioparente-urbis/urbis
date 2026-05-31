@@ -128,7 +128,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ----- Web Speech (STT + TTS) ------------------------------------------
-  const { estado: speech, alternarEscuta, falar, pararFala, alternarMudo, setMudo } =
+  const { estado: speech, alternarEscuta, pararEscuta, falar, pararFala, alternarMudo, setMudo } =
     useWebSpeech({
       idioma: "pt-BR",
       aoTranscrever: (texto) => {
