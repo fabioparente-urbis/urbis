@@ -42,7 +42,7 @@ export function useWebSpeech(opcoes?: {
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        if (blob.size < 1000) { setOuvindo(false); return; }
+        if (blob.size < 100) { setOuvindo(false); return; }
         const form = new FormData();
         form.append("audio", blob, "audio.webm");
         try {
@@ -55,7 +55,7 @@ export function useWebSpeech(opcoes?: {
         }
         setOuvindo(false);
       };
-      rec.start();
+      rec.start(100);
       mediaRecorderRef.current = rec;
       setOuvindo(true);
       setUltimoErroStt(null);
