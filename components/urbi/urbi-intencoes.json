@@ -2,81 +2,411 @@
   "comandos": [
     {
       "id": "abrir_processos",
-      "frases": ["pilha de processos", "abrir processos", "ver processos", "lista de processos"],
-      "acao": { "tipo": "navegar", "rota": "/processos" },
+      "frases": [
+        "pilha de processos",
+        "abrir processos",
+        "ver processos",
+        "lista de processos"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/processos"
+      },
       "resposta": "Abrindo a pilha de processos."
     },
     {
       "id": "abrir_mrp",
-      "frases": ["abrir mrp", "minha produtividade", "ver mrp", "ver produtividade"],
-      "acao": { "tipo": "navegar", "rota": "/mrp" },
+      "frases": [
+        "abrir mrp",
+        "minha produtividade",
+        "ver mrp",
+        "ver produtividade"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/mrp"
+      },
       "resposta": "Abrindo o MRP — Minha Produtividade."
     },
     {
       "id": "abrir_mrp_equipe",
-      "frases": ["mrp da equipe", "mrp equipe", "produtividade da equipe"],
-      "acao": { "tipo": "navegar", "rota": "/admin/mrp" },
+      "frases": [
+        "mrp da equipe",
+        "mrp equipe",
+        "produtividade da equipe"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/mrp"
+      },
       "resposta": "Abrindo o MRP da equipe."
     },
     {
       "id": "abrir_usuarios",
-      "frases": ["gestão de usuários", "gerenciar usuários", "abrir usuários"],
-      "acao": { "tipo": "navegar", "rota": "/admin/usuarios" },
+      "frases": [
+        "gestão de usuários",
+        "gerenciar usuários",
+        "abrir usuários"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/usuarios"
+      },
       "resposta": "Abrindo a gestão de usuários."
     },
     {
       "id": "abrir_mac",
-      "frases": ["gerenciar mac", "abrir mac", "abrir checklist", "gerenciar checklist", "checklists"],
-      "acao": { "tipo": "navegar", "rota": "/admin/checklists" },
+      "frases": [
+        "gerenciar mac",
+        "abrir mac",
+        "abrir checklist",
+        "gerenciar checklist",
+        "checklists"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/checklists"
+      },
       "resposta": "Abrindo o gerenciador de MAC."
     },
     {
       "id": "abrir_lip",
-      "frases": ["gerenciar lip", "abrir lip"],
-      "acao": { "tipo": "navegar", "rota": "/admin/lip" },
+      "frases": [
+        "gerenciar lip",
+        "abrir lip"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/lip"
+      },
       "resposta": "Abrindo o gerenciador de LIP."
     },
     {
       "id": "abrir_prompts",
-      "frases": ["gerenciar prompts", "abrir prompts"],
-      "acao": { "tipo": "navegar", "rota": "/admin/prompts" },
+      "frases": [
+        "gerenciar prompts",
+        "abrir prompts"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/prompts"
+      },
       "resposta": "Abrindo o gerenciador de prompts."
     },
     {
       "id": "abrir_bdi",
-      "frases": ["abrir bdi", "banco de dados", "banco de dados e inteligência"],
-      "acao": { "tipo": "navegar", "rota": "/admin/bdi" },
+      "frases": [
+        "abrir bdi",
+        "banco de dados",
+        "banco de dados e inteligência"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/bdi"
+      },
       "resposta": "Abrindo o BDI."
     },
     {
       "id": "abrir_backup",
-      "frases": ["abrir backup", "restauração", "gerar backup", "backup e restauração"],
-      "acao": { "tipo": "navegar", "rota": "/admin/backup" },
+      "frases": [
+        "abrir backup",
+        "restauração",
+        "gerar backup",
+        "backup e restauração"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/admin/backup"
+      },
       "resposta": "Abrindo Backup e Restauração."
     },
     {
       "id": "ir_home",
-      "frases": ["página inicial", "voltar para home", "ir para home", "início"],
-      "acao": { "tipo": "navegar", "rota": "/" },
+      "frases": [
+        "página inicial",
+        "voltar para home",
+        "ir para home",
+        "início"
+      ],
+      "acao": {
+        "tipo": "navegar",
+        "rota": "/"
+      },
       "resposta": "Voltando para a página inicial."
     },
     {
       "id": "fechar_urbi",
-      "frases": ["fechar urbi", "tchau urbi", "encerrar", "obrigado urbi"],
-      "acao": { "tipo": "fechar" },
+      "frases": [
+        "fechar urbi",
+        "tchau urbi",
+        "encerrar",
+        "obrigado urbi"
+      ],
+      "acao": {
+        "tipo": "fechar"
+      },
       "resposta": "Até a próxima!"
     },
     {
       "id": "ativar_mudo",
-      "frases": ["ficar em silêncio", "modo mudo", "mutar", "silenciar"],
-      "acao": { "tipo": "mudo", "valor": true },
+      "frases": [
+        "ficar em silêncio",
+        "modo mudo",
+        "mutar",
+        "silenciar"
+      ],
+      "acao": {
+        "tipo": "mudo",
+        "valor": true
+      },
       "resposta": "Silenciado."
     },
     {
       "id": "desativar_mudo",
-      "frases": ["ativar som", "tirar mudo", "falar de novo", "voltar a falar"],
-      "acao": { "tipo": "mudo", "valor": false },
+      "frases": [
+        "ativar som",
+        "tirar mudo",
+        "falar de novo",
+        "voltar a falar"
+      ],
+      "acao": {
+        "tipo": "mudo",
+        "valor": false
+      },
       "resposta": "Som ativado."
+    },
+    {
+      "id": "pose_sucesso",
+      "frases": [
+        "pose sucesso"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "sucesso"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_tudo_ok",
+      "frases": [
+        "pose tudo ok"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "tudo-ok"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_oops",
+      "frases": [
+        "pose oops"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "oops"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_oh_nao",
+      "frases": [
+        "pose oh nao"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "oh-nao"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_atencao",
+      "frases": [
+        "pose atencao"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "atencao"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_algo_errado",
+      "frases": [
+        "pose algo errado"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "algo-errado"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_analisando",
+      "frases": [
+        "pose analisando"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "analisando"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_planejando",
+      "frases": [
+        "pose planejando"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "planejando"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_dados_errados",
+      "frases": [
+        "pose dados errados"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "dados-errados"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_bravo",
+      "frases": [
+        "pose bravo"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "bravo"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_euforia",
+      "frases": [
+        "pose euforia"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "euforia"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_corrigindo",
+      "frases": [
+        "pose corrigindo"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "corrigindo"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_medindo",
+      "frases": [
+        "pose medindo"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "medindo"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_manutencao",
+      "frases": [
+        "pose manutencao"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "manutencao"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_pressao",
+      "frases": [
+        "pose pressao"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "pressao"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_checklist",
+      "frases": [
+        "pose checklist"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "checklist"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_reprovado",
+      "frases": [
+        "pose reprovado"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "reprovado"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_bip",
+      "frases": [
+        "pose bip"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "bip"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_falando",
+      "frases": [
+        "pose falando"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "falando"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "pose_idle",
+      "frases": [
+        "pose idle",
+        "pose dormindo"
+      ],
+      "acao": {
+        "tipo": "pose",
+        "valor": "idle"
+      },
+      "resposta": ""
+    },
+    {
+      "id": "parar_fala",
+      "frases": [
+        "parar",
+        "para",
+        "silencio"
+      ],
+      "acao": {
+        "tipo": "parar_fala"
+      },
+      "resposta": ""
     }
   ]
 }

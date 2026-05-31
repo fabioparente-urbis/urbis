@@ -7,7 +7,9 @@ import intencoesJson from "./urbi-intencoes.json";
 type IntencaoAcao =
   | { tipo: "navegar"; rota: string }
   | { tipo: "fechar" }
-  | { tipo: "mudo"; valor: boolean };
+  | { tipo: "mudo"; valor: boolean }
+  | { tipo: "pose"; valor: string }
+  | { tipo: "parar_fala" };
 
 type Intencao = {
   id: string;
@@ -121,6 +123,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const [overlayVisivel, setOverlayVisivel] = useState(false);
   const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
+  const [modoBip, setModoBip] = useState(false);
+  const [aguardandoLei, setAguardandoLei] = useState(false);
+  const [leisDisponiveis, setLeisDisponiveis] = useState<{id:string;nome:string}[]>([]);
   const [cornerPos, setCornerPos] = useState(DEFAULT_CORNER);
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);
   const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -237,6 +242,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setMsgs([]);
       setHistory([]);
       setPoseId("sucesso");
+      setModoBip(false);
+      setAguardandoLei(false);
+      setLeisDisponiveis([]);
     }, 500);
   }
 
@@ -275,7 +283,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setTimeout(() => fechar(), 1500);
         break;
       case "mudo":
-        setMudo(acao.valor);
+        setMudo((acao as any).valor);
+        break;
+      case "pose":
+        setPoseOpacity(0);
+        setTimeout(() => { setPoseId((acao as any).valor); setPoseOpacity(1); }, 200);
+        break;
+      case "parar_fala":
+        pararFala();
         break;
     }
   }
@@ -304,10 +319,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     try {
       const res = await fetch("/api/urbi/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId }),
+        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId, buscar_em_todas: modoBip, aguardando_lei: aguardandoLei, leis_disponiveis: leisDisponiveis }),
       });
       const json = await res.json();
       if (json.ok) {
+        if (json.aguardando_lei) { setAguardandoLei(true); setLeisDisponiveis(json.leis_disponiveis ?? []); } else { setAguardandoLei(false); setLeisDisponiveis([]); }
         const tipo = detectTipo(json.resposta);
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
@@ -477,6 +493,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             Mic: {speech.ultimoErroStt}
           </span>
         )}
+        <button type="button" onClick={() => setModoBip(v => !v)}
+          style={{ background: modoBip ? "#7c3aed" : "#e2e8f0", color: modoBip ? "#fff" : "#1e293b", border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 14 }}>
+          {modoBip ? "📋 BIP ON" : "📋 BIP"}
+        </button>
       </div>
     </>
   );

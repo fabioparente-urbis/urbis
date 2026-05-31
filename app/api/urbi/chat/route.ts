@@ -71,7 +71,7 @@ async function buscarNoBip(
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history, usuario, tipo, assunto_id, lei_id, buscar_em_todas } =
+    const { message, history, usuario, tipo, assunto_id, lei_id, buscar_em_todas, aguardando_lei, leis_disponiveis } =
       await req.json();
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -154,6 +154,40 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
       return NextResponse.json({ ok: true, resposta, sair: false });
     }
 
+    // Se aguardando resposta de qual lei
+    if (aguardando_lei && leis_disponiveis) {
+      const leisIds: {id: string; nome: string}[] = leis_disponiveis;
+      const t = message.toLowerCase();
+      let leiEscolhida: string | null = null;
+      if (t.includes("todas") || t.includes("pesquisa em todas")) {
+        leiEscolhida = "TODAS";
+      } else {
+        for (const lei of leisIds) {
+          const nomeNorm = lei.nome.toLowerCase();
+          const numMatch = nomeNorm.match(/\d{3,}/);
+          const palavrasLei = nomeNorm.split(/\s+/).filter((p: string) => p.length > 4);
+          const matches = palavrasLei.filter((p: string) => t.includes(p));
+          if (matches.length >= 1 || (numMatch && t.includes(numMatch[0]))) { leiEscolhida = lei.id; break; }
+        }
+      }
+      if (!leiEscolhida) {
+        return NextResponse.json({ ok: true, resposta: "Uai, não entendi qual lei, sô! Repete o nome ou número?", sair: false, aguardando_lei: true, leis_disponiveis });
+      }
+      const perguntaOriginal = history?.length > 0 ? history[history.length - 2]?.parts?.[0]?.text ?? message : message;
+      const resultado = await buscarNoBip(perguntaOriginal, leiEscolhida === "TODAS" ? undefined : leiEscolhida);
+      if (resultado.encontrou) {
+        const linksBip = resultado.fontes.slice(0,2).map((f: string) => `📖 Ver no BIP`).join(", ");
+        const promptBip = `${systemPrompt}\n\nMODO BIP: Responda em 2-3 frases. Cite artigo e página. Não transcreva.\n\nFRAGMENTOS:\n${resultado.contexto}\n\nFONTES: ${resultado.fontes.join(", ")}`;
+        const contents = [...(history ?? []), { role: "user", parts: [{ text: perguntaOriginal }] }];
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: promptBip }] }, contents }) });
+        const data = await res.json();
+        const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "Não encontrei no BIP.";
+        return NextResponse.json({ ok: true, resposta: texto, sair: false });
+      } else {
+        return NextResponse.json({ ok: true, resposta: "Pesquisei no BIP e não encontrei. Tenta consultar diretamente pelo menu BIP.", sair: false });
+      }
+    }
+
     const ehLei = detectarIntentLei(message);
     let systemPromptFinal = systemPrompt;
 
@@ -165,11 +199,10 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
           .from("bdi_documentos_lei")
           .select("id, titulo, numero, ano")
           .order("titulo", { ascending: true });
-        const listaLeis = (leisDisp ?? [])
-          .map((l: any) => `• ${l.titulo}${l.numero ? ` nº ${l.numero}` : ""}${l.ano ? `/${l.ano}` : ""}`)
-          .join("\n");
-        const resposta = `Uai, boa pergunta sô! 📋 Em qual lei você quer que eu pesquise?\n\n${listaLeis}\n\nOu diga **"pesquisa em todas"** que eu varro o BIP inteiro por você!`;
-        return NextResponse.json({ ok: true, resposta, sair: false, modo: "bip_aguardando_lei" });
+        const leisIds = (leisDisp ?? []).map((l: any) => ({ id: l.id, nome: `${l.titulo}${l.numero ? ` nº ${l.numero}` : ""}${l.ano ? `/${l.ano}` : ""}` }));
+        const listaLeis = leisIds.map((l: any) => `• ${l.nome}`).join("\n");
+        const resposta = `Uai, boa pergunta! 📋 Em qual lei pesquiso?\n\n${listaLeis}\n\nOu diga **"pesquisa em todas"**!`;
+        return NextResponse.json({ ok: true, resposta, sair: false, aguardando_lei: true, leis_disponiveis: leisIds });
       }
       const resultado = await buscarNoBip(message, leiEspecificada ?? undefined);
       if (resultado.encontrou) {
