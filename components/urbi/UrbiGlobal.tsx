@@ -9,8 +9,10 @@ export default function UrbiGlobal() {
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const globalRecRef = useRef<any>(null);
-  const globalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recRef = useRef<any>(null);
+  const urbiAbertoRef = useRef(false);
+
+  useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao)\/([^/?]+)/);
@@ -29,43 +31,33 @@ export default function UrbiGlobal() {
       .catch(() => {});
   };
 
-  // Listener global de voz na Home — "oi urbi", "ligar som", "ligar microfone", "ligar bip"
-  const iniciarListenerGlobal = useCallback(() => {
-    if (!isHome) return;
+  const iniciarWakeWord = useCallback(() => {
     const w = window as any;
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
-    if (globalRecRef.current) { try { globalRecRef.current.stop(); } catch (_) {} }
-
+    if (recRef.current) { try { recRef.current.stop(); } catch (_) {} }
     const rec = new Ctor();
     rec.lang = "pt-BR";
     rec.continuous = true;
     rec.interimResults = false;
     rec.onresult = (e: any) => {
       const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
-      if (texto.includes("oi urbi") || texto.includes("ola urbi")) {
+      if (texto.includes("urbi") && !urbiAbertoRef.current) {
         setUrbiAberto(true);
-        window.dispatchEvent(new CustomEvent("urbi:abrir_com_voz"));
       }
       if (texto.includes("ligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_som" }));
       if (texto.includes("desligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_som" }));
-      if (texto.includes("ligar microfone")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_mic" }));
-      if (texto.includes("desligar microfone")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_mic" }));
       if (texto.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
       if (texto.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
     };
-    rec.onend = () => {};
-    try { rec.start(); globalRecRef.current = rec; } catch (_) {}
-
-    // Para após 2 min de inatividade se URBI fechado
-    if (globalTimerRef.current) clearTimeout(globalTimerRef.current);
-    globalTimerRef.current = setTimeout(() => {
-      if (!urbiAberto && globalRecRef.current) {
-        try { globalRecRef.current.stop(); } catch (_) {}
-        globalRecRef.current = null;
+    rec.onerror = () => {};
+    rec.onend = () => {
+      if (isHome && !urbiAbertoRef.current) {
+        setTimeout(() => iniciarWakeWord(), 500);
       }
-    }, 120000);
-  }, [isHome, urbiAberto]);
+    };
+    try { rec.start(); recRef.current = rec; } catch (_) {}
+  }, [isHome]);
 
   useEffect(() => {
     buscarUsuario();
@@ -78,13 +70,11 @@ export default function UrbiGlobal() {
     };
   }, []);
 
-  // Inicia listener global quando na Home e URBI fechado
   useEffect(() => {
     if (isHome && !urbiAberto && usuario?.urbi_ativo) {
-      iniciarListenerGlobal();
+      iniciarWakeWord();
     } else {
-      if (globalRecRef.current) { try { globalRecRef.current.stop(); } catch (_) {} globalRecRef.current = null; }
-      if (globalTimerRef.current) clearTimeout(globalTimerRef.current);
+      if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
     }
   }, [isHome, urbiAberto, usuario?.urbi_ativo]);
 
