@@ -42,7 +42,10 @@ export default function UrbiGlobal() {
     rec.interimResults = false;
     rec.onresult = (e: any) => {
       const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
-      if (texto.includes("urbi") && !urbiAbertoRef.current) {
+      const norm = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      const temUrbi = norm.includes("urbi") || norm.includes("urby") || norm.includes("orbi");
+      const temGatilho = ["oi","ola","hei","hey","ok","hi","alo","ou","on","up","ve","diz","fale","fal","vai","vem","da","faz","vo","po","manda","man","uai","so","bao","ah","eh","oh","no","tche","zure","viu","e ai","eai"].some(g => norm.includes(g));
+      if (temUrbi && !urbiAbertoRef.current) {
         setUrbiAberto(true);
       }
       if (texto.includes("ligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_som" }));
