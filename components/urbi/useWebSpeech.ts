@@ -107,8 +107,11 @@ export function useWebSpeech(opcoes?: {
       setUltimoErroStt(ev?.error ?? "erro_desconhecido");
     };
     rec.onend = () => {
-      setOuvindo(false);
-      recognitionRef.current = null;
+      if (recognitionRef.current) {
+        try { recognitionRef.current.start(); } catch { setOuvindo(false); recognitionRef.current = null; }
+      } else {
+        setOuvindo(false);
+      }
     };
 
     try {
