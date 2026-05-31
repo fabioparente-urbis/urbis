@@ -11,7 +11,6 @@ export default function UrbiGlobal() {
   const isHome = pathname === "/";
   const globalRecRef = useRef<any>(null);
   const globalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const restartingRef = useRef(false);
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao)\/([^/?]+)/);
@@ -44,8 +43,7 @@ export default function UrbiGlobal() {
     rec.interimResults = false;
     rec.onresult = (e: any) => {
       const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
-      console.log("[URBI-GLOBAL] ouviu:", texto);
-      if (texto.includes("urbi")) {
+      if (texto.includes("oi urbi") || texto.includes("ola urbi")) {
         setUrbiAberto(true);
         window.dispatchEvent(new CustomEvent("urbi:abrir_com_voz"));
       }
@@ -56,7 +54,7 @@ export default function UrbiGlobal() {
       if (texto.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
       if (texto.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
     };
-    rec.onend = () => { try { rec.start(); } catch (_) {} };
+    rec.onend = () => {};
     try { rec.start(); globalRecRef.current = rec; } catch (_) {}
 
     // Para após 2 min de inatividade se URBI fechado

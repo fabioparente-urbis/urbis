@@ -69,9 +69,12 @@ export function useWebSpeech(opcoes?: {
     aoTranscreverRef.current = opcoes?.aoTranscrever;
   }, [opcoes?.aoTranscrever]);
 
-  const suportaSTT = typeof window !== "undefined" && !!getRecognitionCtor();
-  const suportaTTS =
-    typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined";
+  const [suportaSTT, setSuportaSTT] = useState(false);
+  const [suportaTTS, setSuportaTTS] = useState(false);
+  useEffect(() => {
+    setSuportaSTT(!!getRecognitionCtor());
+    setSuportaTTS(typeof window.speechSynthesis !== "undefined");
+  }, []);
 
   // ----- STT --------------------------------------------------------------
   const iniciarEscuta = useCallback(() => {
@@ -176,15 +179,6 @@ export function useWebSpeech(opcoes?: {
       }
       return novo;
     });
-  }, [suportaTTS]);
-
-  // Fix Chrome bug: speechSynthesis trava após inatividade
-  useEffect(() => {
-    if (!suportaTTS) return;
-    const interval = setInterval(() => {
-      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    }, 5000);
-    return () => clearInterval(interval);
   }, [suportaTTS]);
 
   // Cleanup ao desmontar
