@@ -56,7 +56,7 @@ export default function UrbiGlobal() {
       if (texto.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
       if (texto.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
     };
-    rec.onend = () => { if (isHome && !urbiAberto && !restartingRef.current) { restartingRef.current = true; setTimeout(() => { restartingRef.current = false; iniciarListenerGlobal(); }, 500); } };
+    rec.onend = () => { try { rec.start(); } catch (_) {} };
     try { rec.start(); globalRecRef.current = rec; } catch (_) {}
 
     // Para após 2 min de inatividade se URBI fechado
