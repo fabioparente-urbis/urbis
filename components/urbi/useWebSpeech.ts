@@ -97,13 +97,11 @@ export function useWebSpeech(opcoes?: {
 
     rec.onresult = (ev) => {
       const results = ev.results;
-      const final = results[results.length - 1];
-      if (final && final.isFinal) {
-        const texto = (final[0]?.transcript ?? "").trim();
-        if (texto) {
-          transcricaoAtualRef.current = texto;
-          aoTranscreverRef.current?.(texto);
-        }
+      const ultimo = results[results.length - 1];
+      const texto = (ultimo?.[0]?.transcript ?? "").trim();
+      if (texto) {
+        transcricaoAtualRef.current = texto;
+        aoTranscreverRef.current?.(texto);
       }
     };
     rec.onerror = (ev) => {
