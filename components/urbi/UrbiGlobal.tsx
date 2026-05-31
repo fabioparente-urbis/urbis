@@ -44,6 +44,7 @@ export default function UrbiGlobal() {
     rec.interimResults = false;
     rec.onresult = (e: any) => {
       const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
+      console.log("[URBI-GLOBAL] ouviu:", texto);
       if (texto.includes("urbi")) {
         setUrbiAberto(true);
         window.dispatchEvent(new CustomEvent("urbi:abrir_com_voz"));
