@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import UrbiChat from "./UrbiChat";
 
@@ -9,8 +9,9 @@ export default function UrbiGlobal() {
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const globalRecRef = useRef<any>(null);
+  const globalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Extrai codigo do processo da URL e busca assunto_id
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
@@ -28,11 +29,64 @@ export default function UrbiGlobal() {
       .catch(() => {});
   };
 
+  // Listener global de voz na Home — "oi urbi", "ligar som", "ligar microfone", "ligar bip"
+  const iniciarListenerGlobal = useCallback(() => {
+    if (!isHome) return;
+    const w = window as any;
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    if (globalRecRef.current) { try { globalRecRef.current.stop(); } catch (_) {} }
+
+    const rec = new Ctor();
+    rec.lang = "pt-BR";
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.onresult = (e: any) => {
+      const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
+      if (texto.includes("oi urbi") || texto.includes("ola urbi")) {
+        setUrbiAberto(true);
+        window.dispatchEvent(new CustomEvent("urbi:abrir_com_voz"));
+      }
+      if (texto.includes("ligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_som" }));
+      if (texto.includes("desligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_som" }));
+      if (texto.includes("ligar microfone")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_mic" }));
+      if (texto.includes("desligar microfone")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_mic" }));
+      if (texto.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
+      if (texto.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
+    };
+    rec.onend = () => {};
+    try { rec.start(); globalRecRef.current = rec; } catch (_) {}
+
+    // Para após 2 min de inatividade se URBI fechado
+    if (globalTimerRef.current) clearTimeout(globalTimerRef.current);
+    globalTimerRef.current = setTimeout(() => {
+      if (!urbiAberto && globalRecRef.current) {
+        try { globalRecRef.current.stop(); } catch (_) {}
+        globalRecRef.current = null;
+      }
+    }, 120000);
+  }, [isHome, urbiAberto]);
+
   useEffect(() => {
     buscarUsuario();
     window.addEventListener("urbi:refresh", buscarUsuario);
-    return () => window.removeEventListener("urbi:refresh", buscarUsuario);
+    const fecharUrbi = () => setUrbiAberto(false);
+    window.addEventListener("urbi:fechar", fecharUrbi);
+    return () => {
+      window.removeEventListener("urbi:refresh", buscarUsuario);
+      window.removeEventListener("urbi:fechar", fecharUrbi);
+    };
   }, []);
+
+  // Inicia listener global quando na Home e URBI fechado
+  useEffect(() => {
+    if (isHome && !urbiAberto && usuario?.urbi_ativo) {
+      iniciarListenerGlobal();
+    } else {
+      if (globalRecRef.current) { try { globalRecRef.current.stop(); } catch (_) {} globalRecRef.current = null; }
+      if (globalTimerRef.current) clearTimeout(globalTimerRef.current);
+    }
+  }, [isHome, urbiAberto, usuario?.urbi_ativo]);
 
   if (!usuario?.nome) return null;
   if (!usuario?.urbi_ativo) return null;
@@ -40,28 +94,10 @@ export default function UrbiGlobal() {
   return (
     <>
       {!urbiAberto && isHome && (
-        <button
-          onClick={() => setUrbiAberto(true)}
-          style={{
-            position: "fixed",
-            bottom: 80,
-            right: 24,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            zIndex: 1000,
-          }}
-        >
-          <img
-            src="/urbi/urbi-botao.jpg"
-            style={{
-              width: isHome ? 130 : 80,
-              height: isHome ? 130 : 80,
-              borderRadius: "50%",
-              objectFit: "cover",
-              boxShadow: "0 4px 24px #3b82f688",
-            }}
-          />
+        <button onClick={() => setUrbiAberto(true)}
+          style={{ position: "fixed", bottom: 80, right: 24, background: "transparent", border: "none", cursor: "pointer", zIndex: 1000 }}>
+          <img src="/urbi/urbi-botao.jpg"
+            style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
         </button>
       )}
       <UrbiChat
@@ -70,6 +106,7 @@ export default function UrbiGlobal() {
         setAberto={setUrbiAberto}
         modo={isHome ? "center" : "corner"}
         assuntoId={assuntoId}
+        urbiVoz={usuario?.urbi_voz ?? false}
       />
     </>
   );

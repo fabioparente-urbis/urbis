@@ -106,11 +106,12 @@ type Props = {
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
   assuntoId?: string | null;
+  urbiVoz?: boolean;
 };
 
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false }: Props) {
   const router = useRouter();
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
@@ -145,6 +146,21 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
+  // Escutar comandos globais de voz
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const cmd = (e as CustomEvent).detail;
+      if (cmd === "ligar_som") { setMudo(false); }
+      if (cmd === "desligar_som") { setMudo(true); }
+      if (cmd === "ligar_mic") { if (!speech.ouvindo) alternarEscuta(); }
+      if (cmd === "desligar_mic") { if (speech.ouvindo) pararEscuta(); }
+      if (cmd === "ligar_bip") { setModoBip(true); }
+      if (cmd === "desligar_bip") { setModoBip(false); }
+    };
+    window.addEventListener("urbi:cmd", handler);
+    return () => window.removeEventListener("urbi:cmd", handler);
+  }, [speech.ouvindo]);
+
   useEffect(() => {
     if (abertoProp && fase === "fora") abrir();
     if (!abertoProp && (fase === "idle" || fase === "entrando")) fechar();
@@ -166,7 +182,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     }, 120000); // 2 minutos
   }
 
-  async function saudacaoOnMount() {
+  async function saudacaoOnMount(comVoz?: boolean) {
+    if (comVoz) { setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
     try {
       const res = await fetch("/api/urbi/chat", {
         method: "POST",
@@ -189,7 +206,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setPoseId("tudo-ok");
       setBalaoVisivel(true);
       setMsgs([{ role: "urbi", texto: "..." }]);
-      saudacaoOnMount();
+      saudacaoOnMount(urbiVoz);
       return;
     }
     setOverlayVisivel(true);
@@ -209,7 +226,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setFase("idle");
         setBalaoVisivel(true);
         setMsgs([{ role: "urbi", texto: "..." }]);
-        saudacaoOnMount();
+        saudacaoOnMount(urbiVoz);
       }, 900);
     }, 800);
   }
