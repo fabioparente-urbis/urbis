@@ -11,6 +11,8 @@ export default function UrbiGlobal() {
   const isHome = pathname === "/";
   const recRef = useRef<any>(null);
   const urbiAbertoRef = useRef(false);
+  const bufferRef = useRef("");
+  const timerRef = useRef<any>(null);
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
 
@@ -31,36 +33,58 @@ export default function UrbiGlobal() {
       .catch(() => {});
   };
 
-  const iniciarWakeWord = useCallback(() => {
+  const pararEscuta = useCallback(() => {
+    if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
+    if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
+    bufferRef.current = "";
+  }, []);
+
+  const iniciarEscuta = useCallback(() => {
+    if (!isHome || urbiAbertoRef.current) return;
     const w = window as any;
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) return;
     if (recRef.current) { try { recRef.current.stop(); } catch (_) {} }
+
     const rec = new Ctor();
     rec.lang = "pt-BR";
     rec.continuous = true;
-    rec.interimResults = false;
+    rec.interimResults = true;
+    bufferRef.current = "";
+
     rec.onresult = (e: any) => {
-      const texto = e.results[e.results.length - 1]?.[0]?.transcript?.toLowerCase().trim() ?? "";
-      const norm = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-      const temUrbi = norm.includes("urbi") || norm.includes("urby") || norm.includes("orbi");
-      const temGatilho = ["oi","ola","hei","hey","ok","hi","alo","ou","on","up","ve","diz","fale","fal","vai","vem","da","faz","vo","po","manda","man","uai","so","bao","ah","eh","oh","no","tche","zure","viu","e ai","eai"].some(g => norm.includes(g));
+      let texto = "";
+      for (let i = 0; i < e.results.length; i++) {
+        texto += e.results[i][0].transcript;
+      }
+      bufferRef.current = texto.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      const b = bufferRef.current;
+      const temUrbi = b.includes("urbi") || b.includes("urby") || b.includes("orbi");
       if (temUrbi && !urbiAbertoRef.current) {
         setUrbiAberto(true);
+        pararEscuta();
       }
-      if (texto.includes("ligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_som" }));
-      if (texto.includes("desligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_som" }));
-      if (texto.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
-      if (texto.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
+      if (b.includes("ligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_som" }));
+      if (b.includes("desligar som")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_som" }));
+      if (b.includes("ligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "ligar_bip" }));
+      if (b.includes("desligar bip")) window.dispatchEvent(new CustomEvent("urbi:cmd", { detail: "desligar_bip" }));
     };
+
     rec.onerror = () => {};
     rec.onend = () => {
-      if (isHome && !urbiAbertoRef.current) {
-        setTimeout(() => iniciarWakeWord(), 500);
-      }
+      if (!isHome || urbiAbertoRef.current) return;
+      setTimeout(() => iniciarEscuta(), 300);
     };
+
     try { rec.start(); recRef.current = rec; } catch (_) {}
-  }, [isHome]);
+
+    // Para após 60 segundos
+    timerRef.current = setTimeout(() => {
+      pararEscuta();
+    }, 60000);
+  }, [isHome, pararEscuta]);
 
   useEffect(() => {
     buscarUsuario();
@@ -75,10 +99,11 @@ export default function UrbiGlobal() {
 
   useEffect(() => {
     if (isHome && !urbiAberto && usuario?.urbi_ativo) {
-      iniciarWakeWord();
+      iniciarEscuta();
     } else {
-      if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
+      pararEscuta();
     }
+    return () => pararEscuta();
   }, [isHome, urbiAberto, usuario?.urbi_ativo]);
 
   if (!usuario?.nome) return null;
