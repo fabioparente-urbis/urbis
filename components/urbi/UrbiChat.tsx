@@ -232,6 +232,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   }
 
   function fechar() {
+    pararFala();
     // Limpar idle timer
     if (idleTimer.current) clearTimeout(idleTimer.current);
 
