@@ -44,7 +44,7 @@ export function useWebSpeech(opcoes?: {
 
     const rec = new Ctor();
     rec.lang = idioma;
-    rec.continuous = false;
+    rec.continuous = true;
     rec.interimResults = false;
     rec.maxAlternatives = 1;
 
