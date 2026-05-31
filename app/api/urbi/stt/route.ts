@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     if (!audio) return NextResponse.json({ ok: false, erro: "sem audio" }, { status: 400 });
 
     const openaiForm = new FormData();
-    openaiForm.append("file", audio, "audio.webm");
+    openaiForm.append("file", audio, "audio.mp4");
     openaiForm.append("model", "whisper-1");
     openaiForm.append("language", "pt");
     openaiForm.append("response_format", "text");

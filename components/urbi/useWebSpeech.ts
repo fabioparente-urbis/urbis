@@ -41,10 +41,10 @@ export function useWebSpeech(opcoes?: {
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: "audio/mp4" });
         if (blob.size < 100) { setOuvindo(false); return; }
         const form = new FormData();
-        form.append("audio", blob, "audio.webm");
+        form.append("audio", blob, "audio.mp4");
         try {
           const res = await fetch("/api/urbi/stt", { method: "POST", body: form });
           const json = await res.json();
