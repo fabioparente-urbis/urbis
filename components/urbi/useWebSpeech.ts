@@ -14,67 +14,53 @@ export function useWebSpeech(opcoes?: {
   idioma?: string;
   aoTranscrever?: (texto: string) => void;
 }) {
+  const idioma = opcoes?.idioma ?? "pt-BR";
   const [ouvindo, setOuvindo] = useState(false);
   const [falando, setFalando] = useState(false);
   const [mudo, setMudo] = useState(false);
   const [ultimoErroStt, setUltimoErroStt] = useState<string | null>(null);
   const [suportaSTT, setSuportaSTT] = useState(false);
   const suportaTTS = true;
-
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const recRef = useRef<any>(null);
   const aoTranscreverRef = useRef(opcoes?.aoTranscrever);
 
   useEffect(() => { aoTranscreverRef.current = opcoes?.aoTranscrever; }, [opcoes?.aoTranscrever]);
 
   useEffect(() => {
-    setSuportaSTT(typeof navigator !== "undefined" && !!navigator.mediaDevices);
+    const w = window as any;
+    setSuportaSTT(!!(w.SpeechRecognition ?? w.webkitSpeechRecognition));
   }, []);
-
-  const iniciarEscuta = useCallback(async () => {
-    if (ouvindo) return;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-      const rec = new MediaRecorder(stream, { mimeType });
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      rec.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        if (blob.size < 100) { setOuvindo(false); return; }
-        const form = new FormData();
-        form.append("audio", blob, "audio.mp3");
-        try {
-          const res = await fetch("/api/urbi/stt", { method: "POST", body: form });
-          const json = await res.json();
-          if (json.texto) aoTranscreverRef.current?.(json.texto);
-          else setUltimoErroStt("Não entendi. Tente novamente.");
-        } catch {
-          setUltimoErroStt("Erro ao transcrever.");
-        }
-        setOuvindo(false);
-      };
-      rec.start(100);
-      mediaRecorderRef.current = rec;
-      setOuvindo(true);
-      setUltimoErroStt(null);
-    } catch (e: any) {
-      setUltimoErroStt(e?.message ?? "Erro ao acessar microfone.");
-      setOuvindo(false);
-    }
-  }, [ouvindo]);
 
   const pararEscuta = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
-    }
+    if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
+    setOuvindo(false);
   }, []);
 
+  const iniciarEscuta = useCallback(() => {
+    const w = window as any;
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) { setUltimoErroStt("Navegador não suporta STT."); return; }
+    if (recRef.current) { try { recRef.current.stop(); } catch (_) {} }
+
+    const rec = new Ctor();
+    rec.lang = idioma;
+    rec.continuous = false;
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+
+    rec.onresult = (e: any) => {
+      const texto = (e.results[e.results.length - 1]?.[0]?.transcript ?? "").trim();
+      if (texto) aoTranscreverRef.current?.(texto);
+    };
+    rec.onerror = (e: any) => { setUltimoErroStt(e?.error ?? "erro"); };
+    rec.onend = () => { setOuvindo(false); recRef.current = null; };
+
+    try { rec.start(); recRef.current = rec; setOuvindo(true); setUltimoErroStt(null); }
+    catch (e: any) { setUltimoErroStt(e?.message ?? "Erro ao iniciar mic."); setOuvindo(false); }
+  }, [idioma]);
+
   const alternarEscuta = useCallback(() => {
-    if (ouvindo) pararEscuta();
-    else iniciarEscuta();
+    if (ouvindo) pararEscuta(); else iniciarEscuta();
   }, [ouvindo, iniciarEscuta, pararEscuta]);
 
   const falar = useCallback((texto: string) => {
@@ -94,28 +80,19 @@ export function useWebSpeech(opcoes?: {
 
   const pararFala = useCallback(() => {
     if (typeof window !== "undefined" && window.speechSynthesis) {
-      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+      try { window.speechSynthesis.cancel(); } catch (_) {}
     }
     setFalando(false);
   }, []);
 
   const alternarMudo = useCallback(() => {
-    setMudo(prev => {
-      if (!prev) pararFala();
-      return !prev;
-    });
+    setMudo(prev => { if (!prev) pararFala(); return !prev; });
   }, [pararFala]);
 
   useEffect(() => {
-    return () => {
-      pararFala();
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        try { mediaRecorderRef.current.stop(); } catch { /* noop */ }
-      }
-    };
+    return () => { pararEscuta(); pararFala(); };
   }, []);
 
   const estado: WebSpeechState = { ouvindo, falando, mudo, suportaSTT, suportaTTS, ultimoErroStt };
-
   return { estado, iniciarEscuta, pararEscuta, alternarEscuta, falar, pararFala, alternarMudo, setMudo };
 }
