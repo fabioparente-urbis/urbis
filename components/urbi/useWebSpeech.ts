@@ -178,6 +178,15 @@ export function useWebSpeech(opcoes?: {
     });
   }, [suportaTTS]);
 
+  // Fix Chrome bug: speechSynthesis trava após inatividade
+  useEffect(() => {
+    if (!suportaTTS) return;
+    const interval = setInterval(() => {
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [suportaTTS]);
+
   // Cleanup ao desmontar
   useEffect(() => {
     return () => {
