@@ -36,15 +36,16 @@ export function useWebSpeech(opcoes?: {
     if (ouvindo) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+      const rec = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       rec.onstop = async () => {
         stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/mp4" });
+        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         if (blob.size < 100) { setOuvindo(false); return; }
         const form = new FormData();
-        form.append("audio", blob, "audio.mp4");
+        form.append("audio", blob, "audio.mp3");
         try {
           const res = await fetch("/api/urbi/stt", { method: "POST", body: form });
           const json = await res.json();
