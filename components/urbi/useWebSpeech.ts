@@ -77,34 +77,24 @@ export function useWebSpeech(opcoes?: {
     else iniciarEscuta();
   }, [ouvindo, iniciarEscuta, pararEscuta]);
 
-  const falar = useCallback(async (texto: string) => {
+  const falar = useCallback((texto: string) => {
     if (mudo || !texto?.trim()) return;
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
     try {
-      if (!audioRef.current) audioRef.current = new Audio();
-      audioRef.current.pause();
-      audioRef.current.src = "";
-      setFalando(true);
-      const res = await fetch("/api/urbi/tts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ texto }),
-      });
-      if (!res.ok) { setFalando(false); return; }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      audioRef.current.src = url;
-      audioRef.current.onended = () => { setFalando(false); URL.revokeObjectURL(url); };
-      audioRef.current.onerror = () => { setFalando(false); };
-      await audioRef.current.play();
-    } catch {
-      setFalando(false);
-    }
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(texto);
+      u.lang = "pt-BR";
+      u.rate = 1.0;
+      u.onstart = () => setFalando(true);
+      u.onend = () => setFalando(false);
+      u.onerror = () => setFalando(false);
+      window.speechSynthesis.speak(u);
+    } catch { setFalando(false); }
   }, [mudo]);
 
   const pararFala = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = "";
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     }
     setFalando(false);
   }, []);
