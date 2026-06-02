@@ -101,7 +101,7 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"b
 type Msg = { role: "user"|"urbi"; texto: string };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
-  usuario: { nome: string; perfil: string; id?: string };
+  usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean };
   aberto: boolean;
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
