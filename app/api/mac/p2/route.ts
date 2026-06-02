@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
     console.log(`[P2_MAC] Enviando para Gemini...`);
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
