@@ -26,107 +26,173 @@ Extraia APENAS os campos que conseguir identificar com segurança. Para campos n
 REGRAS GERAIS:
 - Proprietário = dono do imóvel, NUNCA o responsável técnico/arquiteto/engenheiro
 - Para cada campo informe valor e fonte
+- Confirme cada valor em pelo menos outro documento do processo
+- Divergências entre documentos: registre em observacoes
 
-ÁREAS (só o número em m², ex: "148,77"):
-- areaTotal: buscar "ÁREA TOTAL DA CONSTRUÇÃO" ou "ÁREA A SER REGULARIZADA" (total)
-- areaForaFrontal: buscar "ÁREA A SER REGULARIZADA COM OCUPAÇÃO NORMAL"
-- areaRecuo: buscar "ÁREA A SER REGULARIZADA QUE OCUPA RECUO FRONTAL"
-- areaTerreno: buscar "ÁREA DO LOTE" ou "ÁREA DO TERRENO ORIGINAL" (só o número)
-- areaImpermeavel: buscar "ÁREA IMPERMEÁVEL" (só o número em m²)
+IDENTIFICAÇÃO (fonte: página do processo físico — "ALVARÁ DE REGULARIZAÇÃO" ou "PROTOCOLO"):
+- proprietario: nome do proprietário/requerente
+- logradouro: endereço completo
+- quadra: número da quadra
+- lote: número(s) do(s) lote(s)
+- bairro: nome do bairro/setor
+- iptu: inscrição cadastral (múltiplos: separar por " / ")
+- processoFisico: número do processo físico — buscar no cabeçalho do protocolo ou no DUAM (campo "INSCRICAO CADASTRAL 008.XXXXXXXXX" → extrair os dígitos após "008.")
+
+RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
+- engNome: nome completo do engenheiro responsável
+- engCrea: número CREA (ex: "1016728336/D-GO")
+- arqNome: nome completo do arquiteto — "NP" se não houver
+- arqCau: número CAU (ex: "A12345-6") — "NP" se não houver
+
+ÁREAS (só o número em m², ex: "148,77") — fonte: carimbo da planta:
+- areaTotal: "ÁREA TOTAL DA CONSTRUÇÃO" ou "ÁREA A SER REGULARIZADA" (total)
+- areaForaFrontal: "ÁREA A SER REGULARIZADA COM OCUPAÇÃO NORMAL"
+- areaRecuo: "ÁREA A SER REGULARIZADA QUE OCUPA RECUO FRONTAL"
+- areaTerreno: "ÁREA DO LOTE" ou "ÁREA DO TERRENO" (só o número)
+- areaImpermeavel: "ÁREA IMPERMEÁVEL" (só o número em m²)
 - areaAprovada: área existente já aprovada anteriormente, se houver
 
-CORREDOR E CAIXA:
-- corredor: "Sim" se mencionar corredor viário, "Não" se "NÃO POSSUI CORREDOR"
-- caixa: "Sim" se mencionar caixa de infiltração/recarga no carimbo, "Não" se não houver
-- volMin: volume mínimo da caixa em m³ (só número)
-- volAt: volume atendido em m³ (só número)
-- caixas: número de caixas (só número)
+CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
+- corredor: "Sim" se mencionar corredor viário, "Não" se não
+- faixa: faixa de ampliação do corredor (ex: "5m") — "NP" se corredor = Não
+- caixa: "Sim" se houver caixa de infiltração/recarga, "Não" se não
+- volMin: volume mínimo da caixa em m³ — "NP" se caixa = Não
+- volAt: volume atendido em m³ — "NP" se caixa = Não
+- caixas: número de caixas — "NP" se caixa = Não
 
-EDIFICAÇÃO:
-- pav: número de pavimentos como NÚMERO (térreo = "1", dois pavimentos = "2")
+EDIFICAÇÃO (fonte: carimbo da planta):
+- pav: número de pavimentos (térreo = "1", dois pavimentos = "2")
 - unid: número de unidades (só número)
 - existente: "Sim" ou "Não" — se há área existente aprovada
 
-USO DO SOLO (buscar no documento "Parecer" ou "Informação de Uso do Solo - COMTEC"):
-- tipoUso: tipo de uso — buscar "TIPO DE USO" no Uso do Solo (ex: "APROVAÇÃO DE PROJETO")
+USO DO SOLO (fonte: documento "Informação de Uso do Solo – COMTEC"):
+- tipoUso: tipo de uso (ex: "APROVAÇÃO DE PROJETO")
 - usoDefinido: "Sim" se uso definido, "Não" se "SEM USO DEFINIDO"
-- numeroUso: número SEI do Uso do Solo — número de 7 dígitos entre parênteses após "Parecer" ou "Uso do Solo"
-- cnae1 a cnae5: descrição do CNAE (ex: "68.10-2-01 - Compra e venda de imóveis próprios"), ou "NP"
+- numeroUso: número SEI do Uso do Solo — 7 dígitos entre parênteses
+- unidadesTerritorial: unidade territorial (ex: "ÁREA DE ADENSAMENTO BÁSICO - AAB")
+- cnae1 a cnae5: descrição do CNAE ou "NP"
 
-DOCUMENTOS SEI — retornar APENAS o número de 7 dígitos entre parênteses:
-- certidao: número SEI da "Certidão" no índice
-- levantamento: número SEI do "Projeto" no índice
-- artLev: número SEI da "ART" ou "RRT" de levantamento no índice
-- artCx: número SEI da ART/RRT da Caixa, ou "NP"
-- laudo: número SEI do "Laudo Técnico" no índice
-- vistoria: número SEI da "Vistoria Simples" no índice
-- foto: número SEI da "Fotografia" no índice
-- usoSolo: número SEI do documento de Uso do Solo no índice
+DOCUMENTOS SEI — retornar APENAS o número de 7 dígitos entre parênteses do rodapé:
+- certidao: SEI da certidão de matrícula
+- levantamento: SEI do projeto/levantamento arquitetônico
+- artLev: SEI da ART/RRT de levantamento
+- artCx: SEI da ART/RRT da Caixa — "NP" se não houver
+- laudo: SEI do Laudo Técnico
+- vistoria: SEI da Vistoria Fiscal
+- foto: SEI do Registro Fotográfico
+- usoSolo: SEI do documento de Uso do Solo
 
 PROCESSO E SEIs ESPECÍFICOS:
-- despacho: número SEI do "Despacho" da CHEADV
-- seiCheadv: número SEI da "Análise Documental" ou "CHEADV" no índice
-- seiProcuracao: número SEI da "Procuração" no índice, ou "NP"
-- seiEmbargo: número SEI do "Embargo" no índice, ou "NP"
+- despacho: número do despacho CHEADV (ex: "1090/2025")
+- seiCheadv: SEI do documento CHEADV (análise documental)
+- seiProcuracao: SEI da procuração — "NP" se não houver
+- seiEmbargo: SEI do embargo — "NP" se não houver
 - outro: "Sim" se há outro processo vinculado, "Não" se não
-- qualOutro: número do outro processo ou "NP"
+- qualOutro: número do outro processo — "NP" se outro = Não
 - embargo: "Sim" ou "Não"
-- dataEmb: data do embargo ou "NP"
+- dataEmb: data do embargo — "NP" se não houver
 - tombado: "Sim" se área tombada, "Não" se não
-- procuracao: "Sim" se há procuração, "Não" se não, "NP" se não aplicável
-- onerosa: "Sim" ou "Não"
+- procuracao: "Sim" se há procuração, "Não" se não
+- onerosa: "Sim" se área construída ≥ área do lote E altura do terreno mais baixo à cobertura > 7,5m nos cortes; "Não" caso contrário
+
+VISTORIA (fonte: última vistoria fiscal — "Relatório de Visita Técnica" ou "Termo de Vistoria Fiscal"):
+- areaAtivComercial: área ocupada pela atividade comercial em m² (só número)
+- maisDe12m: "Sim" se altura > 12m, "Não" se não
+- ocupaRecuoFrontal: "Sim" se ocupa recuo frontal, "Não" se não
+- estruturaTelhadoConcluido: "Sim" se estrutura e telhado concluídos, "Não" se não
+- altMax21m: "Sim" se altura máxima ≤ 21m, "Não" se não
+- ocupaAreaPublica: "Sim" se ocupa área pública, "Não" se não
+- areaAeroportuaria: "Sim" se em área aeroportuária, "Não" se não
+- areaMilitar: "Sim" se em área militar, "Não" se não
+- lancaAguasPluviaisInterna: "Sim" se lança águas pluviais internamente, "Não" se não
+- aberturaEsquadriasDivisa: "Sim" se há abertura de esquadrias na divisa, "Não" se não
+- vistoriaRespeitaCalcadas: "Sim" se respeita calçadas, "Não" se não
+- levantaConferVistoria: "Sim" se levantamento confere com vistoria, "Não" se não
+- multaVerticalizacao: "Sim" se há multa de verticalização, "Não" se não
+- multaRecuoFrontal: "Sim" se há multa de recuo frontal, "Não" se não
+- max7Pavimentos: "Sim" se máximo 7 pavimentos, "Não" se não
+
+OBSERVAÇÕES:
+- observacoes: relatório em texto com: 1) STATUS da leitura desta janela 2) INVENTÁRIO dos documentos identificados (tipo | código SEI | páginas) 3) INCOMPATIBILIDADES entre documentos 4) ALERTAS
 
 RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
 {
-  "proprietario":            {"valor": null, "fonte": null},
-  "logradouro":              {"valor": null, "fonte": null},
-  "quadra":                  {"valor": null, "fonte": null},
-  "lote":                    {"valor": null, "fonte": null},
-  "bairro":                  {"valor": null, "fonte": null},
-  "iptu":                    {"valor": null, "fonte": null},
-  "areaTotal":               {"valor": null, "fonte": null},
-  "areaForaFrontal":         {"valor": null, "fonte": null},
-  "areaRecuo":               {"valor": null, "fonte": null},
-  "areaTerreno":             {"valor": null, "fonte": null},
-  "areaImpermeavel":         {"valor": null, "fonte": null},
-  "areaAprovada":            {"valor": null, "fonte": null},
-  "tipoUso":                 {"valor": null, "fonte": null},
-  "usoDefinido":             {"valor": null, "fonte": null},
-  "numeroUso":               {"valor": null, "fonte": null},
-  "corredor":                {"valor": null, "fonte": null},
-  "faixa":                   {"valor": null, "fonte": null},
-  "cnae1":                   {"valor": null, "fonte": null},
-  "cnae2":                   {"valor": null, "fonte": null},
-  "cnae3":                   {"valor": null, "fonte": null},
-  "cnae4":                   {"valor": null, "fonte": null},
-  "cnae5":                   {"valor": null, "fonte": null},
-  "caixa":                   {"valor": null, "fonte": null},
-  "volMin":                  {"valor": null, "fonte": null},
-  "volAt":                   {"valor": null, "fonte": null},
-  "caixas":                  {"valor": null, "fonte": null},
-  "pav":                     {"valor": null, "fonte": null},
-  "unid":                    {"valor": null, "fonte": null},
-  "existente":               {"valor": null, "fonte": null},
-  "despacho":                {"valor": null, "fonte": null},
-  "seiCheadv":               {"valor": null, "fonte": null},
-  "seiProcuracao":           {"valor": null, "fonte": null},
-  "seiEmbargo":              {"valor": null, "fonte": null},
-  "outro":                   {"valor": null, "fonte": null},
-  "qualOutro":               {"valor": null, "fonte": null},
-  "embargo":                 {"valor": null, "fonte": null},
-  "dataEmb":                 {"valor": null, "fonte": null},
-  "tombado":                 {"valor": null, "fonte": null},
-  "procuracao":              {"valor": null, "fonte": null},
-  "onerosa":                 {"valor": null, "fonte": null},
-  "certidao":                {"valor": null, "fonte": null},
-  "levantamento":            {"valor": null, "fonte": null},
-  "artLev":                  {"valor": null, "fonte": null},
-  "artCx":                   {"valor": null, "fonte": null},
-  "laudo":                   {"valor": null, "fonte": null},
-  "vistoria":                {"valor": null, "fonte": null},
-  "usoSolo":                 {"valor": null, "fonte": null},
-  "foto":                    {"valor": null, "fonte": null}
+  "proprietario":              {"valor": null, "fonte": null},
+  "logradouro":                {"valor": null, "fonte": null},
+  "quadra":                    {"valor": null, "fonte": null},
+  "lote":                      {"valor": null, "fonte": null},
+  "bairro":                    {"valor": null, "fonte": null},
+  "iptu":                      {"valor": null, "fonte": null},
+  "processoFisico":            {"valor": null, "fonte": null},
+  "engNome":                   {"valor": null, "fonte": null},
+  "engCrea":                   {"valor": null, "fonte": null},
+  "arqNome":                   {"valor": null, "fonte": null},
+  "arqCau":                    {"valor": null, "fonte": null},
+  "areaTotal":                 {"valor": null, "fonte": null},
+  "areaForaFrontal":           {"valor": null, "fonte": null},
+  "areaRecuo":                 {"valor": null, "fonte": null},
+  "areaTerreno":               {"valor": null, "fonte": null},
+  "areaImpermeavel":           {"valor": null, "fonte": null},
+  "areaAprovada":              {"valor": null, "fonte": null},
+  "tipoUso":                   {"valor": null, "fonte": null},
+  "usoDefinido":               {"valor": null, "fonte": null},
+  "numeroUso":                 {"valor": null, "fonte": null},
+  "unidadesTerritorial":       {"valor": null, "fonte": null},
+  "corredor":                  {"valor": null, "fonte": null},
+  "faixa":                     {"valor": null, "fonte": null},
+  "cnae1":                     {"valor": null, "fonte": null},
+  "cnae2":                     {"valor": null, "fonte": null},
+  "cnae3":                     {"valor": null, "fonte": null},
+  "cnae4":                     {"valor": null, "fonte": null},
+  "cnae5":                     {"valor": null, "fonte": null},
+  "caixa":                     {"valor": null, "fonte": null},
+  "volMin":                    {"valor": null, "fonte": null},
+  "volAt":                     {"valor": null, "fonte": null},
+  "caixas":                    {"valor": null, "fonte": null},
+  "pav":                       {"valor": null, "fonte": null},
+  "unid":                      {"valor": null, "fonte": null},
+  "existente":                 {"valor": null, "fonte": null},
+  "certidao":                  {"valor": null, "fonte": null},
+  "levantamento":              {"valor": null, "fonte": null},
+  "artLev":                    {"valor": null, "fonte": null},
+  "artCx":                     {"valor": null, "fonte": null},
+  "laudo":                     {"valor": null, "fonte": null},
+  "vistoria":                  {"valor": null, "fonte": null},
+  "foto":                      {"valor": null, "fonte": null},
+  "usoSolo":                   {"valor": null, "fonte": null},
+  "despacho":                  {"valor": null, "fonte": null},
+  "seiCheadv":                 {"valor": null, "fonte": null},
+  "seiProcuracao":             {"valor": null, "fonte": null},
+  "seiEmbargo":                {"valor": null, "fonte": null},
+  "outro":                     {"valor": null, "fonte": null},
+  "qualOutro":                 {"valor": null, "fonte": null},
+  "embargo":                   {"valor": null, "fonte": null},
+  "dataEmb":                   {"valor": null, "fonte": null},
+  "tombado":                   {"valor": null, "fonte": null},
+  "procuracao":                {"valor": null, "fonte": null},
+  "onerosa":                   {"valor": null, "fonte": null},
+  "areaAtivComercial":         {"valor": null, "fonte": null},
+  "maisDe12m":                 {"valor": null, "fonte": null},
+  "ocupaRecuoFrontal":         {"valor": null, "fonte": null},
+  "estruturaTelhadoConcluido": {"valor": null, "fonte": null},
+  "altMax21m":                 {"valor": null, "fonte": null},
+  "ocupaAreaPublica":          {"valor": null, "fonte": null},
+  "areaAeroportuaria":         {"valor": null, "fonte": null},
+  "areaMilitar":               {"valor": null, "fonte": null},
+  "lancaAguasPluviaisInterna": {"valor": null, "fonte": null},
+  "aberturaEsquadriasDivisa":  {"valor": null, "fonte": null},
+  "vistoriaRespeitaCalcadas":  {"valor": null, "fonte": null},
+  "levantaConferVistoria":     {"valor": null, "fonte": null},
+  "multaVerticalizacao":       {"valor": null, "fonte": null},
+  "multaRecuoFrontal":         {"valor": null, "fonte": null},
+  "max7Pavimentos":            {"valor": null, "fonte": null},
+  "observacoes":               {"valor": null, "fonte": null}
 }
+
+Texto do processo (janela ${numero}/${total}):
+${janela}`;
+}
+
 
 TRECHO (janela ${numero}/${total}):
 ${janela}`;
