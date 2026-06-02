@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       "cnae1","cnae2","cnae3","cnae4","cnae5","faixa",
       "volMin","volAt","caixas","qualOutro","dataEmb",
       "artCx","foto","despacho","seiCheadv","seiProcuracao",
-      "seiEmbargo","areaAprovada","usoSolo","processoFisico",
+      "seiEmbargo","areaAprovada","usoSolo","processoFisico","arqNome","arqCau","faixaAmpliacacao","caixaRecarga","volMinimoCaixa","volAtendidoCaixa","numCaixas","areaImpermeavelCalc","nOutroProcesso","seiEmbargo","dataEmbargo","seiProcuracao","seiOnerosa","seiArtCaixaRecarga","seiFotoGoogle","areaAprovada",
     ];
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
     if (dados.campos) {
