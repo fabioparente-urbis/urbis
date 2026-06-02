@@ -905,7 +905,7 @@ export default function ProcessoClient() {
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
           className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
-          Abrir →
+          Cadastrar
         </button>
       </div>
 
