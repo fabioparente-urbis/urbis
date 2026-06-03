@@ -546,8 +546,11 @@ export default function MacPage() {
   const [pendentesLIPItems, setPendentesLIPItems] = useState<{label:string}[]>([]);
   useEffect(() => {
     const items: {label:string}[] = [];
-    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") items.push({label:"Área do Lote"});
-    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") items.push({label:"Recuo Obrigatório"});
+    (Object.entries(dadosLip) as [string, any][]).forEach(([chave, campo]) => {
+      if (campo && (!campo.valor || campo.status === "rascunho")) {
+        items.push({ label: chave.replace(/_/g, " ") });
+      }
+    });
     setPendentesLIPItems(items);
     setBannerCritico(items.length > 0 ? "ativo" : null);
   }, [dadosLip]);
