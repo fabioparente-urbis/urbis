@@ -327,11 +327,13 @@ function linhaResponsavelTecnico(resp?: { cau?: string | null; crea?: string | n
   if (!resp) return [];
   const cau = (resp.cau || "").trim();
   const crea = (resp.crea || "").trim();
-  if (!cau && !crea) return [];
+  const cauValido = cau && cau.toUpperCase() !== "NP" && cau.toUpperCase() !== "CAU-NP";
+  const creaValido = crea && crea.toUpperCase() !== "NP";
+  if (!cauValido && !creaValido) return [];
   const partes: any[] = [txt("Responsável Técnico:  ", { bold: true })];
-  if (cau) partes.push(txt(`CAU ${cau}`));
-  if (cau && crea) partes.push(txt("  |  "));
-  if (crea) partes.push(txt(`CREA ${crea}`));
+  if (cauValido) partes.push(txt(`CAU ${cau}`));
+  if (cauValido && creaValido) partes.push(txt("  |  "));
+  if (creaValido) partes.push(txt(`CREA ${crea}`));
   return [p(partes, { align: AlignmentType.LEFT, after: 80 })];
 }
 

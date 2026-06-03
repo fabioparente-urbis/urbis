@@ -135,7 +135,8 @@ export async function POST(req: NextRequest) {
     const nRev = Number(numero_revisao);
     if (Number.isInteger(nRev) && nRev >= 1 && nRev <= 5) {
       const hoje = new Date().toLocaleDateString("pt-BR");
-      analisesParaDoc = [{ numero: nRev, data: hoje, ultima: nRev === 5 }];
+      const historico = (analises || []).filter((a: any) => Number(a.numero) < nRev);
+      analisesParaDoc = [...historico, { numero: nRev, data: hoje, ultima: nRev === 5 }];
     }
 
     // Gerar documento baseado no tipo
