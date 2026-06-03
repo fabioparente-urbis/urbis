@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GEMINI_MODEL } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 
 export const maxDuration = 120;
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

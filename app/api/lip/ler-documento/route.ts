@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GEMINI_MODEL } from "@/lib/constants";
 import { createClient } from "@supabase/supabase-js";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     }));
 
     // Gemini lê o PDF direto
-    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash" });
+    const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
     const result = await model.generateContent([
       {

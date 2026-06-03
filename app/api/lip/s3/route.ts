@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GEMINI_MODEL } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
 const supabaseAdmin = createClient(
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     let texto = "";
     console.log(`[S3] Enviando para Gemini...`);
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GEMINI_MODEL } from "@/lib/constants";
 
 export const maxDuration = 60;
 
@@ -138,7 +139,7 @@ Nome do analista: ${nome}
 
 Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando clima e/ou fila se disponíveis.`;
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -179,7 +180,7 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
         const linksBip = resultado.fontes.slice(0,2).map((f: string) => `📖 Ver no BIP`).join(", ");
         const promptBip = `${systemPrompt}\n\nMODO BIP: Responda em 2-3 frases. Cite artigo e página. Não transcreva.\n\nFRAGMENTOS:\n${resultado.contexto}\n\nFONTES: ${resultado.fontes.join(", ")}`;
         const contents = [...(history ?? []), { role: "user", parts: [{ text: perguntaOriginal }] }];
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: promptBip }] }, contents }) });
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: promptBip }] }, contents }) });
         const data = await res.json();
         const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "Não encontrei no BIP.";
         return NextResponse.json({ ok: true, resposta: texto, sair: false });
@@ -232,7 +233,7 @@ Não invente legislação.`;
     ];
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
