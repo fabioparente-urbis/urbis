@@ -620,11 +620,11 @@ export default function ChecklistsPage() {
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
                     <div className="flex gap-3">
                       <button onClick={renomearGrupo} disabled={!novoNomeGrupo.trim() || novoNomeGrupo.trim() === grupoRenomear}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                        className="flex-1 border-2 border-gray-800 bg-white hover:bg-gray-100 disabled:opacity-40 text-gray-900 font-bold py-2.5 rounded-lg text-sm transition-colors">
                         Renomear
                       </button>
                       <button onClick={() => setModalRenomear(false)}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                        className="border-2 border-gray-400 bg-white hover:bg-gray-50 text-gray-600 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                         Cancelar
                       </button>
                     </div>
@@ -638,10 +638,8 @@ export default function ChecklistsPage() {
                     <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-3 flex items-center gap-2">
                       <span className="bg-[var(--bg-secondary)] px-2 py-0.5 rounded">{grupo}</span>
                       <span className="text-[var(--text-muted)] font-normal normal-case">{itensGrupo.length} itens</span>
-                      {podeEditar && (
-                        <button onClick={() => { setGrupoRenomear(grupo); setNovoNomeGrupo(grupo); setModalRenomear(true); }}
-                          className="ml-2 text-[var(--text-muted)] hover:text-blue-400 text-xs transition-colors" title="Renomear grupo">✏️</button>
-                      )}
+                      <button onClick={() => { setGrupoRenomear(grupo); setNovoNomeGrupo(grupo); setModalRenomear(true); }}
+                        className="ml-2 text-[var(--text-muted)] hover:text-blue-400 text-xs transition-colors" title="Renomear grupo">✏️</button>
                     </h3>
                     <div className="flex flex-col gap-2">
                       {itensGrupo.map((item, idx) => (
