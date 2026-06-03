@@ -547,7 +547,7 @@ export default function MacPage() {
   useEffect(() => {
     const items: {label:string}[] = [];
     (Object.entries(dadosLip) as [string, any][]).forEach(([chave, campo]) => {
-      if (campo && (!campo.valor || campo.status === "rascunho")) {
+      if (campo && (!campo.valor || campo.status === "rascunho" || campo.valor?.toLowerCase() === "x")) {
         items.push({ label: chave.replace(/_/g, " ") });
       }
     });
