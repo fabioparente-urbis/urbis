@@ -579,7 +579,7 @@ export default function MacPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
-      {(pendentesLIPItems.length > 0 || naoConformes.length > 0) && (
+      {(pendentesLIPItems.length > 0 || naoRespondidos.length > 0) && (
         <div style={{ position:"sticky", top:0, zIndex:100 }}>
           <div
             onClick={() => setMostrarBanner((v) => !v)}
@@ -587,7 +587,7 @@ export default function MacPage() {
           >
             <span>
               {pendentesLIPItems.length > 0 && `⚠ LIP: ${pendentesLIPItems.map((p) => p.label).join(", ")}. `}
-              {naoConformes.length > 0 && `❌ ${naoConformes.length} não conforme(s) no MAC. `}
+              {naoRespondidos.length > 0 && `⬜ ${naoRespondidos.length} não verificado(s) no MAC. `}
             </span>
             <span style={{ marginLeft:12, whiteSpace:"nowrap" }}>{mostrarBanner ? "▲ Fechar" : "▼ Ver itens"}</span>
           </div>
@@ -606,11 +606,11 @@ export default function MacPage() {
                   </div>
                 </div>
               )}
-              {naoConformes.length > 0 && (
+              {naoRespondidos.length > 0 && (
                 <div>
-                  <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Não conformes no MAC</p>
+                  <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Não verificados no MAC</p>
                   <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                    {naoConformes.map((item) => {
+                    {naoRespondidos.map((item) => {
                       const grupoIdx = GRUPOS.indexOf(item.grupo);
                       return (
                         <button key={item.id}
@@ -1199,9 +1199,6 @@ export default function MacPage() {
             ✅ Deferir
           </button>
 
-          {naoConformes.length > 0 && (
-            <p className="text-xs text-[var(--warning)]">⚠️ {naoConformes.length} item(ns) não conforme(s) — impossível deferir.</p>
-          )}
 
           {indeferimentoPendente && (
             <button onClick={async () => {
