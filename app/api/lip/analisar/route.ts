@@ -37,6 +37,7 @@ IDENTIFICAÇÃO (fonte: página do processo físico — "ALVARÁ DE REGULARIZAÇ
 - bairro: nome do bairro/setor
 - iptu: inscrição cadastral (múltiplos: separar por " / ")
 - processoFisico: número do processo físico — buscar no cabeçalho do protocolo ou no DUAM (campo "INSCRICAO CADASTRAL 008.XXXXXXXXX" → extrair os dígitos após "008.")
+- processo: número do Processo SEI (NUP) — aparece no rodapé de todo documento, padrão "... SEI <numero> / pg. N"
 
 RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 - nome_responsavel_eng: nome completo do engenheiro responsável
@@ -51,6 +52,7 @@ RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 - areaTerreno: "ÁREA DO LOTE" ou "ÁREA DO TERRENO" (só o número)
 - areaImpermeavel: "ÁREA IMPERMEÁVEL" (só o número em m²)
 - areaAprovada: área existente já aprovada anteriormente, se houver
+- areaVertical: "ÁREA A SER REGULARIZADA EM EDIFICAÇÃO VERTICAL" (só o número em m²) — "NP" se não houver
 
 CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
 - corredor: "Sim" se mencionar corredor viário, "Não" se não
@@ -94,6 +96,7 @@ PROCESSO E SEIs ESPECÍFICOS:
 - tombado: "Sim" se área tombada, "Não" se não
 - procuracao: "Sim" se há procuração, "Não" se não
 - onerosa: "Sim" se área construída ≥ área do lote E altura do terreno mais baixo à cobertura > 7,5m nos cortes; "Não" caso contrário
+- numero_do_sei_da_onerosa: SEI (7 dígitos entre parênteses) do documento de cálculo da outorga onerosa — "NP" se onerosa = Não
 
 VISTORIA (fonte: última vistoria fiscal — "Relatório de Visita Técnica" ou "Termo de Vistoria Fiscal"):
 - vistoriaAreaComercial: área ocupada pela atividade comercial em m² (só número)
@@ -124,6 +127,7 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "bairro":                    {"valor": null, "fonte": null},
   "iptu":                      {"valor": null, "fonte": null},
   "processoFisico":            {"valor": null, "fonte": null},
+  "processo":                 {"valor": null, "fonte": null},
   "nome_responsavel_eng":                   {"valor": null, "fonte": null},
   "crea":                   {"valor": null, "fonte": null},
   "nome_responsavel_arq":                   {"valor": null, "fonte": null},
@@ -134,6 +138,7 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "areaTerreno":               {"valor": null, "fonte": null},
   "areaImpermeavel":           {"valor": null, "fonte": null},
   "areaAprovada":              {"valor": null, "fonte": null},
+  "areaVertical":             {"valor": null, "fonte": null},
   "tipoUso":                   {"valor": null, "fonte": null},
   "usoDefinido":               {"valor": null, "fonte": null},
   "numeroUso":                 {"valor": null, "fonte": null},
@@ -171,6 +176,7 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "tombado":                   {"valor": null, "fonte": null},
   "procuracao":                {"valor": null, "fonte": null},
   "onerosa":                   {"valor": null, "fonte": null},
+  "numero_do_sei_da_onerosa": {"valor": null, "fonte": null},
   "vistoriaAreaComercial":         {"valor": null, "fonte": null},
   "vistoriaMais12m":                 {"valor": null, "fonte": null},
   "vistoriaOcupaRecuo":         {"valor": null, "fonte": null},
