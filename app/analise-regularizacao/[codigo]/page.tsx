@@ -234,6 +234,35 @@ export default function MacPage() {
     });
   }
 
+
+  function aceitarTodasIA(grupo: string) {
+    const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
+    setAceites((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { if (fontes[id] !== undefined) novo[id] = true; });
+      return novo;
+    });
+  }
+
+  function recusarTodasIA(grupo: string) {
+    const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
+    setItens((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { if (fontes[id] !== undefined && aceites[id] === false) novo[id] = null; });
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { if (aceites[id] === false) delete novo[id]; });
+      return novo;
+    });
+    setAceites((prev) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { if (aceites[id] === false) delete novo[id]; });
+      return novo;
+    });
+  }
+
   function limparGrupo(grupo: string) {
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
@@ -805,6 +834,14 @@ export default function MacPage() {
               <button onClick={() => limparGrupo(grupoAtual)}
                 className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
+              </button>
+              <button onClick={() => aceitarTodasIA(grupoAtual)}
+                className="flex items-center gap-1.5 bg-[#F0FDF4] hover:bg-[#16A34A] hover:text-white border border-[#16A34A] text-[#16A34A] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                🤖 Aceitar todas IA
+              </button>
+              <button onClick={() => recusarTodasIA(grupoAtual)}
+                className="flex items-center gap-1.5 bg-[#FFF7ED] hover:bg-[#EA580C] hover:text-white border border-[#EA580C] text-[#EA580C] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                🚫 Recusar todas IA
               </button>
 
               <input
