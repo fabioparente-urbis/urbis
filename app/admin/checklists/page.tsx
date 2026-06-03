@@ -41,6 +41,9 @@ export default function ChecklistsPage() {
   const [editandoItem, setEditandoItem] = useState<Item | null>(null);
   const [novoGrupo, setNovoGrupo] = useState(GRUPOS_PADRAO[0]);
   const [novoGrupoCustom, setNovoGrupoCustom] = useState("");
+  const [modalRenomear, setModalRenomear] = useState(false);
+  const [grupoRenomear, setGrupoRenomear] = useState("");
+  const [novoNomeGrupo, setNovoNomeGrupo] = useState("");
   const [novoTexto, setNovoTexto] = useState("");
   const [novoRef, setNovoRef] = useState("");
 
@@ -143,6 +146,19 @@ export default function ChecklistsPage() {
       else novo.add(id);
       return novo;
     });
+  }
+
+  async function renomearGrupo() {
+    const itensDoGrupo = itens.filter(i => i.grupo === grupoRenomear);
+    for (const item of itensDoGrupo) {
+      await fetch("/api/mac/checklists/itens", {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: item.id, grupo: novoNomeGrupo.trim(), texto: item.texto, ref: item.ref || "" })
+      });
+    }
+    setItens(prev => prev.map(i => i.grupo === grupoRenomear ? { ...i, grupo: novoNomeGrupo.trim() } : i));
+    mostrarToast(`Grupo renomeado: ${itensDoGrupo.length} item(ns) atualizados`);
+    setModalRenomear(false);
   }
 
   function toggleGrupo(grupo: string) {
@@ -592,6 +608,29 @@ export default function ChecklistsPage() {
                 )}
               </div>
 
+              {modalRenomear && (
+                <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white border border-gray-200 rounded-2xl p-6 w-full max-w-md shadow-2xl text-gray-900">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="font-bold text-lg text-gray-900">✏️ Renomear Grupo</h2>
+                      <button onClick={() => setModalRenomear(false)} className="text-gray-400 hover:text-gray-900 text-xl">✕</button>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-3">Renomeia <strong className="text-gray-800">{grupoRenomear}</strong> em todos os {itens.filter(i => i.grupo === grupoRenomear).length} itens do modelo.</p>
+                    <input value={novoNomeGrupo} onChange={e => setNovoNomeGrupo(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900" />
+                    <div className="flex gap-3">
+                      <button onClick={renomearGrupo} disabled={!novoNomeGrupo.trim() || novoNomeGrupo.trim() === grupoRenomear}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                        Renomear
+                      </button>
+                      <button onClick={() => setModalRenomear(false)}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {grupos.map((grupo) => {
                 const itensGrupo = itens.filter((i) => i.grupo === grupo).sort((a, b) => a.ordem - b.ordem);
                 return (
@@ -599,6 +638,10 @@ export default function ChecklistsPage() {
                     <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-3 flex items-center gap-2">
                       <span className="bg-[var(--bg-secondary)] px-2 py-0.5 rounded">{grupo}</span>
                       <span className="text-[var(--text-muted)] font-normal normal-case">{itensGrupo.length} itens</span>
+                      {podeEditar && (
+                        <button onClick={() => { setGrupoRenomear(grupo); setNovoNomeGrupo(grupo); setModalRenomear(true); }}
+                          className="ml-2 text-[var(--text-muted)] hover:text-blue-400 text-xs transition-colors" title="Renomear grupo">✏️</button>
+                      )}
                     </h3>
                     <div className="flex flex-col gap-2">
                       {itensGrupo.map((item, idx) => (
