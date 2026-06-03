@@ -632,6 +632,19 @@ export default function ProcessoClient() {
     const mostrarBotaoMaps = ehCoordenadas && temValor;
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
+    if (campo.tipo === "textarea" || campo.chave === "observacoes") {
+      return (
+        <div key={campo.id} className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          </label>
+          <textarea value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+            placeholder={campo.placeholder || campo.label} rows={10}
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-vertical ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+          {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
+        </div>
+      );
+    }
 
     if (campo.tipo === "select" && campo.opcoes && campo.opcoes.length > 0) {
       return (
