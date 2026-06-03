@@ -173,7 +173,7 @@ export default function MacPage() {
       setHistoricoAnalises(ultima.historico_analises || "");
       setNovaAnalise(false);
       // Carrega campos LIP para o banner crítico
-      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)
+      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" })
         .then(r => r.json())
         .then(j => setDadosLip(j?.data?.dados || j?.dados || {}));
 
@@ -1288,7 +1288,7 @@ export default function MacPage() {
               );
               try {
                 const [procRes, lipRes] = await Promise.all([
-                  fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`),
+                  fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }),
                   fetch("/api/admin/lip"),
                 ]);
                 const procJson = await procRes.json();
