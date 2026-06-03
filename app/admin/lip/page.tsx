@@ -285,7 +285,7 @@ export default function AdminLipPage() {
 
   if (carregando) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+      <div className="min-h-screen text-gray-900 bg-[var(--bg-primary)] flex items-center justify-center">
         <p className="text-[var(--text-muted)]">Carregando...</p>
       </div>
     );

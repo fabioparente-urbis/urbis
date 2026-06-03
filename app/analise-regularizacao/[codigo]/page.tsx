@@ -235,6 +235,16 @@ export default function MacPage() {
   }
 
 
+  async function salvarObs() {
+    try {
+      const res = await fetch("/api/processo/salvar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, campos: { observacoes: { valor: obsText, origem: "manual", status: "confirmado" } } })
+      });
+      mostrarToast(res.ok ? "✅ Observações salvas!" : "Erro ao salvar.");
+    } catch { mostrarToast("Erro ao salvar."); }
+  }
+
   function aceitarTodasIA(grupo: string) {
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setAceites((prev) => {
@@ -543,6 +553,7 @@ export default function MacPage() {
   }
 
   const [mostrarBanner, setMostrarBanner] = useState(false);
+  const [obsText, setObsText] = useState("");
   const [pendentesLIPItems, setPendentesLIPItems] = useState<{label:string}[]>([]);
   useEffect(() => {
     const items: {label:string}[] = [];
@@ -553,6 +564,10 @@ export default function MacPage() {
     });
     setPendentesLIPItems(items);
     setBannerCritico(items.length > 0 ? "ativo" : null);
+  }, [dadosLip]);
+  useEffect(() => {
+    const obs = dadosLip["observacoes"]?.valor;
+    if (obs) setObsText(obs);
   }, [dadosLip]);
 
   if (carregando) {
@@ -843,7 +858,18 @@ export default function MacPage() {
       </div>
 
       <div className="flex flex-1 gap-0 overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {abaAtual === GRUPOS.length && (
+          <div className="flex-1 flex flex-col overflow-y-auto px-6 pb-6 pt-4 gap-3">
+            <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações</p>
+            <textarea value={obsText} onChange={(e) => setObsText(e.target.value)} rows={20}
+              className="flex-1 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-vertical" />
+            <button onClick={salvarObs}
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-medium transition-colors w-fit">
+              💾 Salvar Observações
+            </button>
+          </div>
+        )}
+        <div className={`flex-1 flex flex-col overflow-hidden${abaAtual === GRUPOS.length ? " hidden" : ""}`}>
           {/* ABAS */}
           <div className="flex flex-wrap gap-2 px-6 pt-4 pb-2 bg-[var(--bg-primary)]">
             {GRUPOS.map((grupo, idx) => {
@@ -861,6 +887,10 @@ export default function MacPage() {
                 </button>
               );
             })}
+            <button onClick={() => { void salvarSilencioso(); setAbaAtual(GRUPOS.length); }}
+              className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${abaAtual === GRUPOS.length ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>
+              📝 OBS
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto px-6 pb-6">
