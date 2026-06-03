@@ -193,6 +193,32 @@ Texto do processo (janela ${numero}/${total}):
 ${janela}`;
 }
 
+async function chamarIA(prompt: string): Promise<Record<string, any>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    const json = await response.json();
+    const txt = json?.content?.[0]?.text ?? "";
+    const match = txt.match(/\{[\s\S]*\}/);
+    if (!match) return {};
+    try { return JSON.parse(match[0]); } catch { return {}; }
+  } catch { return {}; } finally { clearTimeout(timer); }
+}
+
 function mesclar(resultados: Record<string, any>[]): Record<string, any> {
   const final: Record<string, any> = {};
   const cnaes: string[] = [];
