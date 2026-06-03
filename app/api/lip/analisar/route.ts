@@ -39,10 +39,10 @@ IDENTIFICAÇÃO (fonte: página do processo físico — "ALVARÁ DE REGULARIZAÇ
 - processoFisico: número do processo físico — buscar no cabeçalho do protocolo ou no DUAM (campo "INSCRICAO CADASTRAL 008.XXXXXXXXX" → extrair os dígitos após "008.")
 
 RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
-- engNome: nome completo do engenheiro responsável
-- engCrea: número CREA (ex: "1016728336/D-GO")
-- arqNome: nome completo do arquiteto — "NP" se não houver
-- arqCau: número CAU (ex: "A12345-6") — "NP" se não houver
+- nome_responsavel_eng: nome completo do engenheiro responsável
+- crea: número CREA (ex: "1016728336/D-GO")
+- nome_responsavel_arq: nome completo do arquiteto — "NP" se não houver
+- cau: número CAU (ex: "A12345-6") — "NP" se não houver
 
 ÁREAS (só o número em m², ex: "148,77") — fonte: carimbo da planta:
 - areaTotal: "ÁREA TOTAL DA CONSTRUÇÃO" ou "ÁREA A SER REGULARIZADA" (total)
@@ -69,7 +69,7 @@ USO DO SOLO (fonte: documento "Informação de Uso do Solo – COMTEC"):
 - tipoUso: tipo de uso (ex: "APROVAÇÃO DE PROJETO")
 - usoDefinido: "Sim" se uso definido, "Não" se "SEM USO DEFINIDO"
 - numeroUso: número SEI do Uso do Solo — 7 dígitos entre parênteses
-- unidadesTerritorial: unidade territorial (ex: "ÁREA DE ADENSAMENTO BÁSICO - AAB")
+- vistoriaUnidadeTerritorial: unidade territorial (ex: "ÁREA DE ADENSAMENTO BÁSICO - AAB")
 - cnae1 a cnae5: descrição do CNAE ou "NP"
 
 DOCUMENTOS SEI — retornar APENAS o número de 7 dígitos entre parênteses do rodapé:
@@ -96,21 +96,21 @@ PROCESSO E SEIs ESPECÍFICOS:
 - onerosa: "Sim" se área construída ≥ área do lote E altura do terreno mais baixo à cobertura > 7,5m nos cortes; "Não" caso contrário
 
 VISTORIA (fonte: última vistoria fiscal — "Relatório de Visita Técnica" ou "Termo de Vistoria Fiscal"):
-- areaAtivComercial: área ocupada pela atividade comercial em m² (só número)
-- maisDe12m: "Sim" se altura > 12m, "Não" se não
-- ocupaRecuoFrontal: "Sim" se ocupa recuo frontal, "Não" se não
-- estruturaTelhadoConcluido: "Sim" se estrutura e telhado concluídos, "Não" se não
-- altMax21m: "Sim" se altura máxima ≤ 21m, "Não" se não
-- ocupaAreaPublica: "Sim" se ocupa área pública, "Não" se não
-- areaAeroportuaria: "Sim" se em área aeroportuária, "Não" se não
-- areaMilitar: "Sim" se em área militar, "Não" se não
-- lancaAguasPluviaisInterna: "Sim" se lança águas pluviais internamente, "Não" se não
-- aberturaEsquadriasDivisa: "Sim" se há abertura de esquadrias na divisa, "Não" se não
-- vistoriaRespeitaCalcadas: "Sim" se respeita calçadas, "Não" se não
-- levantaConferVistoria: "Sim" se levantamento confere com vistoria, "Não" se não
-- multaVerticalizacao: "Sim" se há multa de verticalização, "Não" se não
-- multaRecuoFrontal: "Sim" se há multa de recuo frontal, "Não" se não
-- max7Pavimentos: "Sim" se máximo 7 pavimentos, "Não" se não
+- vistoriaAreaComercial: área ocupada pela atividade comercial em m² (só número)
+- vistoriaMais12m: "Sim" se altura > 12m, "Não" se não
+- vistoriaOcupaRecuo: "Sim" se ocupa recuo frontal, "Não" se não
+- vistoriaEstruturaConcluida: "Sim" se estrutura e telhado concluídos, "Não" se não
+- vistoriaAltMax21m: "Sim" se altura máxima ≤ 21m, "Não" se não
+- vistoriaOcupaPublica: "Sim" se ocupa área pública, "Não" se não
+- vistoriaAreaAeroportuaria: "Sim" se em área aeroportuária, "Não" se não
+- vistoriaAreaMilitar: "Sim" se em área militar, "Não" se não
+- vistoriaAguasPluviais: "Sim" se lança águas pluviais internamente, "Não" se não
+- vistoriaEsquadriaDivisa: "Sim" se há abertura de esquadrias na divisa, "Não" se não
+- vistoriaCalcadas: "Sim" se respeita calçadas, "Não" se não
+- vistoriaLevante: "Sim" se levantamento confere com vistoria, "Não" se não
+- vistoriaMultaVerticalizacao: "Sim" se há multa de verticalização, "Não" se não
+- vistoriaMultaRecuo: "Sim" se há multa de recuo frontal, "Não" se não
+- vistoriaMax7Pav: "Sim" se máximo 7 pavimentos, "Não" se não
 
 OBSERVAÇÕES:
 - observacoes: relatório em texto com: 1) STATUS da leitura desta janela 2) INVENTÁRIO dos documentos identificados (tipo | código SEI | páginas) 3) INCOMPATIBILIDADES entre documentos 4) ALERTAS
@@ -124,10 +124,10 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "bairro":                    {"valor": null, "fonte": null},
   "iptu":                      {"valor": null, "fonte": null},
   "processoFisico":            {"valor": null, "fonte": null},
-  "engNome":                   {"valor": null, "fonte": null},
-  "engCrea":                   {"valor": null, "fonte": null},
-  "arqNome":                   {"valor": null, "fonte": null},
-  "arqCau":                    {"valor": null, "fonte": null},
+  "nome_responsavel_eng":                   {"valor": null, "fonte": null},
+  "crea":                   {"valor": null, "fonte": null},
+  "nome_responsavel_arq":                   {"valor": null, "fonte": null},
+  "cau":                    {"valor": null, "fonte": null},
   "areaTotal":                 {"valor": null, "fonte": null},
   "areaForaFrontal":           {"valor": null, "fonte": null},
   "areaRecuo":                 {"valor": null, "fonte": null},
@@ -137,7 +137,7 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "tipoUso":                   {"valor": null, "fonte": null},
   "usoDefinido":               {"valor": null, "fonte": null},
   "numeroUso":                 {"valor": null, "fonte": null},
-  "unidadesTerritorial":       {"valor": null, "fonte": null},
+  "vistoriaUnidadeTerritorial":       {"valor": null, "fonte": null},
   "corredor":                  {"valor": null, "fonte": null},
   "faixa":                     {"valor": null, "fonte": null},
   "cnae1":                     {"valor": null, "fonte": null},
@@ -171,21 +171,21 @@ RESPONDA APENAS JSON VÁLIDO SEM MARKDOWN:
   "tombado":                   {"valor": null, "fonte": null},
   "procuracao":                {"valor": null, "fonte": null},
   "onerosa":                   {"valor": null, "fonte": null},
-  "areaAtivComercial":         {"valor": null, "fonte": null},
-  "maisDe12m":                 {"valor": null, "fonte": null},
-  "ocupaRecuoFrontal":         {"valor": null, "fonte": null},
-  "estruturaTelhadoConcluido": {"valor": null, "fonte": null},
-  "altMax21m":                 {"valor": null, "fonte": null},
-  "ocupaAreaPublica":          {"valor": null, "fonte": null},
-  "areaAeroportuaria":         {"valor": null, "fonte": null},
-  "areaMilitar":               {"valor": null, "fonte": null},
-  "lancaAguasPluviaisInterna": {"valor": null, "fonte": null},
-  "aberturaEsquadriasDivisa":  {"valor": null, "fonte": null},
-  "vistoriaRespeitaCalcadas":  {"valor": null, "fonte": null},
-  "levantaConferVistoria":     {"valor": null, "fonte": null},
-  "multaVerticalizacao":       {"valor": null, "fonte": null},
-  "multaRecuoFrontal":         {"valor": null, "fonte": null},
-  "max7Pavimentos":            {"valor": null, "fonte": null},
+  "vistoriaAreaComercial":         {"valor": null, "fonte": null},
+  "vistoriaMais12m":                 {"valor": null, "fonte": null},
+  "vistoriaOcupaRecuo":         {"valor": null, "fonte": null},
+  "vistoriaEstruturaConcluida": {"valor": null, "fonte": null},
+  "vistoriaAltMax21m":                 {"valor": null, "fonte": null},
+  "vistoriaOcupaPublica":          {"valor": null, "fonte": null},
+  "vistoriaAreaAeroportuaria":         {"valor": null, "fonte": null},
+  "vistoriaAreaMilitar":               {"valor": null, "fonte": null},
+  "vistoriaAguasPluviais": {"valor": null, "fonte": null},
+  "vistoriaEsquadriaDivisa":  {"valor": null, "fonte": null},
+  "vistoriaCalcadas":  {"valor": null, "fonte": null},
+  "vistoriaLevante":     {"valor": null, "fonte": null},
+  "vistoriaMultaVerticalizacao":       {"valor": null, "fonte": null},
+  "vistoriaMultaRecuo":         {"valor": null, "fonte": null},
+  "vistoriaMax7Pav":            {"valor": null, "fonte": null},
   "observacoes":               {"valor": null, "fonte": null}
 }
 
