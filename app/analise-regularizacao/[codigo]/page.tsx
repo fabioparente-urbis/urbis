@@ -767,6 +767,10 @@ export default function MacPage() {
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
+            <button onClick={() => window.open(`/processo/${codigo}`, "_blank")}
+              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
+              🔍 Ver LIP ↗
+            </button>
             
             <button onClick={() => setModalDespachoInterno(true)}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
