@@ -542,13 +542,14 @@ export default function MacPage() {
     return checklistItens.filter((i) => i.grupo === GRUPOS[idx]).some((i) => itens[i.id] === "nao_conforme");
   }
 
+  const [mostrarBanner, setMostrarBanner] = useState(false);
+  const [pendentesLIPItems, setPendentesLIPItems] = useState<{label:string}[]>([]);
   useEffect(() => {
-    const pendentes: string[] = [];
-    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") pendentes.push("Área do Lote");
-    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") pendentes.push("Recuo Obrigatório");
-    setBannerCritico(pendentes.length > 0
-      ? `⚠ Campos críticos em rascunho no LIP: ${pendentes.join(", ")}. Finalize antes de prosseguir.`
-      : null);
+    const items: {label:string}[] = [];
+    if (!dadosLip["area_lote"]?.valor || dadosLip["area_lote"]?.status === "rascunho") items.push({label:"Área do Lote"});
+    if (!dadosLip["recuo_obrigatorio"]?.valor || dadosLip["recuo_obrigatorio"]?.status === "rascunho") items.push({label:"Recuo Obrigatório"});
+    setPendentesLIPItems(items);
+    setBannerCritico(items.length > 0 ? "ativo" : null);
   }, [dadosLip]);
 
   if (carregando) {
@@ -578,14 +579,52 @@ export default function MacPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
-      {bannerCritico && (
-        <div style={{
-          position: "sticky", top: 0, zIndex: 100,
-          background: "var(--error)", color: "var(--accent-fg)",
-          padding: "10px 16px", fontSize: 13, fontWeight: 600,
-          borderBottom: "2px solid var(--border-strong)"
-        }}>
-          {bannerCritico}
+      {(pendentesLIPItems.length > 0 || naoConformes.length > 0) && (
+        <div style={{ position:"sticky", top:0, zIndex:100 }}>
+          <div
+            onClick={() => setMostrarBanner((v) => !v)}
+            style={{ cursor:"pointer", background:"var(--error)", color:"var(--accent-fg)", padding:"10px 16px", fontSize:13, fontWeight:600, borderBottom:"2px solid var(--border-strong)", display:"flex", justifyContent:"space-between", alignItems:"center" }}
+          >
+            <span>
+              {pendentesLIPItems.length > 0 && `⚠ LIP: ${pendentesLIPItems.map((p) => p.label).join(", ")}. `}
+              {naoConformes.length > 0 && `❌ ${naoConformes.length} não conforme(s) no MAC. `}
+            </span>
+            <span style={{ marginLeft:12, whiteSpace:"nowrap" }}>{mostrarBanner ? "▲ Fechar" : "▼ Ver itens"}</span>
+          </div>
+          {mostrarBanner && (
+            <div style={{ background:"#7f1d1d", borderBottom:"2px solid var(--border-strong)", padding:"8px 16px 12px", maxHeight:"40vh", overflowY:"auto" }}>
+              {pendentesLIPItems.length > 0 && (
+                <div style={{ marginBottom:10 }}>
+                  <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Campos LIP em rascunho</p>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                    {pendentesLIPItems.map((p, i) => (
+                      <a key={i} href={`/processo/${codigo}`}
+                        style={{ fontSize:12, color:"white", background:"rgba(255,255,255,0.2)", borderRadius:4, padding:"3px 10px", textDecoration:"none", fontWeight:600 }}>
+                        {p.label} →
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {naoConformes.length > 0 && (
+                <div>
+                  <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Não conformes no MAC</p>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                    {naoConformes.map((item) => {
+                      const grupoIdx = GRUPOS.indexOf(item.grupo);
+                      return (
+                        <button key={item.id}
+                          onClick={() => { setAbaAtual(grupoIdx >= 0 ? grupoIdx : 0); setMostrarBanner(false); }}
+                          style={{ fontSize:11, color:"white", textAlign:"left", background:"rgba(255,255,255,0.15)", borderRadius:4, padding:"4px 10px", cursor:"pointer", border:"none", width:"100%" }}>
+                          ❌ <strong>[{item.grupo}]</strong> {item.texto.length > 100 ? item.texto.slice(0,100)+"…" : item.texto}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       {toast && (
