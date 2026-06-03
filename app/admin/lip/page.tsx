@@ -292,9 +292,9 @@ export default function AdminLipPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[var(--surface)] border border-[var(--border)] text-[var(--primary-text)] px-5 py-3 rounded-xl shadow-2xl text-sm">
+        <div className="fixed bottom-6 right-6 z-50 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm">
           {toast}
         </div>
       )}
@@ -304,30 +304,30 @@ export default function AdminLipPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">{editandoAba ? "✏️ Editar Aba" : "➕ Nova Aba"}</h2>
-              <button onClick={() => setModalAba(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">{editandoAba ? "✏️ Editar Aba" : "➕ Nova Aba"}</h2>
+              <button onClick={() => setModalAba(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Nome da aba</label>
                 <input value={formAba.nome} onChange={(e) => setFormAba((p) => ({ ...p, nome: e.target.value }))}
                   placeholder="Ex: 1. Identificação"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Dica para o analista (opcional)</label>
                 <input value={formAba.dica} onChange={(e) => setFormAba((p) => ({ ...p, dica: e.target.value }))}
                   placeholder="Ex: Ver no carimbo do projeto"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarAba} disabled={!formAba.nome.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoAba ? "Salvar alterações" : "Criar aba"}
               </button>
               <button onClick={() => setModalAba(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -340,8 +340,8 @@ export default function AdminLipPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">{editandoCampo ? "✏️ Editar Campo" : "➕ Novo Campo"}</h2>
-              <button onClick={() => setModalCampo(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">{editandoCampo ? "✏️ Editar Campo" : "➕ Novo Campo"}</h2>
+              <button onClick={() => setModalCampo(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               {!editandoCampo && (
@@ -351,19 +351,19 @@ export default function AdminLipPage() {
                   </label>
                   <input value={formCampo.chave} onChange={(e) => setFormCampo((p) => ({ ...p, chave: e.target.value }))}
                     placeholder="Ex: nomeProprietario"
-                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 </div>
               )}
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Descrição do campo</label>
                 <input value={formCampo.label} onChange={(e) => setFormCampo((p) => ({ ...p, label: e.target.value }))}
                   placeholder="Ex: Nome do Proprietário"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Tipo de campo</label>
                 <select value={formCampo.tipo} onChange={(e) => setFormCampo((p) => ({ ...p, tipo: e.target.value }))}
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="texto">Texto livre</option>
                   <option value="select">Lista de opções</option>
                 </select>
@@ -375,29 +375,29 @@ export default function AdminLipPage() {
                   </label>
                   <input value={formCampo.opcoes} onChange={(e) => setFormCampo((p) => ({ ...p, opcoes: e.target.value }))}
                     placeholder="Ex: Sim, Não, NP"
-                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 </div>
               )}
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Como preencher</label>
                 <input value={formCampo.placeholder} onChange={(e) => setFormCampo((p) => ({ ...p, placeholder: e.target.value }))}
                   placeholder="Ex: Ver no carimbo do projeto"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Valor padrão</label>
                 <input value={formCampo.valor_padrao} onChange={(e) => setFormCampo((p) => ({ ...p, valor_padrao: e.target.value }))}
                   placeholder="Ex: NP ou Não"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarCampo} disabled={!formCampo.label.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoCampo ? "Salvar alterações" : "Criar campo"}
               </button>
               <button onClick={() => setModalCampo(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -424,7 +424,7 @@ export default function AdminLipPage() {
               <select
                 value={assuntoId}
                 onChange={(e) => trocarAssunto(e.target.value)}
-                className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-w-[200px]">
+                className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] min-w-[200px]">
                 {assuntos.length === 0 ? (
                   <option value="">Carregando...</option>
                 ) : (
@@ -438,12 +438,12 @@ export default function AdminLipPage() {
              assuntos.find((a) => a.id === assuntoId)?.slug !== SLUG_REGULARIZACAO &&
              abas.length === 0 && !carregando && (
               <button onClick={clonarDeRegularizacao} disabled={clonando}
-                className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+                className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
                 {clonando ? "⏳ Clonando..." : "📋 Clonar de Regularização"}
               </button>
             )}
             <button onClick={abrirNovaAba} disabled={!assuntoId}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
               + Nova Aba
             </button>
           </div>
@@ -462,14 +462,14 @@ export default function AdminLipPage() {
               onClick={() => setAbaSelecionada(aba)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[var(--primary-text)] truncate">{aba.nome}</p>
+                  <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{aba.nome}</p>
                   <p className="text-xs text-[var(--text-muted)] mt-0.5">{aba.lip_campos.length} campos</p>
                 </div>
                 <div className="flex flex-col gap-1 shrink-0">
                   <button onClick={(e) => { e.stopPropagation(); moverAba(aba, "cima"); }} disabled={idx === 0}
-                    className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▲</button>
+                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▲</button>
                   <button onClick={(e) => { e.stopPropagation(); moverAba(aba, "baixo"); }} disabled={idx === abas.length - 1}
-                    className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▼</button>
+                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▼</button>
                 </div>
               </div>
               <div className="flex gap-2 mt-2">
@@ -495,7 +495,7 @@ export default function AdminLipPage() {
                   <p className="text-xs text-[var(--text-muted)] mt-1">{abaSelecionada.lip_campos.length} campos</p>
                 </div>
                 <button onClick={abrirNovoCampo}
-                  className="bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+                  className="bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
                   + Novo Campo
                 </button>
               </div>
@@ -505,13 +505,13 @@ export default function AdminLipPage() {
                   <div key={campo.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 flex items-start gap-3">
                     <div className="flex flex-col gap-1 shrink-0 pt-0.5">
                       <button onClick={() => moverCampo(campo, "cima")} disabled={idx === 0}
-                        className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▲</button>
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▲</button>
                       <button onClick={() => moverCampo(campo, "baixo")} disabled={idx === abaSelecionada.lip_campos.length - 1}
-                        className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▼</button>
+                        className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▼</button>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-[var(--primary-text)]">{campo.label}</p>
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">{campo.label}</p>
                         <span className={`text-xs px-2 py-0.5 rounded font-bold ${campo.tipo === "select" ? "bg-[var(--ia-bg)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                           {campo.tipo === "select" ? "Lista de opções" : "Texto livre"}
                         </span>

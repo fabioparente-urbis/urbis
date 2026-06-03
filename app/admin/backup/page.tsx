@@ -283,7 +283,7 @@ export default function BackupPage() {
 
   if (carregandoPerfil) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-6">
+      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] p-6">
         <p className="text-[var(--text-muted)] text-sm">Carregando...</p>
       </div>
     );
@@ -291,7 +291,7 @@ export default function BackupPage() {
 
   if (!souAdmin) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-6">
+      <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] p-6">
         <div className="max-w-xl mx-auto bg-[var(--surface)] border border-red-700 rounded-xl p-6 mt-12">
           <h1 className="text-xl font-bold mb-2">🚫 Acesso restrito</h1>
           <p className="text-[var(--text-secondary)] text-sm mb-4">
@@ -299,7 +299,7 @@ export default function BackupPage() {
           </p>
           <button
             onClick={() => router.push("/")}
-            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--primary-text)] px-4 py-2 rounded-lg text-sm font-medium"
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium"
           >
             🏠 Voltar para a home
           </button>
@@ -309,7 +309,7 @@ export default function BackupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] p-4 md:p-6">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] p-4 md:p-6">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button
@@ -369,7 +369,7 @@ export default function BackupPage() {
                 <button
                   onClick={() => exportar(secao)}
                   disabled={st.exportando || st.importando}
-                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
                   title="Gerar Backup (exporta a seção e registra snapshot BDI)"
                 >
                   {st.exportando ? "Gerando backup..." : "⬇ Gerar Backup"}
@@ -377,7 +377,7 @@ export default function BackupPage() {
                 <button
                   onClick={() => abrirSeletor(secao.tipo)}
                   disabled={st.exportando || st.importando}
-                  className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
                 >
                   {st.importando ? "Importando..." : "⬆ Importar"}
                 </button>

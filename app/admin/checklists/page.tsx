@@ -325,9 +325,9 @@ export default function ChecklistsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--primary-text)] flex flex-col">
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
       {toast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[var(--surface)] border border-[var(--border)] text-[var(--primary-text)] px-5 py-3 rounded-xl shadow-2xl text-sm">
+        <div className="fixed bottom-6 right-6 z-50 bg-[var(--surface)] border border-[var(--border)] text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm">
           {toast}
         </div>
       )}
@@ -337,14 +337,14 @@ export default function ChecklistsPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">{editandoItem ? "✏️ Editar Item" : "➕ Novo Item"}</h2>
-              <button onClick={fecharModalItem} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">{editandoItem ? "✏️ Editar Item" : "➕ Novo Item"}</h2>
+              <button onClick={fecharModalItem} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Grupo</label>
                 <select value={novoGrupo} onChange={(e) => setNovoGrupo(e.target.value)}
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   {[...new Set([...GRUPOS_PADRAO, ...grupos])].map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
@@ -353,29 +353,29 @@ export default function ChecklistsPage() {
                 {novoGrupo === "__custom__" && (
                   <input value={novoGrupoCustom} onChange={(e) => setNovoGrupoCustom(e.target.value)}
                     placeholder="Nome do novo grupo"
-                    className="mt-2 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    className="mt-2 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 )}
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Texto do item</label>
                 <textarea value={novoTexto} onChange={(e) => setNovoTexto(e.target.value)} rows={3}
                   placeholder="Descreva o item do checklist..."
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none" />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Referência legal (opcional)</label>
                 <input value={novoRef} onChange={(e) => setNovoRef(e.target.value)}
                   placeholder="Ex: Art. 2º LC 314/2018"
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarItem}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoItem ? "Salvar alterações" : "Adicionar item"}
               </button>
               <button onClick={fecharModalItem}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -388,20 +388,20 @@ export default function ChecklistsPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">📋 Novo Modelo — Etapa 1/2</h2>
-              <button onClick={() => setModalModelo(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">📋 Novo Modelo — Etapa 1/2</h2>
+              <button onClick={() => setModalModelo(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Nome do modelo</label>
                 <input value={nomeModelo} onChange={(e) => setNomeModelo(e.target.value)}
                   placeholder="Ex: Meu Checklist, Variante A..."
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Tipo de processo (opcional)</label>
                 <select value={tipoProcesso} onChange={(e) => setTipoProcesso(e.target.value)}
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Todos os tipos</option>
                   <option value="REGULARIZACAO">Regularização</option>
                   <option value="APROVACAO">Aprovação</option>
@@ -410,7 +410,7 @@ export default function ChecklistsPage() {
               <div>
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide block mb-1">Copiar itens de</label>
                 <select value={copiarDe} onChange={(e) => setCopiarDe(e.target.value)}
-                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Começar do zero</option>
                   {modelos.map((m) => (
                     <option key={m.id} value={m.id}>{m.nome}</option>
@@ -420,11 +420,11 @@ export default function ChecklistsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={avancarEtapa2} disabled={!nomeModelo.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {copiarDe ? "Selecionar itens →" : "Criar modelo vazio"}
               </button>
               <button onClick={() => setModalModelo(false)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>
@@ -437,21 +437,21 @@ export default function ChecklistsPage() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">📋 Selecionar Itens — Etapa 2/2</h2>
-              <button onClick={() => setModalModelo(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">📋 Selecionar Itens — Etapa 2/2</h2>
+              <button onClick={() => setModalModelo(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <p className="text-[var(--text-muted)] text-xs mb-4">
-              Escolha quais itens de <span className="text-[var(--primary-text)] font-semibold">{modelos.find(m => m.id === copiarDe)?.nome}</span> deseja incluir no novo modelo.
+              Escolha quais itens de <span className="text-[var(--text-primary)] font-semibold">{modelos.find(m => m.id === copiarDe)?.nome}</span> deseja incluir no novo modelo.
             </p>
 
             {/* Controles rápidos */}
             <div className="flex gap-2 mb-4">
               <button onClick={selecionarTodos}
-                className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--primary-text)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                 ✅ Selecionar todos
               </button>
               <button onClick={deselecionarTodos}
-                className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--primary-text)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
                 ☐ Desmarcar todos
               </button>
               <span className="ml-auto text-xs text-[var(--text-muted)] self-center">
@@ -478,7 +478,7 @@ export default function ChecklistsPage() {
                           algunsSelecionados ? "bg-[var(--accent)] border-[var(--accent-hover)]" :
                           "border-slate-500"
                         }`}>
-                          {todosSelecionados && <span className="text-[var(--primary-text)] text-xs leading-none">✓</span>}
+                          {todosSelecionados && <span className="text-[var(--text-primary)] text-xs leading-none">✓</span>}
                           {!todosSelecionados && algunsSelecionados && <span className="text-blue-400 text-xs leading-none">—</span>}
                         </div>
                         <span className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">{grupo}</span>
@@ -497,10 +497,10 @@ export default function ChecklistsPage() {
                             <div className={`w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 mt-0.5 transition-colors ${
                               itensSelecionados.has(item.id) ? "bg-[var(--accent)] border-[var(--accent-hover)]" : "border-slate-500"
                             }`}>
-                              {itensSelecionados.has(item.id) && <span className="text-[var(--primary-text)] text-xs leading-none">✓</span>}
+                              {itensSelecionados.has(item.id) && <span className="text-[var(--text-primary)] text-xs leading-none">✓</span>}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-[var(--primary-text)] leading-relaxed">{item.texto}</p>
+                              <p className="text-sm text-[var(--text-primary)] leading-relaxed">{item.texto}</p>
                               {item.ref && <p className="text-xs text-[var(--text-muted)] mt-0.5">{item.ref}</p>}
                             </div>
                           </button>
@@ -515,11 +515,11 @@ export default function ChecklistsPage() {
             {/* Botões */}
             <div className="flex gap-3 mt-6 pt-4 border-t border-[var(--border)]">
               <button onClick={() => setEtapaModelo(1)}
-                className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 ← Voltar
               </button>
               <button onClick={confirmarCriacaoComSelecao} disabled={itensSelecionados.size === 0 && itensFonte.length > 0}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 ✅ Criar modelo com {itensSelecionados.size} iten{itensSelecionados.size !== 1 ? "s" : ""}
               </button>
             </div>
@@ -541,7 +541,7 @@ export default function ChecklistsPage() {
             </div>
           </div>
           <button onClick={abrirModalModelo}
-            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
             + Novo Modelo
           </button>
         </div>
@@ -559,7 +559,7 @@ export default function ChecklistsPage() {
               onClick={() => selecionarModelo(m)}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[var(--primary-text)] truncate">{m.nome}</p>
+                  <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{m.nome}</p>
                   {m.dono_id === null && <span className="text-xs text-yellow-400">⭐ Padrão global</span>}
                   {m.tipo_processo && <p className="text-xs text-[var(--text-muted)] mt-0.5">{m.tipo_processo}</p>}
                 </div>
@@ -586,7 +586,7 @@ export default function ChecklistsPage() {
                 </div>
                 {podeEditar && (
                   <button onClick={abrirNovoItem}
-                    className="bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+                    className="bg-[var(--success)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
                     + Adicionar Item
                   </button>
                 )}
@@ -606,13 +606,13 @@ export default function ChecklistsPage() {
                           {podeEditar && (
                             <div className="flex flex-col gap-1 shrink-0 pt-0.5">
                               <button onClick={() => moverItem(item.id, "cima")} disabled={idx === 0}
-                                className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▲</button>
+                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▲</button>
                               <button onClick={() => moverItem(item.id, "baixo")} disabled={idx === itensGrupo.length - 1}
-                                className="text-[var(--text-muted)] hover:text-[var(--primary-text)] disabled:opacity-20 text-xs leading-none">▼</button>
+                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-20 text-xs leading-none">▼</button>
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-[var(--primary-text)] leading-relaxed">{item.texto}</p>
+                            <p className="text-sm text-[var(--text-primary)] leading-relaxed">{item.texto}</p>
                             {item.ref && <p className="text-xs text-[var(--text-muted)] mt-1">{item.ref}</p>}
                           </div>
                           {podeEditar && (

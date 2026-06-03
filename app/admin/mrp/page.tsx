@@ -47,9 +47,9 @@ export default function AdminMrpPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-[var(--bg-primary)] text-[var(--primary-text)] px-8 py-4 flex items-center justify-between">
+      <header className="bg-[var(--bg-primary)] text-[var(--text-primary)] px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push("/")} className="text-[var(--text-secondary)] hover:text-[var(--primary-text)] text-sm">← Início</button>
+          <button onClick={() => router.push("/")} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-sm">← Início</button>
           <h1 className="text-xl font-semibold">👥 MRP — Visão da Equipe</h1>
         </div>
         <div className="flex items-center gap-2 text-sm">

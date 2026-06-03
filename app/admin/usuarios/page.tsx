@@ -206,7 +206,7 @@ export default function UsuariosPage() {
   const perfisVisiveis = PERFIS.filter((p) => p !== "Administrador" || souAdmin);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--primary-text)]">
+    <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/admin/configuracoes")} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">⚙️ Configurações</button>
@@ -216,12 +216,12 @@ export default function UsuariosPage() {
             <p className="text-[var(--text-muted)] text-sm">Cadastro e controle de acesso ao URBIS</p>
           </div>
         </div>
-        <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
+        <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
       </div>
 
       <div className="mb-4">
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, email ou matrícula..."
-          className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+          className="w-full max-w-md bg-[var(--surface)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
       </div>
 
       {carregando ? <p className="text-[var(--text-muted)] text-sm">Carregando...</p> : (
@@ -255,10 +255,10 @@ export default function UsuariosPage() {
                   <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{formatar(u.ultimo_acesso)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
-                      <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
+                      <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
+                      <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
                       {!isAdminFixo(u) && (
-                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-[var(--primary-text)] text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
+                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
                       )}
                     </div>
                   </td>
@@ -273,15 +273,15 @@ export default function UsuariosPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[var(--primary-text)] font-bold text-lg">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
-              <button onClick={() => setModal(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">{editando ? "Editar Usuário" : "Novo Usuário"}</h2>
+              <button onClick={() => setModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="grid grid-cols-1 gap-4">
               {([ ["nome","Nome completo","text"],["email","Email","email"], ["matricula","Matrícula","text"], ["telefone","Telefone","text"], ["cargo","Cargo","text"], ["cau_crea","CAU / CREA","text"] ] as [string,string,string][]).map(([campo, label, tipo]) => (
                 <div key={campo} className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{label}</label>
                   <input type={tipo} value={(form as any)[campo]} onChange={(e) => f(campo, e.target.value)}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 </div>
               ))}
               <div className="flex flex-col gap-1">
@@ -291,7 +291,7 @@ export default function UsuariosPage() {
                     const marcado = form.perfis.includes(p);
                     const ehAdminFixoBloqueado = p === "Administrador" && form.nome.trim() === ADMIN_FIXO;
                     return (
-                      <label key={p} className="flex items-center gap-1.5 text-sm text-[var(--primary-text)] cursor-pointer">
+                      <label key={p} className="flex items-center gap-1.5 text-sm text-[var(--text-primary)] cursor-pointer">
                         <input
                           type="checkbox"
                           checked={marcado}
@@ -315,7 +315,7 @@ export default function UsuariosPage() {
                   <select
                     value={form.gerencia || "DIRAAP"}
                     onChange={(e) => f("gerencia", e.target.value === "DIRAAP" ? "" : e.target.value)}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   >
                     <option value="GERECCO">PP</option>
                     <option value="GERAED">MP</option>
@@ -331,21 +331,21 @@ export default function UsuariosPage() {
                     value={(form as any).reducao_meta ?? 0}
                     onChange={(e) => f("reducao_meta", e.target.value as any)}
                     placeholder="0 = sem redução, 50 = meta pela metade"
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                   <span className="text-xs text-[var(--text-muted)]">Meta efetiva: {Math.round(100 * (1 - ((form as any).reducao_meta ?? 0) / 100))} pts/mês</span>
                 </div>
               )}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Status</label>
                 <select value={form.status} onChange={(e) => f("status", e.target.value)}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="Ativo">Ativo</option>
                   <option value="Inativo">Inativo</option>
                 </select>
               </div>
               <div className="flex items-center justify-between bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2">
                 <div>
-                  <p className="text-sm text-[var(--primary-text)] font-semibold">🤖 URBI — Assistente IA</p>
+                  <p className="text-sm text-[var(--text-primary)] font-semibold">🤖 URBI — Assistente IA</p>
                   <p className="text-xs text-[var(--text-muted)]">Habilita o robozinho URBI para este usuário</p>
                 </div>
                 <button
@@ -359,16 +359,16 @@ export default function UsuariosPage() {
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>
                 <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
                   placeholder={editando ? "••••••••" : "Mínimo 6 caracteres"}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             {erro && <div className="bg-red-900 border border-red-600 text-red-200 text-xs px-3 py-2 rounded-lg mt-4">❌ {erro}</div>}
             <div className="flex gap-3 mt-6">
               <button onClick={salvar} disabled={salvando}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : editando ? "💾 Salvar alterações" : "✅ Cadastrar"}
               </button>
-              <button onClick={() => setModal(false)} className="bg-slate-600 hover:bg-slate-500 text-[var(--primary-text)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">Cancelar</button>
+              <button onClick={() => setModal(false)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">Cancelar</button>
             </div>
           </div>
         </div>

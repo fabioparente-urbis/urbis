@@ -124,12 +124,12 @@ export default function ConfiguracoesPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <header className="bg-[var(--bg-primary)] border-b border-[var(--border)] px-8 py-4 flex items-center gap-4">
-        <button onClick={() => router.push("/")} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-sm">← Início</button>
+        <button onClick={() => router.push("/")} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm">← Início</button>
         <h1 className="text-xl font-semibold inline-flex items-center gap-2"><Settings2 size={20} /> Configurações</h1>
         <div className="flex gap-1 ml-6">
-          <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--primary-text)]" : "text-[var(--text-muted)] hover:text-[var(--primary-text)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
-          {isAdmin && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--primary-text)]" : "text-[var(--text-muted)] hover:text-[var(--primary-text)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
-          {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--primary-text)] hover:bg-[var(--surface)]">👤 Usuários</button>}
+          <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
+          {isAdmin && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
+          {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
         </div>
       </header>
 
@@ -137,12 +137,12 @@ export default function ConfiguracoesPage() {
 
         {abaAtual === "geral" && (<>
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-[var(--primary-text)]">Aparência</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Aparência</h2>
             <p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Tema visual do sistema. Preferência salva por navegador.</p>
             <div className="flex gap-3">
               {(["institucional", "moderno", "minimalista"] as const).map(t => (
                 <button key={t} onClick={() => setTema(t)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${tema === t ? "border-[var(--accent-hover)] bg-[var(--accent)] text-[var(--primary-text)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border)]"}`}>
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${tema === t ? "border-[var(--accent-hover)] bg-[var(--accent)] text-[var(--text-primary)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border)]"}`}>
                   {t === "institucional" ? "🏛 Institucional" : t === "moderno" ? "🌙 Moderno" : "◻ Minimalista"}
                 </button>
               ))}
@@ -150,15 +150,15 @@ export default function ConfiguracoesPage() {
           </div>
           {isAdmin && (
             <div className="mb-8">
-              <h2 className="text-lg font-semibold text-[var(--primary-text)]">Meta de Produtividade</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Meta de Produtividade</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Meta mensal de processos por analista. Visível apenas para Administradores.</p>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2">
                   <span className="text-[var(--text-muted)] text-sm">Meta mensal:</span>
-                  <input type="number" min={1} max={9999} value={metaInput} onChange={e => { setMetaInput(e.target.value); setSucessoMeta(false); }} className="w-20 bg-transparent text-[var(--primary-text)] text-sm font-semibold text-center focus:outline-none" />
+                  <input type="number" min={1} max={9999} value={metaInput} onChange={e => { setMetaInput(e.target.value); setSucessoMeta(false); }} className="w-20 bg-transparent text-[var(--text-primary)] text-sm font-semibold text-center focus:outline-none" />
                   <span className="text-[var(--text-muted)] text-sm">processos</span>
                 </div>
-                <button onClick={salvarMeta} disabled={salvandoMeta || parseInt(metaInput) === metaMensal} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--primary-text)] transition-colors">
+                <button onClick={salvarMeta} disabled={salvandoMeta || parseInt(metaInput) === metaMensal} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] transition-colors">
                   {salvandoMeta ? <><Loader2 size={14} className="animate-spin" /> Salvando</> : sucessoMeta ? <><Check size={14} /> Salvo</> : "Salvar"}
                 </button>
               </div>
@@ -166,7 +166,7 @@ export default function ConfiguracoesPage() {
           )}
 
           <div className="mb-6">
-            <h2 className="text-lg font-semibold text-[var(--primary-text)]">Assuntos</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Assuntos</h2>
             <p className="text-sm text-[var(--text-muted)] mt-1">Configure os 15 trilhos de processo do sistema. Regularização é fixa e sempre ativa.</p>
           </div>
           {erro && <div className="mb-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{erro}</div>}
@@ -183,8 +183,8 @@ export default function ConfiguracoesPage() {
                   <div key={a.id} className="grid grid-cols-[60px_1fr_140px_140px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0">
                     <div className="text-[var(--text-muted)] text-sm">{a.ordem}</div>
                     <div className="min-w-0">
-                      {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--primary-text)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
-                      ) : (<input type="text" value={v.nome} onChange={(e) => atualizarLinha(a.id, { nome: e.target.value })} placeholder={`Slot ${String(a.ordem).padStart(2, "0")}`} className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]" maxLength={80} />)}
+                      {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
+                      ) : (<input type="text" value={v.nome} onChange={(e) => atualizarLinha(a.id, { nome: e.target.value })} placeholder={`Slot ${String(a.ordem).padStart(2, "0")}`} className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]" maxLength={80} />)}
                       <div className="text-xs text-[var(--text-muted)] mt-1 font-mono">{a.slug}</div>
                     </div>
                     <div className="flex justify-center">
@@ -194,7 +194,7 @@ export default function ConfiguracoesPage() {
                     <div className="flex justify-end pr-2">
                       {fixo ? (<span className="text-xs text-slate-600">—</span>
                       ) : sucessoId === a.id ? (<span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check size={14} /> Salvo</span>
-                      ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
+                      ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
                     </div>
                   </div>
                 );
@@ -206,14 +206,14 @@ export default function ConfiguracoesPage() {
         {abaAtual === "logradouros" && (<>
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[var(--primary-text)]">Logradouros</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Logradouros</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Cadastro de vias utilizado nos processos. {logTotal > 0 && <span className="text-[var(--text-muted)]">{logTotal} registros.</span>}</p>
             </div>
-            <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--primary-text)] font-bold px-4 py-2 rounded-lg text-sm">+ Novo</button>
+            <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm">+ Novo</button>
           </div>
           <div className="flex gap-3 mb-4">
-            <input value={logFiltro} onChange={e => setLogFiltro(e.target.value)} onKeyDown={e => e.key === "Enter" && carregarLog(logFiltro, 0)} placeholder="Filtrar por bairro ou logradouro..." className="flex-1 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
-            <button onClick={() => carregarLog(logFiltro, 0)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--primary-text)] px-4 py-2 rounded-lg text-sm">Buscar</button>
+            <input value={logFiltro} onChange={e => setLogFiltro(e.target.value)} onKeyDown={e => e.key === "Enter" && carregarLog(logFiltro, 0)} placeholder="Filtrar por bairro ou logradouro..." className="flex-1 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+            <button onClick={() => carregarLog(logFiltro, 0)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm">Buscar</button>
           </div>
           {logCarregando ? (<div className="text-[var(--text-muted)] text-sm inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Carregando…</div>) : (<>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] overflow-hidden overflow-x-auto">
@@ -229,7 +229,7 @@ export default function ConfiguracoesPage() {
                   ) : logData.map((row, i) => (
                     <tr key={row.id ?? i} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--surface)]/50">
                       <td className="px-3 py-2 text-[var(--text-secondary)]">{row.bairro}</td>
-                      <td className="px-3 py-2 text-[var(--primary-text)] font-medium">{row.nome_logradouro}</td>
+                      <td className="px-3 py-2 text-[var(--text-primary)] font-medium">{row.nome_logradouro}</td>
                       <td className="px-3 py-2 text-center text-[var(--text-muted)]">{row.hierarquia_viaria || "—"}</td>
                       <td className="px-3 py-2 text-center text-[var(--text-muted)]">{row.largura_via ? `${row.largura_via}m` : "—"}</td>
                       <td className="px-3 py-2 text-center text-[var(--text-muted)]">{row.larg_calcada ? `${row.larg_calcada}m` : "—"}</td>
@@ -246,9 +246,9 @@ export default function ConfiguracoesPage() {
             </div>
             {logTotal > 30 && (
               <div className="flex items-center gap-3 mt-4 text-sm">
-                <button disabled={logPage === 0} onClick={() => carregarLog(logFiltro, logPage - 1)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40 text-[var(--primary-text)] px-3 py-1.5 rounded-lg">← Anterior</button>
+                <button disabled={logPage === 0} onClick={() => carregarLog(logFiltro, logPage - 1)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40 text-[var(--text-primary)] px-3 py-1.5 rounded-lg">← Anterior</button>
                 <span className="text-[var(--text-muted)]">Página {logPage + 1} de {Math.ceil(logTotal / 30)}</span>
-                <button disabled={(logPage + 1) * 30 >= logTotal} onClick={() => carregarLog(logFiltro, logPage + 1)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40 text-[var(--primary-text)] px-3 py-1.5 rounded-lg">Próxima →</button>
+                <button disabled={(logPage + 1) * 30 >= logTotal} onClick={() => carregarLog(logFiltro, logPage + 1)} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40 text-[var(--text-primary)] px-3 py-1.5 rounded-lg">Próxima →</button>
               </div>
             )}
           </>)}
@@ -256,20 +256,20 @@ export default function ConfiguracoesPage() {
             <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
                 <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-[var(--primary-text)] font-bold text-lg">{logForm.id ? "✏️ Editar" : "➕ Novo Logradouro"}</h2>
-                  <button onClick={() => setLogModal(false)} className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-xl">✕</button>
+                  <h2 className="text-[var(--text-primary)] font-bold text-lg">{logForm.id ? "✏️ Editar" : "➕ Novo Logradouro"}</h2>
+                  <button onClick={() => setLogModal(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
                 </div>
                 {logErro && <div className="mb-3 text-sm text-red-300 bg-red-900/40 border border-red-800 rounded p-2">{logErro}</div>}
                 <div className="grid grid-cols-2 gap-3">
                   {([["Bairro *","bairro","text"],["Logradouro *","nome_logradouro","text"],["Hierarquia","hierarquia_viaria","text"],["Largura da Via (m)","largura_via","number"],["Larg. Calçada (m)","larg_calcada","number"],["Largura Pista (m)","largura_pista","number"],["Largura Ilha (m)","largura_ilha","number"],["Área (m²)","area","number"]] as [string, keyof LogRow, string][]).map(([label, key, type]) => (
                     <div key={key} className={key === "bairro" || key === "nome_logradouro" ? "col-span-2" : ""}>
                       <label className="text-xs text-[var(--text-muted)] mb-1 block">{label}</label>
-                      <input type={type} value={(logForm[key] as string) || ""} onChange={e => setLogForm(f => ({ ...f, [key]: e.target.value }))} className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--primary-text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                      <input type={type} value={(logForm[key] as string) || ""} onChange={e => setLogForm(f => ({ ...f, [key]: e.target.value }))} className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                     </div>
                   ))}
                 </div>
                 <div className="flex gap-3 mt-5">
-                  <button onClick={salvarLog} disabled={logSalvando} className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm">{logSalvando ? "Salvando..." : "💾 Salvar"}</button>
+                  <button onClick={salvarLog} disabled={logSalvando} className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm">{logSalvando ? "Salvando..." : "💾 Salvar"}</button>
                   <button onClick={() => setLogModal(false)} className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2.5 rounded-lg text-sm">Cancelar</button>
                 </div>
               </div>
