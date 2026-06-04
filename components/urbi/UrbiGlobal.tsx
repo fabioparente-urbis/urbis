@@ -13,6 +13,7 @@ export default function UrbiGlobal() {
   const urbiAbertoRef = useRef(false);
   const bufferRef = useRef("");
   const timerRef = useRef<any>(null);
+  const micAtivoRef = useRef(false);
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
 
@@ -34,6 +35,7 @@ export default function UrbiGlobal() {
   };
 
   const pararEscuta = useCallback(() => {
+    micAtivoRef.current = false;
     if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
     if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
     bufferRef.current = "";
@@ -74,10 +76,11 @@ export default function UrbiGlobal() {
 
     rec.onerror = () => {};
     rec.onend = () => {
-      if (!isHome || urbiAbertoRef.current) return;
+      if (!micAtivoRef.current) return;
       setTimeout(() => iniciarEscuta(), 300);
     };
 
+    micAtivoRef.current = true;
     try { rec.start(); recRef.current = rec; } catch (_) {}
 
     // Para após 60 segundos
