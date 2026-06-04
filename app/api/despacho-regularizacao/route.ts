@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
     const nRev = Number(numero_revisao);
     if (Number.isInteger(nRev) && nRev >= 1 && nRev <= 5) {
       const hoje = new Date().toLocaleDateString("pt-BR");
-      const historico = (analises || []).filter((a: any) => Number(a.numero) < nRev);
+      const historico = Array.from({length: nRev - 1}, (_, i) => ({ numero: i + 1, data: hoje, ultima: false }));
       analisesParaDoc = [...historico, { numero: nRev, data: hoje, ultima: nRev === 5 }];
     }
 
