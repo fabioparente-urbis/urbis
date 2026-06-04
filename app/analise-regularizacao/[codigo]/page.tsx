@@ -423,7 +423,7 @@ export default function MacPage() {
         .filter((i) => itens[i.id] === "nao_conforme")
         .map((i) => i.texto);
 
-      const res = await fetch("/api/despacho-regularizacao", {
+      const res = await fetch("/api/despacho-regularizacao", { credentials: "include",
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1259,7 +1259,7 @@ export default function MacPage() {
               setGerandoDespacho(true);
               await salvarSilencioso("indeferido");
               try {
-                const res = await fetch("/api/despacho-regularizacao", {
+                const res = await fetch("/api/despacho-regularizacao", { credentials: "include",
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
