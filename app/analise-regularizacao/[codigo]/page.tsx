@@ -741,17 +741,7 @@ export default function MacPage() {
                   className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 />
               </div>
-              {tipoDespacho === "despacho" && naoConformes.length > 0 && (
-                <div className="bg-[#FEF2F2] border border-[#DC2626] rounded-lg p-3">
-                  <p className="text-xs text-[#DC2626] font-semibold mb-1">{naoConformes.length} item(ns) não conforme(s):</p>
-                  <ul className="space-y-0.5">
-                    {naoConformes.slice(0, 5).map((i) => (
-                      <li key={i.id} className="text-xs text-red-400">• {i.texto.slice(0, 60)}...</li>
-                    ))}
-                    {naoConformes.length > 5 && <li className="text-xs text-red-500">+ {naoConformes.length - 5} outros...</li>}
-                  </ul>
-                </div>
-              )}
+
             </div>
             {confirmarNaoRespondidos && (
               <div className="bg-[#FEF9C3] border border-[#CA8A04] rounded-lg p-3 mb-2">
@@ -1247,7 +1237,7 @@ export default function MacPage() {
             {salvando ? "Salvando..." : "💾 Salvar"}
           </button>
 
-          <button onClick={() => salvar("deferido")} disabled={salvando || naoConformes.length > 0}
+          <button onClick={() => salvar("deferido")} disabled={salvando}
             className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ✅ Deferir
           </button>
