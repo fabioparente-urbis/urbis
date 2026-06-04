@@ -54,6 +54,7 @@ export default function MacPage() {
   const [toast, setToast] = useState("");
   const [abaAtual, setAbaAtual] = useState(0);
   const [gerandoDespacho, setGerandoDespacho] = useState(false);
+  const [confirmarNaoRespondidos, setConfirmarNaoRespondidos] = useState(false);
   const [modalDespacho, setModalDespacho] = useState(false);
   const [modalDespachoInterno, setModalDespachoInterno] = useState(false);
   const [numDI, setNumDI] = useState("");
@@ -752,8 +753,23 @@ export default function MacPage() {
                 </div>
               )}
             </div>
+            {confirmarNaoRespondidos && (
+              <div className="bg-[#FEF9C3] border border-[#CA8A04] rounded-lg p-3 mb-2">
+                <p className="text-xs text-[#92400E] font-semibold mb-2">⚠ {naoRespondidos.length} item(ns) não verificado(s) no MAC. Gerar mesmo assim?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => { setConfirmarNaoRespondidos(false); gerarDespacho(); }}
+                    className="flex-1 bg-[#CA8A04] hover:bg-[#A16207] text-white font-bold py-1.5 rounded text-xs">
+                    Gerar mesmo assim
+                  </button>
+                  <button onClick={() => { setConfirmarNaoRespondidos(false); setModalDespacho(false); }}
+                    className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)] font-bold py-1.5 rounded text-xs">
+                    Voltar e analisar
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-3 mt-6">
-              <button onClick={gerarDespacho} disabled={gerandoDespacho}
+              <button onClick={() => { if (naoRespondidos.length > 0 && !confirmarNaoRespondidos) { setConfirmarNaoRespondidos(true); } else { setConfirmarNaoRespondidos(false); gerarDespacho(); } }} disabled={gerandoDespacho}
                 className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar e Baixar"}
               </button>
