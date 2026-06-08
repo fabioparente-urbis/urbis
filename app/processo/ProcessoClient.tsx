@@ -359,6 +359,7 @@ export default function ProcessoClient() {
         setStatusSalvo("salvando");
         const res = await fetch("/api/processo/salvar", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
         });
@@ -567,6 +568,7 @@ export default function ProcessoClient() {
       setSalvando(true); setStatusSalvo("salvando");
       const res = await fetch("/api/processo/salvar", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: idUrl, dados: d, tipo: tipoUrl }),
       });
