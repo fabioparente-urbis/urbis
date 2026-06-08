@@ -131,13 +131,12 @@ export async function POST(req: NextRequest) {
     // Quando o MAC envia `numero_revisao`, substituímos o array de análises
     // por uma única linha referente à revisão selecionada. A 5ª acrescenta
     // o sufixo "– LIBERAÇÃO DE TAXA OU INDEFERIMENTO" (via `ultima: true`).
-    let analisesParaDoc = analises;
-    const nRev = Number(numero_revisao);
-    if (Number.isInteger(nRev) && nRev >= 1 && nRev <= 5) {
-      const hoje = new Date().toLocaleDateString("pt-BR");
-      const historico = Array.from({length: nRev - 1}, (_, i) => ({ numero: i + 1, data: hoje, ultima: false }));
-      analisesParaDoc = [...historico, { numero: nRev, data: hoje, ultima: nRev === 5 }];
-    }
+    // analises[] vem do frontend com as análises reais (numero, data, ultima)
+    // Usar analises.length para determinar obs — não numero_revisao (pode estar errado no banco)
+    const nReal = Array.isArray(analises) ? analises.length : 0;
+    const analisesParaDoc = Array.isArray(analises) && analises.length > 0
+      ? analises
+      : [];
 
     // Gerar documento baseado no tipo
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento } = await import("@/lib/geradores");

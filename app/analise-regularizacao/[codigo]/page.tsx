@@ -434,7 +434,7 @@ export default function MacPage() {
           naoConformes: naoConformesIds,
           observacoes,
           observacoesPorAba,
-          analises: analises.map((a) => ({
+          analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({
             numero: a.numero_analise,
             data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
             ultima: a.numero_analise === 5,
@@ -1280,7 +1280,7 @@ export default function MacPage() {
                   body: JSON.stringify({
                     processo: codigo, tipo: "indeferimento", numeroDespacho: "",
                     naoConformes: motivos, observacoes: obs,
-                    analises: analises.map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                   }),
                 });
                 if (res.ok) {
