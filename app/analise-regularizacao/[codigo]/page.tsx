@@ -847,7 +847,7 @@ export default function MacPage() {
         const cor = pctMacIA >= 70 ? "#22c55e" : pctMacIA >= 40 ? "#eab308" : "#ef4444";
         const circ = 2 * Math.PI * 38;
         return (
-          <div style={{ position: "absolute", top: 90, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <div style={{ position: "fixed", top: 60, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
             <svg width="90" height="90" viewBox="0 0 90 90">
               <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8"/>
               <circle cx="45" cy="45" r="38" fill="none"
