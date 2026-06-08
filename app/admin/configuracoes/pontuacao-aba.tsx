@@ -19,8 +19,14 @@ export function AbaPontuacao() {
   const [salvando, setSalvando] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [erro, setErro] = useState("");
+  const [metaInput, setMetaInput] = useState("100");
+  const [salvandoMeta, setSalvandoMeta] = useState(false);
+  const [sucessoMeta, setSucessoMeta] = useState(false);
 
   useEffect(() => {
+    fetch("/api/admin/config", { credentials: "include" })
+      .then(r => r.json())
+      .then(j => { if (j.ok && j.data?.meta_processos_mensal) setMetaInput(String(j.data.meta_processos_mensal)); });
     fetch("/api/mrp/pontuacao", { credentials: "include" })
       .then(r => r.json())
       .then(j => {
@@ -49,6 +55,20 @@ export function AbaPontuacao() {
     setTimeout(() => setSucesso(s => s === r.id ? null : s), 2500);
   }
 
+  async function salvarMeta() {
+    const val = parseInt(metaInput);
+    if (!val || val < 1) return;
+    setSalvandoMeta(true); setSucessoMeta(false);
+    const res = await fetch("/api/admin/config", {
+      method: "PUT", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meta_processos_mensal: val }),
+    });
+    const j = await res.json();
+    setSalvandoMeta(false);
+    if (j.ok) { setSucessoMeta(true); setTimeout(() => setSucessoMeta(false), 2500); }
+  }
+
   function mudou(r: Regra) {
     return parseFloat(edicao[r.id] || "0") !== Number(r.pontos);
   }
@@ -62,6 +82,23 @@ export function AbaPontuacao() {
         Pontos atribuídos automaticamente ao gerar despacho, baseados no tipo e área construída.
         Fórmula: ATENDIMENTO → 0.5 pts · área &gt; 2000m² → 4.5 pts · área &lt; 540m² → 2.5 pts · demais → 3.5 pts.
       </p>
+
+      <div className="mb-6 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex items-center gap-4">
+        <div>
+          <div className="text-sm font-semibold text-[var(--text-primary)] mb-1">Meta Mensal de Pontos</div>
+          <div className="text-xs text-[var(--text-muted)]">Referência de produtividade para todos os analistas.</div>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <input type="number" min={1} value={metaInput} onChange={e => setMetaInput(e.target.value)}
+            className="w-24 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+          <span className="text-sm text-[var(--text-muted)]">pts/mês</span>
+          <button onClick={salvarMeta} disabled={salvandoMeta}
+            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-1.5 rounded-lg text-sm transition-colors">
+            {salvandoMeta ? "Salvando..." : "Salvar"}
+          </button>
+          {sucessoMeta && <span className="text-emerald-400 text-sm">✓ Salvo</span>}
+        </div>
+      </div>
 
       {erro && <div className="mb-4 text-sm text-red-300 bg-red-900/30 border border-red-800 rounded-lg px-4 py-2">{erro}</div>}
 

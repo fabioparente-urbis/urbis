@@ -100,14 +100,10 @@ export default function UrbiGlobal() {
     };
   }, []);
 
+  // Microfone só liga com clique — nunca automático
   useEffect(() => {
-    if (isHome && !urbiAberto && usuario?.urbi_ativo) {
-      iniciarEscuta();
-    } else {
-      pararEscuta();
-    }
     return () => pararEscuta();
-  }, [isHome, urbiAberto, usuario?.urbi_ativo]);
+  }, []);
 
   if (!usuario?.nome) return null;
   if (!usuario?.urbi_ativo) return null;
@@ -115,7 +111,7 @@ export default function UrbiGlobal() {
   return (
     <>
       {!urbiAberto && isHome && (
-        <button onClick={() => setUrbiAberto(true)}
+        <button onClick={() => { iniciarEscuta(); setUrbiAberto(true); }}
           style={{ position: "fixed", bottom: 80, right: 24, background: "transparent", border: "none", cursor: "pointer", zIndex: 1000 }}>
           <img src="/urbi/urbi-botao.jpg"
             style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
