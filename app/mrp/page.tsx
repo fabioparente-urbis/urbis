@@ -36,6 +36,59 @@ const MESES_PT = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
+
+function MetaProdutividade() {
+  const [metaInput, setMetaInput] = useState("100");
+  const [metaAtual, setMetaAtual] = useState(100);
+  const [salvando, setSalvando] = useState(false);
+  const [sucesso, setSucesso] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/config", { credentials: "include" })
+      .then(r => r.json())
+      .then(j => {
+        if (j.ok && j.data?.meta_processos_mensal) {
+          setMetaAtual(j.data.meta_processos_mensal);
+          setMetaInput(String(j.data.meta_processos_mensal));
+        }
+      });
+  }, []);
+
+  async function salvar() {
+    const val = parseInt(metaInput);
+    if (isNaN(val) || val < 1) return;
+    setSalvando(true);
+    const res = await fetch("/api/admin/config", {
+      method: "PUT", credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ meta_processos_mensal: val }),
+    });
+    const j = await res.json();
+    setSalvando(false);
+    if (j.ok) { setMetaAtual(val); setSucesso(true); setTimeout(() => setSucesso(false), 2500); }
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 mt-4">
+      <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-3">🎯 Meta de Produtividade</h3>
+      <p className="text-xs text-[var(--text-muted)] mb-3">Meta mensal de pontos por analista. Visível apenas para Administradores e Diretora.</p>
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2">
+          <span className="text-[var(--text-muted)] text-sm">Meta mensal:</span>
+          <input type="number" min={1} max={9999} value={metaInput}
+            onChange={e => { setMetaInput(e.target.value); setSucesso(false); }}
+            className="w-20 bg-transparent text-[var(--text-primary)] text-sm font-semibold text-center focus:outline-none" />
+          <span className="text-[var(--text-muted)] text-sm">pts</span>
+        </div>
+        <button onClick={salvar} disabled={salvando || parseInt(metaInput) === metaAtual}
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] transition-colors">
+          {salvando ? "Salvando..." : sucesso ? "✓ Salvo" : "Salvar"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function MrpPage() {
   // useSearchParams precisa de Suspense boundary no App Router.
   return (
@@ -517,6 +570,11 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
         {/* Histórico 12 meses */}
         <Card titulo="Histórico — últimos 12 meses">
           <BarChart12m dados={data.historico_mensal} metaEfetiva={data.meta_efetiva} />
+
+          {/* Meta de Produtividade — visível só para Admin e Diretora */}
+          {(perfis.includes("Administrador") || perfis.includes("Diretora")) && (
+            <MetaProdutividade />
+          )}
         </Card>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

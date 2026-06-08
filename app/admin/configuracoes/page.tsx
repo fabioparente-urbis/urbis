@@ -159,22 +159,7 @@ function ConfiguracoesInner() {
               ))}
             </div>
           </div>
-          {isAdmin && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Meta de Produtividade</h2>
-              <p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Meta mensal de processos por analista. Visível apenas para Administradores.</p>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2">
-                  <span className="text-[var(--text-muted)] text-sm">Meta mensal:</span>
-                  <input type="number" min={1} max={9999} value={metaInput} onChange={e => { setMetaInput(e.target.value); setSucessoMeta(false); }} className="w-20 bg-transparent text-[var(--text-primary)] text-sm font-semibold text-center focus:outline-none" />
-                  <span className="text-[var(--text-muted)] text-sm">processos</span>
-                </div>
-                <button onClick={salvarMeta} disabled={salvandoMeta || parseInt(metaInput) === metaMensal} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] transition-colors">
-                  {salvandoMeta ? <><Loader2 size={14} className="animate-spin" /> Salvando</> : sucessoMeta ? <><Check size={14} /> Salvo</> : "Salvar"}
-                </button>
-              </div>
-            </div>
-          )}
+
 
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">Assuntos</h2>
