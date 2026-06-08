@@ -197,6 +197,25 @@ function ConfiguracoesInner() {
               })}
             </div>
           )}
+          <div className="mt-8 mb-6">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Meta de Produtividade</h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Meta mensal de pontos para todos os analistas. Usada no MRP e BDI.</p>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={1}
+                value={metaInput}
+                onChange={e => setMetaInput(e.target.value)}
+                className="w-32 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]"
+              />
+              <span className="text-sm text-[var(--text-muted)]">pontos/mês</span>
+              <button onClick={salvarMeta} disabled={salvandoMeta}
+                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+                {salvandoMeta ? "Salvando..." : "Salvar"}
+              </button>
+              {sucessoMeta && <span className="text-emerald-400 text-sm">✓ Salvo</span>}
+            </div>
+          </div>
         </>)}
 
         {abaAtual === "logradouros" && (<>
