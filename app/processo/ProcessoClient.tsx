@@ -163,6 +163,7 @@ export default function ProcessoClient() {
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
+  const valorAnteriorRef = useRef<Record<string, string>>({});
   const [salvando, setSalvando] = useState(false);
   const [modalDI, setModalDI] = useState(false);
   const [modalLimparLip, setModalLimparLip] = useState(false);
@@ -674,7 +675,7 @@ export default function ProcessoClient() {
           {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
         </label>
         <div className="relative">
-          <input value={val.valor} onChange={(e) => {
+          <input value={val.valor} onFocus={() => { valorAnteriorRef.current[campo.chave] = val.valor; }} onChange={(e) => {
             const v = e.target.value;
             if (campo.chave === "iptu") { u(campo.chave, v.replace(/\D/g, "")); return; }
             if (campo.chave === "cau") {
@@ -692,6 +693,12 @@ export default function ProcessoClient() {
             onBlur={(e) => {
               if (campo.chave === "cau") u(campo.chave, normalizarRegistro(e.target.value, "cau"));
               if (campo.chave === "crea") u(campo.chave, normalizarRegistro(e.target.value, "crea"));
+              const anterior = valorAnteriorRef.current[campo.chave] ?? "";
+              const atual = e.target.value;
+              if (atual !== anterior) {
+                registrar({ modulo: "LIP", acao: "LIP_CAMPO_ALTERADO", processo_codigo: idUrl, origem: "MANUAL",
+                  detalhe: { campo: campo.chave, label: campo.label, valor_anterior: anterior, valor_novo: atual } });
+              }
             }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
