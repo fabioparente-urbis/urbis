@@ -444,13 +444,22 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
             </div>
           </div>
 
-          <div className="mt-4 text-sm text-gray-700">
-            <p>
-              <strong>Projeção:</strong> {data.projecao.toFixed(1)} pts até o fim do mês
-            </p>
+          <div className="mt-4">
+            <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent)]/10 px-5 py-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Projeção para o fim do mês</div>
+                <div className="text-4xl font-black text-[var(--accent)]">{data.projecao.toFixed(1)} pts</div>
+                <div className="text-xs text-[var(--text-muted)] mt-1">de {data.meta_efetiva} pts de meta efetiva</div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Necessário/dia</div>
+                <div className={"text-2xl font-bold " + (data.status === "RUIM" ? "text-rose-500" : "text-emerald-500")}>{data.pontos_necessarios_por_dia.toFixed(1)} pts</div>
+                <div className="text-xs text-[var(--text-muted)] mt-1">{data.dias_efetivos_restantes} dias efetivos restantes</div>
+              </div>
+            </div>
             {data.status === "RUIM" && data.dias_efetivos_restantes > 0 && (
-              <p className="mt-2 text-rose-700">
-                Você precisa de <strong>{data.pontos_necessarios_por_dia.toFixed(1)} pts/dia</strong> nos {data.dias_efetivos_restantes} dias efetivos restantes.
+              <p className="mt-2 text-xs text-rose-600 font-medium">
+                ⚠ Você precisa de <strong>{data.pontos_necessarios_por_dia.toFixed(1)} pts/dia</strong> para atingir a meta.
               </p>
             )}
           </div>
