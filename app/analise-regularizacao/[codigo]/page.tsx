@@ -460,7 +460,7 @@ export default function MacPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           processo_codigo: codigo,
-          tipo_despacho: tipoDespacho || "despacho",
+          tipo_despacho: (tipoDespacho || "despacho").toUpperCase(),
           numero_despacho: numeroDespacho,
           numero_analise: analiseAtual?.numero_analise ?? null,
           numero_revisao: numeroRevisao,
@@ -618,6 +618,19 @@ export default function MacPage() {
       a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
+      fetch("/api/mrp/registros", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          tipo_despacho: "DESPACHO_INTERNO",
+          numero_despacho: numDI,
+          area_construida: dadosLip?.areaConstruida ?? dadosLip?.area_construida ?? 0,
+          interessado: dadosLip?.interessado ?? null,
+          bairro: dadosLip?.bairro ?? null,
+          auto_gerado: true,
+        }),
+      }).catch(() => {});
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
 
