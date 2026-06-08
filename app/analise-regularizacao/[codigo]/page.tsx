@@ -841,9 +841,9 @@ export default function MacPage() {
         </div>
 
         {(() => {
-        const itensComIA = checklistItens.filter((i: any) => fontes[i.id] !== undefined);
-        const itensAceitosIA = itensComIA.filter((i: any) => aceites[i.id] === true);
-        const pctMacIA = itensComIA.length > 0 ? Math.round((itensAceitosIA.length / itensComIA.length) * 100) : 0;
+        const itensRespondidos = checklistItens.filter((i: any) => itens[i.id]);
+        const itensAceitosIA = itensRespondidos.filter((i: any) => fontes[i.id] !== undefined && aceites[i.id] === true);
+        const pctMacIA = itensRespondidos.length > 0 ? Math.round((itensAceitosIA.length / itensRespondidos.length) * 100) : 0;
         const cor = pctMacIA >= 70 ? "#22c55e" : pctMacIA >= 40 ? "#eab308" : "#ef4444";
         const circ = 2 * Math.PI * 38;
         return (
