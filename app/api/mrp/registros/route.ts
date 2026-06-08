@@ -78,15 +78,15 @@ export async function POST(req: NextRequest) {
   // Se não informado, usa o próprio usuário autenticado.
   if (!body.usuario_id) body.usuario_id = auth.userId;
 
-  if (!body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {
-    return NextResponse.json({ ok: false, erro: "Campos obrigatórios faltando" }, { status: 400 });
-  }
-  // Se auto_gerado e pontos não informados, calcula pela tabela
+  // Se auto_gerado e pontos não informados, calcula pela tabela ANTES da validação
   if (body.auto_gerado && body.pontos === undefined) {
     const { data: tabela } = await supabaseAdmin.from("mrp_pontuacao").select("*").order("ordem");
     if (tabela) {
       body.pontos = calcularPontos(body.tipo_despacho || "", Number(body.area_construida || 0), tabela);
     }
+  }
+  if (!body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {
+    return NextResponse.json({ ok: false, erro: "Campos obrigatórios faltando" }, { status: 400 });
   }
   const data_despacho = body.data_despacho ?? new Date().toISOString();
   const dt = new Date(data_despacho);
