@@ -829,7 +829,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               // Só bloqueia se houver campos marcados com X (pendências reais)
-              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.valor.trim().toUpperCase() === "X").length;
+              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && (c.valor.trim().toUpperCase() === "X" || (c.origem === "padrao" && c.valor.trim() === ""))).length;
               if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
               const rotaMac = "/analise-regularizacao";
