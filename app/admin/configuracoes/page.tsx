@@ -1,6 +1,6 @@
 "use client";
 import { AbaAuditoria } from "./auditoria-aba";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
@@ -10,7 +10,7 @@ type LogRow = { id?: string; bairro: string; nome_logradouro: string; hierarquia
 const LOG_VAZIO: LogRow = { bairro: "", nome_logradouro: "", hierarquia_viaria: "", largura_via: "", larg_calcada: "", largura_pista: "", largura_ilha: "", area: "" };
 const SLUG_FIXO = "regularizacao";
 
-export default function ConfiguracoesPage() {
+function ConfiguracoesInner() {
   const router = useRouter();
   const { tema, setTema } = useTheme();
   const searchParams = useSearchParams();
@@ -289,4 +289,8 @@ export default function ConfiguracoesPage() {
       </main>
     </div>
   );
+}
+
+export default function ConfiguracoesPage() {
+  return <Suspense><ConfiguracoesInner /></Suspense>;
 }
