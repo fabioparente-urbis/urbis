@@ -214,7 +214,7 @@ export default function MacPage() {
   function setItem(id: string, status: StatusItem) {
     setItens((prev) => ({ ...prev, [id]: status }));
     setFontes((prev) => ({ ...prev, [id]: "manual" }));
-    setAceites((prev) => ({ ...prev, [id]: true }));
+    setAceites((prev) => ({ ...prev, [id]: false }));
   }
 
   function marcarGrupo(grupo: string, status: "conforme" | "nao_conforme" | "nao_aplica") {
