@@ -1,7 +1,7 @@
 "use client";
 import { AbaAuditoria } from "./auditoria-aba";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Sun, Moon } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 
@@ -13,6 +13,8 @@ const SLUG_FIXO = "regularizacao";
 export default function ConfiguracoesPage() {
   const router = useRouter();
   const { tema, setTema } = useTheme();
+  const searchParams = useSearchParams();
+  useEffect(() => { const aba = searchParams.get("aba"); if (aba === "auditoria") setAbaAtual("auditoria"); }, []);
   const [assuntos, setAssuntos] = useState<Assunto[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
