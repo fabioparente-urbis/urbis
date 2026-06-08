@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
+import { calcularPontos } from "@/lib/mrp-pontuacao";
 
 async function podeVer(
   auth: { userId: string; irrestrito: boolean; gerencia: string | null },
@@ -79,6 +80,13 @@ export async function POST(req: NextRequest) {
 
   if (!body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {
     return NextResponse.json({ ok: false, erro: "Campos obrigatórios faltando" }, { status: 400 });
+  }
+  // Se auto_gerado e pontos não informados, calcula pela tabela
+  if (body.auto_gerado && body.pontos === undefined) {
+    const { data: tabela } = await supabaseAdmin.from("mrp_pontuacao").select("*").order("ordem");
+    if (tabela) {
+      body.pontos = calcularPontos(body.tipo_despacho || "", Number(body.area_construida || 0), tabela);
+    }
   }
   const data_despacho = body.data_despacho ?? new Date().toISOString();
   const dt = new Date(data_despacho);

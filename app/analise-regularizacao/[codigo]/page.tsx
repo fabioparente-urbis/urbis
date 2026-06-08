@@ -452,6 +452,22 @@ export default function MacPage() {
 
       if (!res.ok) { mostrarToast("Erro ao gerar despacho."); return; }
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
+      // Auto-registro MRP
+      fetch("/api/mrp/registros", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          tipo_despacho: tipoDespacho || "despacho",
+          numero_despacho: numeroDespacho,
+          numero_analise: analiseAtual?.numero_analise ?? null,
+          numero_revisao: numeroRevisao,
+          area_construida: dadosLip?.areaConstruida ?? dadosLip?.area_construida ?? 0,
+          interessado: dadosLip?.interessado ?? null,
+          bairro: dadosLip?.bairro ?? null,
+          auto_gerado: true,
+        }),
+      }).catch(() => {});
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
