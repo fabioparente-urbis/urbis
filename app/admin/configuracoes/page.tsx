@@ -126,9 +126,12 @@ function ConfiguracoesInner() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <header className="bg-[var(--bg-primary)] border-b border-[var(--border)] px-8 py-4 flex items-center gap-4">
-        <button onClick={() => router.push("/")} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-sm">← Início</button>
-        <h1 className="text-xl font-semibold inline-flex items-center gap-2"><Settings2 size={20} /> Configurações</h1>
+      <header className="bg-[var(--bg-primary)] border-b border-[var(--border)] px-8 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.push("/")} className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }} className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
+        </div>
+        <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2"><Settings2 size={20} /> Configurações</h1>
         <div className="flex gap-1 ml-6">
           <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
           {isAdmin && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
