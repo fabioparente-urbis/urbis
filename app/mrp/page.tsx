@@ -409,8 +409,8 @@ function MrpInner() {
 // ════════════════════════════════════════════════════════════
 // ABA 1 — DASHBOARD
 // ════════════════════════════════════════════════════════════
-function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
-  mes: number; ano: number; usuarioId: string | null; somenteLeitura: boolean;
+function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
+  mes: number; ano: number; usuarioId: string | null; somenteLeitura: boolean; isAdminOuDiretora?: boolean;
 }) {
   const [data, setData] = useState<PainelResposta | null>(null);
   const [analista, setAnalista] = useState<{ nome: string; reducao_meta: number; meta_base_legal: string | null } | null>(null);
@@ -572,7 +572,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura }: {
           <BarChart12m dados={data.historico_mensal} metaEfetiva={data.meta_efetiva} />
 
           {/* Meta de Produtividade — visível só para Admin e Diretora */}
-          {(perfis.includes("Administrador") || perfis.includes("Diretora")) && (
+          {isAdminOuDiretora && (
             <MetaProdutividade />
           )}
         </Card>
