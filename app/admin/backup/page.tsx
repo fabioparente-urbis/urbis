@@ -298,7 +298,7 @@ export default function BackupPage() {
             Esta tela é exclusiva do perfil <b>Administrador</b>.
           </p>
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/admin/configuracoes")}
             className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-medium"
           >
             🏠 Voltar para a home
@@ -313,7 +313,7 @@ export default function BackupPage() {
       <div className="flex items-center justify-between mb-6 gap-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/admin/configuracoes")}
             className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors"
           >
             🏠 Home

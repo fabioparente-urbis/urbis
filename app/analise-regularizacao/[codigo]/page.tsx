@@ -1,4 +1,5 @@
 "use client";
+import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -94,6 +95,7 @@ export default function MacPage() {
   }
 
   const inputImportRef = useRef<HTMLInputElement>(null);
+  const { registrar } = useAuditoria();
   const [importando, setImportando] = useState(false);
   async function importarExcel(file: File) {
     if (!file || !analiseAtual?.id) {
@@ -113,6 +115,7 @@ export default function MacPage() {
       }
       const naoEnc = Array.isArray(json.naoEncontrados) ? json.naoEncontrados.length : 0;
       mostrarToast(`✅ ${json.atualizados} item(ns) atualizado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`);
+      registrar({ modulo: "MAC", acao: "MAC_EXCEL_IMPORTADO", processo_codigo: codigo, detalhe: { atualizados: json.atualizados } });
       await carregar();
     } catch (e: any) {
       mostrarToast(`Erro ao importar: ${e?.message || "falha"}`);
@@ -386,6 +389,7 @@ export default function MacPage() {
         const json = await res.json();
         if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
         mostrarToast("Análise criada!");
+        registrar({ modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
         await carregar();
       } else {
         const res = await fetch("/api/analise-regularizacao", {
@@ -406,6 +410,7 @@ export default function MacPage() {
         const json = await res.json();
         if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
         mostrarToast("Salvo!");
+        registrar({ modulo: "MAC", acao: "MAC_ANALISE_SALVA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
         await carregar();
       }
     } finally {
@@ -446,6 +451,7 @@ export default function MacPage() {
       });
 
       if (!res.ok) { mostrarToast("Erro ao gerar despacho."); return; }
+      registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -593,6 +599,7 @@ export default function MacPage() {
       const a = document.createElement("a"); a.href = url;
       a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
+      registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
 
@@ -997,6 +1004,7 @@ export default function MacPage() {
                       return novo;
                     });
                     const total = Object.keys(json.itens || {}).length;
+                    registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P2 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
                     mostrarToast(`Erro P2: ${err?.message || "falha"}`);

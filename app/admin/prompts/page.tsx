@@ -175,7 +175,7 @@ export default function AdminPrompts() {
   useEffect(() => {
     (async () => {
       const me = await fetch("/api/auth/me").then((r) => r.json());
-      if (!me.ok || me.data?.perfil !== "Administrador") { router.push("/"); return; }
+      if (!me.ok || me.data?.perfil !== "Administrador") { router.push("/admin/configuracoes"); return; }
       setAdminNome(me.data.nome ?? "Admin");
 
       const ar = await fetch("/api/admin/assuntos").then((r) => r.json());
@@ -401,7 +401,7 @@ export default function AdminPrompts() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <span style={{ color: "#cbd5e1", fontSize: 11, letterSpacing: 1 }}>{adminNome.toUpperCase()}</span>
-            <button onClick={() => router.push("/")} style={{
+            <button onClick={() => router.push("/admin/configuracoes")} style={{
               background: "transparent", border: "1px solid #e2e8f0", color: "#64748b",
               padding: "4px 12px", borderRadius: 4, cursor: "pointer", fontSize: 11, letterSpacing: 1,
             }}>← HOME</button>

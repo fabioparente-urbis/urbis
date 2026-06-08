@@ -1,4 +1,5 @@
 "use client";
+import { AbaAuditoria } from "./auditoria-aba";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Sun, Moon } from "lucide-react";
@@ -23,7 +24,7 @@ export default function ConfiguracoesPage() {
   const [metaInput, setMetaInput] = useState<string>("100");
   const [salvandoMeta, setSalvandoMeta] = useState(false);
   const [sucessoMeta, setSucessoMeta] = useState(false);
-  const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros">("geral");
+  const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros" | "auditoria">("geral");
   const [logFiltro, setLogFiltro] = useState("");
   const [logData, setLogData] = useState<LogRow[]>([]);
   const [logTotal, setLogTotal] = useState(0);
@@ -129,7 +130,10 @@ export default function ConfiguracoesPage() {
         <div className="flex gap-1 ml-6">
           <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
           {isAdmin && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
+          {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
+          {isAdmin && <button onClick={() => router.push("/admin/backup")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">💾 Backups</button>}
+          {isAdmin && <button onClick={() => router.push("/admin/prompts")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🪄 Prompts</button>}
         </div>
       </header>
 
@@ -276,6 +280,9 @@ export default function ConfiguracoesPage() {
             </div>
           )}
         </>)}
+
+        {abaAtual === "auditoria" && <AbaAuditoria isAdmin={isAdmin} />}
+
 
       </main>
     </div>
