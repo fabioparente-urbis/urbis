@@ -45,6 +45,12 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess }: Props) {
 
       toast.success("Laudo gerado com sucesso!");
       onSuccess?.();
+      // Registro MAP
+      fetch("/api/auditoria/registrar", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modulo: "DESPACHO", acao: "LAUDO_EXCEL_GERADO", processo_codigo: processoId, origem: "MANUAL" }),
+      }).catch(() => {});
     } catch (e: any) {
       toast.error(`Erro ao gerar laudo: ${e.message}`);
     } finally {

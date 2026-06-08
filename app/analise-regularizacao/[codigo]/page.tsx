@@ -218,6 +218,7 @@ export default function MacPage() {
     setItens((prev) => ({ ...prev, [id]: status }));
     setFontes((prev) => ({ ...prev, [id]: "manual" }));
     setAceites((prev) => ({ ...prev, [id]: fontes[id] !== undefined ? false : prev[id] }));
+    registrar({ modulo: "MAC", acao: "MAC_ITEM_MARCADO", processo_codigo: codigo, detalhe: { item_id: id, status } });
   }
 
   function marcarGrupo(grupo: string, status: "conforme" | "nao_conforme" | "nao_aplica") {
@@ -242,6 +243,7 @@ export default function MacPage() {
 
   async function salvarObs() {
     try {
+      registrar({ modulo: "LIP", acao: "LIP_SALVO", processo_codigo: codigo, detalhe: { campos: Object.keys(dadosLip).length } });
       const res = await fetch("/api/processo/salvar", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo, campos: { observacoes: { valor: obsText, origem: "manual", status: "confirmado" } } })
