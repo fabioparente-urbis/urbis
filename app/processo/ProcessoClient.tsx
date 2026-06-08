@@ -1,4 +1,5 @@
 "use client";
+import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -161,6 +162,7 @@ export default function ProcessoClient() {
   const tipoUrl = normalizarTipo(searchParams?.get("tipo"));
 
   const [aba, setAba] = useState(0);
+  const { registrar } = useAuditoria();
   const [salvando, setSalvando] = useState(false);
   const [modalDI, setModalDI] = useState(false);
   const [modalLimparLip, setModalLimparLip] = useState(false);
@@ -481,6 +483,7 @@ export default function ProcessoClient() {
           const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
 
           // 4. S3 — Extração inteligente do LIP
+          registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_INICIADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name } });
           setProgresso(70);
           mostrarToast("🧠 S3: Preenchendo LIP com IA...", "info");
           const s3Res = await fetch("/api/lip/s3", {
@@ -504,6 +507,7 @@ export default function ProcessoClient() {
           throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
         }
 
+          registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_CONCLUIDA", processo_codigo: idUrl, origem: "IA", detalhe: { campos: Object.keys(s3Data.campos ?? {}).length, alertas: (s3Data.alertasMAC ?? []).length } });
           return {
             campos: s3Data.campos ?? {},
             alertasMAC: s3Data.alertasMAC ?? [],
