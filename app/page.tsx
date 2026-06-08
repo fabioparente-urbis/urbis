@@ -160,7 +160,7 @@ export default function Home() {
     { chave: "bdi", nome: "BDI", descricao: "Banco de Dados e Inteligência", Icone: BrainCircuit, rota: "/admin/bdi", visivel: true },
     { chave: "bip", nome: "BIP", descricao: "Biblioteca de Leis", Icone: BookOpen, rota: "/admin/bdi/leis", visivel: irrestrito },
     { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Gerenciar LIP, MAC e Assuntos", Icone: Settings2, rota: "/admin/configuracoes", visivel: souAdmin },
-    { chave: "maep", nome: "MAEP", descricao: "Auditoria e Produtividade", Icone: ClipboardList, rota: "/admin/configuracoes?aba=auditoria", visivel: souAdmin },
+    { chave: "map", nome: "MAP", descricao: "Auditoria e Produtividade", Icone: ClipboardList, rota: "/admin/configuracoes?aba=auditoria", visivel: souAdmin },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);
