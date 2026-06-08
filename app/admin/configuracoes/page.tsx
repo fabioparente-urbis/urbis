@@ -130,9 +130,9 @@ function ConfiguracoesInner() {
         <div className="flex items-center gap-2">
           <button onClick={() => router.push("/")} className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }} className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2 ml-4"><Settings2 size={20} /> Configurações</h1>
         </div>
-        <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2"><Settings2 size={20} /> Configurações</h1>
-        <div className="flex gap-1 ml-6">
+        <div className="flex gap-1">
           <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
           {isAdmin && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
           {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
