@@ -725,6 +725,10 @@ export default function ProcessoClient() {
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
     { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
   ];
+  const camposPreenchidos = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "");
+  const totalPreenchidos = camposPreenchidos.length;
+  const totalUrbis = camposPreenchidos.filter(([_, c]) => c.origem === "urbis").length;
+  const pctIA = totalPreenchidos > 0 ? Math.round((totalUrbis / totalPreenchidos) * 100) : 0;
 
   if (carregandoAbas) {
     return (
@@ -894,13 +898,32 @@ export default function ProcessoClient() {
             {statusSalvo === "salvo" && <span className="text-[var(--success)]">✓ Salvo automaticamente</span>}
             {statusSalvo === "erro" && <span className="text-[var(--error)]">✗ Erro ao salvar</span>}
           </div>
-          <div className="hidden md:flex flex-col gap-1 text-xs">
-            {legenda.map((l) => (
-              <div key={l.label} className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${l.cor}`} />
-                <span className="text-[var(--text-muted)]">{l.label}</span>
-              </div>
-            ))}
+          <div className="hidden md:flex flex-row items-center gap-4">
+            <div className="flex flex-col gap-1 text-xs">
+              {legenda.map((l) => (
+                <div key={l.label} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${l.cor}`} />
+                  <span className="text-[var(--text-muted)]">{l.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <svg width="90" height="90" viewBox="0 0 90 90">
+                <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8"/>
+                <circle cx="45" cy="45" r="38" fill="none"
+                  stroke={pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444"}
+                  strokeWidth="8"
+                  strokeDasharray={`${(pctIA / 100) * 2 * Math.PI * 38} ${2 * Math.PI * 38}`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 45 45)"
+                />
+                <text x="45" y="49" textAnchor="middle" fontSize="20" fontWeight="bold"
+                  fill={pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444"}>
+                  {pctIA}%
+                </text>
+              </svg>
+              <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
+            </div>
           </div>
         </div>
       </div>

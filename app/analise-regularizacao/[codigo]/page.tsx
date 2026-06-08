@@ -6,6 +6,7 @@ import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
+
 type Item = {
   id: string;
   grupo: string;
@@ -839,7 +840,31 @@ export default function MacPage() {
 
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
+        {(() => {
+        const itensComIA = checklistItens.filter((i: any) => fontes[i.id] !== undefined);
+        const itensAceitosIA = itensComIA.filter((i: any) => aceites[i.id] === true);
+        const pctMacIA = itensComIA.length > 0 ? Math.round((itensAceitosIA.length / itensComIA.length) * 100) : 0;
+        const cor = pctMacIA >= 70 ? "#22c55e" : pctMacIA >= 40 ? "#eab308" : "#ef4444";
+        const circ = 2 * Math.PI * 38;
+        return (
+          <div style={{ position: "absolute", top: 12, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <svg width="90" height="90" viewBox="0 0 90 90">
+              <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8"/>
+              <circle cx="45" cy="45" r="38" fill="none"
+                stroke={cor} strokeWidth="8"
+                strokeDasharray={`${(pctMacIA / 100) * circ} ${circ}`}
+                strokeLinecap="round"
+                transform="rotate(-90 45 45)"
+              />
+              <text x="45" y="49" textAnchor="middle" fontSize="20" fontWeight="bold" fill={cor}>
+                {pctMacIA}%
+              </text>
+            </svg>
+            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Monitor IA</span>
+          </div>
+        );
+      })()}
+      <div className="flex flex-wrap items-center gap-4 text-xs mb-3">
           <span className="flex items-center gap-1"><span className="bg-[#ECFDF5] border border-[#059669] text-[#059669] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#FEF2F2] border border-[#DC2626] text-[#DC2626] px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#EFF6FF] border border-[#2563EB] text-[#2563EB] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>

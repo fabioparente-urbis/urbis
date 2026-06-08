@@ -117,7 +117,7 @@ export default function LogradouroPage() {
   function limpar(i: number) { setSlots(prev => prev.map((s, idx) => idx === i ? vazio() : s)); }
   async function salvar() {
     setSalvando(true);
-    await fetch("/api/processo/logradouro", {
+    await fetch("/api/processo/logradouro", { credentials: "include",
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codigo, vias: slots.filter(s => s.dados).map(s => s.dados!) }),
     });
