@@ -691,8 +691,8 @@ export default function ProcessoClient() {
             u(campo.chave, v);
           }}
             onBlur={(e) => {
-              if (campo.chave === "cau") u(campo.chave, normalizarRegistro(e.target.value, "cau"));
-              if (campo.chave === "crea") u(campo.chave, normalizarRegistro(e.target.value, "crea"));
+              if (campo.chave === "cau") { u(campo.chave, e.target.value.toUpperCase().trim()); }
+              else if (campo.chave === "crea") u(campo.chave, normalizarRegistro(e.target.value, "crea"));
               const anterior = valorAnteriorRef.current[campo.chave] ?? "";
               const atual = e.target.value;
               if (atual !== anterior) {
