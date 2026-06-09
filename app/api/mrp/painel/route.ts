@@ -105,10 +105,17 @@ export async function GET(req: NextRequest) {
   } else if (ano > hoje.getFullYear() || (ano === hoje.getFullYear() && mes > hoje.getMonth() + 1)) {
     diasPassados = 0; diasRestantes = totalEfetivos;
   } else {
+    // Calcula dias úteis passados contando dias corridos até hoje
+    // independente de totalEfetivos — evita distorção ao mudar feriados
     const diasNoMes = new Date(ano, mes, 0).getDate();
     const diaCorrente = Math.min(hoje.getDate(), diasNoMes);
-    const frac = diaCorrente / diasNoMes;
-    diasPassados = Math.round(totalEfetivos * frac);
+    const diasUteisBase = Number(calendario.dias_uteis);
+    const fracBase = diaCorrente / diasNoMes;
+    const diasUteisPassados = Math.round(diasUteisBase * fracBase);
+    // Desconta apenas os feriados/ausências que caem na fração passada
+    const totalAusencias = calendario.ferias + calendario.atestado + calendario.feriados + calendario.facultativo;
+    const ausenciasPassadas = Math.round(totalAusencias * fracBase);
+    diasPassados = Math.max(0, diasUteisPassados - ausenciasPassadas);
     diasRestantes = Math.max(0, totalEfetivos - diasPassados);
   }
   if (!ehMesCorrente && diasPassados === 0 && diasRestantes === 0) {
