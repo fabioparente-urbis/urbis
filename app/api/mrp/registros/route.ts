@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
   }
   const data_despacho = body.data_despacho ?? new Date().toISOString();
   const dt = new Date(data_despacho);
-  const { data, error } = await supabaseAdmin.from("mrp_registros").insert({
+  const payload = {
     usuario_id: body.usuario_id,
     processo_codigo: body.processo_codigo,
     tipo_processo: body.tipo_processo ?? "REGULARIZACAO",
@@ -111,7 +111,15 @@ export async function POST(req: NextRequest) {
     mes: dt.getMonth() + 1,
     ano: dt.getFullYear(),
     auto_gerado: false,
-  }).select().maybeSingle();
+  };
+  // auto_gerado: upsert por (usuario_id, numero_despacho) — evita duplicata na reemissão
+  const isUpsert = body.auto_gerado && body.numero_despacho;
+  const { data, error } = isUpsert
+    ? await supabaseAdmin.from("mrp_registros")
+        .upsert(payload, { onConflict: "usuario_id,numero_despacho", ignoreDuplicates: false })
+        .select().maybeSingle()
+    : await supabaseAdmin.from("mrp_registros")
+        .insert(payload).select().maybeSingle();
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data });
 }
