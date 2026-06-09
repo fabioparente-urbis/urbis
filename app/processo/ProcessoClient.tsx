@@ -514,7 +514,7 @@ export default function ProcessoClient() {
                 body: JSON.stringify({ codigo: idUrl, fileName: arquivo.name, status: "LIMITE" }),
               });
             } catch (_) {}
-            throw new Error("⚠️ Limite diário do Gemini Free atingido! Tente novamente após as 21h (horário de Brasília).");
+            throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
           }
           throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
         }
