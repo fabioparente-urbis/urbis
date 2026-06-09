@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     let texto = "";
 
     // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
-    const modelos = ["gemini-2.0-flash", "gemini-2.5-flash"];
+    const modelos = ["gemini-2.5-flash", "gemini-flash-latest"];
     let geminiOk = false;
     for (const modelo of modelos) {
       console.log(`[S3] Tentando ${modelo}...`);
