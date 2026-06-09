@@ -187,6 +187,8 @@ export default function ProcessoClient() {
   const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
   const [vcpProcessando, setVcpProcessando] = useState(false);
   const [vcpDragOver, setVcpDragOver] = useState(false);
+  const [vcpSugestoes, setVcpSugestoes] = useState<Record<string, string>>({});
+  const [vcpModo, setVcpModo] = useState<"substituir"|"sugerir"|null>(null);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
   const [mostrarPendentes, setMostrarPendentes] = useState(false);
@@ -615,20 +617,42 @@ export default function ProcessoClient() {
       const s4Data = await s4Res.json();
       setProgresso(95);
       // 4. Salvar campos mesclados + OBS
-      setD((prev) => {
-        const novo = { ...prev };
+      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual");
+      const modoFinal = lipJaPreenchido ? vcpModo : "substituir";
+      if (modoFinal === "sugerir") {
+        const sugestoes: Record<string, string> = {};
         Object.keys(mesclado).forEach((chave) => {
           const item = mesclado[chave];
-          if (!item?.valor) return;
-          novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          if (item?.valor && item.valor !== "NP") sugestoes[chave] = item.valor;
         });
-        if (s4Data.ok && s4Data.obsTexto) {
-          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
-          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
-        }
-        autoSalvar(novo);
-        return novo;
-      });
+        setVcpSugestoes(sugestoes);
+        setD((prev) => {
+          const novo = { ...prev };
+          if (s4Data.ok && s4Data.obsTexto) {
+            const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+            novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
+          }
+          autoSalvar(novo);
+          return novo;
+        });
+      } else {
+        setVcpSugestoes({});
+        setD((prev) => {
+          const novo = { ...prev };
+          Object.keys(mesclado).forEach((chave) => {
+            const item = mesclado[chave];
+            if (!item?.valor) return;
+            novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          });
+          if (s4Data.ok && s4Data.obsTexto) {
+            const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+            novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
+          }
+          autoSalvar(novo);
+          return novo;
+        });
+      }
+      setVcpModo(null);
       const total = s4Data.total ?? 0;
       mostrarToast(total > 0 ? `⚠️ VCP concluído: ${total} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
     } catch (e: any) {
@@ -869,6 +893,8 @@ export default function ProcessoClient() {
       {modalVCP && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setModalVCP(false)}>
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            {(() => { const lipPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual"); return (
+            <>
             <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Verificação Cruzada de PDFs</h2>
             <p className="text-xs text-[var(--text-secondary)] mb-4">
               ⚠️ Nomeie os arquivos indicando o tipo e o número SEI do documento.<br/>
@@ -902,12 +928,32 @@ export default function ProcessoClient() {
                 })}
               </div>
             )}
+            {Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && (
+              <div className="mb-4 bg-[var(--bg-secondary)] rounded-xl p-3">
+                <p className="text-xs text-[var(--text-secondary)] font-semibold mb-2">LIP já preenchido — o que fazer com os campos extraídos?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setVcpModo("substituir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${vcpModo === "substituir" ? "bg-[var(--primary)] text-white border-[var(--primary)]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]"}`}>
+                    🔄 Substituir tudo
+                  </button>
+                  <button onClick={() => setVcpModo("sugerir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${vcpModo === "sugerir" ? "bg-[var(--primary)] text-white border-[var(--primary)]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]"}`}>
+                    💡 Sugerir valores
+                  </button>
+                </div>
+                {vcpModo === "substituir" && <p className="text-xs text-orange-400 mt-1">⚠️ Todos os campos do LIP serão sobrescritos.</p>}
+                {vcpModo === "sugerir" && <p className="text-xs text-green-400 mt-1">✅ Sugestões aparecem em cada campo — você decide o que aceitar.</p>}
+              </div>
+            )}
             <div className="flex gap-3 justify-end">
               <button onClick={() => setModalVCP(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Cancelar</button>
-              <button disabled={vcpArquivos.length === 0} onClick={processarVCP} className={`px-4 py-2 rounded font-bold text-sm ${vcpArquivos.length === 0 ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"}`}>
-                🔍 Processar e cruzar ({vcpArquivos.length} arquivo{vcpArquivos.length !== 1 ? "s" : ""})
+              <button
+                disabled={vcpArquivos.length === 0 || (Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && !vcpModo)}
+                onClick={processarVCP}
+                className={`px-4 py-2 rounded font-bold text-sm ${(vcpArquivos.length === 0 || (Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && !vcpModo)) ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"}`}
+              >
+                🔍 Processar ({vcpArquivos.length} arquivo{vcpArquivos.length !== 1 ? "s" : ""})
               </button>
             </div>
+            </> ); })()}
           </div>
         </div>
       )}
