@@ -56,31 +56,9 @@ export async function POST(req: NextRequest) {
       console.log(`[S3] ${modelo} falhou (status ${res.status}), tentando próximo...`);
     }
 
-    // Fallback Claude Haiku
+    // Sem fallback — processo inteiro só via Gemini
     if (!geminiOk) {
-      if (!pdfBase64) {
-        return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
-      }
-      console.log("[S3] Fallback para Claude Haiku...");
-      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": anthropicKey!, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 4000,
-          messages: [{
-            role: "user",
-            content: [
-              { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
-              { type: "text", text: promptFinal },
-            ],
-          }],
-        }),
-      });
-      if (!claudeRes.ok) throw new Error("Claude fallback falhou: " + await claudeRes.text());
-      const claudeData = await claudeRes.json();
-      texto = claudeData.content?.[0]?.text?.trim() ?? "";
-      console.log("[S3] Claude Haiku respondeu.");
+      return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
     }
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
     const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
