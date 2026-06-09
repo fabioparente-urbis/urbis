@@ -88,15 +88,15 @@ PROCESSO E SEIs ESPECÍFICOS:
 - despacho: número do despacho CHEADV (ex: "1090/2025")
 - seiCheadv: SEI do documento CHEADV (análise documental)
 - seiProcuracao: SEI da procuração — "NP" se não houver
-- seiEmbargo: SEI do embargo — "NP" se não houver
-- outro: "Sim" se há outro processo vinculado, "Não" se não
-- qualOutro: número do outro processo — "NP" se outro = Não
-- embargo: "Sim" ou "Não"
-- dataEmb: data do embargo — "NP" se não houver
+- seiEmbargo: SEI do embargo (7 dígitos entre parênteses) — "NP" se não houver documento de embargo
+- outro: "Sim" se houver documento de "BUSCA DE PROCESSOS ARQUIVADOS" ou encaminhamento que mencione número de processo anterior/vinculado; "Não" se não houver
+- qualOutro: número do processo anterior/vinculado encontrado no documento de busca de processos arquivados (ex: "31392721") — "NP" se outro = Não
+- embargo: "Sim" se houver documento de embargo ou auto de infração no processo; "Não" se não houver nenhum documento de embargo — padrão "Não" quando não encontrado
+- dataEmb: data do embargo — "NP" se embargo = Não
 - tombado: "Sim" se área tombada, "Não" se não
-- procuracao: "Sim" se há procuração, "Não" se não
-- onerosa: "Sim" se área construída ≥ área do lote E altura do terreno mais baixo à cobertura > 7,5m nos cortes; "Não" caso contrário
-- numero_do_sei_da_onerosa: SEI (7 dígitos entre parênteses) do documento de cálculo da outorga onerosa — "NP" se onerosa = Não
+- procuracao: "Sim" se houver documento de procuração (seiProcuracao preenchido); "Não" se não houver nenhum documento de procuração no processo — padrão "Não" quando não encontrado
+- onerosa: verificar se há documento de pagamento/cálculo de outorga onerosa no processo; "Sim" se encontrado OU se área construída ≥ área do lote E altura do terreno à laje/forro ≥ 7,5m nos cortes; "Não" se não houver documento e condições não atendidas; "NP" se não for possível determinar
+- numero_do_sei_da_onerosa: SEI (7 dígitos entre parênteses) do documento de cálculo/pagamento da outorga onerosa — "NP" se onerosa = Não
 
 VISTORIA (fonte: última vistoria fiscal — "Relatório de Visita Técnica" ou "Termo de Vistoria Fiscal"):
 - vistoriaAreaComercial: área ocupada pela atividade comercial em m² (só número)
