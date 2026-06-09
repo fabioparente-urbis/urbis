@@ -42,8 +42,10 @@ export async function POST(req: NextRequest) {
     const inc: { tipo: string; campo: string; descricao: string; docs: string[] }[] = [];
 
     // 1. PROPRIETÁRIO/INTERESSADO — compara entre documentos
+    const TIPOS_CONFIAVEL_PROPRIETARIO = ["ART", "CERTIDAO", "CHEADV", "USO_SOLO", "VISTORIA", "PROCURACAO", "LAUDO"];
     const nomes: { tipo: string; nome: string }[] = [];
     for (const a of arquivos) {
+      if (!TIPOS_CONFIAVEL_PROPRIETARIO.includes(a.tipo)) continue;
       const n = get(a.campos, "interessado") || get(a.campos, "proprietario");
       if (n) nomes.push({ tipo: a.tipo, nome: n.toUpperCase() });
     }
