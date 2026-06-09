@@ -659,7 +659,10 @@ export default function ProcessoClient() {
       setProgresso(95);
       // 4. Salvar campos mesclados + OBS
       const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual");
-      const modoFinal = lipJaPreenchido ? vcpModo : "substituir";
+      const modoFinal = lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir";
+      const agora = new Date().toLocaleTimeString("pt-BR");
+      const nomeArquivos = vcpArquivos.map((a: File) => a.name).join(", ");
+      const logCabecalho = `=== VCP ${agora} | Modo: ${modoFinal.toUpperCase()} | Arquivos: ${nomeArquivos} ===`;
       if (modoFinal === "sugerir") {
         const sugestoes: Record<string, string> = {};
         Object.keys(mesclado).forEach((chave) => {
@@ -669,10 +672,9 @@ export default function ProcessoClient() {
         setVcpSugestoes(sugestoes);
         setD((prev) => {
           const novo = { ...prev };
-          if (s4Data.ok && s4Data.obsTexto) {
-            const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
-            novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
-          }
+          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+          const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
+          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
           autoSalvar(novo);
           return novo;
         });
@@ -685,10 +687,9 @@ export default function ProcessoClient() {
             if (!item?.valor) return;
             novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
           });
-          if (s4Data.ok && s4Data.obsTexto) {
-            const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
-            novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
-          }
+          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+          const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
+          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
           autoSalvar(novo);
           return novo;
         });
