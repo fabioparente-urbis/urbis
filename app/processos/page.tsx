@@ -291,8 +291,6 @@ export default function ProcessosPage() {
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="">Todos os tipos</option>
           <option value="REGULARIZACAO">Regularização</option>
-          <option value="ACEITE">Aceite</option>
-          <option value="APROVACAO">Aprovação</option>
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
