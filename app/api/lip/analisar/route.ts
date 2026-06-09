@@ -52,7 +52,7 @@ RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 - areaTerreno: "ÁREA DO LOTE" ou "ÁREA DO TERRENO" (só o número)
 - areaImpermeavel: "ÁREA IMPERMEÁVEL" (só o número em m²)
 - areaAprovada: área existente já aprovada anteriormente, se houver
-- areaVertical: "ÁREA A SER REGULARIZADA EM EDIFICAÇÃO VERTICAL" (só o número em m²) — "NP" se não houver
+- areaVertical: "ÁREA A SER REGULARIZADA EM EDIFICAÇÃO VERTICAL" (só o número em m²) — preencher APENAS se nos cortes do projeto a altura da edificação (do terreno mais baixo até a laje de cobertura) for SUPERIOR a 12m; neste caso areaForaFrontal fica zerado e a área normal passa para este campo com multa específica de verticalização; "NP" se altura ≤ 12m
 
 CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
 - corredor: "Sim" se mencionar corredor viário, "Não" se não
@@ -213,7 +213,7 @@ async function chamarIA(prompt: string): Promise<Record<string, any>> {
       },
       body: JSON.stringify({
         model: "claude-haiku-4-5-20251001",
-        max_tokens: 1500,
+        max_tokens: 4000,
         messages: [{ role: "user", content: prompt }],
       }),
     });
@@ -293,6 +293,24 @@ const { texto, paginas } = await lerPdf(buffer);
     }
     for (const c of camposNP) {
       if (!campos[c]) campos[c] = { valor: "NP", fonte: "Não identificado" };
+    }
+
+    // Somatório de áreas — validação automática
+    const toNum = (k: string) => parseFloat((campos[k]?.valor ?? "0").toString().replace(",", ".")) || 0;
+    const total = toNum("areaTotal");
+    const somaPartes = toNum("areaForaFrontal") + toNum("areaRecuo") + toNum("areaVertical");
+    const diff = Math.abs(total - somaPartes);
+    const obsAtual = campos["observacoes"]?.valor ?? "";
+    let obsExtra = "";
+    if (total > 0) {
+      if (diff <= 0.1) {
+        obsExtra = `\n\n✅ SOMATÓRIO DE ÁREAS OK: ForaFrontal(${toNum("areaForaFrontal")}) + Recuo(${toNum("areaRecuo")}) + Vertical(${toNum("areaVertical")}) = ${somaPartes.toFixed(2)} = Total(${total})`;
+      } else {
+        obsExtra = `\n\n⚠️ DIVERGÊNCIA NO SOMATÓRIO DE ÁREAS: ForaFrontal(${toNum("areaForaFrontal")}) + Recuo(${toNum("areaRecuo")}) + Vertical(${toNum("areaVertical")}) = ${somaPartes.toFixed(2)} ≠ Total(${total}). Diferença: ${diff.toFixed(2)}m². Verificar carimbo do projeto.`;
+      }
+    }
+    if (obsExtra) {
+      campos["observacoes"] = { valor: (obsAtual + obsExtra).trim(), fonte: "Validação automática" };
     }
 
     const preenchidos = Object.keys(campos).filter(k => campos[k]?.valor && campos[k]?.valor !== "NP").length;
