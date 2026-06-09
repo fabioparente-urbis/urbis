@@ -9,7 +9,7 @@ const supabaseAdmin = createClient(
 export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, documentos, codigo, fileName } = await req.json();
+    const { fileUri, documentos, codigo, fileName, pdfBase64 } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
     const { data: promptData, error: promptError } = await supabase
@@ -29,33 +29,58 @@ export async function POST(req: NextRequest) {
     const promptFinal = promptData.conteudo + ctxDocs;
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
     const apiKey = process.env.GEMINI_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
     let texto = "";
-    console.log(`[S3] Enviando para Gemini...`);
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
+
+    // Cascata: gemini-2.0-flash-exp → gemini-1.5-flash → claude-haiku
+    const modelos = ["gemini-2.0-flash-exp", "gemini-1.5-flash"];
+    let geminiOk = false;
+    for (const modelo of modelos) {
+      console.log(`[S3] Tentando ${modelo}...`);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (texto) { geminiOk = true; console.log(`[S3] OK com ${modelo}`); break; }
+      }
+      console.log(`[S3] ${modelo} falhou (status ${res.status}), tentando próximo...`);
+    }
+
+    // Fallback Claude Haiku
+    if (!geminiOk) {
+      if (!pdfBase64) {
+        return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
+      }
+      console.log("[S3] Fallback para Claude Haiku...");
+      const claudeRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-api-key": anthropicKey!, "anthropic-version": "2023-06-01" },
         body: JSON.stringify({
-          contents: [{
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4000,
+          messages: [{
             role: "user",
-            parts: [
-              { fileData: { mimeType: "application/pdf", fileUri } },
-              { text: promptFinal },
+            content: [
+              { type: "document", source: { type: "base64", media_type: "application/pdf", data: pdfBase64 } },
+              { type: "text", text: promptFinal },
             ],
           }],
         }),
-      }
-    );
-    if (!res.ok) {
-      const errText = await res.text();
-      if (res.status === 429) {
-        return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
-      }
-      throw new Error(errText);
+      });
+      if (!claudeRes.ok) throw new Error("Claude fallback falhou: " + await claudeRes.text());
+      const claudeData = await claudeRes.json();
+      texto = claudeData.content?.[0]?.text?.trim() ?? "";
+      console.log("[S3] Claude Haiku respondeu.");
     }
-    const data = await res.json();
-    texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
     const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
     const dados = JSON.parse(clean);

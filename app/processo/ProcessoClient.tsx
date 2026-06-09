@@ -493,10 +493,15 @@ export default function ProcessoClient() {
           registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_INICIADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name } });
           setProgresso(70);
           mostrarToast("🧠 S3: Preenchendo LIP com IA...", "info");
+          const pdfBase64 = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res((r.result as string).split(",")[1]);
+            r.readAsDataURL(arquivo);
+          });
           const s3Res = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name }),
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64 }),
           });
           const s3Data = await s3Res.json();
           if (!s3Data.ok) {
@@ -598,7 +603,12 @@ export default function ProcessoClient() {
         if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
         const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri }) });
         const s2Data = await s2Res.json();
-        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name }) });
+        const pdfBase64vcp = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res((r.result as string).split(",")[1]);
+            r.readAsDataURL(arquivo);
+          });
+          const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp }) });
         const s3Data = await s3Res.json();
         return { nome: arquivo.name, tipo: detectarTipoArquivo(arquivo.name), sei: extrairSEIArquivo(arquivo.name), campos: s3Data.campos ?? {} };
       }));
