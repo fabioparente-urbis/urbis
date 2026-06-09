@@ -183,6 +183,10 @@ export default function ProcessoClient() {
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
+  const [modalVCP, setModalVCP] = useState(false);
+  const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
+  const [vcpProcessando, setVcpProcessando] = useState(false);
+  const [vcpDragOver, setVcpDragOver] = useState(false);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
   const [mostrarPendentes, setMostrarPendentes] = useState(false);
@@ -552,6 +556,89 @@ export default function ProcessoClient() {
     }
   }
 
+  function detectarTipoArquivo(nome: string): string {
+    const n = nome.toUpperCase();
+    if (n.includes("VISTORIA") || n.includes("FISCAL")) return "VISTORIA";
+    if (n.includes("USO")) return "USO_SOLO";
+    if (n.includes("CHEADV")) return "CHEADV";
+    if (n.includes("PROJETO") || n.includes("LEVANTAMENTO") || n.includes("PLANTA")) return "PROJETO";
+    if (n.includes("CERTIDAO") || n.includes("CERTIDÃO") || n.includes("MATRICULA")) return "CERTIDAO";
+    if (n.includes("ART") || n.includes("RRT")) return "ART";
+    if (n.includes("LAUDO")) return "LAUDO";
+    if (n.includes("BUSCA")) return "BUSCA";
+    if (n.includes("EMBARGO")) return "EMBARGO";
+    if (n.includes("ONEROSA") || n.includes("OUTORGA")) return "ONEROSA";
+    if (n.includes("PROCURACAO") || n.includes("PROCURAÇÃO")) return "PROCURACAO";
+    if (n.includes("DESPACHO")) return "DESPACHO";
+    return "OUTRO";
+  }
+
+  function extrairSEIArquivo(nome: string): string | null {
+    const m = nome.match(/\b(\d{7,})\b/);
+    return m ? m[1] : null;
+  }
+
+  async function processarVCP() {
+    if (vcpArquivos.length === 0) return;
+    setVcpProcessando(true);
+    setModalVCP(false);
+    try {
+      mostrarToast(`📄 VCP: Processando ${vcpArquivos.length} arquivo(s)...`, "info");
+      // 1. Processar cada PDF via S1→S2→S3
+      const resultados = await Promise.all(vcpArquivos.map(async (arquivo) => {
+        setProgresso(10);
+        const s1Res = await fetch("/api/lip/s1", {
+          method: "POST",
+          headers: { "Content-Type": "application/pdf", "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
+          body: arquivo,
+        });
+        const s1Data = await s1Res.json();
+        if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri }) });
+        const s2Data = await s2Res.json();
+        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name }) });
+        const s3Data = await s3Res.json();
+        return { nome: arquivo.name, tipo: detectarTipoArquivo(arquivo.name), sei: extrairSEIArquivo(arquivo.name), campos: s3Data.campos ?? {} };
+      }));
+      setProgresso(80);
+      mostrarToast("🔍 VCP: Cruzando dados entre documentos...", "info");
+      // 2. Mesclar campos no LIP
+      const mesclado: Record<string, { valor: string; fonte: string }> = {};
+      for (const { campos } of resultados) {
+        for (const chave of Object.keys(campos)) {
+          const item = campos[chave];
+          if (!mesclado[chave]?.valor && item?.valor && item.valor !== "NP") mesclado[chave] = item;
+        }
+      }
+      // 3. S4 — cruzamento
+      const s4Res = await fetch("/api/lip/s4", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ arquivos: resultados }) });
+      const s4Data = await s4Res.json();
+      setProgresso(95);
+      // 4. Salvar campos mesclados + OBS
+      setD((prev) => {
+        const novo = { ...prev };
+        Object.keys(mesclado).forEach((chave) => {
+          const item = mesclado[chave];
+          if (!item?.valor) return;
+          novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+        });
+        if (s4Data.ok && s4Data.obsTexto) {
+          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + s4Data.obsTexto : s4Data.obsTexto, origem: "urbis", fonte: "VCP" };
+        }
+        autoSalvar(novo);
+        return novo;
+      });
+      const total = s4Data.total ?? 0;
+      mostrarToast(total > 0 ? `⚠️ VCP concluído: ${total} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
+    } catch (e: any) {
+      mostrarToast("❌ VCP: " + e.message, "erro");
+    } finally {
+      setVcpProcessando(false);
+      finalizarProgresso();
+    }
+  }
+
   async function handleDespachoInterno() {
     setGerandoDI(true);
     try {
@@ -779,6 +866,51 @@ export default function ProcessoClient() {
           </div>
         </div>
       )}
+      {modalVCP && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setModalVCP(false)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Verificação Cruzada de PDFs</h2>
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              ⚠️ Nomeie os arquivos indicando o tipo e o número SEI do documento.<br/>
+              Exemplos: <span className="font-mono text-[var(--accent)]">VISTORIA 9184440.pdf</span>, <span className="font-mono text-[var(--accent)]">USO 6979846.pdf</span>, <span className="font-mono text-[var(--accent)]">CHEADV 9045907.pdf</span>, <span className="font-mono text-[var(--accent)]">PROJETO 8792319.pdf</span>
+            </p>
+            <div
+              className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition-colors ${vcpDragOver ? "border-[var(--accent)] bg-[var(--accent)]/10" : "border-[var(--border)] hover:border-[var(--accent)]"}`}
+              onDragOver={e => { e.preventDefault(); setVcpDragOver(true); }}
+              onDragLeave={() => setVcpDragOver(false)}
+              onDrop={e => { e.preventDefault(); setVcpDragOver(false); const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith(".pdf")); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); }}
+            >
+              <p className="text-[var(--text-secondary)] text-sm mb-2">Arraste os PDFs aqui</p>
+              <label className="cursor-pointer text-xs text-[var(--accent)] underline">
+                ou clique para selecionar
+                <input type="file" accept=".pdf" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); e.target.value = ""; }} />
+              </label>
+            </div>
+            {vcpArquivos.length > 0 && (
+              <div className="mb-4 max-h-48 overflow-y-auto space-y-1">
+                {vcpArquivos.map((f, i) => {
+                  const n = f.name.toUpperCase();
+                  const tipo = n.includes("VISTORIA")||n.includes("FISCAL") ? "VISTORIA" : n.includes("USO") ? "USO_SOLO" : n.includes("CHEADV") ? "CHEADV" : n.includes("PROJETO")||n.includes("LEVANTAMENTO") ? "PROJETO" : n.includes("CERTIDAO")||n.includes("CERTIDÃO") ? "CERTIDAO" : n.includes("ART")||n.includes("RRT") ? "ART" : n.includes("LAUDO") ? "LAUDO" : n.includes("BUSCA") ? "BUSCA" : n.includes("EMBARGO") ? "EMBARGO" : n.includes("ONEROSA") ? "ONEROSA" : "OUTRO";
+                  const sei = f.name.match(/\b(\d{7,})\b/)?.[1] ?? null;
+                  return (
+                    <div key={i} className="flex items-center justify-between bg-[var(--bg-secondary)] rounded px-3 py-1.5 text-xs">
+                      <span className="text-[var(--text-primary)] truncate max-w-[60%]">{f.name}</span>
+                      <span className="text-[var(--accent)] font-mono ml-2">{tipo}{sei ? ` · ${sei}` : " · sem SEI"}</span>
+                      <button onClick={() => setVcpArquivos(prev => prev.filter((_, j) => j !== i))} className="ml-2 text-[var(--text-muted)] hover:text-red-400">✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setModalVCP(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Cancelar</button>
+              <button disabled={vcpArquivos.length === 0} onClick={processarVCP} className={`px-4 py-2 rounded font-bold text-sm ${vcpArquivos.length === 0 ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"}`}>
+                🔍 Processar e cruzar ({vcpArquivos.length} arquivo{vcpArquivos.length !== 1 ? "s" : ""})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {modalDI && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
@@ -971,15 +1103,13 @@ export default function ProcessoClient() {
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
-              {lendoLip ? "⏳ Lendo..." : "📎 Múltiplos arquivos"}
-              <input type="file" accept=".pdf" multiple className="hidden" disabled={lendoLip}
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  if (files.length > 0) lerLip(files);
-                  e.target.value = "";
-                }} />
-            </label>
+            <button
+              disabled={lendoLip}
+              onClick={() => { setVcpArquivos([]); setModalVCP(true); }}
+              className={`px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}
+            >
+              📎 Múltiplos arquivos
+            </button>
           </div>
         </div>
       </div>
