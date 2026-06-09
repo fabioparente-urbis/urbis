@@ -562,6 +562,15 @@ export default function ProcessoClient() {
       mostrarToast(`✅ LIP preenchido! ${preenchidos} campos extraídos.`, "sucesso");
     } catch (e: any) {
       mostrarToast("❌ Erro: " + e.message, "erro");
+      const agoraErr = new Date().toLocaleString("pt-BR");
+      setD((prev) => {
+        const novo = { ...prev };
+        const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
+        const linhaErro = `❌ ERRO NA LEITURA (${agoraErr}): ${e.message}`;
+        novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n" + linhaErro : linhaErro, origem: "urbis", fonte: "LIP" };
+        autoSalvar(novo);
+        return novo;
+      });
     } finally {
       if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
       setTempoLeitura(t => {
@@ -719,6 +728,15 @@ export default function ProcessoClient() {
       mostrarToast(totalInc > 0 ? `⚠️ VCP concluído: ${totalInc} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
     } catch (e: any) {
       mostrarToast("❌ VCP: " + e.message, "erro");
+      const agoraErrVCP = new Date().toLocaleString("pt-BR");
+      setD((prev) => {
+        const novo = { ...prev };
+        const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
+        const linhaErro = `❌ ERRO VCP (${agoraErrVCP}): ${e.message}`;
+        novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n" + linhaErro : linhaErro, origem: "urbis", fonte: "VCP" };
+        autoSalvar(novo);
+        return novo;
+      });
     } finally {
       if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
       setVcpProcessando(false);
