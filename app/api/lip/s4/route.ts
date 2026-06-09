@@ -133,6 +133,51 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Mapeamento campo -> aba do LIP
+    const campoAba: Record<string, string> = {
+      "interessado/proprietário": "Aba 1 - Identificação",
+      "proprietario": "Aba 1 - Identificação",
+      "endereço (quadra/lote)": "Aba 1 - Identificação",
+      "quadra": "Aba 1 - Identificação",
+      "lote": "Aba 1 - Identificação",
+      "cau": "Aba 1 - Identificação",
+      "areaTotal": "Aba 2 - Áreas",
+      "areaForaFrontal": "Aba 2 - Áreas",
+      "areaRecuo": "Aba 2 - Áreas",
+      "areaVertical": "Aba 2 - Áreas",
+      "somatório de áreas": "Aba 2 - Áreas",
+      "usoSolo": "Aba 3 - Uso do Solo",
+      "faixa": "Aba 3 - Uso do Solo",
+      "corredor": "Aba 3 - Uso do Solo",
+      "caixa": "Aba 4 - Urbanístico",
+      "volMin": "Aba 4 - Urbanístico",
+      "volAt": "Aba 4 - Urbanístico",
+      "caixas": "Aba 4 - Urbanístico",
+      "onerosa": "Aba 6 - Processo",
+      "numero_do_sei_da_onerosa": "Aba 6 - Processo",
+      "embargo": "Aba 6 - Processo",
+      "seiProcuracao": "Aba 7 - Documentos",
+      "procuracao": "Aba 7 - Documentos",
+      "seiEmbargo": "Aba 7 - Documentos",
+    };
+
+    // Montar sugestões VCP para o frontend (campo -> [opcao1, opcao2])
+    const sugestoesVCP: Record<string, { opcoes: string[]; descricao: string }> = {};
+    for (const i of inc) {
+      if (i.tipo === "DIVERGÊNCIA") {
+        if (i.campo === "interessado/proprietário") {
+          const vals = [...new Set(nomes.map(n => n.nome))];
+          sugestoesVCP["proprietario"] = { opcoes: vals, descricao: i.descricao };
+        }
+        if (i.campo === "endereço (quadra/lote)") {
+          const qVals = [...new Set(enderecos.map(e => e.quadra).filter(Boolean))];
+          const lVals = [...new Set(enderecos.map(e => e.lote).filter(Boolean))];
+          if (qVals.length > 1) sugestoesVCP["quadra"] = { opcoes: qVals, descricao: i.descricao };
+          if (lVals.length > 1) sugestoesVCP["lote"] = { opcoes: lVals, descricao: i.descricao };
+        }
+      }
+    }
+
     // Montar texto OBS
     const data = new Date().toLocaleDateString("pt-BR");
     const linhas: string[] = [];
@@ -144,7 +189,8 @@ export async function POST(req: NextRequest) {
       linhas.push(`⚠️ ${inc.length} inconsistência(s) encontrada(s):`);
       for (const i of inc) {
         const icone = i.tipo === "ERRO" ? "❌" : i.tipo === "DIVERGÊNCIA" ? "⚠️" : "ℹ️";
-        linhas.push(`${icone} [${i.tipo}] ${i.campo}: ${i.descricao}`);
+        const aba = campoAba[i.campo] ?? "";
+        linhas.push(`${icone} [${i.tipo}] ${i.campo}${aba ? " (" + aba + ")" : ""}: ${i.descricao}`);
         if (i.docs?.length) linhas.push(`   Docs: ${i.docs.join(", ")}`);
       }
     } else {
@@ -155,6 +201,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       obsTexto: linhas.join("\n"),
       inconsistencias: inc,
+      sugestoesVCP,
       total: inc.length,
     });
 

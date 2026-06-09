@@ -669,6 +669,14 @@ export default function ProcessoClient() {
           const item = mesclado[chave];
           if (item?.valor && item.valor !== "NP") sugestoes[chave] = item.valor;
         });
+        // Sugestões do S4 (divergências) — primeira opção diferente do valor atual
+        if (s4Data.sugestoesVCP) {
+          for (const [chave, info] of Object.entries(s4Data.sugestoesVCP as Record<string, { opcoes: string[]; descricao: string }>)) {
+            const valAtual = (d[chave]?.valor ?? "").toUpperCase();
+            const opcaoDiferente = info.opcoes.find(o => o.toUpperCase() !== valAtual);
+            if (opcaoDiferente) sugestoes[chave] = opcaoDiferente;
+          }
+        }
         setVcpSugestoes(sugestoes);
         setD((prev) => {
           const novo = { ...prev };
