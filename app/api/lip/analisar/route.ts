@@ -69,7 +69,7 @@ EDIFICAÇÃO (fonte: carimbo da planta):
 
 USO DO SOLO (fonte: documento "Informação de Uso do Solo – COMTEC"):
 - tipoUso: tipo de uso (ex: "APROVAÇÃO DE PROJETO")
-- usoDefinido: "Sim" se uso definido, "Não" se "SEM USO DEFINIDO"
+- usoDefinido: "Sim" se o documento de Uso do Solo contiver a expressão "SEM USO DEFINIDO" ou "ATIVIDADE ECONÔMICA SEM USO DEFINIDO" ou "EMPREENDIMENTO COM USO NÃO DEFINIDO"; "Não" se houver uso definido (CNAE específico listado)
 - numeroUso: número SEI do Uso do Solo — 7 dígitos entre parênteses
 - vistoriaUnidadeTerritorial: unidade territorial (ex: "ÁREA DE ADENSAMENTO BÁSICO - AAB")
 - cnae1 a cnae5: descrição do CNAE ou "NP"
