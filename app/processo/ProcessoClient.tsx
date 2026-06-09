@@ -186,6 +186,8 @@ export default function ProcessoClient() {
   const [modalVCP, setModalVCP] = useState(false);
   const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
   const [vcpProcessando, setVcpProcessando] = useState(false);
+  const [tempoLeitura, setTempoLeitura] = useState(0); // segundos
+  const tempoLeituraRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [vcpDragOver, setVcpDragOver] = useState(false);
   const [vcpSugestoes, setVcpSugestoes] = useState<Record<string, string>>({});
   const [vcpModo, setVcpModo] = useState<"substituir"|"sugerir"|null>(null);
@@ -589,27 +591,34 @@ export default function ProcessoClient() {
     if (vcpArquivos.length === 0) return;
     setVcpProcessando(true);
     setModalVCP(false);
+    setTempoLeitura(0);
+    tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
     try {
       mostrarToast(`📄 VCP: Processando ${vcpArquivos.length} arquivo(s)...`, "info");
-      // 1. Processar cada PDF via Claude direto (s3-claude)
+      // 1. Processar cada PDF via Gemini serializado (S1→S2→S3)
       const total = vcpArquivos.length;
       const resultados: { nome: string; tipo: string; sei: string | null; campos: Record<string, any> }[] = [];
       for (let i = 0; i < total; i++) {
         const arquivo = vcpArquivos[i];
         setProgresso(Math.round(10 + (i / total) * 60));
-        mostrarToast(`🤖 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
-        const pdfBase64 = await new Promise<string>((res) => {
+        mostrarToast(`📄 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
+        const s1Res = await fetch("/api/lip/s1", {
+          method: "POST",
+          headers: { "Content-Type": "application/pdf", "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
+          body: arquivo,
+        });
+        const s1Data = await s1Res.json();
+        if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri }) });
+        const s2Data = await s2Res.json();
+        const pdfBase64vcp = await new Promise<string>((res) => {
           const r = new FileReader();
           r.onload = () => res((r.result as string).split(",")[1]);
           r.readAsDataURL(arquivo);
         });
-        const s3Res = await fetch("/api/lip/s3-claude", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ pdfBase64, codigo: idUrl, fileName: arquivo.name }),
-        });
+        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp }) });
         const s3Data = await s3Res.json();
-        if (!s3Data.ok) throw new Error(`Claude: ${s3Data.erro || "Erro na extração"}`);
+        if (!s3Data.ok) throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
         resultados.push({
           nome: arquivo.name,
           tipo: detectarTipoArquivo(arquivo.name),
@@ -667,12 +676,25 @@ export default function ProcessoClient() {
           return novo;
         });
       }
+      // Gravar tempo na OBS
+      const tempoFinal = tempoLeitura;
+      const mm = String(Math.floor(tempoFinal / 60)).padStart(2, '0');
+      const ss = String(tempoFinal % 60).padStart(2, '0');
+      setD((prev) => {
+        const novo = { ...prev };
+        const obsAtual = (novo['observacoes']?.valor ?? '').trim();
+        const linhaTemp = `⏱ VCP concluído em ${mm}:${ss} — ${vcpArquivos.length} arquivo(s) lido(s).`;
+        novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n\n\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'VCP' };
+        autoSalvar(novo);
+        return novo;
+      });
       setVcpModo(null);
       const totalInc = s4Data.total ?? 0;
       mostrarToast(totalInc > 0 ? `⚠️ VCP concluído: ${totalInc} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
     } catch (e: any) {
       mostrarToast("❌ VCP: " + e.message, "erro");
     } finally {
+      if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
       setVcpProcessando(false);
       finalizarProgresso();
     }
@@ -1177,7 +1199,10 @@ export default function ProcessoClient() {
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4">
           <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
             <span>🤖 Lendo PDF com IA...</span>
-            <span>{progresso}%</span>
+            <span className="flex gap-2">
+              <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
+              <span>{progresso}%</span>
+            </span>
           </div>
           <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
             <div className="bg-purple-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
