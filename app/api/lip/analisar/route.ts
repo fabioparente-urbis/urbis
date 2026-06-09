@@ -98,22 +98,22 @@ PROCESSO E SEIs ESPECÍFICOS:
 - onerosa: verificar se há documento de pagamento/cálculo de outorga onerosa no processo; "Sim" se encontrado OU se área construída ≥ área do lote E altura do terreno à laje/forro ≥ 7,5m nos cortes; "Não" se não houver documento e condições não atendidas; "NP" se não for possível determinar
 - numero_do_sei_da_onerosa: SEI (7 dígitos entre parênteses) do documento de cálculo/pagamento da outorga onerosa — "NP" se onerosa = Não
 
-VISTORIA (fonte: última vistoria fiscal — "Relatório de Visita Técnica" ou "Termo de Vistoria Fiscal"):
-- vistoriaAreaComercial: área ocupada pela atividade comercial em m² (só número)
-- vistoriaMais12m: "Sim" se altura > 12m, "Não" se não
-- vistoriaOcupaRecuo: "Sim" se ocupa recuo frontal, "Não" se não
-- vistoriaEstruturaConcluida: "Sim" se estrutura e telhado concluídos, "Não" se não
-- vistoriaAltMax21m: "Sim" se altura máxima ≤ 21m, "Não" se não
-- vistoriaOcupaPublica: "Sim" se ocupa área pública, "Não" se não
-- vistoriaAreaAeroportuaria: "Sim" se em área aeroportuária, "Não" se não
-- vistoriaAreaMilitar: "Sim" se em área militar, "Não" se não
-- vistoriaAguasPluviais: "Sim" se lança águas pluviais internamente, "Não" se não
-- vistoriaEsquadriaDivisa: "Sim" se há abertura de esquadrias na divisa, "Não" se não
-- vistoriaCalcadas: "Sim" se respeita calçadas, "Não" se não
-- vistoriaLevante: "Sim" se levantamento confere com vistoria, "Não" se não
-- vistoriaMultaVerticalizacao: "Sim" se há multa de verticalização, "Não" se não
-- vistoriaMultaRecuo: "Sim" se há multa de recuo frontal, "Não" se não
-- vistoriaMax7Pav: "Sim" se máximo 7 pavimentos, "Não" se não
+VISTORIA (fonte: última vistoria fiscal — buscar documento "Relatório de Visita Técnica", "Termo de Vistoria Fiscal" ou "Relatório Fiscal"; ler todas as perguntas e respostas do documento):
+- vistoriaAreaComercial: área ocupada pela atividade comercial em m² (só número) — buscar "ÁREA COMERCIAL", "ÁREA DA ATIVIDADE"; "NP" se não houver
+- vistoriaMais12m: "Sim" se altura > 12m conforme vistoria, "Não" se não — padrão "Não"
+- vistoriaOcupaRecuo: "Sim" se ocupa recuo frontal, "Não" se não — padrão "Não"
+- vistoriaEstruturaConcluida: "Sim" se estrutura/telhado/cobertura concluídos (buscar "ÁREA OBJETO DO ALVARÁ ESTÁ CONCLUÍDA? : Sim" ou similar), "Não" se não — padrão "Não"
+- vistoriaAltMax21m: "Sim" se altura máxima ≤ 21m, "Não" se não — padrão "Sim"
+- vistoriaOcupaPublica: "Sim" se ocupa área pública, "Não" se não — padrão "Não"
+- vistoriaAreaAeroportuaria: "Sim" se em área aeroportuária, "Não" se não — padrão "Não"
+- vistoriaAreaMilitar: "Sim" se em área militar, "Não" se não — padrão "Não"
+- vistoriaAguasPluviais: "Sim" se os lançamentos de águas pluviais ATENDEM as normas (buscar "lançamentos de aguas pluviais atendem as normas? : Sim"), "Não" se não atendem — padrão "Sim"
+- vistoriaEsquadriaDivisa: "Sim" se há abertura de esquadrias na divisa, "Não" se não — padrão "Não"
+- vistoriaCalcadas: "Sim" se calçada está regular/respeita normas (buscar "calçada está Regular? : Sim" ou "Calçada ESTÁ construída"), "Não" se não — padrão "Não"
+- vistoriaLevante: "Sim" se levantamento confere com vistoria (buscar "confere integralmente com o Levantamento Arquitetônico? : Sim"), "Não" se não — padrão "Não"
+- vistoriaMultaVerticalizacao: "Sim" se há multa de verticalização, "Não" se não — padrão "Não"
+- vistoriaMultaRecuo: "Sim" se há multa de recuo frontal, "Não" se não — padrão "Não"
+- vistoriaMax7Pav: "Sim" se máximo 7 pavimentos, "Não" se não — padrão "Sim"
 
 OBSERVAÇÕES:
 - observacoes: relatório em texto com: 1) STATUS da leitura desta janela 2) INVENTÁRIO dos documentos identificados (tipo | código SEI | páginas) 3) INCOMPATIBILIDADES entre documentos 4) ALERTAS
