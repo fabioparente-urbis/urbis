@@ -51,7 +51,7 @@ RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 - areaRecuo: "ÁREA A SER REGULARIZADA QUE OCUPA RECUO FRONTAL"
 - areaTerreno: "ÁREA DO LOTE" ou "ÁREA DO TERRENO" (só o número)
 - areaImpermeavel: "ÁREA IMPERMEÁVEL" (só o número em m²)
-- areaAprovada: área existente já aprovada anteriormente, se houver
+- areaAprovada: área existente já aprovada anteriormente — buscar no carimbo do projeto campos como "ÁREA EXISTENTE APROVADA", "ÁREA JÁ APROVADA", "ÁREA APROVADA ANTERIORMENTE", "ÁREA EXISTENTE" (só o número em m²); "NP" se não houver
 - areaVertical: "ÁREA A SER REGULARIZADA EM EDIFICAÇÃO VERTICAL" (só o número em m²) — preencher APENAS se nos cortes do projeto a altura da edificação (do terreno mais baixo até a laje de cobertura) for SUPERIOR a 12m; neste caso areaForaFrontal fica zerado e a área normal passa para este campo com multa específica de verticalização; "NP" se altura ≤ 12m
 
 CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
@@ -65,7 +65,7 @@ CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
 EDIFICAÇÃO (fonte: carimbo da planta):
 - pav: número de pavimentos (térreo = "1", dois pavimentos = "2")
 - unid: número de unidades (só número)
-- existente: "Sim" ou "Não" — se há área existente aprovada
+- existente: "Sim" se no carimbo do projeto houver campo de área existente aprovada preenchido com valor numérico (areaAprovada preenchido); "Não" se não houver nenhuma indicação de área existente aprovada no carimbo
 
 USO DO SOLO (fonte: documento "Informação de Uso do Solo – COMTEC"):
 - tipoUso: tipo de uso (ex: "APROVAÇÃO DE PROJETO")
