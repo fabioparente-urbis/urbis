@@ -55,12 +55,12 @@ RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 - areaVertical: "ÁREA A SER REGULARIZADA EM EDIFICAÇÃO VERTICAL" (só o número em m²) — preencher APENAS se nos cortes do projeto a altura da edificação (do terreno mais baixo até a laje de cobertura) for SUPERIOR a 12m; neste caso areaForaFrontal fica zerado e a área normal passa para este campo com multa específica de verticalização; "NP" se altura ≤ 12m
 
 CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
-- corredor: "Sim" se mencionar corredor viário, "Não" se não
-- faixa: faixa de ampliação do corredor (ex: "5m") — "NP" se corredor = Não
-- caixa: "Sim" se houver caixa de infiltração/recarga, "Não" se não
-- volMin: volume mínimo da caixa em m³ — "NP" se caixa = Não
-- volAt: volume atendido em m³ — "NP" se caixa = Não
-- caixas: número de caixas — "NP" se caixa = Não
+- corredor: buscar no documento de Uso do Solo a linha "CORREDOR VIÁRIO: SIM" ou "CORREDOR VIÁRIO: NÃO"; retornar "Sim" ou "Não" conforme indicado; se não encontrar a linha, retornar "Não"
+- faixa: faixa de ampliação do corredor em metros (ex: "5m") — preencher APENAS se corredor = Sim E houver certidão de corredor no processo; "NP" se corredor = Não
+- caixa: "Sim" se no carimbo do projeto houver indicação de caixa de infiltração/recarga, memorial de cálculo de caixa, volume em m³, ou se área construída total > 250m²; buscar termos como "CAIXA", "VOLUME", "m³", "INFILTRAÇÃO", "RECARGA" no carimbo; "Não" se não houver nenhuma dessas indicações
+- volMin: volume mínimo da caixa em m³ (só número) — "NP" se caixa = Não
+- volAt: volume atendido em m³ (só número) — "NP" se caixa = Não
+- caixas: número de caixas (só número) — "NP" se caixa = Não
 
 EDIFICAÇÃO (fonte: carimbo da planta):
 - pav: número de pavimentos (térreo = "1", dois pavimentos = "2")
