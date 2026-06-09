@@ -167,7 +167,9 @@ export async function POST(req: NextRequest) {
       if (i.tipo === "DIVERGÊNCIA") {
         if (i.campo === "interessado/proprietário") {
           const vals = [...new Set(nomes.map(n => n.nome))];
-          sugestoesVCP["proprietario"] = { opcoes: vals, descricao: i.descricao };
+          // Coloca o valor divergente (não-base) primeiro
+          const valsOrdenados = vals.length > 1 ? [vals[vals.length - 1], ...vals.slice(0, vals.length - 1)] : vals;
+          sugestoesVCP["proprietario"] = { opcoes: valsOrdenados, descricao: i.descricao };
         }
         if (i.campo === "endereço (quadra/lote)") {
           const qVals = [...new Set(enderecos.map(e => e.quadra).filter(Boolean))];
