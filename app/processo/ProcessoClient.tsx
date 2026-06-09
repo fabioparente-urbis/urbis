@@ -591,27 +591,32 @@ export default function ProcessoClient() {
     setModalVCP(false);
     try {
       mostrarToast(`📄 VCP: Processando ${vcpArquivos.length} arquivo(s)...`, "info");
-      // 1. Processar cada PDF via S1→S2→S3
-      const resultados = await Promise.all(vcpArquivos.map(async (arquivo) => {
-        setProgresso(10);
-        const s1Res = await fetch("/api/lip/s1", {
-          method: "POST",
-          headers: { "Content-Type": "application/pdf", "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
-          body: arquivo,
+      // 1. Processar cada PDF via Claude direto (s3-claude)
+      const total = vcpArquivos.length;
+      const resultados: { nome: string; tipo: string; sei: string | null; campos: Record<string, any> }[] = [];
+      for (let i = 0; i < total; i++) {
+        const arquivo = vcpArquivos[i];
+        setProgresso(Math.round(10 + (i / total) * 60));
+        mostrarToast(`🤖 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
+        const pdfBase64 = await new Promise<string>((res) => {
+          const r = new FileReader();
+          r.onload = () => res((r.result as string).split(",")[1]);
+          r.readAsDataURL(arquivo);
         });
-        const s1Data = await s1Res.json();
-        if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
-        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri }) });
-        const s2Data = await s2Res.json();
-        const pdfBase64vcp = await new Promise<string>((res) => {
-            const r = new FileReader();
-            r.onload = () => res((r.result as string).split(",")[1]);
-            r.readAsDataURL(arquivo);
-          });
-          const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp }) });
+        const s3Res = await fetch("/api/lip/s3-claude", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pdfBase64, codigo: idUrl, fileName: arquivo.name }),
+        });
         const s3Data = await s3Res.json();
-        return { nome: arquivo.name, tipo: detectarTipoArquivo(arquivo.name), sei: extrairSEIArquivo(arquivo.name), campos: s3Data.campos ?? {} };
-      }));
+        if (!s3Data.ok) throw new Error(`Claude: ${s3Data.erro || "Erro na extração"}`);
+        resultados.push({
+          nome: arquivo.name,
+          tipo: detectarTipoArquivo(arquivo.name),
+          sei: extrairSEIArquivo(arquivo.name),
+          campos: s3Data.campos ?? {},
+        });
+      }
       setProgresso(80);
       mostrarToast("🔍 VCP: Cruzando dados entre documentos...", "info");
       // 2. Mesclar campos no LIP
@@ -663,8 +668,8 @@ export default function ProcessoClient() {
         });
       }
       setVcpModo(null);
-      const total = s4Data.total ?? 0;
-      mostrarToast(total > 0 ? `⚠️ VCP concluído: ${total} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
+      const totalInc = s4Data.total ?? 0;
+      mostrarToast(totalInc > 0 ? `⚠️ VCP concluído: ${totalInc} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
     } catch (e: any) {
       mostrarToast("❌ VCP: " + e.message, "erro");
     } finally {
