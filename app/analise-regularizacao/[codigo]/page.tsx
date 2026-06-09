@@ -1043,8 +1043,8 @@ export default function MacPage() {
                     mostrarToast(`Erro P2: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
-                    setProgressoP2(100);
-                    setTimeout(() => setProgressoP2(0), 800);
+                    setProgressoP2(0);
+                    // removido setTimeout — zera direto no finally
                     setAnalisandoP2(false);
                     if (inputP2Ref.current) inputP2Ref.current.value = "";
                   }
