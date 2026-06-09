@@ -459,6 +459,9 @@ export default function ProcessoClient() {
   async function lerLip(arquivos: File[]) {
     try {
       setLendoLip(true);
+      setTempoLeitura(0);
+      if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
+      tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
       setProgresso(5);
       mostrarToast(`📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`, "info");
 
@@ -560,6 +563,20 @@ export default function ProcessoClient() {
     } catch (e: any) {
       mostrarToast("❌ Erro: " + e.message, "erro");
     } finally {
+      if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
+      setTempoLeitura(t => {
+        const mm = String(Math.floor(t / 60)).padStart(2, '0');
+        const ss = String(t % 60).padStart(2, '0');
+        const linhaTemp = `⏱ Leitura do processo concluída em ${mm}:${ss}.`;
+        setD((prev) => {
+          const novo = { ...prev };
+          const obsAtual = (novo['observacoes']?.valor ?? '').trim();
+          novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'LIP' };
+          autoSalvar(novo);
+          return novo;
+        });
+        return 0;
+      });
       setLendoLip(false);
       finalizarProgresso();
     }
@@ -684,7 +701,7 @@ export default function ProcessoClient() {
         const novo = { ...prev };
         const obsAtual = (novo['observacoes']?.valor ?? '').trim();
         const linhaTemp = `⏱ VCP concluído em ${mm}:${ss} — ${vcpArquivos.length} arquivo(s) lido(s).`;
-        novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n\n\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'VCP' };
+        novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'VCP' };
         autoSalvar(novo);
         return novo;
       });
@@ -787,6 +804,7 @@ export default function ProcessoClient() {
     const mostrarBotaoMaps = ehCoordenadas && temValor;
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
+    const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
     if (campo.tipo === "textarea" || campo.chave === "observacoes") {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
@@ -821,7 +839,17 @@ export default function ProcessoClient() {
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
           {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ VCP</span>}
         </label>
+        {temSugestaoVCP && (
+          <div className="mb-1 p-2 rounded border border-yellow-400 bg-yellow-50 text-xs flex items-center gap-2">
+            <span className="text-yellow-700">⚡ Sugestão VCP: <strong>{vcpSugestoes[campo.chave]}</strong></span>
+            <button onClick={() => { u(campo.chave, vcpSugestoes[campo.chave]); setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; }); }}
+              className="ml-auto px-2 py-0.5 rounded bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs">Aceitar</button>
+            <button onClick={() => setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; })}
+              className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-xs">Manter</button>
+          </div>
+        )}
         <div className="relative">
           <input value={val.valor} onFocus={() => { valorAnteriorRef.current[campo.chave] = val.valor; }} onChange={(e) => {
             const v = e.target.value;
