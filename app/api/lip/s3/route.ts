@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     let texto = "";
 
-    // Cascata: gemini-2.0-flash → gemini-1.5-flash-latest → claude-haiku
-    const modelos = ["gemini-2.0-flash", "gemini-1.5-flash-latest"];
+    // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
+    const modelos = ["gemini-2.0-flash", "gemini-1.5-flash-002"];
     let geminiOk = false;
     for (const modelo of modelos) {
       console.log(`[S3] Tentando ${modelo}...`);
