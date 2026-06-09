@@ -465,8 +465,9 @@ export default function ProcessoClient() {
       setProgresso(5);
       mostrarToast(`📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`, "info");
 
-      const resultados = await Promise.all(
-        arquivos.map(async (arquivo) => {
+      const resultados = [];
+      for (const arquivo of arquivos) {
+        resultados.push(await (async (arquivo) => {
           // 2. S1 — Upload para Gemini File API (streaming direto)
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
@@ -531,8 +532,8 @@ export default function ProcessoClient() {
             validacoes: s3Data.validacoes ?? {},
             pendencias: s3Data.pendencias ?? [],
           };
-        })
-      );
+        })(arquivo));
+      }
 
       setProgresso(90);
 
