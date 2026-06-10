@@ -53,7 +53,7 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     // 2) Carrega processo + dados
     const { data: proc } = await supabaseAdmin
       .from("processos")
-      .select("dados, analista_id, tipo_processo")
+      .select("dados, analista_id, tipo_processo, numero_processo_fisico")
       .eq("codigo", input.processo_codigo)
       
       .maybeSingle();
@@ -77,8 +77,8 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
       area_construida: metricas.area,
       bairro: metricas.bairro || null,
       setor: metricas.setor || null,
-      numero_sei: /\./.test(input.processo_codigo) ? input.processo_codigo : null,
-      numero_fisico: /^[0-9]+$/.test(input.processo_codigo) ? input.processo_codigo : null,
+      numero_sei: input.processo_codigo,
+      numero_fisico: (proc as any).numero_processo_fisico || null,
       tipo_despacho: input.tipo_despacho,
       numero_despacho: input.numero_despacho ?? null,
       numero_analise: analise?.numero_analise ?? null,
