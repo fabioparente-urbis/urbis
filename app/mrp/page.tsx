@@ -594,7 +594,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
           <Card titulo="Por faixa de área">
             <BarH dados={data.stats.por_faixa_area.map((x) => ({ label: x.faixa, value: x.count }))} />
           </Card>
-          <Card titulo="Top bairros">
+          <Card titulo="Estatísticas por Bairro">
             <table className="w-full text-sm text-gray-800">
               <thead><tr className="text-gray-500 text-xs uppercase">
                 <th className="text-left py-1">Bairro</th>
