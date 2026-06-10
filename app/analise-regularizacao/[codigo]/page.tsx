@@ -941,8 +941,8 @@ export default function MacPage() {
             </button>
           </div>
         )}
-        <div className={`flex-1 flex flex-col overflow-hidden${abaAtual === GRUPOS.length ? " hidden" : ""}`}>
-          {/* ABAS */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* ABAS — sempre visíveis */}
           <div className="flex flex-wrap gap-2 px-6 pt-4 pb-2 bg-[var(--bg-primary)]">
             {GRUPOS.map((grupo, idx) => {
               const total = checklistItens.filter((i) => i.grupo === grupo).length;
@@ -965,7 +965,7 @@ export default function MacPage() {
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className={`flex-1 overflow-y-auto px-6 pb-6${abaAtual === GRUPOS.length ? " hidden" : ""}`}>
             <div className="flex flex-wrap gap-2 pt-3 pb-1">
               <button onClick={() => marcarGrupo(grupoAtual, "conforme")}
                 className="flex items-center gap-1.5 bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
