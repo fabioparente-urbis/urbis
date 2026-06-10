@@ -40,6 +40,8 @@ export default function MacPage() {
   const [modalLimparMac, setModalLimparMac] = useState(false);
   const [progressoP2, setProgressoP2] = useState(0);
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [timerP2, setTimerP2] = useState(0);
+  const timerP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputP2Ref = useRef<HTMLInputElement>(null);
   const carregandoHistoricoRef = useRef(false);
   const [checklistItens, setChecklistItens] = useState<Item[]>([]);
@@ -1005,6 +1007,8 @@ export default function MacPage() {
                   try {
                     setAnalisandoP2(true);
                     setProgressoP2(0);
+                    setTimerP2(0);
+                    timerP2Ref.current = setInterval(() => { setTimerP2((t) => t + 1); }, 1000);
                     let p = 0;
                     progressoP2Ref.current = setInterval(() => {
                       p += Math.random() * 8 + 2;
@@ -1055,8 +1059,9 @@ export default function MacPage() {
                     mostrarToast(`Erro P2: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
+                    if (timerP2Ref.current) clearInterval(timerP2Ref.current);
                     setProgressoP2(0);
-                    // removido setTimeout — zera direto no finally
+                    setTimerP2(0);
                     setAnalisandoP2(false);
                     if (inputP2Ref.current) inputP2Ref.current.value = "";
                   }
@@ -1069,6 +1074,7 @@ export default function MacPage() {
                 <div className="flex justify-between text-xs text-indigo-300 font-semibold">
                   <span>🤖 Analisando PDF com IA...</span>
                   <span>{progressoP2}%</span>
+                  <span className="text-xs text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
                 </div>
                 <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
                   <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
