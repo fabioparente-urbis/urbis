@@ -378,28 +378,20 @@ function MrpInner() {
                 </div>
               </div>
 
-              {/* Assunto */}
+              {/* Assunto — livre com sugestões */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assunto</label>
-                {assuntos.length > 0 ? (
-                  <select
-                    value={formManual.assunto}
-                    onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
-                    className="w-full border rounded px-3 py-2 text-sm">
-                    <option value="">— selecionar —</option>
-                    {assuntos.map((a) => (
-                      <option key={a.id} value={a.nome}>{a.nome}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={formManual.assunto}
-                    onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
-                    placeholder="Assunto do processo"
-                    className="w-full border rounded px-3 py-2 text-sm"
-                  />
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Processo</label>
+                <input
+                  type="text"
+                  list="assuntos-list"
+                  value={formManual.assunto}
+                  onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
+                  placeholder="Ex.: Regularização, Aprovação..."
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+                <datalist id="assuntos-list">
+                  {assuntos.map((a) => <option key={a.id} value={a.nome} />)}
+                </datalist>
               </div>
 
               {/* Tipo de despacho + Pontos */}
@@ -974,10 +966,17 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Tipo processo</label>
-                <select value={editando.tipo_processo || ""} onChange={e => setEditando((v: any) => ({...v, tipo_processo: e.target.value}))}
-                  className="w-full border rounded px-3 py-1.5 text-sm">
-                  {["REGULARIZACAO","ACEITE","APROVACAO"].map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <input
+                  type="text"
+                  list="tipo-processo-list"
+                  value={editando.tipo_processo || ""}
+                  onChange={e => setEditando((v: any) => ({...v, tipo_processo: e.target.value}))}
+                  placeholder="Ex.: REGULARIZACAO"
+                  className="w-full border rounded px-3 py-1.5 text-sm"
+                />
+                <datalist id="tipo-processo-list">
+                  {["REGULARIZACAO","ACEITE","APROVACAO"].map(t => <option key={t} value={t} />)}
+                </datalist>
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Porte</label>
