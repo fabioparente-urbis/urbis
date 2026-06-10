@@ -99,6 +99,8 @@ export async function POST(req: NextRequest) {
     porte: body.porte ?? "GERAED",
     area_construida: Number(body.area_construida ?? 0),
     bairro: body.bairro ?? null,
+    numero_sei: body.numero_sei ?? null,
+    numero_fisico: body.numero_fisico ?? null,
     setor: body.setor ?? null,
     tipo_despacho: body.tipo_despacho,
     numero_despacho: body.numero_despacho ?? null,
@@ -134,7 +136,7 @@ export async function PUT(req: NextRequest) {
 
   const patch: any = {};
   for (const k of [
-    "interessado", "assunto", "porte", "area_construida", "bairro", "setor",
+    "interessado", "assunto", "porte", "area_construida", "bairro", "setor", "numero_sei", "numero_fisico",
     "tipo_despacho", "numero_despacho", "numero_analise", "numero_revisao",
     "data_inicio", "data_despacho", "pontos", "observacoes",
   ]) {

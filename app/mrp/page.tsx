@@ -828,8 +828,8 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
         <table className="w-full text-sm text-gray-800">
           <thead className="bg-slate-100 text-gray-700 text-xs uppercase">
             <tr>
-              <Th>Nº do Projeto</Th><Th>Interessado</Th><Th>Tipo de Processo</Th>
-              <Th>Porte do Projeto</Th><Th>Área</Th><Th>Envio</Th>
+              <Th>Nº SEI</Th><Th>Nº Físico</Th><Th>Interessado</Th><Th>Tipo de Processo</Th>
+              <Th>Porte do Projeto</Th><Th className="text-right">Área m²</Th><Th>Envio</Th>
               <Th>Data</Th><Th className="text-right">Pts</Th>
             </tr>
           </thead>
@@ -844,11 +844,12 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 : null;
               return (
                 <tr key={r.id} className="border-t hover:bg-gray-50">
-                  <Td className="font-mono text-xs">{r.processo_codigo && /^\d+$/.test(r.processo_codigo) ? `SEI-${r.processo_codigo}` : (r.processo_codigo || "—")}</Td>
+                  <Td className="font-mono text-xs">{r.numero_sei || "—"}</Td>
+                  <Td className="font-mono text-xs">{r.numero_fisico || "—"}</Td>
                   <Td>{r.interessado || "—"}</Td>
                   <Td>{r.assunto || "Regularização"}</Td>
                   <Td>{Number(r.area_construida) >= 2000 ? "Grande Porte" : "Médio Porte"}</Td>
-                  <Td>{Number(r.area_construida) <= 0 ? "—" : Number(r.area_construida) < 540 ? "Até 540 m²" : Number(r.area_construida) < 2000 ? "De 540 m² até 2.000 m²" : "Acima de 2.000 m²"}</Td>
+                  <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
                   <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
                   <Td className="text-right font-semibold">{Number(r.pontos).toFixed(1)}</Td>
@@ -869,9 +870,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           {regs.length > 0 && (
             <tfoot className="bg-slate-50 border-t font-semibold">
               <tr>
-                <Td colSpan={4} className="text-right">Total ({regs.length} despachos):</Td>
+                <Td colSpan={5} className="text-right">Total ({regs.length} despachos):</Td>
+                <Td className="text-right">{regs.reduce((a, r) => a + Number(r.area_construida ?? 0), 0).toLocaleString("pt-BR")} m²</Td>
                 <Td></Td><Td></Td>
-                <Td></Td>
                 <Td className="text-right">{(Math.round(regs.reduce((a, r) => a + Number(r.pontos ?? 0), 0) * 10) / 10).toFixed(1)} pts</Td>
               </tr>
             </tfoot>

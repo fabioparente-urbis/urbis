@@ -77,6 +77,8 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
       area_construida: metricas.area,
       bairro: metricas.bairro || null,
       setor: metricas.setor || null,
+      numero_sei: /\./.test(input.processo_codigo) ? input.processo_codigo : null,
+      numero_fisico: /^[0-9]+$/.test(input.processo_codigo) ? input.processo_codigo : null,
       tipo_despacho: input.tipo_despacho,
       numero_despacho: input.numero_despacho ?? null,
       numero_analise: analise?.numero_analise ?? null,
