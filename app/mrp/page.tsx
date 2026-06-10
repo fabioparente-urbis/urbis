@@ -19,6 +19,10 @@ type FormManual = {
   assunto: string;
   tipo_despacho: string;
   processo_codigo: string;
+  numero_fisico: string;
+  interessado: string;
+  porte: string;
+  area_construida: string;
   pontos: string;
   observacoes: string;
 };
@@ -113,6 +117,10 @@ function MrpInner() {
     assunto: "",
     tipo_despacho: "despacho",
     processo_codigo: "",
+    numero_fisico: "",
+    interessado: "",
+    porte: "MP",
+    area_construida: "",
     pontos: "2.5",
     observacoes: "",
   });
@@ -193,6 +201,10 @@ function MrpInner() {
           assunto: assuntos.length > 0 ? assuntos[0].nome : "",
           tipo_despacho: "despacho",
           processo_codigo: "",
+          numero_fisico: "",
+          interessado: "",
+          porte: "MP",
+          area_construida: "",
           pontos: "2.5",
           observacoes: "",
         });
@@ -306,9 +318,9 @@ function MrpInner() {
                 />
               </div>
 
-              {/* Número do processo */}
+              {/* Número SEI */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número do processo</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nº SEI</label>
                 <input
                   type="text"
                   value={formManual.processo_codigo}
@@ -317,6 +329,54 @@ function MrpInner() {
                   className="w-full border rounded px-3 py-2 text-sm"
                   required
                 />
+              </div>
+              {/* Número Físico */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nº Físico</label>
+                <input
+                  type="text"
+                  value={formManual.numero_fisico}
+                  onChange={(e) => setFormManual((f) => ({ ...f, numero_fisico: e.target.value }))}
+                  placeholder="Ex.: 92459732"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              {/* Interessado */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Interessado</label>
+                <input
+                  type="text"
+                  value={formManual.interessado}
+                  onChange={(e) => setFormManual((f) => ({ ...f, interessado: e.target.value }))}
+                  placeholder="Nome do interessado"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              {/* Porte + Área */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Porte</label>
+                  <select
+                    value={formManual.porte}
+                    onChange={(e) => setFormManual((f) => ({ ...f, porte: e.target.value }))}
+                    className="w-full border rounded px-3 py-2 text-sm">
+                    <option value="MP">Médio Porte</option>
+                    <option value="GERAGP">Grande Porte</option>
+                    <option value="GERECCO">GERECCO</option>
+                    <option value="GERAED">GERAED</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Área m²</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formManual.area_construida}
+                    onChange={(e) => setFormManual((f) => ({ ...f, area_construida: e.target.value }))}
+                    placeholder="Ex.: 278.70"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
 
               {/* Assunto */}
