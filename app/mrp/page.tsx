@@ -832,7 +832,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
 
   async function excluir(id: string) {
     if (!confirm("Excluir este registro? Esta ação não pode ser desfeita.")) return;
-    await fetch("/api/mrp/registros", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const res = await fetch("/api/mrp/registros", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const j = await res.json().catch(() => ({}));
+    if (!j.ok) alert("Erro ao excluir: " + (j.erro || res.status));
     carregar();
   }
 
