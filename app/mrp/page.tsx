@@ -519,11 +519,12 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
         </div>
 
         {/* Cards rápidos */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-3">
           <Kpi label="Despachos" valor={String(data.total_despachos)} />
           <Kpi label="Área m²" valor={data.area_total.toLocaleString("pt-BR")} />
           <Kpi label="Meta diária" valor={`${data.pontos_necessarios_por_dia.toFixed(1)} pts/dia`} />
           <Kpi label="Tempo méd." valor={`${data.stats.tempo_medio_analise_dias}d`} />
+          <Kpi label="Simples p/ meta" valor={data.pontos_necessarios_por_dia > 0 ? `${Math.ceil(data.pontos_necessarios_por_dia / 2.5)} proc.` : "✅"} />
         </div>
 
         {/* Calendário editável */}
