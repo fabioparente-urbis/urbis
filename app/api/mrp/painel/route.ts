@@ -111,11 +111,10 @@ export async function GET(req: NextRequest) {
     const diaCorrente = Math.min(hoje.getDate(), diasNoMes);
     const diasUteisBase = Number(calendario.dias_uteis);
     const fracBase = diaCorrente / diasNoMes;
-    const diasUteisPassados = Math.round(diasUteisBase * fracBase);
-    // Desconta apenas os feriados/ausências que caem na fração passada
-    const totalAusencias = calendario.ferias + calendario.atestado + calendario.feriados + calendario.facultativo;
-    const ausenciasPassadas = Math.round(totalAusencias * fracBase);
-    diasPassados = Math.max(0, diasUteisPassados - ausenciasPassadas);
+    // Ausências pessoais (férias/atestado) podem estar nos dias passados
+    const ausenciasPessoais = Number(calendario.ferias ?? 0) + Number(calendario.atestado ?? 0);
+    const ausenciasPassadas = Math.round(ausenciasPessoais * fracBase);
+    diasPassados = Math.max(0, Math.round(diasUteisBase * fracBase) - ausenciasPassadas);
     diasRestantes = Math.max(0, totalEfetivos - diasPassados);
   }
   if (!ehMesCorrente && diasPassados === 0 && diasRestantes === 0) {
