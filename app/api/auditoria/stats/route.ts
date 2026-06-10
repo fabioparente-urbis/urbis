@@ -72,16 +72,24 @@ export async function GET(req: NextRequest) {
   if (tipo === "tempo") {
     // Busca sessões
     let sessQ = supabaseAdmin
-      .from("auditoria_sessoes")
-      .select("*")
+      .from("urbis_sessoes")
+      .select("usuario_id, iniciada_em, encerrada_em, duracao_min, tempo_pausado")
       .gte("iniciada_em", desde.toISOString())
       .order("iniciada_em", { ascending: true });
-    if (!adminTodos) sessQ = sessQ.eq("analista_id", analistaFiltro);
+    if (!adminTodos) sessQ = sessQ.eq("usuario_id", analistaFiltro);
     const { data: sessoes } = await sessQ;
+
+    // Normaliza campos para o padrão esperado (tempo_bruto_s / tempo_liquido_s)
+    const sessoesNorm = (sessoes || []).map((s: any) => ({
+      ...s,
+      analista_id: s.usuario_id,
+      tempo_bruto_s: (s.duracao_min || 0) * 60,
+      tempo_liquido_s: Math.max(0, ((s.duracao_min || 0) - (s.tempo_pausado || 0)) * 60),
+    }));
 
     // Agrega por período
     const agg: Record<string, { bruto: number; liquido: number; idle: number }> = {};
-    for (const s of (sessoes || [])) {
+    for (const s of sessoesNorm) {
       let key = "";
       const d = new Date(s.iniciada_em);
       if (periodo === "dia")    key = `${String(d.getHours()).padStart(2,"0")}h`;
