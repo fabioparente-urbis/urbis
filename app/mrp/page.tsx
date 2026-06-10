@@ -172,8 +172,7 @@ function MrpInner() {
     setModalAberto(true);
   }
 
-  async function salvarManual(e: React.FormEvent) {
-    e.preventDefault();
+  async function salvarManual() {
     if (!formManual.processo_codigo.trim()) {
       setMsgManual("Número do processo é obrigatório.");
       return;
@@ -305,7 +304,7 @@ function MrpInner() {
                 className="text-gray-400 hover:text-gray-700 text-xl leading-none">&times;</button>
             </div>
 
-            <form onSubmit={salvarManual} className="px-6 py-5 space-y-4">
+            <div className="px-6 py-5 space-y-4">
               {/* Data */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Data</label>
@@ -453,12 +452,12 @@ function MrpInner() {
                   className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 border rounded">
                   Cancelar
                 </button>
-                <button type="submit" disabled={salvandoManual}
+                <button onClick={salvarManual} disabled={salvandoManual}
                   className="px-5 py-2 text-sm font-medium bg-amber-500 hover:bg-amber-600 text-[var(--primary-text)] rounded disabled:opacity-50">
                   {salvandoManual ? "Salvando…" : "Salvar"}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}
