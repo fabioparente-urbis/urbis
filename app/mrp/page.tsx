@@ -845,9 +845,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
               return (
                 <tr key={r.id} className="border-t hover:bg-gray-50">
                   <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
-                  <Td className="font-mono text-xs">{r.processo_codigo}</Td>
+                  <Td className="font-mono text-xs">{r.processo_codigo && /^\d+$/.test(r.processo_codigo) ? `SEI-${r.processo_codigo}` : (r.processo_codigo || "—")}</Td>
                   <Td>{r.interessado || "—"}</Td>
-                  <Td>{r.assunto || "—"}</Td>
+                  <Td>{r.assunto || "Regularização"}</Td>
                   <Td>{r.porte}</Td>
                   <Td className="text-right">{Number(r.area_construida).toLocaleString("pt-BR")}</Td>
                   <Td>{r.tipo_despacho}{r.numero_despacho ? ` ${r.numero_despacho}` : ""}{r.revisao ? " (rev)" : ""}</Td>
