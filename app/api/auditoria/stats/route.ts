@@ -73,19 +73,27 @@ export async function GET(req: NextRequest) {
     // Busca sessões
     let sessQ = supabaseAdmin
       .from("urbis_sessoes")
-      .select("usuario_id, iniciada_em, encerrada_em, duracao_min, tempo_pausado")
+      .select("usuario_id, iniciada_em, encerrada_em, ultimo_ping, duracao_min, tempo_pausado")
       .gte("iniciada_em", desde.toISOString())
       .order("iniciada_em", { ascending: true });
     if (!adminTodos) sessQ = sessQ.eq("usuario_id", analistaFiltro);
     const { data: sessoes } = await sessQ;
 
-    // Normaliza campos para o padrão esperado (tempo_bruto_s / tempo_liquido_s)
-    const sessoesNorm = (sessoes || []).map((s: any) => ({
-      ...s,
-      analista_id: s.usuario_id,
-      tempo_bruto_s: (s.duracao_min || 0) * 60,
-      tempo_liquido_s: Math.max(0, ((s.duracao_min || 0) - (s.tempo_pausado || 0)) * 60),
-    }));
+    // Calcula duração em tempo real, sem depender de duracao_min (que só é
+    // preenchido no encerramento). Sessão encerrada usa encerrada_em; sessão
+    // ativa usa ultimo_ping como fim provisório. tempo_pausado está em segundos.
+    const sessoesNorm = (sessoes || []).map((s: any) => {
+      const inicio = new Date(s.iniciada_em).getTime();
+      const fim = new Date(s.encerrada_em || s.ultimo_ping || s.iniciada_em).getTime();
+      const brutoS = Math.max(0, Math.round((fim - inicio) / 1000));
+      const pausadoS = Math.max(0, Number(s.tempo_pausado || 0));
+      return {
+        analista_id: s.usuario_id,
+        iniciada_em: s.iniciada_em,
+        tempo_bruto_s: brutoS,
+        tempo_liquido_s: Math.max(0, brutoS - pausadoS),
+      };
+    });
 
     // Agrega por período
     const agg: Record<string, { bruto: number; liquido: number; idle: number }> = {};
