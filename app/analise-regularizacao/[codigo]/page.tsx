@@ -1000,6 +1000,8 @@ export default function MacPage() {
                 onChange={async (e) => {
                   const f = e.target.files?.[0];
                   if (!f) return;
+                  const _inicioLeitura = Date.now();
+                  const _dataLeitura = new Date().toLocaleString("pt-BR");
                   try {
                     setAnalisandoP2(true);
                     setProgressoP2(0);
@@ -1037,9 +1039,19 @@ export default function MacPage() {
                       return novo;
                     });
                     const total = Object.keys(json.itens || {}).length;
+                    const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
+                    const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
+                    const _seg = String(_tempoLeitura % 60).padStart(2, "0");
+                    const _obsLeitura = `📄 Leitura PDF concluída em ${_dataLeitura} | Tempo: ${_min}:${_seg} | ${total} item(ns) sugerido(s) pela IA.`;
+                    setObservacoes((prev: string) => prev ? prev + "\n" + _obsLeitura : _obsLeitura);
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P2 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
+                    const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
+                    const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
+                    const _seg = String(_tempoLeitura % 60).padStart(2, "0");
+                    const _obsErro = `❌ Leitura PDF falhou em ${_dataLeitura} | Tempo: ${_min}:${_seg} | Motivo: ${err?.message || "falha desconhecida"}.`;
+                    setObservacoes((prev: string) => prev ? prev + "\n" + _obsErro : _obsErro);
                     mostrarToast(`Erro P2: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
