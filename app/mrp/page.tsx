@@ -248,7 +248,7 @@ function MrpInner() {
       {abaTopo === "usuario" && (
         <nav className="bg-white border-b px-8 flex items-center justify-between">
           <div className="flex gap-2">
-            {([["dashboard", "Dashboard"], ["dossie", "Dossiê do Processo"], ["listona", "Listona"]] as const).map(([k, l]) => (
+            {([["dashboard", "Dashboard"], ["listona", "Lista de Processos"], ["dossie", "Dossiê do Processo"]] as const).map(([k, l]) => (
               <button key={k} onClick={() => setAba(k)}
                 className={`px-5 py-3 text-sm font-medium border-b-2 transition ${
                   aba === k ? "border-[var(--accent-hover)] text-blue-700" : "border-transparent text-gray-500 hover:text-gray-800"
