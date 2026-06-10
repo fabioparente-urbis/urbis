@@ -1124,6 +1124,10 @@ export default function ProcessoClient() {
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             MAC →
           </button>
+          <button onClick={() => { void salvar(); window.open(`/analise-regularizacao/${encodeURIComponent(idUrl)}`, "_blank"); }}
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
+            MAC ↗
+          </button>
           <button onClick={() => setModalDI(true)}
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             📨 Despacho Interno
