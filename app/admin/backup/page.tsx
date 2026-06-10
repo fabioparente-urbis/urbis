@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 // Tela de Backup & Restauração — somente Administrador
 // ===========================================================================
 
-type Tipo = "processos" | "usuarios" | "prompts" | "config" | "tudo";
+type Tipo = "processos" | "usuarios" | "prompts" | "config" | "mrp" | "map" | "bdi" | "tudo";
 
 type Secao = {
   tipo: Tipo;
@@ -70,6 +70,30 @@ const SECOES: Secao[] = [
     prefixoArquivo: "config",
   },
   {
+    tipo: "mrp",
+    titulo: "MRP — Minha Produtividade",
+    emoji: "📊",
+    descricao: "Registros de produtividade, calendário, pontuação e painel diário.",
+    tabelas: ["mrp_registros", "mrp_calendario", "mrp_pontuacao", "mrp_painel_diario"],
+    prefixoArquivo: "mrp",
+  },
+  {
+    tipo: "map",
+    titulo: "MAP — Módulo de Auditoria",
+    emoji: "🔍",
+    descricao: "Eventos de auditoria, log de ações e sessões auditadas.",
+    tabelas: ["auditoria_eventos", "auditoria_log", "auditoria_sessoes"],
+    prefixoArquivo: "map",
+  },
+  {
+    tipo: "bdi",
+    titulo: "BDI — Banco de Dados Inteligente",
+    emoji: "🧠",
+    descricao: "Documentos de lei, fragmentos indexados e snapshots.",
+    tabelas: ["bdi_documentos_lei", "bdi_lei_fragmentos", "bdi_snapshots"],
+    prefixoArquivo: "bdi",
+  },
+  {
     tipo: "tudo",
     titulo: "Backup Geral (tudo)",
     emoji: "🗄",
@@ -113,6 +137,9 @@ export default function BackupPage() {
     usuarios: {},
     prompts: {},
     config: {},
+    mrp: {},
+    map: {},
+    bdi: {},
     tudo: {},
   });
   const inputsRef = useRef<Record<Tipo, HTMLInputElement | null>>({
@@ -120,6 +147,9 @@ export default function BackupPage() {
     usuarios: null,
     prompts: null,
     config: null,
+    mrp: null,
+    map: null,
+    bdi: null,
     tudo: null,
   });
 

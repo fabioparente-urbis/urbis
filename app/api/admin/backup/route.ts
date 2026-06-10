@@ -14,7 +14,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // Aqui mantemos o gate simples pedido no briefing.
 // ===========================================================================
 
-type Tipo = "processos" | "usuarios" | "prompts" | "config" | "tudo";
+type Tipo = "processos" | "usuarios" | "prompts" | "config" | "mrp" | "map" | "bdi" | "tudo";
 
 const TABELAS: Record<Exclude<Tipo, "tudo">, string[]> = {
   processos: [
@@ -37,6 +37,9 @@ const TABELAS: Record<Exclude<Tipo, "tudo">, string[]> = {
     "urbi_legislacao",
     "logradouros",
   ],
+  mrp: ["mrp_registros", "mrp_calendario", "mrp_pontuacao", "mrp_painel_diario"],
+  map: ["auditoria_eventos", "auditoria_log", "auditoria_sessoes"],
+  bdi: ["bdi_documentos_lei", "bdi_lei_fragmentos", "bdi_snapshots"],
 };
 
 // Ordem de import para o tipo "tudo": tabelas-pai antes das filhas, para
@@ -60,6 +63,16 @@ const ORDEM_IMPORT_TUDO: string[] = [
   "mac_historico",
   "lip_resultados",
   "processo_historico",
+  "mrp_pontuacao",
+  "mrp_calendario",
+  "mrp_painel_diario",
+  "mrp_registros",
+  "auditoria_sessoes",
+  "auditoria_log",
+  "auditoria_eventos",
+  "bdi_documentos_lei",
+  "bdi_lei_fragmentos",
+  "bdi_snapshots",
 ];
 
 function tabelasDe(tipo: Tipo): string[] {
@@ -79,6 +92,9 @@ function ehTipoValido(t: string | null): t is Tipo {
     t === "usuarios" ||
     t === "prompts" ||
     t === "config" ||
+    t === "mrp" ||
+    t === "map" ||
+    t === "bdi" ||
     t === "tudo"
   );
 }
