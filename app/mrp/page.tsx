@@ -828,10 +828,9 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
         <table className="w-full text-sm text-gray-800">
           <thead className="bg-slate-100 text-gray-700 text-xs uppercase">
             <tr>
-              <Th>Data</Th><Th>Processo</Th><Th>Interessado</Th><Th>Assunto</Th>
-              <Th>Porte</Th><Th className="text-right">Área m²</Th>
-              <Th>Despacho</Th><Th className="text-right">Pts</Th>
-              <Th className="text-right">Tempo</Th><Th>Obs.</Th>
+              <Th>Nº do Projeto</Th><Th>Interessado</Th><Th>Tipo de Processo</Th>
+              <Th>Porte do Projeto</Th><Th>Área</Th><Th>Envio</Th>
+              <Th>Data</Th><Th className="text-right">Pts</Th>
             </tr>
           </thead>
           <tbody>
@@ -845,16 +844,14 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 : null;
               return (
                 <tr key={r.id} className="border-t hover:bg-gray-50">
-                  <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
                   <Td className="font-mono text-xs">{r.processo_codigo && /^\d+$/.test(r.processo_codigo) ? `SEI-${r.processo_codigo}` : (r.processo_codigo || "—")}</Td>
                   <Td>{r.interessado || "—"}</Td>
                   <Td>{r.assunto || "Regularização"}</Td>
-                  <Td>{r.porte}</Td>
-                  <Td className="text-right">{Number(r.area_construida).toLocaleString("pt-BR")}</Td>
-                  <Td>{r.tipo_despacho}{r.numero_despacho ? ` ${r.numero_despacho}` : ""}{r.revisao ? " (rev)" : ""}</Td>
+                  <Td>{Number(r.area_construida) >= 2000 ? "Grande Porte" : "Médio Porte"}</Td>
+                  <Td>{Number(r.area_construida) <= 0 ? "—" : Number(r.area_construida) < 540 ? "Até 540 m²" : Number(r.area_construida) < 2000 ? "De 540 m² até 2.000 m²" : "Acima de 2.000 m²"}</Td>
+                  <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
+                  <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
                   <Td className="text-right font-semibold">{Number(r.pontos).toFixed(1)}</Td>
-                  <Td className="text-right">{dur !== null ? `${dur}d` : "—"}</Td>
-                  <Td className="text-xs text-gray-500">{r.observacoes || ""}</Td>
                   {isAdmin && (
                     <Td>
                       <div className="flex gap-1">
@@ -872,11 +869,10 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           {regs.length > 0 && (
             <tfoot className="bg-slate-50 border-t font-semibold">
               <tr>
-                <Td colSpan={5} className="text-right">Total ({regs.length} despachos):</Td>
-                <Td className="text-right">{regs.reduce((a, r) => a + Number(r.area_construida ?? 0), 0).toLocaleString("pt-BR")} m²</Td>
+                <Td colSpan={4} className="text-right">Total ({regs.length} despachos):</Td>
+                <Td></Td><Td></Td>
                 <Td></Td>
                 <Td className="text-right">{(Math.round(regs.reduce((a, r) => a + Number(r.pontos ?? 0), 0) * 10) / 10).toFixed(1)} pts</Td>
-                <Td colSpan={2}></Td>
               </tr>
             </tfoot>
           )}
