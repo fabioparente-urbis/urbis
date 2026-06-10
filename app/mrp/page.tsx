@@ -501,7 +501,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
             <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent)]/10 px-5 py-4 flex items-center justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Projeção para o fim do mês</div>
-                <div className="text-4xl font-black text-[var(--accent)]">{data.projecao.toFixed(1)} pts</div>
+                <div className={"text-4xl font-black " + (data.projecao >= data.meta_efetiva * 1.2 ? "text-emerald-500" : data.projecao >= data.meta_efetiva ? "text-yellow-500" : "text-rose-500")}>{data.projecao.toFixed(1)} pts</div>
                 <div className="text-xs text-[var(--text-muted)] mt-1">de {data.meta_efetiva} pts de meta efetiva</div>
               </div>
               <div className="text-right">
@@ -524,7 +524,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
           <Kpi label="Área m²" valor={data.area_total.toLocaleString("pt-BR")} />
           <Kpi label="Meta diária" valor={`${data.pontos_necessarios_por_dia.toFixed(1)} pts/dia`} />
           <Kpi label="Tempo méd." valor={`${data.stats.tempo_medio_analise_dias}d`} />
-          <Kpi label="Simples p/ meta" valor={data.pontos_necessarios_por_dia > 0 ? `${Math.ceil(data.pontos_necessarios_por_dia / 2.5)} proc.` : "✅"} />
+          <Kpi label="Simples p/ meta" valor={data.meta_efetiva > data.pontos_acumulados ? `${Math.ceil((data.meta_efetiva - data.pontos_acumulados) / 2.5)} proc.` : "—"} />
         </div>
 
         {/* Calendário editável */}
