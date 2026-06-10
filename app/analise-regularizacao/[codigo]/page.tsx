@@ -1073,8 +1073,10 @@ export default function MacPage() {
               <div className="flex flex-col gap-1 px-1 py-2">
                 <div className="flex justify-between text-xs text-indigo-300 font-semibold">
                   <span>🤖 Analisando PDF com IA...</span>
-                  <span>{progressoP2}%</span>
-                  <span className="text-xs text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
+                  <span className="flex gap-2">
+                    <span>{progressoP2}%</span>
+                    <span className="text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
+                  </span>
                 </div>
                 <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
                   <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
