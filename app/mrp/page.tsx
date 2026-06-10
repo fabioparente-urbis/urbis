@@ -185,6 +185,12 @@ function MrpInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           processo_codigo: formManual.processo_codigo.trim(),
+          numero_sei: formManual.processo_codigo.trim(),
+          numero_fisico: formManual.numero_fisico.trim() || null,
+          interessado: formManual.interessado.trim() || null,
+          porte: formManual.porte || null,
+          area_construida: Number(formManual.area_construida) || 0,
+          tipo_processo: formManual.assunto || "REGULARIZACAO",
           tipo_despacho: formManual.tipo_despacho,
           assunto: formManual.assunto || null,
           data_despacho: new Date(formManual.data_despacho + "T12:00:00").toISOString(),
