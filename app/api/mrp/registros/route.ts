@@ -90,8 +90,9 @@ export async function POST(req: NextRequest) {
   }
   const data_despacho = body.data_despacho ?? new Date().toISOString();
   const dt = new Date(data_despacho);
+  const usuarioId = body.usuario_id || ctx.userId;
   const payload = {
-    usuario_id: body.usuario_id,
+    usuario_id: usuarioId,
     processo_codigo: body.processo_codigo,
     tipo_processo: body.tipo_processo ?? "REGULARIZACAO",
     interessado: body.interessado ?? null,

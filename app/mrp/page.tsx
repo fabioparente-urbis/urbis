@@ -952,8 +952,13 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   className="w-full border rounded px-3 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Processo</label>
-                <input value={editando.processo_codigo || ""} onChange={e => setEditando((v: any) => ({...v, processo_codigo: e.target.value}))}
+                <label className="text-xs text-gray-500 block mb-1">Nº SEI</label>
+                <input value={editando.numero_sei || ""} onChange={e => setEditando((v: any) => ({...v, numero_sei: e.target.value, processo_codigo: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Nº Físico</label>
+                <input value={editando.numero_fisico || ""} onChange={e => setEditando((v: any) => ({...v, numero_fisico: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm" />
               </div>
               <div className="col-span-2">
@@ -973,6 +978,16 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 <select value={editando.tipo_processo || ""} onChange={e => setEditando((v: any) => ({...v, tipo_processo: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm">
                   {["REGULARIZACAO","ACEITE","APROVACAO"].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Porte</label>
+                <select value={editando.porte || "MP"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm">
+                  <option value="MP">Médio Porte</option>
+                  <option value="GERAGP">Grande Porte</option>
+                  <option value="GERECCO">GERECCO</option>
+                  <option value="GERAED">GERAED</option>
                 </select>
               </div>
               <div>
