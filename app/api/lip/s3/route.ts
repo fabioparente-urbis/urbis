@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
     const modelos = ["gemini-2.5-flash", "gemini-flash-latest"];
     let geminiOk = false;
+    let ultimoStatus = 0;
+    let ultimoCorpo = "";
     for (const modelo of modelos) {
       console.log(`[S3] Tentando ${modelo}...`);
       const res = await fetch(
@@ -52,13 +54,26 @@ export async function POST(req: NextRequest) {
         const data = await res.json();
         texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
         if (texto) { geminiOk = true; console.log(`[S3] OK com ${modelo}`); break; }
+        ultimoStatus = 200;
+        ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+      } else {
+        ultimoStatus = res.status;
+        ultimoCorpo = (await res.text()).slice(0, 500);
       }
-      console.log(`[S3] ${modelo} falhou (status ${res.status}), tentando próximo...`);
+      console.log(`[S3] ${modelo} falhou (status ${res.status}): ${ultimoCorpo.slice(0, 200)}`);
     }
 
     // Sem fallback — processo inteiro só via Gemini
     if (!geminiOk) {
-      return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
+      let motivo = "ERRO_GEMINI";
+      const corpoLower = ultimoCorpo.toLowerCase();
+      if (ultimoStatus === 429 || corpoLower.includes("resource_exhausted") || corpoLower.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
+      else if (ultimoStatus === 404 || corpoLower.includes("no longer available") || corpoLower.includes("not_found")) motivo = "MODELO_INDISPONIVEL";
+      else if (ultimoStatus === 400 || corpoLower.includes("api_key_invalid") || corpoLower.includes("api key not valid")) motivo = "CHAVE_INVALIDA";
+      else if (ultimoStatus === 503 || corpoLower.includes("overloaded") || corpoLower.includes("high demand")) motivo = "GEMINI_SOBRECARREGADO";
+      else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
+      console.error(`[S3] FALHA DEFINITIVA: motivo=${motivo} status=${ultimoStatus} corpo=${ultimoCorpo}`);
+      return NextResponse.json({ ok: false, erro: motivo, status_http: ultimoStatus, detalhe: ultimoCorpo.slice(0, 300) }, { status: ultimoStatus === 429 ? 429 : 502 });
     }
     console.log("[S3] Resposta recebida:", texto.substring(0, 300));
     const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
