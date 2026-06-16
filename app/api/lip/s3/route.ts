@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     let texto = "";
 
     // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
-    const modelos = ["gemini-2.5-flash", "gemini-flash-latest"];
+    const modelos = [GEMINI_MODEL];
     let geminiOk = false;
     let ultimoStatus = 0;
     let ultimoCorpo = "";
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
-            generationConfig: { maxOutputTokens: 32768, temperature: 0.1, responseMimeType: "application/json" },
+            generationConfig: { maxOutputTokens: 32768, temperature: 0.1 },
           }),
         }
       );
