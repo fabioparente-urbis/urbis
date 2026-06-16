@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
-            generationConfig: { maxOutputTokens: 32768, temperature: 0.1 },
+            generationConfig: { maxOutputTokens: 8192, temperature: 0.1 },
           }),
         }
       );
