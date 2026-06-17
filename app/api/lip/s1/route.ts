@@ -8,6 +8,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "GEMINI_API_KEY não configurada" }, { status: 500 });
 
     const contentLength = req.headers.get("x-file-size") || "0";
+    const fileSizeBytes = parseInt(contentLength);
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (fileSizeBytes > MAX_BYTES) {
+      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB. Comprima em smallpdf.com antes de enviar.` }, { status: 413 });
+    }
     const fileName = req.headers.get("x-file-name") || "processo.pdf";
 
     console.log(`[S1] Streaming: ${fileName} (${(parseInt(contentLength) / 1024 / 1024).toFixed(2)} MB)`);

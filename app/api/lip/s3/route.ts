@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       const corpoLower = ultimoCorpo.toLowerCase();
       if (ultimoStatus === 429 || corpoLower.includes("resource_exhausted") || corpoLower.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
       else if (ultimoStatus === 404 || corpoLower.includes("no longer available") || corpoLower.includes("not_found")) motivo = "MODELO_INDISPONIVEL";
+      else if (ultimoStatus === 413 || corpoLower.includes("file_too_large") || corpoLower.includes("too large") || corpoLower.includes("exceeds the limit")) motivo = "ARQUIVO_GRANDE";
       else if (ultimoStatus === 400 || corpoLower.includes("api_key_invalid") || corpoLower.includes("api key not valid")) motivo = "CHAVE_INVALIDA";
       else if (ultimoStatus === 503 || corpoLower.includes("overloaded") || corpoLower.includes("high demand")) motivo = "GEMINI_SOBRECARREGADO";
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";

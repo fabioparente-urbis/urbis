@@ -469,6 +469,9 @@ export default function ProcessoClient() {
       for (const arquivo of arquivos) {
         resultados.push(await (async (arquivo) => {
           // 2. S1 — Upload para Gemini File API (streaming direto)
+          if (arquivo.size > 50 * 1024 * 1024) {
+            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — limite é 50MB. Comprima em smallpdf.com antes de enviar.`);
+          }
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
           const s1Res = await fetch("/api/lip/s1", {
