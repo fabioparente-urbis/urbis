@@ -367,14 +367,13 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
-  children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
+  children.push(vazio(120)); children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
   if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
     gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
   } else {
     gerarItens(dados.naoConformes).forEach(item => children.push(item));
   }
-  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações gerais: ", { bold: true }), txt(dados.observacoes)])); }
   if (dados.observacoesPorAba && Object.keys(dados.observacoesPorAba).length > 0) {
     children.push(vazio(100));
     children.push(p([txt("Observações por seção:", { bold: true, underline: {} })]));
@@ -431,7 +430,6 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   } else {
     gerarItens(dados.naoConformes).forEach(item => children.push(item));
   }
-  if (dados.observacoes) { children.push(vazio(100)); children.push(p([txt("Observações gerais: ", { bold: true }), txt(dados.observacoes)])); }
   if (dados.observacoesPorAba && Object.keys(dados.observacoesPorAba).length > 0) {
     children.push(vazio(100));
     children.push(p([txt("Observações por seção:", { bold: true, underline: {} })]));
