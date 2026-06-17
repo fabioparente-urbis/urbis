@@ -884,9 +884,8 @@ export default function MacPage() {
 
         {(() => {
         const itensRespondidos = checklistItens.filter((i: any) => itens[i.id]);
-        const itensP2 = itensRespondidos.filter((i: any) => fontes[i.id] === "p2");
-        const itensAceitosIA = itensP2.filter((i: any) => aceites[i.id] === true);
-        const pctMacIA = itensP2.length > 0 ? Math.round((itensAceitosIA.length / itensP2.length) * 100) : 0;
+        const itensAceitosIA = itensRespondidos.filter((i: any) => aceites[i.id] === true);
+        const pctMacIA = itensRespondidos.length > 0 ? Math.round((itensAceitosIA.length / itensRespondidos.length) * 100) : 0;
         const cor = pctMacIA >= 70 ? "#22c55e" : pctMacIA >= 40 ? "#eab308" : "#ef4444";
         const circ = 2 * Math.PI * 38;
         return (
