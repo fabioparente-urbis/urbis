@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================
-// Home — v2 — header grande com logo + barra de entrada de processo
+// Home — v3 — header grande com logo + barra de entrada de processo
 // (compacta) + grid de cards de módulos.
 //
 // Visibilidade dos cards controlada pelos perfis do usuário,
