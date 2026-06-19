@@ -62,6 +62,7 @@ export default function MacPage() {
   const [modalDespacho, setModalDespacho] = useState(false);
   const [modalDespachoInterno, setModalDespachoInterno] = useState(false);
   const [numDI, setNumDI] = useState("");
+  const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
   const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [destinoDI, setDestinoDI] = useState("");
   const [destinoCustomDI, setDestinoCustomDI] = useState("");
@@ -854,8 +855,18 @@ export default function MacPage() {
               🔍 Ver LIP ↗
             </button>
             
-            <button onClick={() => setModalDespachoInterno(true)}
-              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+            <button
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors"
+              onClick={async () => {
+                setNumDIBloqueio(null);
+                try {
+                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                  const _j = await _r.json();
+                  if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
+                  else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa de despachos esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração."); }
+                } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
+                setModalDespachoInterno(true);
+              }}>
               📨 Despacho Interno
             </button>
             {isAdmin && (
@@ -1423,16 +1434,18 @@ export default function MacPage() {
               setNumeracaoCarregando(true);
               setNumeracaoBloqueio(null);
               try {
-                const _nr = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                const _tipoSerie = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
+                const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
                 const _nj = await _nr.json();
                 if (_nj.ok) {
                   setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
                   setNumeracaoBloqueio(null);
                 } else {
                   setNumeroDespacho("");
+                  const _labelSerie = _tipoSerie === "parecer" ? "pareceres" : "despachos";
                   setNumeracaoBloqueio(_nj.esgotado
-                    ? "Faixa de despachos esgotada. Acesse Configurações → Numeração para cadastrar nova faixa."
-                    : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração.");
+                    ? `Faixa de ${_labelSerie} esgotada. Acesse Configurações → Numeração para cadastrar nova faixa.`
+                    : `Nenhuma faixa de ${_labelSerie} cadastrada. Acesse Configurações → Numeração.`);
                 }
               } catch {
                 setNumeroDespacho("");
@@ -1489,7 +1502,11 @@ export default function MacPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
-                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  {numDIBloqueio ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium">⚠ {numDIBloqueio}</div>
+                  ) : (
+                    <div className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)]">{numDI || "—"}</div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
@@ -1516,7 +1533,7 @@ export default function MacPage() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !destinoDI || !corpoDI}
+              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
                 className="flex-1 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
