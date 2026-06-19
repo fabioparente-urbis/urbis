@@ -161,6 +161,7 @@ export default function Home() {
     { chave: "bip", nome: "BIP", descricao: "Biblioteca de Leis", Icone: BookOpen, rota: "/admin/bdi/leis", visivel: irrestrito },
     { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Aparência do sistema", Icone: Settings2, rota: "/configuracoes/aparencia", visivel: true },
     { chave: "map", nome: "MAP", descricao: "Auditoria e Produtividade", Icone: ClipboardList, rota: "/admin/configuracoes?aba=auditoria", visivel: souAdmin },
+    { chave: "admin", nome: "ADMIN", descricao: "Configurações do sistema", Icone: Settings2, rota: "/admin/configuracoes", visivel: souAdmin || irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);
