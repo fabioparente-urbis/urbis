@@ -462,7 +462,7 @@ export default function MacPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           processo_codigo: codigo,
-          tipo_despacho: (tipoDespacho || "despacho").toUpperCase(),
+          tipo_despacho: (tipoDespacho || "despacho").toLowerCase(),
           numero_despacho: numeroDespacho,
           numero_analise: analiseAtual?.numero_analise ?? null,
           numero_revisao: numeroRevisao,
