@@ -457,6 +457,7 @@ export default function MacPage() {
       if (!res.ok) { mostrarToast("Erro ao gerar despacho."); return; }
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
       // Auto-registro MRP
+      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -466,11 +467,11 @@ export default function MacPage() {
           numero_despacho: numeroDespacho,
           numero_analise: analiseAtual?.numero_analise ?? null,
           numero_revisao: numeroRevisao,
-          area_construida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
-          interessado: dadosLip?.proprietario?.valor ?? null,
-          bairro: dadosLip?.bairro?.valor ?? null,
-          numero_sei: dadosLip?.processo?.valor ?? codigo,
-          numero_fisico: dadosLip?.processoFisico?.valor ?? null,
+          area_construida: Number((dlFresh?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
+          interessado: dlFresh?.proprietario?.valor ?? null,
+          bairro: dlFresh?.bairro?.valor ?? null,
+          numero_sei: dlFresh?.processo?.valor ?? codigo,
+          numero_fisico: dlFresh?.processoFisico?.valor ?? null,
           assunto: "Regularização",
           auto_gerado: true,
         }),
@@ -623,6 +624,7 @@ export default function MacPage() {
       a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
+      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -630,11 +632,11 @@ export default function MacPage() {
           processo_codigo: codigo,
           tipo_despacho: "DESPACHO_INTERNO",
           numero_despacho: numDI,
-          area_construida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
-          interessado: dadosLip?.proprietario?.valor ?? null,
-          bairro: dadosLip?.bairro?.valor ?? null,
-          numero_sei: dadosLip?.processo?.valor ?? codigo,
-          numero_fisico: dadosLip?.processoFisico?.valor ?? null,
+          area_construida: Number((dlFresh?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
+          interessado: dlFresh?.proprietario?.valor ?? null,
+          bairro: dlFresh?.bairro?.valor ?? null,
+          numero_sei: dlFresh?.processo?.valor ?? codigo,
+          numero_fisico: dlFresh?.processoFisico?.valor ?? null,
           assunto: "Regularização",
           auto_gerado: true,
         }),
