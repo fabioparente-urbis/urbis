@@ -472,7 +472,7 @@ export default function MacPage() {
           assunto: "Regularização",
           auto_gerado: true,
         }),
-      }).catch(() => {});
+      }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -634,7 +634,7 @@ export default function MacPage() {
           assunto: "Regularização",
           auto_gerado: true,
         }),
-      }).catch(() => {});
+      }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
 
