@@ -1,7 +1,7 @@
 "use client";
 
 // ============================================================
-// Home — header grande com logo + barra de entrada de processo
+// Home — v2 — header grande com logo + barra de entrada de processo
 // (compacta) + grid de cards de módulos.
 //
 // Visibilidade dos cards controlada pelos perfis do usuário,
@@ -156,7 +156,7 @@ export default function Home() {
   const cards: Card[] = [
     { chave: "lip", nome: "LIP", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true },
     { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: souAdmin || irrestrito },
-    { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: irrestrito || souAdmin },
+    { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
     { chave: "bdi", nome: "BDI", descricao: "Banco de Dados e Inteligência", Icone: BrainCircuit, rota: "/admin/bdi", visivel: souAdmin || irrestrito },
     { chave: "bip", nome: "BIP", descricao: "Biblioteca de Leis", Icone: BookOpen, rota: "/admin/bdi/leis", visivel: irrestrito },
     { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Aparência do sistema", Icone: Settings2, rota: "/configuracoes/aparencia", visivel: true },
