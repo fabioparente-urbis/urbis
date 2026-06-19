@@ -75,6 +75,8 @@ export default function MacPage() {
   const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string} | null>(null);
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
+  const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
+  const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
   // CAU/CREA do responsável técnico do projeto (item 3 Cowork).
@@ -737,6 +739,11 @@ export default function MacPage() {
               ))}
             </div>
 
+            {numeracaoBloqueio && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-2 text-xs text-red-700 font-medium">
+                ⚠ Emissão bloqueada: {numeracaoBloqueio}
+              </div>
+            )}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={confirmarModelo}
@@ -783,12 +790,17 @@ export default function MacPage() {
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Número do Despacho</label>
-                <input
-                  value={numeroDespacho}
-                  onChange={(e) => setNumeroDespacho(e.target.value)}
-                  placeholder="Ex: 042"
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                />
+                {numeracaoCarregando ? (
+                  <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-muted)]">Buscando número…</div>
+                ) : numeracaoBloqueio ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium">
+                    ⚠ {numeracaoBloqueio}
+                  </div>
+                ) : (
+                  <div className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)]">
+                    {numeroDespacho || "—"}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -796,8 +808,8 @@ export default function MacPage() {
               <div className="bg-[#FEF9C3] border border-[#CA8A04] rounded-lg p-3 mb-2">
                 <p className="text-xs text-[#92400E] font-semibold mb-2">⚠ {naoRespondidos.length} item(ns) não verificado(s) no MAC. Gerar mesmo assim?</p>
                 <div className="flex gap-2">
-                  <button onClick={() => { setConfirmarNaoRespondidos(false); gerarDespacho(); }}
-                    className="flex-1 bg-[#CA8A04] hover:bg-[#A16207] text-white font-bold py-1.5 rounded text-xs">
+                  <button onClick={() => { setConfirmarNaoRespondidos(false); gerarDespacho(); }} disabled={!!numeracaoBloqueio}
+                    className="flex-1 bg-[#CA8A04] hover:bg-[#A16207] text-white font-bold py-1.5 rounded text-xs disabled:opacity-50">
                     Gerar mesmo assim
                   </button>
                   <button onClick={() => { setConfirmarNaoRespondidos(false); setModalDespacho(false); }}
@@ -1345,7 +1357,7 @@ export default function MacPage() {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    processo: codigo, tipo: "indeferimento", numeroDespacho: "",
+                    processo: codigo, tipo: "indeferimento", numeroDespacho: await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r=>r.json()).then(j=>j.ok ? String(j.numero).padStart(3,"0") : "").catch(()=>""),
                     naoConformes: motivos, observacoes: obs,
                     analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                   }),
@@ -1407,6 +1419,27 @@ export default function MacPage() {
                   return;
                 }
               } catch { /* silencioso */ }
+              // Busca número de despacho automático
+              setNumeracaoCarregando(true);
+              setNumeracaoBloqueio(null);
+              try {
+                const _nr = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                const _nj = await _nr.json();
+                if (_nj.ok) {
+                  setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
+                  setNumeracaoBloqueio(null);
+                } else {
+                  setNumeroDespacho("");
+                  setNumeracaoBloqueio(_nj.esgotado
+                    ? "Faixa de despachos esgotada. Acesse Configurações → Numeração para cadastrar nova faixa."
+                    : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração.");
+                }
+              } catch {
+                setNumeroDespacho("");
+                setNumeracaoBloqueio("Erro ao buscar número de despacho.");
+              } finally {
+                setNumeracaoCarregando(false);
+              }
               setModalDespacho(true);
             }} disabled={gerandoDespacho}
               className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
