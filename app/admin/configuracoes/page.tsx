@@ -3,8 +3,7 @@ import { AbaAuditoria } from "./auditoria-aba";
 import { AbaPontuacao } from "./pontuacao-aba";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Settings2, Check, Loader2, Lock, Sun, Moon } from "lucide-react";
-import { useTheme } from "@/components/ThemeProvider";
+import { Settings2, Check, Loader2, Lock } from "lucide-react";
 
 type Assunto = { id: string; slug: string; nome: string; ativo: boolean; ordem: number; criado_em: string; };
 type LogRow = { id?: string; bairro: string; nome_logradouro: string; hierarquia_viaria?: string; largura_via?: string; larg_calcada?: string; largura_pista?: string; largura_ilha?: string; area?: string; };
@@ -13,7 +12,6 @@ const SLUG_FIXO = "regularizacao";
 
 function ConfiguracoesInner() {
   const router = useRouter();
-  const { tema, setTema } = useTheme();
   const searchParams = useSearchParams();
   useEffect(() => { const aba = searchParams.get("aba"); if (aba === "auditoria") setAbaAtual("auditoria"); }, []);
   const [assuntos, setAssuntos] = useState<Assunto[]>([]);
@@ -147,18 +145,7 @@ function ConfiguracoesInner() {
       <main className="p-8 max-w-5xl mx-auto">
 
         {abaAtual === "geral" && (<>
-          <div className="mb-8">
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Aparência</h2>
-            <p className="text-sm text-[var(--text-muted)] mt-1 mb-4">Tema visual do sistema. Preferência salva por navegador.</p>
-            <div className="flex gap-3">
-              {(["institucional", "moderno", "minimalista"] as const).map(t => (
-                <button key={t} onClick={() => setTema(t)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium transition-colors ${tema === t ? "border-[var(--accent-hover)] bg-[var(--accent)] text-[var(--text-primary)]" : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--border)]"}`}>
-                  {t === "institucional" ? "🏛 Institucional" : t === "moderno" ? "🌙 Moderno" : "◻ Minimalista"}
-                </button>
-              ))}
-            </div>
-          </div>
+
 
 
           <div className="mb-6">
