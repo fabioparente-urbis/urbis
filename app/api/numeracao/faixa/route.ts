@@ -8,20 +8,22 @@ const supabase = createClient(
 
 async function getUsuarioId(req: NextRequest): Promise<string | null> {
   const cookie = req.headers.get("cookie") ?? "";
-  const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/auth/me`, {
-    headers: { cookie },
-  });
-  const json = await res.json();
-  return json?.data?.id ?? null;
+  const token = cookie.match(/urbis_token=([^;]+)/)?.[1];
+  if (!token) return null;
+  const { data } = await supabase
+    .from("usuarios")
+    .select("id")
+    .eq("token_sessao", token)
+    .eq("ativo", true)
+    .maybeSingle();
+  return data?.id ?? null;
 }
 
-// GET — todas as faixas do analista logado (ano corrente)
 export async function GET(req: NextRequest) {
   const usuarioId = await getUsuarioId(req);
   if (!usuarioId) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
 
   const ano = new Date().getFullYear();
-
   const { data, error } = await supabase
     .from("urbis_numeracao_faixas")
     .select("*")
@@ -34,7 +36,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ ok: true, data });
 }
 
-// POST — adiciona nova faixa (acumula, não substitui)
 export async function POST(req: NextRequest) {
   const usuarioId = await getUsuarioId(req);
   if (!usuarioId) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
@@ -50,7 +51,6 @@ export async function POST(req: NextRequest) {
 
   const ano = new Date().getFullYear();
 
-  // Verifica sobreposição com faixas existentes do mesmo tipo/ano
   const { data: existentes } = await supabase
     .from("urbis_numeracao_faixas")
     .select("numero_inicial, numero_final")
@@ -60,9 +60,8 @@ export async function POST(req: NextRequest) {
 
   if (existentes) {
     for (const f of existentes) {
-      if (ni <= f.numero_final && nf >= f.numero_inicial) {
+      if (ni <= f.numero_final && nf >= f.numero_inicial)
         return NextResponse.json({ ok: false, erro: `Faixa sobrepõe intervalo já cadastrado (${f.numero_inicial}–${f.numero_final})` }, { status: 400 });
-      }
     }
   }
 
@@ -76,7 +75,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, data });
 }
 
-// DELETE — remove faixa por id
 export async function DELETE(req: NextRequest) {
   const usuarioId = await getUsuarioId(req);
   if (!usuarioId) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
