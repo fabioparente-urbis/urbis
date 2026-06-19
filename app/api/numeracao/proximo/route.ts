@@ -26,44 +26,58 @@ export async function GET(req: NextRequest) {
   const usuarioId = await getUsuarioId(req);
   if (!usuarioId) return NextResponse.json({ ok: false, motivo: "NAO_AUTENTICADO" }, { status: 401 });
 
-  const { data: faixa, error } = await supabase
+  const ano = new Date().getFullYear();
+
+  // Busca todas as faixas do ano corrente ordenadas por criado_em
+  const { data: faixas, error } = await supabase
     .from("urbis_numeracao_faixas")
     .select("*")
     .eq("usuario_id", usuarioId)
     .eq("tipo", tipo)
-    .order("criado_em", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("ano", ano)
+    .order("criado_em", { ascending: true });
 
   if (error) return NextResponse.json({ ok: false, motivo: "ERRO_BD" }, { status: 500 });
 
-  if (!faixa)
+  if (!faixas || faixas.length === 0)
     return NextResponse.json({
       ok: false,
       motivo: tipo === "despacho" ? "SOLICITAR_NUMERO_DESPACHO" : "SOLICITAR_NUMERO_PARECER",
     });
 
-  if (faixa.proximo > faixa.numero_final)
+  // Percorre faixas em ordem até encontrar uma com número disponível
+  const faixaDisponivel = faixas.find(f => f.proximo <= f.numero_final);
+
+  if (!faixaDisponivel)
     return NextResponse.json({
       ok: false,
       motivo: tipo === "despacho" ? "SOLICITAR_NUMERO_DESPACHO" : "SOLICITAR_NUMERO_PARECER",
       esgotado: true,
     });
 
-  const numero = faixa.proximo;
+  const numero = faixaDisponivel.proximo;
 
+  // Avança cursor
   await supabase
     .from("urbis_numeracao_faixas")
     .update({ proximo: numero + 1 })
-    .eq("id", faixa.id);
+    .eq("id", faixaDisponivel.id);
 
+  // Grava uso
   await supabase.from("urbis_numeracao_uso").insert({
-    faixa_id: faixa.id,
+    faixa_id: faixaDisponivel.id,
     usuario_id: usuarioId,
     numero,
     processo_codigo: processo,
     tipo_documento: tipo,
   });
 
-  return NextResponse.json({ ok: true, numero, restantes: faixa.numero_final - numero });
+  // Calcula total restante em todas as faixas
+  const restantes = faixas.reduce((acc, f) => {
+    if (f.id === faixaDisponivel.id) return acc + Math.max(0, f.numero_final - numero);
+    if (f.proximo <= f.numero_final) return acc + (f.numero_final - f.proximo + 1);
+    return acc;
+  }, 0);
+
+  return NextResponse.json({ ok: true, numero, restantes });
 }
