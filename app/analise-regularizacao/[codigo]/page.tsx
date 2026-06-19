@@ -947,6 +947,10 @@ export default function MacPage() {
           <span className="flex items-center gap-1"><span className="bg-[#ECFDF5] border border-[#059669] text-[#059669] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#FEF2F2] border border-[#DC2626] text-[#DC2626] px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#EFF6FF] border border-[#2563EB] text-[#2563EB] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
+          <a href="https://smallpdf.com/pt/comprimir-pdf#r=compress" target="_blank" rel="noopener noreferrer"
+            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
+            <span>🗜️</span><span>Comprimir PDF</span>
+          </a>
         </div>
 
         <div className="mt-2 flex flex-col gap-1">
