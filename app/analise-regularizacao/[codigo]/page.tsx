@@ -932,6 +932,14 @@ export default function MacPage() {
               </text>
             </svg>
             <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Monitor IA</span>
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+              <a href="https://smallpdf.com/pt/comprimir-pdf#r=compress" target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
+                onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
+                <span>🗜️</span><span>Comprimir PDF</span>
+              </a>
+            </div>
           </div>
         );
       })()}

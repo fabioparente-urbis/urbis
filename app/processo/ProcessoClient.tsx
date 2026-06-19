@@ -1196,6 +1196,20 @@ export default function ProcessoClient() {
                 </div>
               ))}
             </div>
+            <div className="flex flex-col gap-1 text-xs border-l border-[var(--border)] pl-4">
+              {[
+                { emoji: "🗜️", label: "Comprimir PDF", url: "https://smallpdf.com/pt/comprimir-pdf#r=compress" },
+                { emoji: "🗺️", label: "Mapa Fácil", url: "https://portalmapa.goiania.go.gov.br/mapafacil/" },
+                { emoji: "🚫", label: "Embargos", url: "https://www.goiania.go.gov.br/sistemas/sisce/html/sisce00001f0.htm" },
+                { emoji: "📋", label: "Consultar Uso", url: "https://www10.goiania.go.gov.br/siusoweb/ConsultarIntegridadeUsoSolo.aspx" },
+              ].map((u) => (
+                <a key={u.label} href={u.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors cursor-pointer">
+                  <span>{u.emoji}</span>
+                  <span>{u.label}</span>
+                </a>
+              ))}
+            </div>
             <div className="flex flex-col items-center gap-1">
               <svg width="90" height="90" viewBox="0 0 90 90">
                 <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8"/>
