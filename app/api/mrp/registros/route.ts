@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   const payload = {
     usuario_id: usuarioId,
     processo_codigo: body.processo_codigo,
-    tipo_processo: body.tipo_processo ?? "REGULARIZACAO",
+    tipo_processo: body.tipo_processo ?? "Regularização",
     interessado: body.interessado ?? null,
     assunto: body.assunto ?? null,
     porte: body.porte ?? "GERAED",
