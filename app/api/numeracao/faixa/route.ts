@@ -7,16 +7,11 @@ const supabase = createClient(
 );
 
 async function getUsuarioId(req: NextRequest): Promise<string | null> {
-  const cookie = req.headers.get("cookie") ?? "";
-  const token = cookie.match(/urbis_token=([^;]+)/)?.[1];
-  if (!token) return null;
-  const { data } = await supabase
-    .from("usuarios")
-    .select("id")
-    .eq("token_sessao", token)
-    .eq("ativo", true)
-    .maybeSingle();
-  return data?.id ?? null;
+  const cookieHeader = req.headers.get("cookie") ?? "";
+  const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
+  const userId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1];
+  if (!token || !userId) return null;
+  return userId;
 }
 
 export async function GET(req: NextRequest) {
