@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   const tipo = searchParams.get("tipo") as "despacho" | "parecer" | null;
   const processo = searchParams.get("processo") ?? "";
   const modo = searchParams.get("modo") ?? "commit";
+  const numeroForcado = parseInt(searchParams.get("numero") ?? "", 10);
 
   if (!tipo || !["despacho", "parecer"].includes(tipo))
     return NextResponse.json({ ok: false, motivo: "TIPO_INVALIDO" }, { status: 400 });
@@ -53,12 +54,14 @@ export async function GET(req: NextRequest) {
       esgotado: true,
     });
 
-  const numero = faixaDisponivel.proximo;
+  const numero = (modo === "commit" && Number.isFinite(numeroForcado) && numeroForcado > 0)
+    ? numeroForcado
+    : faixaDisponivel.proximo;
   if (modo === "commit") {
 
     await supabase
       .from("urbis_numeracao_faixas")
-      .update({ proximo: numero + 1 })
+      .update({ proximo: Math.max(faixaDisponivel.proximo, numero + 1) })
       .eq("id", faixaDisponivel.id);
 
     await supabase.from("urbis_numeracao_uso").insert({

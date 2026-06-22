@@ -491,7 +491,7 @@ export default function MacPage() {
 
       // Consome o número SOMENTE após o download bem-sucedido
       const _tipoSerieCommit = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
-      fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit`, { credentials: "include" }).catch(() => {});
+      fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(parseInt(numeroDespacho, 10) || "")}`, { credentials: "include" }).catch(() => {});
 
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
@@ -802,9 +802,13 @@ export default function MacPage() {
                     ⚠ {numeracaoBloqueio}
                   </div>
                 ) : (
-                  <div className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)]">
-                    {numeroDespacho || "—"}
-                  </div>
+                  <input
+                    type="text"
+                    value={numeroDespacho}
+                    onChange={(e) => setNumeroDespacho(e.target.value.replace(/\D/g, ""))}
+                    placeholder="—"
+                    className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 )}
               </div>
 
