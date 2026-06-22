@@ -470,7 +470,7 @@ export default function ProcessoClient() {
         resultados.push(await (async (arquivo) => {
           // 2. S1 — Upload para Gemini File API (streaming direto)
           if (arquivo.size > 50 * 1024 * 1024) {
-            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — limite é 50MB. Comprima em smallpdf.com antes de enviar.`);
+            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — limite é 50MB. Comprima o PDF antes de enviar.`);
           }
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
@@ -1198,7 +1198,7 @@ export default function ProcessoClient() {
             </div>
             <div className="flex flex-col gap-1 text-xs border-l border-[var(--border)] pl-4">
               {[
-                { emoji: "🗜️", label: "Comprimir PDF", url: "https://smallpdf.com/pt/comprimir-pdf#r=compress" },
+                { emoji: "🗜️", label: "Comprimir PDF", url: "https://www.ilovepdf.com/pt/comprimir_pdf" },
                 { emoji: "🗺️", label: "Mapa Fácil", url: "https://portalmapa.goiania.go.gov.br/mapafacil/" },
                 { emoji: "🚫", label: "Embargos", url: "https://www.goiania.go.gov.br/sistemas/sisce/html/sisce00001f0.htm" },
                 { emoji: "📋", label: "Consultar Uso", url: "https://www10.goiania.go.gov.br/siusoweb/ConsultarIntegridadeUsoSolo.aspx" },

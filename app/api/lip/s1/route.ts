@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const fileSizeBytes = parseInt(contentLength);
     const MAX_BYTES = 50 * 1024 * 1024;
     if (fileSizeBytes > MAX_BYTES) {
-      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB. Comprima em smallpdf.com antes de enviar.` }, { status: 413 });
+      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB. Comprima o PDF antes de enviar.` }, { status: 413 });
     }
     const fileName = req.headers.get("x-file-name") || "processo.pdf";
 

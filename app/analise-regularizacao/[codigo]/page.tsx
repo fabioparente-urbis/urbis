@@ -933,7 +933,7 @@ export default function MacPage() {
             </svg>
             <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Monitor IA</span>
             <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-              <a href="https://smallpdf.com/pt/comprimir-pdf#r=compress" target="_blank" rel="noopener noreferrer"
+              <a href="https://www.ilovepdf.com/pt/comprimir_pdf" target="_blank" rel="noopener noreferrer"
                 style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4, textDecoration: "none" }}
                 onMouseEnter={e => (e.currentTarget.style.color = "var(--accent)")}
                 onMouseLeave={e => (e.currentTarget.style.color = "var(--text-muted)")}>
@@ -947,7 +947,7 @@ export default function MacPage() {
           <span className="flex items-center gap-1"><span className="bg-[#ECFDF5] border border-[#059669] text-[#059669] px-2 py-0.5 rounded font-bold">✅</span> <span className="text-[var(--text-secondary)]">Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#FEF2F2] border border-[#DC2626] text-[#DC2626] px-2 py-0.5 rounded font-bold">❌</span> <span className="text-[var(--text-secondary)]">Não Conforme</span></span>
           <span className="flex items-center gap-1"><span className="bg-[#EFF6FF] border border-[#2563EB] text-[#2563EB] px-2 py-0.5 rounded font-bold">⬜</span> <span className="text-[var(--text-secondary)]">Não se Aplica</span></span>
-          <a href="https://smallpdf.com/pt/comprimir-pdf#r=compress" target="_blank" rel="noopener noreferrer"
+          <a href="https://www.ilovepdf.com/pt/comprimir_pdf" target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
             <span>🗜️</span><span>Comprimir PDF</span>
           </a>
