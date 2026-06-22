@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tipo = searchParams.get("tipo") as "despacho" | "parecer" | null;
   const processo = searchParams.get("processo") ?? "";
+  const modo = searchParams.get("modo") ?? "commit";
 
   if (!tipo || !["despacho", "parecer"].includes(tipo))
     return NextResponse.json({ ok: false, motivo: "TIPO_INVALIDO" }, { status: 400 });
@@ -53,19 +54,21 @@ export async function GET(req: NextRequest) {
     });
 
   const numero = faixaDisponivel.proximo;
+  if (modo === "commit") {
 
-  await supabase
-    .from("urbis_numeracao_faixas")
-    .update({ proximo: numero + 1 })
-    .eq("id", faixaDisponivel.id);
+    await supabase
+      .from("urbis_numeracao_faixas")
+      .update({ proximo: numero + 1 })
+      .eq("id", faixaDisponivel.id);
 
-  await supabase.from("urbis_numeracao_uso").insert({
-    faixa_id: faixaDisponivel.id,
-    usuario_id: usuarioId,
-    numero,
-    processo_codigo: processo,
-    tipo_documento: tipo,
-  });
+    await supabase.from("urbis_numeracao_uso").insert({
+      faixa_id: faixaDisponivel.id,
+      usuario_id: usuarioId,
+      numero,
+      processo_codigo: processo,
+      tipo_documento: tipo,
+    });
+  }
 
   const restantes = faixas.reduce((acc, f) => {
     if (f.id === faixaDisponivel.id) return acc + Math.max(0, f.numero_final - numero);

@@ -489,6 +489,10 @@ export default function MacPage() {
       URL.revokeObjectURL(url);
       mostrarToast("✅ Despacho gerado!");
 
+      // Consome o número SOMENTE após o download bem-sucedido
+      const _tipoSerieCommit = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
+      fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit`, { credentials: "include" }).catch(() => {});
+
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
         tipo: tipoDespacho,
@@ -1447,7 +1451,7 @@ export default function MacPage() {
               setNumeracaoBloqueio(null);
               try {
                 const _tipoSerie = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
-                const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
                 const _nj = await _nr.json();
                 if (_nj.ok) {
                   setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
