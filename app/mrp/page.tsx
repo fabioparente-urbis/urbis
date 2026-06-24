@@ -33,6 +33,8 @@ const TIPOS_DESPACHO_MANUAL = [
   ["arquivamento", "Arquivamento"],
   ["interno", "Interno"],
   ["laudo", "Laudo"],
+  ["assinatura", "Assinatura"],
+  ["revisao", "Revisão"],
 ] as const;
 
 const MESES_PT = [
@@ -969,7 +971,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 <label className="text-xs text-gray-500 block mb-1">Tipo despacho</label>
                 <select value={editando.tipo_despacho || ""} onChange={e => setEditando((v: any) => ({...v, tipo_despacho: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm">
-                  {["despacho","laudo","indeferimento","arquivamento","interno"].map(t => <option key={t} value={t}>{t}</option>)}
+                  {["despacho","laudo","indeferimento","arquivamento","interno","assinatura","revisao"].map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
