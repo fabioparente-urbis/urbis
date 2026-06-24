@@ -88,6 +88,7 @@ export default function MacPage() {
   const [modeloSelecionado, setModeloSelecionado] = useState<Modelo | null>(null);
   const [tipoProcesso, setTipoProcesso] = useState<string>("");
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
+  const [assuntoNome, setAssuntoNome] = useState<string>("Regularização SEI");
   const [isAdmin, setIsAdmin] = useState(false);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
@@ -162,6 +163,7 @@ export default function MacPage() {
     const assunto: string | null = jsonPoc.ok && jsonPoc.data.length > 0 ? (jsonPoc.data[0].assunto_id ?? null) : null;
     setTipoProcesso(tipo);
     setAssuntoId(assunto);
+    if (assunto) { fetch("/api/admin/assuntos").then(r=>r.json()).then(j=>{ const a = j.data?.find((x: {id:string;nome:string}) => x.id === assunto); if(a) setAssuntoNome(a.nome); }); }
     fetch("/api/auth/me").then(r=>r.json()).then(j=>{ if(j.ok){ const p=Array.isArray(j.data?.perfis)?j.data.perfis:[]; setIsAdmin(p.includes("Administrador")); } });
 
     const res = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
@@ -909,6 +911,7 @@ export default function MacPage() {
             />
             <div>
               <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
+              <p className="text-[var(--text-muted)] text-xs">{assuntoNome}</p>
               <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-[var(--warning)]">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-[var(--success)]">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-[var(--error)]">✗ Erro ao salvar</span>}</div>
               <p className="text-[var(--accent)] font-mono text-sm">{codigo}</p>
 {modeloSelecionado && (
