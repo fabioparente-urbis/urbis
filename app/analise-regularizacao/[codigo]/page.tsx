@@ -477,7 +477,7 @@ export default function MacPage() {
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,
           numero_fisico: dlFresh?.processoFisico?.valor ?? null,
-          assunto: "Regularização",
+          assunto: assuntoNome,
           auto_gerado: true,
         }),
       }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));
@@ -646,7 +646,7 @@ export default function MacPage() {
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,
           numero_fisico: dlFresh?.processoFisico?.valor ?? null,
-          assunto: "Regularização",
+          assunto: assuntoNome,
           auto_gerado: true,
         }),
       }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));
