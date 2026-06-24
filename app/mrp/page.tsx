@@ -122,7 +122,7 @@ function MrpInner() {
     processo_codigo: "",
     numero_fisico: "",
     interessado: "",
-    porte: "MP",
+    porte: "GERAED",
     area_construida: "",
     pontos: "2.5",
     observacoes: "",
@@ -211,7 +211,7 @@ function MrpInner() {
           processo_codigo: "",
           numero_fisico: "",
           interessado: "",
-          porte: "MP",
+          porte: "GERAED",
           area_construida: "",
           pontos: "2.5",
           observacoes: "",
@@ -368,10 +368,10 @@ function MrpInner() {
                     value={formManual.porte}
                     onChange={(e) => setFormManual((f) => ({ ...f, porte: e.target.value }))}
                     className="w-full border rounded px-3 py-2 text-sm">
-                    <option value="MP">Médio Porte</option>
-                    <option value="GERAGP">Grande Porte</option>
                     <option value="GERECCO">GERECCO</option>
                     <option value="GERAED">GERAED</option>
+                    <option value="GERAGP">GERAGP</option>
+                    <option value="DIRAAP">DIRAAP (direto)</option>
                   </select>
                 </div>
                 <div>
@@ -910,7 +910,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   <Td className="font-mono text-xs">{r.numero_fisico || "—"}</Td>
                   <Td>{r.interessado || "—"}</Td>
                   <Td>{r.assunto || "Regularização"}</Td>
-                  <Td>{Number(r.area_construida) >= 2000 ? "Grande Porte" : "Médio Porte"}</Td>
+                  <Td>{r.porte || "-"}</Td>
                   <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
                   <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
@@ -991,12 +991,12 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Porte</label>
-                <select value={editando.porte || "MP"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
+                <select value={editando.porte || "GERAED"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm">
-                  <option value="MP">Médio Porte</option>
-                  <option value="GERAGP">Grande Porte</option>
                   <option value="GERECCO">GERECCO</option>
                   <option value="GERAED">GERAED</option>
+                  <option value="GERAGP">GERAGP</option>
+                  <option value="DIRAAP">DIRAAP (direto)</option>
                 </select>
               </div>
               <div>

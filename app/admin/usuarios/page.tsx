@@ -196,10 +196,10 @@ export default function UsuariosPage() {
   const isAdminFixo = (u: Usuario) => u.perfil === "Administrador" && u.nome === ADMIN_FIXO;
 
   const corPerfil = (p: string) => {
-    if (p === "Administrador") return "bg-[var(--ia-bg)] text-[var(--accent-fg)]";
-    if (p === "Diretora" || p === "Diretor") return "bg-red-900 text-red-300";
-    if (PERFIS_GERENCIA.includes(p)) return "bg-yellow-900 text-yellow-300";
-    return "bg-[var(--accent)] text-[var(--accent-fg)]";
+    if (p === "Administrador") return "border border-purple-300 bg-purple-50 text-purple-700";
+    if (p === "Diretora" || p === "Diretor") return "border border-red-300 bg-red-50 text-red-700";
+    if (PERFIS_GERENCIA.includes(p)) return "border border-amber-300 bg-amber-50 text-amber-700";
+    return "border border-blue-300 bg-blue-50 text-blue-700";
   };
 
   // Lista de perfis exibida no checkbox: oculta "Administrador" para nao-admins.
@@ -213,7 +213,7 @@ export default function UsuariosPage() {
           <button onClick={() => router.push("/")} className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">🏠 Home</button>
           <div>
             <h1 className="text-2xl font-bold">👥 Gestão de Usuários</h1>
-            <p className="text-[var(--text-muted)] text-sm">Cadastro e controle de acesso ao URBIS</p>
+            <p className="text-[var(--text-muted)] text-sm">{filtrados.length} usuário{filtrados.length !== 1 ? "s" : ""} · Cadastro e controle de acesso ao URBIS</p>
           </div>
         </div>
         <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
@@ -242,23 +242,28 @@ export default function UsuariosPage() {
               {filtrados.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">Nenhum usuário encontrado.</td></tr>
               ) : filtrados.map((u) => (
-                <tr key={u.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-3 font-medium">{u.nome}</td>
+                <tr key={u.id} className="border-t border-[var(--border)] hover:bg-[var(--bg-secondary)] transition-colors">
+                  <td className="px-4 py-3 font-medium">
+                    <div className="flex items-center gap-3">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-[var(--accent)] text-[var(--accent-fg)] flex items-center justify-center text-xs font-bold uppercase">{(u.nome || "?").replace(/[^A-Za-zÀ-ú]/g, "").charAt(0)}</span>
+                      <span>{u.nome}</span>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-[var(--text-muted)]">{u.email}</td>
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{u.matricula || "—"}</td>
+                  <td className="px-4 py-3 text-[var(--text-muted)] font-mono text-xs">{u.matricula || "—"}</td>
                   <td className="px-4 py-3">
                     {(u.perfis && u.perfis.length > 0 ? u.perfis : [u.perfil]).map((p, i) => (<span key={i} className={`px-2 py-0.5 rounded text-xs font-bold mr-1 ${corPerfil(p)}`}>{p}</span>))}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${u.status === "Ativo" ? "bg-[var(--success-bg)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-muted)]"}`}>{u.status}</span>
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${u.status === "Ativo" ? "border-green-300 bg-green-50 text-green-700" : "border-gray-300 bg-gray-50 text-gray-500"}`}><span className={`w-1.5 h-1.5 rounded-full ${u.status === "Ativo" ? "bg-green-500" : "bg-gray-400"}`}></span>{u.status}</span>
                   </td>
                   <td className="px-4 py-3 text-[var(--text-muted)] text-xs">{formatar(u.ultimo_acesso)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button onClick={() => abrirEditar(u)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">✏️ Editar</button>
-                      <button onClick={() => resetarSenha(u.id, u.email)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">🔑 Senha</button>
+                      <button onClick={() => abrirEditar(u)} className="border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">✏️ Editar</button>
+                      <button onClick={() => resetarSenha(u.id, u.email)} className="border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">🔑 Senha</button>
                       {!isAdminFixo(u) && (
-                        <button onClick={() => excluir(u)} className="bg-red-800 hover:bg-red-700 text-[var(--text-primary)] text-xs px-2 py-1 rounded transition-colors">🗑️ Excluir</button>
+                        <button onClick={() => excluir(u)} className="border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">🗑️ Excluir</button>
                       )}
                     </div>
                   </td>
