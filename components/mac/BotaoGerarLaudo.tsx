@@ -8,12 +8,13 @@ import { toast } from "sonner";
 interface Props {
   processoId: string;
   disabled?: boolean;
+  mrpData?: { assuntoNome?: string; interessado?: string | null; areaConstruida?: number; bairro?: string | null; numeroSei?: string | null; numeroFisico?: string | null; };
   // Callback opcional disparado APÓS o download bem-sucedido do laudo.
   // Usado, por exemplo, para gravar uma tag permanente no processo.
   onSuccess?: () => void;
 }
 
-export function BotaoGerarLaudo({ processoId, disabled, onSuccess }: Props) {
+export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData }: Props) {
   const [gerando, setGerando] = useState(false);
 
   async function handleGerar() {
@@ -45,6 +46,24 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess }: Props) {
 
       toast.success("Laudo gerado com sucesso!");
       onSuccess?.();
+      // Registro MRP
+      if (mrpData) {
+        fetch("/api/mrp/registros", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            processo_codigo: processoId,
+            tipo_despacho: "laudo",
+            assunto: mrpData.assuntoNome ?? "Regularização SEI",
+            interessado: mrpData.interessado ?? null,
+            area_construida: mrpData.areaConstruida ?? 0,
+            bairro: mrpData.bairro ?? null,
+            numero_sei: mrpData.numeroSei ?? processoId,
+            numero_fisico: mrpData.numeroFisico ?? null,
+            auto_gerado: true,
+          }),
+        }).then(async r => { const j = await r.json(); console.log("[MRP-LAUDO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-LAUDO] ERRO:", e?.message));
+      }
       // Registro MAP
       fetch("/api/auditoria/registrar", {
         method: "POST", credentials: "include",

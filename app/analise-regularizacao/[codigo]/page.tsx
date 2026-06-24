@@ -1484,6 +1484,7 @@ export default function MacPage() {
             <div className="mt-2">
               <BotaoGerarLaudo
                 processoId={codigo}
+                mrpData={{ assuntoNome, interessado: dadosLip?.proprietario?.valor ?? null, areaConstruida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0, bairro: dadosLip?.bairro?.valor ?? null, numeroSei: dadosLip?.processo?.valor ?? codigo, numeroFisico: dadosLip?.processoFisico?.valor ?? null }}
                 onSuccess={() =>
                   void gravarTag({
                     tipo: "laudo",
