@@ -322,9 +322,9 @@ export default function UsuariosPage() {
                     onChange={(e) => f("gerencia", e.target.value === "DIRAAP" ? "" : e.target.value)}
                     className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   >
-                    <option value="GERECCO">PP</option>
-                    <option value="GERAED">MP</option>
-                    <option value="GERAGP">GP</option>
+                    <option value="GERECCO">GERECCO</option>
+                    <option value="GERAED">GERAED</option>
+                    <option value="GERAGP">GERAGP</option>
                     <option value="DIRAAP">DIRAAP (direto)</option>
                   </select>
                 </div>
