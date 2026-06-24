@@ -363,7 +363,7 @@ function MrpInner() {
               {/* Porte + Área */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Porte</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gerência</label>
                   <select
                     value={formManual.porte}
                     onChange={(e) => setFormManual((f) => ({ ...f, porte: e.target.value }))}
@@ -645,7 +645,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
           <Card titulo="Por tipo de processo">
             <Pie dados={data.stats.por_tipo_processo.map((x) => ({ label: x.tipo, value: x.count }))} />
           </Card>
-          <Card titulo="m² por porte (MP vs GP)">
+          <Card titulo="m² por gerência (MP vs GP)">
             <BarH dados={data.stats.por_porte.map((x) => ({ label: x.porte, value: x.area_total }))} sufixo=" m²" />
           </Card>
           <Card titulo="Produção por dia da semana">
@@ -735,7 +735,7 @@ function Dossie() {
               <Dl k="Interessado" v={data.processo.interessado || "—"} />
               <Dl k="Assunto" v={data.processo.assunto || "—"} />
               <Dl k="Área construída" v={`${(data.processo.area || 0).toLocaleString("pt-BR")} m²`} />
-              <Dl k="Porte" v={data.processo.porte} />
+              <Dl k="Gerência" v={data.processo.porte} />
               <Dl k="Bairro" v={data.processo.bairro || "—"} />
               <Dl k="Setor" v={data.processo.setor || "—"} />
             </dl>
@@ -865,7 +865,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
         <FiltroSel label="Tipo despacho" value={filtros.tipo_despacho}
           onChange={(v) => setFiltros((f) => ({ ...f, tipo_despacho: v }))}
           options={[["", "Todos"], ["despacho", "Despacho"], ["aceite", "Aceite"], ["indeferimento", "Indeferimento"], ["arquivamento", "Arquivamento"]]} />
-        <FiltroSel label="Porte" value={filtros.porte}
+        <FiltroSel label="Gerência" value={filtros.porte}
           onChange={(v) => setFiltros((f) => ({ ...f, porte: v }))}
           options={[["", "Todos"], ["GERECCO", "GERECCO"], ["GERAED", "GERAED"], ["GERAGP", "GERAGP"]]} />
         <FiltroSel label="Revisão" value={filtros.revisao}
@@ -891,7 +891,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           <thead className="bg-slate-100 text-gray-700 text-xs uppercase">
             <tr>
               <Th>Nº SEI</Th><Th>Nº Físico</Th><Th>Interessado</Th><Th>Tipo de Processo</Th>
-              <Th>Porte do Projeto</Th><Th className="text-right">Área m²</Th><Th>Envio</Th>
+              <Th>Gerência</Th><Th>Tipo de Documento</Th><Th className="text-right">Área m²</Th><Th>Envio</Th>
               <Th>Data</Th><Th className="text-right">Pts</Th>
             </tr>
           </thead>
@@ -911,6 +911,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   <Td>{r.interessado || "—"}</Td>
                   <Td>{r.assunto || "Regularização"}</Td>
                   <Td>{r.porte || "-"}</Td>
+                  <Td>{r.tipo_despacho || "—"}</Td>
                   <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
                   <Td>{new Date(r.data_despacho).toLocaleDateString("pt-BR")}</Td>
@@ -990,7 +991,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 </datalist>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Porte</label>
+                <label className="text-xs text-gray-500 block mb-1">Gerência</label>
                 <select value={editando.porte || "GERAED"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm">
                   <option value="GERECCO">GERECCO</option>
