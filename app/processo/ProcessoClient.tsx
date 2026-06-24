@@ -14,7 +14,7 @@ type EventoHistorico = {
   snapshot: Record<string, Campo> | null;
   meta?: any;
 };
-type TipoProcesso = "Regularização" | "Aceite" | "Aprovação";
+type TipoProcesso = "Regularização SEI" | "Aceite" | "Aprovação";
 
 type CampoDB = {
   id: string;
@@ -104,7 +104,7 @@ function normalizarTipo(t: string | null | undefined): "ACEITE" | "REGULARIZACAO
 function rotuloTipo(t: "ACEITE" | "REGULARIZACAO" | "APROVACAO"): string {
   if (t === "ACEITE") return "Aceite";
   if (t === "APROVACAO") return "Aprovação";
-  return "Regularização";
+  return "Regularização SEI";
 }
 
 // Conversão UTM Zona 22S (SIRGAS 2000) → lat/lng
@@ -1240,7 +1240,7 @@ export default function ProcessoClient() {
           className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="Regularização">Regularização</option>
+          <option value="Regularização SEI">Regularização SEI</option>
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
           className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
