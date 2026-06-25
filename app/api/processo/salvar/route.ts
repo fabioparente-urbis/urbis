@@ -70,10 +70,16 @@ export async function POST(req: NextRequest) {
     // slug em `assuntos` é minúsculo, então comparamos lowercase. Para
     // assuntos novos (slot_02..slot_15), o front já envia o slug uppercase
     // como `tipo`, então o lookup continua valendo.
+    const slugMap: Record<string, string> = {
+      "REGULARIZACAO": "regularizacao",
+      "ACEITE": "aceite_sei",
+      "APROVACAO": "aprovacao_pp",
+    };
+    const slugAlvo = slugMap[tipoProcesso] ?? tipoProcesso.toLowerCase();
     const { data: assuntoRow } = await supabase
       .from("assuntos")
       .select("id")
-      .eq("slug", tipoProcesso.toLowerCase())
+      .eq("slug", slugAlvo)
       .maybeSingle();
     const assuntoIdResolvido: string | null = assuntoRow?.id ?? null;
 
