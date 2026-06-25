@@ -196,13 +196,31 @@ export async function GET(req: NextRequest) {
   const taxaRevisao = linhas.length ? Math.round((totRevisao / linhas.length) * 1000) / 10 : 0;
   const taxaInd = linhas.length ? Math.round((totInd / linhas.length) * 1000) / 10 : 0;
 
-  const duracoes = linhas
-    .filter((r) => r.data_inicio && r.data_despacho)
+  const linhasComTempo = linhas.filter((r) => r.data_inicio && r.data_despacho);
+  const duracoes = linhasComTempo
     .map((r) => (new Date(r.data_despacho).getTime() - new Date(r.data_inicio).getTime()) / 86400000)
     .filter((d) => d >= 0);
   const tempoMedio = duracoes.length
     ? Math.round((duracoes.reduce((a, b) => a + b, 0) / duracoes.length) * 10) / 10
     : 0;
+  // Tempo médio por mês
+  const tempoMes = new Map<string, number[]>();
+  for (const r of linhasComTempo) {
+    const d = (new Date(r.data_despacho).getTime() - new Date(r.data_inicio).getTime()) / 86400000;
+    if (d < 0) continue;
+    const chave = `${new Date(r.data_despacho).getFullYear()}-${String(new Date(r.data_despacho).getMonth() + 1).padStart(2, "0")}`;
+    if (!tempoMes.has(chave)) tempoMes.set(chave, []);
+    tempoMes.get(chave)!.push(d);
+  }
+  const tempoMedioPorMes = Array.from(tempoMes.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([mes, vals]) => ({ mes, media: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 10) / 10 }));
+  // Top processos por tempo de análise
+  const topTempoProcesso = linhasComTempo
+    .map((r) => ({ processo: r.processo_codigo, dias: Math.round(((new Date(r.data_despacho).getTime() - new Date(r.data_inicio).getTime()) / 86400000) * 10) / 10 }))
+    .filter((r) => r.dias >= 0)
+    .sort((a, b) => b.dias - a.dias)
+    .slice(0, 8);
 
   const resposta: PainelResposta = {
     pontos_acumulados: pontosAcumulados,
@@ -224,6 +242,8 @@ export async function GET(req: NextRequest) {
       taxa_revisao: taxaRevisao,
       taxa_indeferimento: taxaInd,
       tempo_medio_analise_dias: tempoMedio,
+      tempo_medio_por_mes: tempoMedioPorMes,
+      top_tempo_processo: topTempoProcesso,
       top_assuntos: porAssunto,
       por_dia_semana: porDiaSemana,
       por_bairro: porBairro,

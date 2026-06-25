@@ -654,19 +654,34 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
           <Card titulo="Por faixa de área">
             <BarH dados={data.stats.por_faixa_area.map((x) => ({ label: x.faixa, value: x.count }))} />
           </Card>
-          <Card titulo="Estatísticas por Bairro">
-            <table className="w-full text-sm text-gray-800">
+          <Card titulo="Tempo Médio de Análise">
+            <p className="text-xs text-gray-500 mb-3">Média geral: <strong>{data.stats.tempo_medio_analise_dias} dias</strong></p>
+            <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Por mês</p>
+            <table className="w-full text-sm text-gray-800 mb-4">
               <thead><tr className="text-gray-500 text-xs uppercase">
-                <th className="text-left py-1">Bairro</th>
-                <th className="text-right">Qtd</th>
-                <th className="text-right">m²</th>
+                <th className="text-left py-1">Mês</th>
+                <th className="text-right">Média (dias)</th>
               </tr></thead>
               <tbody>
-                {data.stats.por_bairro.slice(0, 8).map((b) => (
-                  <tr key={b.bairro} className="border-t">
-                    <td className="py-1">{b.bairro}</td>
-                    <td className="text-right">{b.count}</td>
-                    <td className="text-right">{b.area_total.toLocaleString("pt-BR")}</td>
+                {(data.stats.tempo_medio_por_mes ?? []).map((m: any) => (
+                  <tr key={m.mes} className="border-t">
+                    <td className="py-1">{m.mes}</td>
+                    <td className="text-right font-mono">{m.media}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs text-gray-500 font-semibold uppercase mb-1">Por processo (mais longos)</p>
+            <table className="w-full text-sm text-gray-800">
+              <thead><tr className="text-gray-500 text-xs uppercase">
+                <th className="text-left py-1">Processo</th>
+                <th className="text-right">Dias</th>
+              </tr></thead>
+              <tbody>
+                {(data.stats.top_tempo_processo ?? []).map((p: any) => (
+                  <tr key={p.processo} className="border-t">
+                    <td className="py-1 font-mono text-xs">{p.processo}</td>
+                    <td className="text-right">{p.dias}</td>
                   </tr>
                 ))}
               </tbody>

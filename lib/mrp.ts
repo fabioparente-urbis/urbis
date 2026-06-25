@@ -213,6 +213,8 @@ export type PainelResposta = {
     taxa_revisao: number;
     taxa_indeferimento: number;
     tempo_medio_analise_dias: number;
+    tempo_medio_por_mes: { mes: string; media: number }[];
+    top_tempo_processo: { processo: string; dias: number }[];
     top_assuntos: { assunto: string; count: number }[];
     por_dia_semana: { dia: string; count: number }[];
     por_bairro: { bairro: string; count: number; area_total: number }[];
