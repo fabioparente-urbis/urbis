@@ -914,7 +914,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   <Td>{r.tipo_despacho || "—"}</Td>
                   <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
-                  <Td>{new Date(r.data_despacho + "T12:00:00").toLocaleDateString("pt-BR")}</Td>
+                  <Td>{new Date(r.data_despacho.slice(0,10) + "T12:00:00").toLocaleDateString("pt-BR")}</Td>
                   <Td className="text-right font-semibold">{Number(r.pontos).toFixed(1)}</Td>
                   {isAdmin && (
                     <Td>
