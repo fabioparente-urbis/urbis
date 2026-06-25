@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GEMINI_MODEL } from "@/lib/constants";
+import { GEMINI_MODEL, type GeminiModel } from "@/lib/constants";
+
+// Força erro de build se GEMINI_MODEL não for um modelo válido
+const _modeloValidado: GeminiModel = GEMINI_MODEL;
 import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
 const supabaseAdmin = createClient(
@@ -30,6 +33,18 @@ export async function POST(req: NextRequest) {
     console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
     const apiKey = process.env.GEMINI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    // ── Trava de budget: bloqueia se > 50 chamadas na última hora ──
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: chamadasRecentes } = await supabaseAdmin
+      .from("urbis_api_calls")
+      .select("*", { count: "exact", head: true })
+      .gte("criado_em", umaHoraAtras)
+      .eq("status", "ok");
+    if ((chamadasRecentes ?? 0) >= 50) {
+      console.error("[S3] BUDGET BLOQUEADO: mais de 50 chamadas na última hora");
+      return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
+    }
     let texto = "";
 
     // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
@@ -68,9 +83,11 @@ export async function POST(req: NextRequest) {
       let motivo = "ERRO_GEMINI";
       const corpoLower = ultimoCorpo.toLowerCase();
       if (ultimoStatus === 429 || corpoLower.includes("resource_exhausted") || corpoLower.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
+      else if (ultimoStatus === 400 && (corpoLower.includes("invalid_argument") || corpoLower.includes("model") || corpoLower.includes("not found") || corpoLower.includes("does not exist"))) motivo = "MODELO_INVALIDO";
+      else if (ultimoStatus === 400 && (corpoLower.includes("api_key_invalid") || corpoLower.includes("api key not valid"))) motivo = "CHAVE_INVALIDA";
+      else if (ultimoStatus === 400) motivo = "REQUISICAO_INVALIDA";
       else if (ultimoStatus === 404 || corpoLower.includes("no longer available") || corpoLower.includes("not_found")) motivo = "MODELO_INDISPONIVEL";
       else if (ultimoStatus === 413 || corpoLower.includes("file_too_large") || corpoLower.includes("too large") || corpoLower.includes("exceeds the limit")) motivo = "ARQUIVO_GRANDE";
-      else if (ultimoStatus === 400 || corpoLower.includes("api_key_invalid") || corpoLower.includes("api key not valid")) motivo = "CHAVE_INVALIDA";
       else if (ultimoStatus === 503 || corpoLower.includes("overloaded") || corpoLower.includes("high demand")) motivo = "GEMINI_SOBRECARREGADO";
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
       console.error(`[S3] FALHA DEFINITIVA: motivo=${motivo} status=${ultimoStatus} corpo=${ultimoCorpo}`);
