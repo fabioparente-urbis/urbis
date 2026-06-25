@@ -658,9 +658,9 @@ export default function ChecklistsPage() {
                           {podeEditar && (
                             <div className="flex gap-2 shrink-0">
                               <button onClick={() => abrirEditarItem(item)}
-                                className="text-[var(--text-muted)] hover:text-blue-400 text-xs transition-colors">✏️</button>
+                                className="bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 text-xs px-2 py-0.5 rounded transition-colors">✏️</button>
                               <button onClick={() => removerItem(item.id)}
-                                className="text-[var(--text-muted)] hover:text-red-400 text-xs transition-colors">🗑</button>
+                                className="bg-green-50 hover:bg-green-100 border border-green-300 text-green-700 text-xs px-2 py-0.5 rounded transition-colors">🗑</button>
                             </div>
                           )}
                         </div>
