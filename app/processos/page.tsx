@@ -74,22 +74,17 @@ const STATUS_COR: Record<string, string> = {
 };
 
 const TIPO_COR: Record<string, string> = {
-  // Regularizacao → roxo, Aceite → azul (item 6).
-  Regularizacao: "bg-[var(--ia-bg)] text-[var(--ia)]",
-  REGULARIZACAO: "bg-[var(--ia-bg)] text-[var(--ia)]",
-  Aceite: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  ACEITE: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  Aprovacao: "bg-[var(--warning-bg)] text-[var(--warning)]",
-  APROVACAO: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  regularizacao: "bg-[var(--ia-bg)] text-[var(--ia)]",
+  aceite_sei: "bg-[var(--accent)] text-[var(--accent-fg)]",
+  aprovacao_pp: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  aprovacao_mp: "bg-[var(--warning-bg)] text-[var(--warning)]",
 };
 
 const TIPO_ROTULO: Record<string, string> = {
-  REGULARIZACAO: "Regularização SEI",
-  Regularizacao: "Regularização SEI",
-  ACEITE: "Aceite",
-  Aceite: "Aceite",
-  APROVACAO: "Aprovação",
-  Aprovacao: "Aprovação",
+  regularizacao: "Regularização SEI",
+  aceite_sei: "Aceite SEI",
+  aprovacao_pp: "Aprovação PP",
+  aprovacao_mp: "Aprovação MP",
 };
 
 function formatar(dataStr: string | null) {
@@ -240,7 +235,7 @@ export default function ProcessosPage() {
 
   function abrirProcesso(p: Processo) {
     const id = p.codigo || p.numero_sei;
-    const tipoNorm = String(p.tipo_processo || "REGULARIZACAO").toUpperCase();
+    const tipoNorm = p.tipo_processo || "regularizacao";
     const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
     const destino = params.get("destino");
     if (destino === "mac") {
@@ -290,7 +285,7 @@ export default function ProcessosPage() {
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="">Todos os tipos</option>
-          <option value="REGULARIZACAO">Regularização SEI</option>
+          <option value="regularizacao">Regularização SEI</option>
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">

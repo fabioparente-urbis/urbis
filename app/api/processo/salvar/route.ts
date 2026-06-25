@@ -22,22 +22,6 @@ function chavesVaziasOuX(dados: any): string[] {
   return out;
 }
 
-/**
- * Normaliza tipo_processo para os valores canônicos do banco.
- * Aceita formas vindas do front ("Regularização" / "Aceite" / "Aprovação")
- * e formas em caixa-alta ("REGULARIZACAO" / "ACEITE" / "APROVACAO").
- */
-function normalizarTipo(tipo: unknown): "ACEITE" | "REGULARIZACAO" | "APROVACAO" {
-  const t = String(tipo ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .trim();
-  if (t === "ACEITE") return "ACEITE";
-  if (t === "APROVACAO") return "APROVACAO";
-  return "REGULARIZACAO";
-}
-
 export async function POST(req: NextRequest) {
   try {
     const auth = await autenticar(req);
@@ -46,7 +30,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { id, dados, camposAlterados } = body;
-    const tipoProcesso = normalizarTipo(body.tipo);
+    const tipoProcesso: string = body.tipo ?? "regularizacao";
 
     if (!id) {
       return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
@@ -65,21 +49,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: erroBusca.message }, { status: 500 });
     }
 
-    // Sessão 4: resolve assunto_id a partir do tipo_processo (slug uppercase).
-    // O `tipoProcesso` aqui é "REGULARIZACAO" | "ACEITE" | "APROVACAO"; o
-    // slug em `assuntos` é minúsculo, então comparamos lowercase. Para
-    // assuntos novos (slot_02..slot_15), o front já envia o slug uppercase
-    // como `tipo`, então o lookup continua valendo.
-    const slugMap: Record<string, string> = {
-      "REGULARIZACAO": "regularizacao",
-      "ACEITE": "aceite_sei",
-      "APROVACAO": "aprovacao_pp",
-    };
-    const slugAlvo = slugMap[tipoProcesso] ?? tipoProcesso.toLowerCase();
+    // Resolve assunto_id a partir do slug (já é o valor canônico do banco).
     const { data: assuntoRow } = await supabase
       .from("assuntos")
       .select("id")
-      .eq("slug", slugAlvo)
+      .eq("slug", tipoProcesso)
       .maybeSingle();
     const assuntoIdResolvido: string | null = assuntoRow?.id ?? null;
 

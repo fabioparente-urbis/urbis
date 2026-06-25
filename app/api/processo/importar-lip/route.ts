@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const file = form.get("file");
     const codigo = String(form.get("codigo") || "").trim();
-    const tipo = String(form.get("tipo") || "REGULARIZACAO").trim();
+    const tipo = String(form.get("tipo") || "regularizacao").trim();
 
     if (!codigo) {
       return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });

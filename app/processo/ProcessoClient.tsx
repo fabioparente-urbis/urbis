@@ -14,7 +14,7 @@ type EventoHistorico = {
   snapshot: Record<string, Campo> | null;
   meta?: any;
 };
-type TipoProcesso = "Regularização SEI" | "Aceite" | "Aprovação";
+type TipoProcesso = string;
 
 type CampoDB = {
   id: string;
@@ -90,20 +90,10 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
   );
 }
 
-function normalizarTipo(t: string | null | undefined): "ACEITE" | "REGULARIZACAO" | "APROVACAO" {
-  const v = String(t ?? "")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .trim();
-  if (v === "ACEITE") return "ACEITE";
-  if (v === "APROVACAO") return "APROVACAO";
-  return "REGULARIZACAO";
-}
-
-function rotuloTipo(t: "ACEITE" | "REGULARIZACAO" | "APROVACAO"): string {
-  if (t === "ACEITE") return "Aceite";
-  if (t === "APROVACAO") return "Aprovação";
+function rotuloTipo(slug: string): string {
+  if (slug === "aceite_sei") return "Aceite SEI";
+  if (slug === "aprovacao_pp") return "Aprovação PP";
+  if (slug === "aprovacao_mp") return "Aprovação MP";
   return "Regularização SEI";
 }
 
@@ -159,7 +149,7 @@ export default function ProcessoClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const idUrl = (params?.id as string) ?? "";
-  const tipoUrl = normalizarTipo(searchParams?.get("tipo"));
+  const tipoUrl = searchParams?.get("tipo") ?? "regularizacao";
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
@@ -202,7 +192,7 @@ export default function ProcessoClient() {
   const [restaurando, setRestaurando] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [novoProcesso, setNovoProcesso] = useState("");
-  const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(rotuloTipo(tipoUrl) as TipoProcesso);
+  const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(tipoUrl);
   const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
@@ -335,7 +325,7 @@ export default function ProcessoClient() {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("codigo", idUrl);
-      fd.append("tipo", tipoUrl || "REGULARIZACAO");
+      fd.append("tipo", tipoUrl || "regularizacao");
       const res = await fetch("/api/processo/importar-lip", { method: "POST", body: fd });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
@@ -435,7 +425,7 @@ export default function ProcessoClient() {
   function navegarParaProcesso() {
     const id = novoProcesso.trim();
     if (!id) return;
-    const tipoNorm = normalizarTipo(tipoNavegacao);
+    const tipoNorm = tipoNavegacao;
     router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
     setNovoProcesso("");
   }
@@ -753,7 +743,7 @@ export default function ProcessoClient() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "REGULARIZACAO", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -1142,7 +1132,7 @@ export default function ProcessoClient() {
             </button>
           )}
           <a
-            href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "REGULARIZACAO"}`}
+            href={`/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "regularizacao"}`}
             download
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             📊 Exportar Excel
@@ -1240,8 +1230,7 @@ export default function ProcessoClient() {
           className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="Regularização SEI">Regularização SEI</option>
-          <option value="Aceite">Aceite SEI</option>
+          <option value="regularizacao">Regularização SEI</option>
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
           className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">

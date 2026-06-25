@@ -180,10 +180,10 @@ ${membro.cau_crea}`;
     // ── MRP: grava geração do laudo automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
-      const tipoProc = String(p.tipo_processo || "REGULARIZACAO").toUpperCase();
+      const tipoProc = String(p.tipo_processo || "regularizacao");
       await gravarRegistroMRP({
         processo_codigo: processoId,
-        tipo_processo: tipoProc === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
+        tipo_processo: tipoProc,
         tipo_despacho: "laudo",
         numero_despacho: null,
         analise_id: mac?.id ?? null,

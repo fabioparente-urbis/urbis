@@ -2,26 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabaseClient'
 import { autenticar, verificarOwnership } from '@/lib/auth'
 
-function normalizarTipo(tipo: unknown): "ACEITE" | "REGULARIZACAO" | "APROVACAO" | null {
-  if (tipo === undefined || tipo === null || tipo === "") return null
-  const t = String(tipo)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toUpperCase()
-    .trim()
-  if (t === "ACEITE") return "ACEITE"
-  if (t === "APROVACAO") return "APROVACAO"
-  if (t === "REGULARIZACAO") return "REGULARIZACAO"
-  return null
-}
-
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req)
   if (auth instanceof NextResponse) return auth
 
   const { searchParams } = new URL(req.url)
   const codigo = searchParams.get('id')
-  const tipo = normalizarTipo(searchParams.get('tipo'))
+  const tipo = searchParams.get('tipo') || null
 
   if (!codigo) {
     return NextResponse.json({ ok: false, erro: 'ID não informado' }, { status: 400 })

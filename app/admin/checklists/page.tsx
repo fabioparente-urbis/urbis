@@ -419,7 +419,7 @@ export default function ChecklistsPage() {
                 <select value={tipoProcesso} onChange={(e) => setTipoProcesso(e.target.value)}
                   className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Todos os tipos</option>
-                  <option value="REGULARIZACAO">Regularização</option>
+                  <option value="regularizacao">Regularização</option>
                 </select>
               </div>
               <div>

@@ -13,7 +13,7 @@ import {
 
 export type GravarRegistroInput = {
   processo_codigo: string;
-  tipo_processo: "ACEITE" | "REGULARIZACAO" | "APROVACAO";
+  tipo_processo: string;
   tipo_despacho: TipoDespacho;
   numero_despacho?: string | null;
   analise_id?: string | null;     // id em analises_mac (preferido)

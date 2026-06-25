@@ -9,7 +9,7 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   const codigo = req.nextUrl.searchParams.get("codigo");
-  const tipo = req.nextUrl.searchParams.get("tipo") || "REGULARIZACAO";
+  const tipo = req.nextUrl.searchParams.get("tipo") || "regularizacao";
   if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
 
   const { data: proc } = await supabase

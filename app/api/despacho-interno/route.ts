@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
     //    e o fluxo do front segue normalmente. ────────────────────────
     if (analistaEmail) {
       try {
-        const tipoProcessoNorm = String(tipoProcesso || (proc as any)?.tipo_processo || "").toUpperCase();
-        const slugTipo = tipoProcessoNorm === "ACEITE" ? "ACEITE" : "REGULARIZACAO";
+        const tipoProcessoNorm = String(tipoProcesso || (proc as any)?.tipo_processo || "");
+        const slugTipo = tipoProcessoNorm || "regularizacao";
         const linkProcesso = `${APP_URL}/processo/${encodeURIComponent(codigo)}?tipo=${encodeURIComponent(slugTipo)}`;
         const subject = `[URBIS] Despacho interno Nº ${numeroDespacho} — processo ${codigo}`;
         const corpoHtml = escapeHtml(String(corpo || "")).replace(/\n/g, "<br>");
@@ -102,10 +102,10 @@ export async function POST(req: NextRequest) {
     // ── MRP: grava o despacho interno automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
-      const tipoProc = String(tipoProcesso || (proc as any)?.tipo_processo || "REGULARIZACAO").toUpperCase();
+      const tipoProc = String(tipoProcesso || (proc as any)?.tipo_processo || "regularizacao");
       await gravarRegistroMRP({
         processo_codigo: codigo,
-        tipo_processo: tipoProc === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
+        tipo_processo: tipoProc,
         tipo_despacho: "interno",
         numero_despacho: String(numeroDespacho ?? ""),
         analise_id: null,

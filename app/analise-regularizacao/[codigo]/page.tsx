@@ -159,7 +159,7 @@ export default function MacPage() {
     // Busca tipo e assunto do processo
     const resPoc = await fetch(`/api/processos?busca=${encodeURIComponent(codigo)}`);
     const jsonPoc = await resPoc.json();
-    const tipo = jsonPoc.ok && jsonPoc.data.length > 0 ? jsonPoc.data[0].tipo_processo : "REGULARIZACAO";
+    const tipo = jsonPoc.ok && jsonPoc.data.length > 0 ? jsonPoc.data[0].tipo_processo : "regularizacao";
     const assunto: string | null = jsonPoc.ok && jsonPoc.data.length > 0 ? (jsonPoc.data[0].assunto_id ?? null) : null;
     setTipoProcesso(tipo);
     setAssuntoId(assunto);
@@ -624,7 +624,7 @@ export default function MacPage() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: "REGULARIZACAO", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();

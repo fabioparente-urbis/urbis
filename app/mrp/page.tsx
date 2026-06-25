@@ -193,7 +193,7 @@ function MrpInner() {
           interessado: formManual.interessado.trim() || null,
           porte: formManual.porte || null,
           area_construida: Number(formManual.area_construida) || 0,
-          tipo_processo: formManual.assunto || "REGULARIZACAO",
+          tipo_processo: formManual.assunto || "regularizacao",
           tipo_despacho: formManual.tipo_despacho,
           assunto: formManual.assunto || null,
           data_despacho: new Date(formManual.data_despacho + "T12:00:00").toISOString(),
@@ -861,7 +861,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
       <div className="bg-white rounded-lg shadow border p-4 mb-4 flex flex-wrap items-end gap-3">
         <FiltroSel label="Tipo processo" value={filtros.tipo_processo}
           onChange={(v) => setFiltros((f) => ({ ...f, tipo_processo: v }))}
-          options={[["", "Todos"], ["ACEITE", "ACEITE"], ["REGULARIZACAO", "REGULARIZAÇÃO"], ["APROVACAO", "APROVAÇÃO"]]} />
+          options={[["", "Todos"], ["aceite_sei", "Aceite SEI"], ["regularizacao", "Regularização"], ["aprovacao_pp", "Aprovação PP"], ["aprovacao_mp", "Aprovação MP"]]} />
         <FiltroSel label="Tipo despacho" value={filtros.tipo_despacho}
           onChange={(v) => setFiltros((f) => ({ ...f, tipo_despacho: v }))}
           options={[["", "Todos"], ["despacho", "Despacho"], ["aceite", "Aceite"], ["indeferimento", "Indeferimento"], ["arquivamento", "Arquivamento"]]} />
@@ -983,11 +983,11 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   list="tipo-processo-list"
                   value={editando.tipo_processo || ""}
                   onChange={e => setEditando((v: any) => ({...v, tipo_processo: e.target.value}))}
-                  placeholder="Ex.: REGULARIZACAO"
+                  placeholder="Ex.: regularizacao"
                   className="w-full border rounded px-3 py-1.5 text-sm"
                 />
                 <datalist id="tipo-processo-list">
-                  {["REGULARIZACAO","ACEITE","APROVACAO"].map(t => <option key={t} value={t} />)}
+                  {["regularizacao","aceite_sei","aprovacao_pp","aprovacao_mp"].map(t => <option key={t} value={t} />)}
                 </datalist>
               </div>
               <div>

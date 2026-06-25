@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
       await gravarRegistroMRP({
         processo_codigo: processo,
-        tipo_processo: ((proc as any)?.tipo_processo ?? "REGULARIZACAO").toUpperCase() === "ACEITE" ? "ACEITE" : "REGULARIZACAO",
+        tipo_processo: (proc as any)?.tipo_processo ?? "regularizacao",
         tipo_despacho: tipo === "despacho" ? "despacho" : tipo === "indeferimento" ? "indeferimento" : "arquivamento",
         numero_despacho: numeroDespacho ?? null,
         analise_id: analiseId ?? null,

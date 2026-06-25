@@ -57,7 +57,7 @@ export default function Home() {
   // Default = REGULARIZACAO ate o GET /api/admin/assuntos resolver.
   // Regularizacao e sempre ativo (slot fixo), entao sera o default
   // selecionado depois da carga tambem.
-  const [tipo, setTipo] = useState<TipoProcesso>("REGULARIZACAO");
+  const [tipo, setTipo] = useState<TipoProcesso>("regularizacao");
   const [numero, setNumero] = useState("");
   const [erro, setErro] = useState("");
 
@@ -77,7 +77,7 @@ export default function Home() {
         // Garante que Regularizacao fica selecionada por padrao se
         // estiver presente; caso contrario, mantem o que ja estava.
         const reg = ativos.find((a) => a.slug === SLUG_REGULARIZACAO);
-        if (reg) setTipo(reg.slug.toUpperCase());
+        if (reg) setTipo(reg.slug);
       } catch {
         // Silencioso — se falhar, o dropdown fica vazio mas o resto da
         // tela continua funcionando. O default ja e REGULARIZACAO.
@@ -122,11 +122,11 @@ export default function Home() {
       setErro("O número informado não corresponde a um formato válido do URBIS.");
       return;
     }
-    if (tipo === "APROVACAO" && tipoNumero === "SEI") {
+    if (tipo === "aprovacao_pp" && tipoNumero === "SEI") {
       setErro("Número SEI não é compatível com aprovação de projeto.");
       return;
     }
-    if ((tipo === "ACEITE" || tipo === "REGULARIZACAO") && (tipoNumero === "OS" || tipoNumero === "PROJETO")) {
+    if ((tipo === "aceite_sei" || tipo === "regularizacao") && (tipoNumero === "OS" || tipoNumero === "PROJETO")) {
       setErro("Número de projeto ou ordem de serviço não pode ser usado neste fluxo.");
       return;
     }
@@ -140,12 +140,12 @@ export default function Home() {
   }
 
   function getPlaceholder() {
-    if (tipo === "APROVACAO") return "Ex.: 12345 | OS 343.512 | 91944504";
+    if (tipo === "aprovacao_pp") return "Ex.: 12345 | OS 343.512 | 91944504";
     return "Ex.: 25.5.000082553-3 ou 91944504";
   }
 
   function getAjuda() {
-    if (tipo === "APROVACAO") return "Use número de projeto, OS ou processo físico.";
+    if (tipo === "aprovacao_pp") return "Use número de projeto, OS ou processo físico.";
     return "Use número SEI ou processo físico.";
   }
 
@@ -206,10 +206,10 @@ export default function Home() {
                 {assuntosAtivos.length === 0 ? (
                   // Fallback enquanto o GET nao retornou: mostra Regularizacao
                   // (sempre ativa) para nao deixar o select vazio.
-                  <option value="REGULARIZACAO">Regularização</option>
+                  <option value="regularizacao">Regularização</option>
                 ) : (
                   assuntosAtivos.map((a) => (
-                    <option key={a.id} value={a.slug.toUpperCase()}>
+                    <option key={a.id} value={a.slug}>
                       {a.nome}
                     </option>
                   ))
