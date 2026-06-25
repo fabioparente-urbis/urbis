@@ -54,7 +54,10 @@ export async function GET(req: NextRequest) {
       esgotado: true,
     });
 
-  const numero = (modo === "commit" && Number.isFinite(numeroForcado) && numeroForcado > 0)
+  const numeroForcadoValido = Number.isFinite(numeroForcado) &&
+    numeroForcado >= faixaDisponivel.proximo &&
+    numeroForcado <= faixaDisponivel.numero_final;
+  const numero = (modo === "commit" && numeroForcadoValido)
     ? numeroForcado
     : faixaDisponivel.proximo;
   if (modo === "commit") {

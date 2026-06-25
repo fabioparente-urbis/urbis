@@ -493,7 +493,8 @@ export default function MacPage() {
 
       // Consome o número SOMENTE após o download bem-sucedido
       const _tipoSerieCommit = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
-      fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(parseInt(numeroDespacho, 10) || "")}`, { credentials: "include" }).catch(() => {});
+      const _numCommit = parseInt(numeroDespacho, 10);
+      if (_numCommit > 0) fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}`, { credentials: "include" }).catch(() => {});
 
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
