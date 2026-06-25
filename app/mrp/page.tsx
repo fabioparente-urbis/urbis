@@ -1136,7 +1136,9 @@ function Pie({ dados }: { dados: { label: string; value: number }[] }) {
     const x1 = cx + r * Math.cos(ang), y1 = cy + r * Math.sin(ang);
     const x2 = cx + r * Math.cos(a2), y2 = cy + r * Math.sin(a2);
     const large = frac > 0.5 ? 1 : 0;
-    const path = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
+    const path = frac >= 1
+      ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.001} ${cy - r} Z`
+      : `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} Z`;
     return { ...d, path, cor: cores[i % cores.length], frac };
   });
   return (
