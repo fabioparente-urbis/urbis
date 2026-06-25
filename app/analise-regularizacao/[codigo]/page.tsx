@@ -1578,7 +1578,7 @@ export default function MacPage() {
               {pendenciasLip.map((p, i) => <li key={i}>{p}</li>)}
             </ul>
             <div className="flex gap-3">
-              <button onClick={() => { setModalPendenciasLip(false); setModalDespacho(true); }}
+              <button onClick={async () => { setModalPendenciasLip(false); setNumeracaoCarregando(true); try { const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" }); const _j = await _r.json(); if (_j.ok) { setNumeroDespacho(String(_j.numero).padStart(3, "0")); setNumeracaoBloqueio(null); } else { setNumeroDespacho(""); setNumeracaoBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); } } catch { setNumeroDespacho(""); setNumeracaoBloqueio("Erro ao buscar número."); } finally { setNumeracaoCarregando(false); } setModalDespacho(true); }}
                 className="flex-1 bg-orange-700 hover:bg-orange-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Emitir mesmo assim
               </button>
@@ -1690,7 +1690,7 @@ export default function MacPage() {
             </ul>
             <div className="flex gap-3">
               <button
-                onClick={() => { setModalItensPendentesIA(false); setModalDespacho(true); }}
+                onClick={async () => { setModalItensPendentesIA(false); setNumeracaoCarregando(true); try { const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" }); const _j = await _r.json(); if (_j.ok) { setNumeroDespacho(String(_j.numero).padStart(3, "0")); setNumeracaoBloqueio(null); } else { setNumeroDespacho(""); setNumeracaoBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); } } catch { setNumeroDespacho(""); setNumeracaoBloqueio("Erro ao buscar número."); } finally { setNumeracaoCarregando(false); } setModalDespacho(true); }}
                 className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Emitir mesmo assim
               </button>
