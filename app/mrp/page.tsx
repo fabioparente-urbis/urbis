@@ -1096,8 +1096,8 @@ function BarChart12m({ dados, metaEfetiva }: {
       <line x1={padL} y1={10 + innerH - (metaEfetiva / max) * innerH}
         x2={w - 10} y2={10 + innerH - (metaEfetiva / max) * innerH}
         stroke="#dc2626" strokeDasharray="4 3" />
-      <text x={w - 10} y={10 + innerH - (metaEfetiva / max) * innerH - 4}
-        textAnchor="end" fontSize="10" fill="#dc2626">meta {metaEfetiva.toFixed(0)}</text>
+      <text x={padL + 4} y={10 + innerH - (metaEfetiva / max) * innerH - 4}
+        textAnchor="start" fontSize="10" fill="#dc2626">meta {metaEfetiva.toFixed(0)}</text>
 
       {dados.map((d, i) => {
         const bh = (d.pontos / max) * innerH;
