@@ -1111,13 +1111,13 @@ export default function ProcessoClient() {
               const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && (c.valor.trim().toUpperCase() === "X" || (c.origem === "padrao" && c.valor.trim() === ""))).length;
               if (t > 0) { setConfirmarMac(true); return; }
               await salvar();
-              const rotaMac = "/analise-regularizacao";
+              const rotaMac = tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
             }}
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             MAC →
           </button>
-          <button onClick={() => { void salvar(); window.open(`/analise-regularizacao/${encodeURIComponent(idUrl)}`, "_blank"); }}
+          <button onClick={() => { void salvar(); const rotaMac2 = tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao"; window.open(`${rotaMac2}/${encodeURIComponent(idUrl)}`, "_blank"); }}
             className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
             MAC ↗
           </button>
@@ -1493,7 +1493,7 @@ export default function ProcessoClient() {
             <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes no LIP</h2>
             <p className="text-[var(--text-secondary)] text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
             <div className="flex gap-3">
-              <button onClick={async () => { setConfirmarMac(false); await salvar(); router.push(`/analise-regularizacao/${encodeURIComponent(idUrl)}`); }}
+              <button onClick={async () => { setConfirmarMac(false); await salvar(); const rotaMac3 = tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao"; router.push(`${rotaMac3}/${encodeURIComponent(idUrl)}`); }}
                 className="flex-1 bg-orange-700 hover:bg-orange-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Ir assim mesmo
               </button>
