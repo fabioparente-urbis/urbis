@@ -340,7 +340,7 @@ export default function ProcessosPage() {
                     </div>
                   )}
                   <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
-                  <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p>{p.dados?.ultimo_documento && (<span className="text-xs bg-[var(--success-bg)] text-[var(--success)] px-1.5 py-0.5 rounded font-semibold">📄 {p.dados.ultimo_documento}</span>)}</div>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p></div>
                 </div>
 
                 {/* Tipo */}
