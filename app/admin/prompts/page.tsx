@@ -1,9 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 type Assunto = {
   id: string;
   slug: string;
@@ -11,7 +9,6 @@ type Assunto = {
   ativo: boolean;
   ordem: number;
 };
-
 type PromptData = {
   chave: string;
   conteudo: string;
@@ -19,7 +16,6 @@ type PromptData = {
   conteudo_backup?: string | null;
   versao: number;
 };
-
 type HistoricoEntry = {
   id: number;
   prompt_chave: string;
@@ -27,7 +23,6 @@ type HistoricoEntry = {
   salvo_em: string;
   salvo_por: string | null;
 };
-
 type PromptState = {
   atual: string;
   anterior: string;
@@ -39,31 +34,34 @@ type PromptState = {
   historicoSelId: number | null;
   naoSalvo: boolean;
 };
-
 type AssuntoEntry = {
   loaded: boolean;
   hasPrompts: boolean;
   inicializando: boolean;
   prompts: Partial<Record<ChaveCanonica, PromptState>>;
 };
-
 // ─── Constantes ───────────────────────────────────────────────────────────────
-
 const CHAVES = [
   "P1_TRIAGEM",
   "P1_TRIAGEM_BACKUP",
   "P2_EXTRACAO",
   "P2_EXTRACAO_BACKUP",
+  "P2_MAC",
+  "P2_MAC_BACKUP",
+  "P3_WORD",
+  "P3_WORD_BACKUP",
 ] as const;
 type ChaveCanonica = (typeof CHAVES)[number];
-
 const CHAVE_META: Record<ChaveCanonica, { label: string; sublabel: string; cor: string }> = {
-  P1_TRIAGEM:         { label: "P1 — TRIAGEM",  sublabel: "TRIAGEM E CLASSIFICAÇÃO DE DOCUMENTOS",      cor: "#06b6d4" },
-  P1_TRIAGEM_BACKUP:  { label: "P1 — BACKUP",   sublabel: "BACKUP DO PROMPT DE TRIAGEM",                cor: "#0891b2" },
-  P2_EXTRACAO:        { label: "P2 — MAC",       sublabel: "EXTRAÇÃO DE DADOS E PARÂMETROS URBANÍSTICOS",cor: "#d946ef" },
-  P2_EXTRACAO_BACKUP: { label: "P2 — BACKUP",   sublabel: "BACKUP DO PROMPT DE ANÁLISE MAC",            cor: "#a21caf" },
+  P1_TRIAGEM:          { label: "P1 — TRIAGEM",       sublabel: "TRIAGEM E CLASSIFICAÇÃO DE DOCUMENTOS",        cor: "#06b6d4" },
+  P1_TRIAGEM_BACKUP:   { label: "P1 — BACKUP",        sublabel: "BACKUP DO PROMPT DE TRIAGEM",                  cor: "#0891b2" },
+  P2_EXTRACAO:         { label: "P2 — EXTRAÇÃO",      sublabel: "EXTRAÇÃO DE DADOS DO LIP",                     cor: "#d946ef" },
+  P2_EXTRACAO_BACKUP:  { label: "P2 — BACKUP",        sublabel: "BACKUP DO PROMPT DE EXTRAÇÃO",                 cor: "#a21caf" },
+  P2_MAC:              { label: "P2 — MAC",            sublabel: "ANÁLISE DO CHECKLIST MAC",                     cor: "#f59e0b" },
+  P2_MAC_BACKUP:       { label: "P2 MAC — BACKUP",    sublabel: "BACKUP DO PROMPT DE ANÁLISE MAC",              cor: "#b45309" },
+  P3_WORD:             { label: "P3 — WORD",           sublabel: "GERADOR DO LAUDO / DESPACHO",                  cor: "#22c55e" },
+  P3_WORD_BACKUP:      { label: "P3 — BACKUP",        sublabel: "BACKUP DO PROMPT GERADOR DE DOCUMENTO",        cor: "#15803d" },
 };
-
 function mkPromptState(): PromptState {
   return {
     atual: "", anterior: "", backup: "", versao: 0,
@@ -71,9 +69,7 @@ function mkPromptState(): PromptState {
     historico: [], historicoSelId: null, naoSalvo: false,
   };
 }
-
 // ─── Componente principal ─────────────────────────────────────────────────────
-
 export default function AdminPrompts() {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,10 +81,7 @@ export default function AdminPrompts() {
   const [abaIdx, setAbaIdx] = useState(0);
   const [assuntosData, setAssuntosData] = useState<Record<string, AssuntoEntry>>({});
 
-  // Ref para evitar double-fetch por re-renders (sem precisar de dependency array complexo)
   const loadedIds = useRef<Set<string>>(new Set());
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   function showToast(msg: string, tipo: "ok" | "erro") {
     setToast({ msg, tipo });
@@ -109,8 +102,6 @@ export default function AdminPrompts() {
     });
   }
 
-  // ── Carrega prompts de um assunto (lazy, guarda no ref para não repetir) ────
-
   async function loadAssunto(id: string) {
     if (loadedIds.current.has(id)) return;
     loadedIds.current.add(id);
@@ -120,7 +111,7 @@ export default function AdminPrompts() {
 
     if (!json.ok) {
       showToast("Erro ao carregar prompts.", "erro");
-      loadedIds.current.delete(id); // permite retry
+      loadedIds.current.delete(id);
       return;
     }
 
@@ -144,7 +135,6 @@ export default function AdminPrompts() {
       [id]: { loaded: true, hasPrompts: dados.length > 0, inicializando: false, prompts },
     }));
 
-    // Carrega histórico para cada prompt em paralelo
     await Promise.all(
       dados.map(async (p) => {
         const r = await fetch(`/api/admin/prompts/historico?chave=${encodeURIComponent(p.chave)}`);
@@ -170,8 +160,6 @@ export default function AdminPrompts() {
     );
   }
 
-  // ── Carga inicial ───────────────────────────────────────────────────────────
-
   useEffect(() => {
     (async () => {
       const me = await fetch("/api/auth/me").then((r) => r.json());
@@ -190,15 +178,11 @@ export default function AdminPrompts() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Lazy-load ao trocar aba ─────────────────────────────────────────────────
-
   useEffect(() => {
     const id = assuntos[abaIdx]?.id;
     if (id) loadAssunto(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abaIdx, assuntos]);
-
-  // ── Segurança (blur / anti-screenshot) ─────────────────────────────────────
 
   useEffect(() => {
     const bloquearContexto = (e: MouseEvent) => e.preventDefault();
@@ -224,8 +208,6 @@ export default function AdminPrompts() {
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
-
-  // ── Ações ───────────────────────────────────────────────────────────────────
 
   async function salvar(assuntoId: string, chave: ChaveCanonica) {
     const state = assuntosData[assuntoId]?.prompts[chave];
@@ -333,7 +315,6 @@ export default function AdminPrompts() {
 
     if (json.ok) {
       showToast("Prompts inicializados com sucesso.", "ok");
-      // Força reload: remove do ref e limpa o estado
       loadedIds.current.delete(assuntoId);
       setAssuntosData((prev) => ({
         ...prev,
@@ -349,14 +330,10 @@ export default function AdminPrompts() {
     }
   }
 
-  // ── Watermark ───────────────────────────────────────────────────────────────
-
   const watermark = (nome: string) =>
     `url("data:image/svg+xml,${encodeURIComponent(
       `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='300'><text transform='rotate(-35, 150, 150)' x='10' y='160' font-size='13' fill='%23d946ef' opacity='0.06' font-family='monospace'>${nome} • URBIS CONFIDENCIAL • </text></svg>`
     )}")`;
-
-  // ── Loading ─────────────────────────────────────────────────────────────────
 
   if (carregando) return (
     <div style={{ background: "#f8fafc", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -366,8 +343,6 @@ export default function AdminPrompts() {
 
   const assuntoAtivo = assuntos[abaIdx];
   const entryAtiva: AssuntoEntry | undefined = assuntoAtivo ? assuntosData[assuntoAtivo.id] : undefined;
-
-  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -387,7 +362,7 @@ export default function AdminPrompts() {
         padding: "0 0 40px 0",
       }}>
 
-        {/* ── CABEÇALHO ── */}
+        {/* CABEÇALHO */}
         <div style={{
           borderBottom: "1px solid #d946ef33", padding: "16px 32px",
           display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -408,7 +383,7 @@ export default function AdminPrompts() {
           </div>
         </div>
 
-        {/* ── ABAS DE ASSUNTO ── */}
+        {/* ABAS DE ASSUNTO */}
         <div style={{
           borderBottom: "1px solid #d946ef22",
           background: "#ffffff",
@@ -432,17 +407,15 @@ export default function AdminPrompts() {
           ))}
         </div>
 
-        {/* ── CONTEÚDO DA ABA ── */}
+        {/* CONTEÚDO DA ABA */}
         <div style={{ padding: "24px 32px" }}>
 
-          {/* Carregando prompts */}
           {(!entryAtiva || !entryAtiva.loaded) && (
             <div style={{ color: "#d946ef88", fontFamily: "monospace", fontSize: 11, letterSpacing: 2, padding: "40px 0" }}>
               CARREGANDO PROMPTS...
             </div>
           )}
 
-          {/* Sem prompts — botão inicializar */}
           {entryAtiva?.loaded && !entryAtiva.hasPrompts && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "60px 0" }}>
               <span style={{ color: "#cbd5e1", fontSize: 12, letterSpacing: 2 }}>
@@ -466,14 +439,13 @@ export default function AdminPrompts() {
                   : "⚡ INICIALIZAR PROMPTS COPIANDO DE REGULARIZAÇÃO"}
               </button>
               <span style={{ color: "#e2e8f0", fontSize: 9, letterSpacing: 1 }}>
-                Copia os 4 prompts ativos de Regularização para este assunto.
+                Copia os 8 prompts (P1, P2 Extração, P2 MAC, P3 Word + backups) de Regularização para este assunto.
               </span>
             </div>
           )}
 
-          {/* Prompts carregados */}
           {entryAtiva?.loaded && entryAtiva.hasPrompts && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 48 }}>
               {CHAVES.map((chave) => {
                 const meta = CHAVE_META[chave];
                 const state = entryAtiva.prompts[chave] ?? mkPromptState();
@@ -617,7 +589,7 @@ export default function AdminPrompts() {
           )}
         </div>
 
-        {/* ── TOAST ── */}
+        {/* TOAST */}
         {toast && (
           <div style={{
             position: "fixed", bottom: 24, right: 24, zIndex: 999,
