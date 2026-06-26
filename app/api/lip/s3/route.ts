@@ -52,30 +52,43 @@ export async function POST(req: NextRequest) {
     let geminiOk = false;
     let ultimoStatus = 0;
     let ultimoCorpo = "";
+    const MAX_TENTATIVAS = 4;
     for (const modelo of modelos) {
-      console.log(`[S3] Tentando ${modelo}...`);
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
-            generationConfig: { maxOutputTokens: 8192, temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
-          }),
+      for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+        console.log(`[S3] Tentando ${modelo} (tentativa ${tentativa}/${MAX_TENTATIVAS})...`);
+        const res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
+              generationConfig: { maxOutputTokens: 8192, temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
+            }),
+          }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+          if (texto) { geminiOk = true; console.log(`[S3] OK com ${modelo}`); break; }
+          ultimoStatus = 200;
+          ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+        } else {
+          ultimoStatus = res.status;
+          ultimoCorpo = (await res.text()).slice(0, 500);
         }
-      );
-      if (res.ok) {
-        const data = await res.json();
-        texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-        if (texto) { geminiOk = true; console.log(`[S3] OK com ${modelo}`); break; }
-        ultimoStatus = 200;
-        ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
-      } else {
-        ultimoStatus = res.status;
-        ultimoCorpo = (await res.text()).slice(0, 500);
+        console.log(`[S3] ${modelo} falhou (status ${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
+        // Retry apenas em sobrecarga (503) ou resposta vazia, com backoff crescente
+        const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
+        if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
+          const esperaMs = tentativa * 4000; // 4s, 8s, 12s
+          console.log(`[S3] Sobrecarga/vazio — aguardando ${esperaMs}ms antes de retry...`);
+          await new Promise((r) => setTimeout(r, esperaMs));
+          continue;
+        }
+        break; // erro não-retryable: sai do loop de tentativas
       }
-      console.log(`[S3] ${modelo} falhou (status ${res.status}): ${ultimoCorpo.slice(0, 200)}`);
+      if (geminiOk) break;
     }
 
     // Sem fallback — processo inteiro só via Gemini
