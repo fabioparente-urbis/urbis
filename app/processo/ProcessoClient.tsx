@@ -1247,7 +1247,7 @@ export default function ProcessoClient() {
           </div>
           <div className="ml-auto flex gap-2">
             <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
-              {lendoLip ? "⏳ Lendo..." : "📎 LER PROCESSO REG SEI"}
+              {lendoLip ? "⏳ Lendo..." : `📎 LER PROCESSO ${rotuloTipo(tipoUrl).toUpperCase()}`}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
