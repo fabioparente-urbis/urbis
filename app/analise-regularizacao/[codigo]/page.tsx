@@ -676,7 +676,7 @@ export default function MacPage() {
                   <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Campos LIP em rascunho</p>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                     {pendentesLIPItems.map((p, i) => (
-                      <a key={i} href={`/processo/${codigo}`}
+                      <a key={i} href={`/processo/${codigo}?tipo=regularizacao`}
                         style={{ fontSize:12, color:"white", background:"rgba(255,255,255,0.2)", borderRadius:4, padding:"3px 10px", textDecoration:"none", fontWeight:600 }}>
                         {p.label} →
                       </a>
@@ -857,11 +857,11 @@ export default function MacPage() {
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}`))}
+                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}?tipo=regularizacao`))}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
-            <button onClick={() => window.open(`/processo/${codigo}`, "_blank")}
+            <button onClick={() => window.open(`/processo/${codigo}?tipo=regularizacao`, "_blank")}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
