@@ -1088,6 +1088,7 @@ export default function MacPage() {
                       checklistItens.map((i) => ({ id: i.id, texto: i.texto, grupo: i.grupo }))
                     ));
                     if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
+                    if (assuntoId) fd.append("assunto_id", assuntoId);
                     const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {

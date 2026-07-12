@@ -6,20 +6,32 @@ export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri } = await req.json();
+    const { fileUri, assunto_id } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
 
-    const { data: promptData, error: promptError } = await supabase
-      .from("lip_prompts")
-      .select("conteudo, versao")
-      .eq("ativo", true)
-      .eq("chave", "P1_TRIAGEM")
-      .order("versao", { ascending: false })
-      .limit(1)
-      .single();
+    // Prompt por slot: tenta o prompt do assunto; se o slot não tiver o seu
+    // próprio, cai no global (maior versão) — comportamento antigo, nada quebra.
+    const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
+    let promptData: { conteudo: string; versao: number } | null = null;
+    if (assuntoValido) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P1_TRIAGEM").eq("assunto_id", assunto_id)
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    if (!promptData) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P1_TRIAGEM")
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
 
-    if (promptError || !promptData)
+    if (!promptData)
       return NextResponse.json({ ok: false, erro: "Prompt P1 não encontrado." }, { status: 500 });
 
     console.log(`[S2] Prompt versao ${promptData.versao} carregado.`);

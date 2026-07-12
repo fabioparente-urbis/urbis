@@ -205,6 +205,10 @@ export default function ProcessoClient() {
     setToast({ msg, tipo });
   }
 
+  // Guarda o assunto_id resolvido do processo — usado para pedir a IA (s2/s3)
+  // o prompt do slot certo. Ref (não state) porque é lido dentro de handlers async.
+  const assuntoIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     // Sessão 4: LIP é parametrizado por assunto. Antes de buscar abas/campos,
     // resolvemos o assunto_id do processo (via /api/processo/carregar). Se
@@ -236,6 +240,7 @@ export default function ProcessoClient() {
           if (reg?.id) assuntoIdAlvo = reg.id;
         } catch { /* mantém null */ }
       }
+      assuntoIdRef.current = assuntoIdAlvo;
       const urlAbas = assuntoIdAlvo
         ? `/api/admin/lip?assunto_id=${encodeURIComponent(assuntoIdAlvo)}`
         : "/api/admin/lip?assunto_id=none"; // fallback seguro — retorna vazio
@@ -483,7 +488,7 @@ export default function ProcessoClient() {
           const s2Res = await fetch("/api/lip/s2", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri }),
+            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current }),
           });
           const s2Data = await s2Res.json();
           const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
@@ -500,7 +505,7 @@ export default function ProcessoClient() {
           const s3Res = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64 }),
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current }),
           });
           const s3Data = await s3Res.json();
           if (!s3Data.ok) {
@@ -629,14 +634,14 @@ export default function ProcessoClient() {
         });
         const s1Data = await s1Res.json();
         if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
-        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri }) });
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current }) });
         const s2Data = await s2Res.json();
         const pdfBase64vcp = await new Promise<string>((res) => {
           const r = new FileReader();
           r.onload = () => res((r.result as string).split(",")[1]);
           r.readAsDataURL(arquivo);
         });
-        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp }) });
+        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current }) });
         const s3Data = await s3Res.json();
         if (!s3Data.ok) throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
         resultados.push({

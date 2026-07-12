@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     const codigo = (form.get("codigo") as string | null) ?? "";
     const analiseId = (form.get("analiseId") as string | null) ?? null;
     const checklistItensRaw = (form.get("checklistItens") as string | null) ?? "[]";
+    const assunto_id = (form.get("assunto_id") as string | null) ?? null;
 
     if (!file) {
       return NextResponse.json(
@@ -71,16 +72,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Carrega prompt P3_MAC
-    const { data: promptData, error: promptError } = await supabase
-      .from("lip_prompts")
-      .select("conteudo, versao")
-      .eq("ativo", true)
-      .eq("chave", "P3_MAC")
-      .order("versao", { ascending: false })
-      .limit(1)
-      .single();
-    if (promptError || !promptData) {
+    // Carrega prompt P3_MAC por slot: tenta o do assunto; se o slot não tiver o
+    // seu próprio, cai no global (maior versão) — comportamento antigo, nada quebra.
+    const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
+    let promptData: { conteudo: string; versao: number } | null = null;
+    if (assuntoValido) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P3_MAC").eq("assunto_id", assunto_id)
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    if (!promptData) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P3_MAC")
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    if (!promptData) {
       return NextResponse.json(
         { ok: false, erro: "Prompt P3_MAC nao cadastrado" },
         { status: 500 }

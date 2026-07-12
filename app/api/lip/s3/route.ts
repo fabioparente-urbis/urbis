@@ -12,18 +12,30 @@ const supabaseAdmin = createClient(
 export const maxDuration = 300;
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, documentos, codigo, fileName, pdfBase64 } = await req.json();
+    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
-    const { data: promptData, error: promptError } = await supabase
-      .from("lip_prompts")
-      .select("conteudo, versao")
-      .eq("ativo", true)
-      .eq("chave", "P2_EXTRACAO")
-      .order("versao", { ascending: false })
-      .limit(1)
-      .single();
-    if (promptError || !promptData)
+    // Prompt por slot: tenta o do assunto; se o slot não tiver o seu, cai no
+    // global (maior versão) — comportamento antigo, nada quebra.
+    const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
+    let promptData: { conteudo: string; versao: number } | null = null;
+    if (assuntoValido) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P2_EXTRACAO").eq("assunto_id", assunto_id)
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    if (!promptData) {
+      const { data } = await supabase
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P2_EXTRACAO")
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    if (!promptData)
       return NextResponse.json({ ok: false, erro: "Prompt S3 nao encontrado." }, { status: 500 });
     console.log(`[S3] Prompt versao ${promptData.versao} carregado.`);
     const ctxDocs = documentos?.length
