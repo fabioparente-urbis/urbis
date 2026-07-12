@@ -1,5 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth";
+
+// Guarda de escrita: exige usuário logado E perfil irrestrito (Administrador / Diretora).
+// Retorna NextResponse (401/403) quando deve bloquear; null quando autoriza.
+async function exigirAdmin(req: NextRequest): Promise<NextResponse | null> {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+  if (!ctx.irrestrito)
+    return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador / Diretora." }, { status: 403 });
+  return null;
+}
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,9 +18,9 @@ const supabaseAdmin = createClient(
 );
 
 // Chaves canônicas — iguais para todos os assuntos, diferenciadas por assunto_id.
-// Validação: a chave deve começar com P1_ ou P2_.
+// Validação: a chave deve começar com P1_, P2_ ou P3_.
 function isChaveValida(c: unknown): boolean {
-  return typeof c === "string" && (c.startsWith("P1_") || c.startsWith("P2_"));
+  return typeof c === "string" && (c.startsWith("P1_") || c.startsWith("P2_") || c.startsWith("P3_"));
 }
 
 // Resolve o UUID do assunto 'regularizacao' (usado como fallback de compatibilidade).
@@ -25,6 +36,9 @@ async function getAssuntoRegularizacao(): Promise<string | null> {
 // GET /api/admin/prompts?assunto_id=<uuid>
 // Sem assunto_id → retorna prompts de regularizacao (compatibilidade com código legado).
 export async function GET(req: NextRequest) {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+
   const { searchParams } = new URL(req.url);
   let assunto_id = searchParams.get("assunto_id");
 
@@ -50,11 +64,14 @@ export async function GET(req: NextRequest) {
 // Body: { chave, novo_conteudo, salvo_por?, assunto_id? }
 // Sem assunto_id → usa regularizacao (compatibilidade).
 export async function PUT(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { chave, novo_conteudo, salvo_por, assunto_id } = await req.json();
 
   if (!isChaveValida(chave))
     return NextResponse.json(
-      { ok: false, erro: "Chave inválida. Deve começar com P1_ ou P2_." },
+      { ok: false, erro: "Chave inválida. Deve começar com P1_, P2_ ou P3_." },
       { status: 400 }
     );
 
@@ -107,6 +124,9 @@ export async function PUT(req: NextRequest) {
 // Inicializa os prompts de um assunto copiando de regularizacao.
 // Body: { assunto_id }
 export async function POST(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { assunto_id } = await req.json();
 
   if (!assunto_id)
@@ -148,6 +168,9 @@ export async function POST(req: NextRequest) {
 // Copia conteudo → conteudo_backup para o prompt especificado.
 // Body: { chave, assunto_id? }
 export async function PATCH(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { chave, assunto_id } = await req.json();
 
   if (!isChaveValida(chave))

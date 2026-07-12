@@ -19,6 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { autenticar } from '@/lib/auth';
 import { GoogleGenerativeAI, TaskType } from '@google/generative-ai';
 import pdf from 'pdf-parse';
 import { uploadToR2, keyParaLei } from '@/lib/r2';
@@ -243,9 +244,13 @@ async function embedAll(
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
 
-  // TODO: auth — confirmar que o usuário é admin do BDI antes de prosseguir.
-  // Ex.: const session = await getServerSession(authOptions);
-  //      if (!session || session.user.role !== 'admin') return 401.
+  // Auth: indexação apaga/reinsere fragmentos e sobe PDF — restrito a
+  // Administrador / Diretora. Os callers internos (leis POST, reindexar)
+  // repassam o cookie do usuário, então continuam funcionando.
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+  if (!ctx.irrestrito)
+    return NextResponse.json({ ok: false, erro: 'Acesso restrito a Administrador / Diretora.' }, { status: 403 });
 
   let documentoId: string;
   let buffer: Buffer;
@@ -357,14 +362,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Reindexação idempotente — apaga fragmentos antigos
-    const { error: errDel } = await supabase
+    // 5. Reindexação segura (insere-e-troca): captura os IDs dos fragmentos
+    //    antigos ANTES de apagar. Só apagamos os antigos depois que TODOS os
+    //    novos foram inseridos com sucesso. Assim, se a inserção falhar no
+    //    meio, os antigos permanecem intactos — a lei nunca fica vazia/parcial.
+    //    (A tabela não tem índice único em documento_id/referencia, então a
+    //    coexistência temporária de antigos+novos não gera conflito.)
+    const { data: antigos, error: errSel } = await supabase
       .from('bdi_lei_fragmentos')
-      .delete()
+      .select('id')
       .eq('documento_id', documentoId);
-    if (errDel) throw new Error(`limpeza falhou: ${errDel.message}`);
+    if (errSel) throw new Error(`leitura dos fragmentos antigos falhou: ${errSel.message}`);
+    const idsAntigos = (antigos ?? []).map((r: any) => r.id);
 
-    // 6. Insere em batch
+    // 6. Insere os novos em batch. Se falhar, faz rollback dos novos já
+    //    inseridos (tudo que não estava entre os antigos), preservando os antigos.
     const linhas = fragmentos.map((f, i) => ({
       documento_id: documentoId,
       referencia: f.referencia,
@@ -372,13 +384,38 @@ export async function POST(req: NextRequest) {
       embedding: vetores[i],
     }));
 
-    for (let i = 0; i < linhas.length; i += DB_INSERT_BATCH) {
-      const slice = linhas.slice(i, i + DB_INSERT_BATCH);
-      const { error } = await supabase.from('bdi_lei_fragmentos').insert(slice);
-      if (error) throw new Error(`insert falhou no bloco ${i}: ${error.message}`);
+    try {
+      for (let i = 0; i < linhas.length; i += DB_INSERT_BATCH) {
+        const slice = linhas.slice(i, i + DB_INSERT_BATCH);
+        const { error } = await supabase.from('bdi_lei_fragmentos').insert(slice);
+        if (error) throw new Error(`insert falhou no bloco ${i}: ${error.message}`);
+      }
+    } catch (errInsert) {
+      // Rollback: remove apenas os novos recém-inseridos, deixando os antigos.
+      let rollback = supabase.from('bdi_lei_fragmentos').delete().eq('documento_id', documentoId);
+      if (idsAntigos.length > 0) rollback = rollback.not('id', 'in', `(${idsAntigos.join(',')})`);
+      await rollback;
+      throw errInsert;
     }
 
-    // 7. Marca como indexado
+    // 7. Troca concluída — agora remove os fragmentos antigos (por id, em lote).
+    //    Lote menor (100) para manter a URL do filtro `in` curta mesmo em leis
+    //    com centenas de artigos. Se sobrar algum antigo por falha aqui, a lei
+    //    ainda funciona (novos já estão válidos); registra sem abortar.
+    const DEL_BATCH = 100;
+    for (let i = 0; i < idsAntigos.length; i += DEL_BATCH) {
+      const slice = idsAntigos.slice(i, i + DEL_BATCH);
+      const { error: errDelOld } = await supabase
+        .from('bdi_lei_fragmentos')
+        .delete()
+        .in('id', slice);
+      if (errDelOld) {
+        console.warn(`[indexar-lei] fragmentos antigos não removidos (limpeza manual): ${errDelOld.message}`);
+        break;
+      }
+    }
+
+    // 8. Marca como indexado
     await supabase
       .from('bdi_documentos_lei')
       .update({ status_indexacao: 'indexado' })

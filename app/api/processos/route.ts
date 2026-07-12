@@ -30,7 +30,10 @@ export async function GET(req: NextRequest) {
       .order("atualizado_em", { ascending: false })
       .limit(200);
 
-    if (busca) query = query.or(`codigo.ilike.%${busca}%,numero_sei.ilike.%${busca}%`);
+    // Remove caracteres com significado no filtro PostgREST (,()* ) antes de
+    // interpolar o termo de busca — evita quebra/injeção na cláusula .or().
+    const buscaLimpa = busca.replace(/[,()*]/g, " ").trim();
+    if (buscaLimpa) query = query.or(`codigo.ilike.%${buscaLimpa}%,numero_sei.ilike.%${buscaLimpa}%`);
     if (tipo) query = query.eq("tipo_processo", tipo);
     if (status) query = query.eq("status", status);
 

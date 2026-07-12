@@ -18,12 +18,13 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("mac_checklist_modelos")
     .select("*, mac_checklist_itens(*)")
-    .or(`dono_id.is.null${analista_id ? `,dono_id.eq.${analista_id}` : ""}`)
+    .or(`dono_id.is.null${analista_id && /^[0-9a-f-]{36}$/i.test(analista_id) ? `,dono_id.eq.${analista_id}` : ""}`)
     .order("criado_em", { ascending: true });
 
   // Inclui modelos globais (assunto_id null) E modelos do assunto solicitado.
   // Sem assunto_id na query → compatibilidade legada, retorna tudo.
-  if (assunto_id) {
+  // Só aplica o filtro se assunto_id for um UUID válido — evita injeção no .or().
+  if (assunto_id && /^[0-9a-f-]{36}$/i.test(assunto_id)) {
     query = query.or(`assunto_id.is.null,assunto_id.eq.${assunto_id}`);
   }
 

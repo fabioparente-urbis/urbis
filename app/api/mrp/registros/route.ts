@@ -57,7 +57,10 @@ export async function GET(req: NextRequest) {
   if (revisao === "true") q = q.eq("revisao", true);
   if (revisao === "false") q = q.eq("revisao", false);
   if (processoCodigo) q = q.eq("processo_codigo", processoCodigo);
-  if (busca) q = q.or(`assunto.ilike.%${busca}%,interessado.ilike.%${busca}%,observacoes.ilike.%${busca}%`);
+  // Remove caracteres com significado no filtro PostgREST (,()* ) antes de
+  // interpolar — evita quebra/injeção na cláusula .or().
+  const buscaLimpa = (busca ?? "").replace(/[,()*]/g, " ").trim();
+  if (buscaLimpa) q = q.or(`assunto.ilike.%${buscaLimpa}%,interessado.ilike.%${buscaLimpa}%,observacoes.ilike.%${buscaLimpa}%`);
 
   const { data, error } = await q.order("data_despacho", { ascending: false }).limit(1000);
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });

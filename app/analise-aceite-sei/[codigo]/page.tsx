@@ -494,7 +494,21 @@ export default function MacPage() {
       // Consome o número SOMENTE após o download bem-sucedido
       const _tipoSerieCommit = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
       const _numCommit = parseInt(numeroDespacho, 10);
-      if (_numCommit > 0) fetch(`/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}`, { credentials: "include" }).catch(() => {});
+      if (_numCommit > 0) {
+        // Confirma a numeração de forma confiável: tenta até 3x em falha de
+        // rede/5xx. 409 = servidor já avançou o número (re-emissão) → ok.
+        // Se todas falharem, avisa o analista (não trava o fluxo).
+        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}`;
+        let _commitOk = false;
+        for (let _t = 1; _t <= 3 && !_commitOk; _t++) {
+          try {
+            const _r = await fetch(_urlCommit, { credentials: "include" });
+            if (_r.ok || _r.status === 409) { _commitOk = true; break; }
+          } catch { /* rede — tenta de novo */ }
+          if (_t < 3) await new Promise(res => setTimeout(res, _t * 800));
+        }
+        if (!_commitOk) mostrarToast("⚠️ Despacho gerado, mas a numeração não foi confirmada. Confira a numeração antes de gerar o próximo.");
+      }
 
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
@@ -1074,10 +1088,10 @@ export default function MacPage() {
                       checklistItens.map((i) => ({ id: i.id, texto: i.texto, grupo: i.grupo }))
                     ));
                     if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
-                    const res = await fetch("/api/mac/p2", { method: "POST", body: fd });
+                    const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
-                      mostrarToast(`Erro P2: ${json?.erro || res.statusText}`);
+                      mostrarToast(`Erro P3: ${json?.erro || res.statusText}`);
                       return;
                     }
                     // Só preenche itens que ainda são null (analista não tocou)
@@ -1101,14 +1115,14 @@ export default function MacPage() {
                     const _obsLeitura = `📄 Leitura PDF concluída em ${_dataLeitura} | Tempo: ${_min}:${_seg} | ${total} item(ns) sugerido(s) pela IA.`;
                     setObservacoes((prev: string) => prev ? prev + "\n" + _obsLeitura : _obsLeitura);
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
-                    mostrarToast(`🤖 P2 sugeriu ${total} item(ns) — revise e aceite.`);
+                    mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
                     const _seg = String(_tempoLeitura % 60).padStart(2, "0");
                     const _obsErro = `❌ Leitura PDF falhou em ${_dataLeitura} | Tempo: ${_min}:${_seg} | Motivo: ${err?.message || "falha desconhecida"}.`;
                     setObservacoes((prev: string) => prev ? prev + "\n" + _obsErro : _obsErro);
-                    mostrarToast(`Erro P2: ${err?.message || "falha"}`);
+                    mostrarToast(`Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
                     if (timerP2Ref.current) clearInterval(timerP2Ref.current);
@@ -1495,7 +1509,7 @@ export default function MacPage() {
               />
             </div>
 
-            {/* P2 + Limpar MAC (movidos do header — STEP 1e) */}
+            {/* P3 + Limpar MAC (movidos do header — STEP 1e) */}
             <button
               type="button"
               onClick={() => inputP2Ref.current?.click()}
@@ -1503,7 +1517,7 @@ export default function MacPage() {
               title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
               className="w-full mt-2 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"
             >
-              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P2"}
+              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P3"}
             </button>
             <button
               type="button"

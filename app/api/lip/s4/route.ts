@@ -125,7 +125,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 12. ÁREAS — somatório (se areaTotal preenchido)
-    const toNum = (k: string) => parseFloat((get(mesclado, k)).replace(",", ".")) || 0;
+    // Parser de área robusto — mesmo tratamento de lib/mrp.ts: aceita
+    // "1.234,56" (PT-BR c/ milhar), "1234,56", "1234.56" (EN) e sufixo "m²".
+    const toNum = (k: string) => {
+      let s = get(mesclado, k).replace(/m²|m2|\s/gi, "");
+      if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+      const n = Number(s);
+      return Number.isFinite(n) ? n : 0;
+    };
     const total = toNum("areaTotal");
     if (total > 0) {
       const soma = toNum("areaForaFrontal") + toNum("areaRecuo") + toNum("areaVertical");

@@ -1,12 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Guarda de escrita: exige usuário logado E perfil irrestrito (Administrador / Diretora).
+// Retorna NextResponse (401/403) quando deve bloquear; null quando autoriza.
+async function exigirAdmin(req: NextRequest): Promise<NextResponse | null> {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+  if (!ctx.irrestrito)
+    return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador / Diretora." }, { status: 403 });
+  return null;
+}
+
 export async function GET(req: NextRequest) {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+
   // Sessão 4: o GET passou a aceitar ?assunto_id=<uuid> para filtrar as
   // abas pertencentes a um assunto específico. Sem o parâmetro, retorna
   // todas as abas ativas (compatibilidade com callsites legados — será
@@ -37,6 +51,9 @@ export async function GET(req: NextRequest) {
 
 // Criar aba
 export async function POST(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { tipo, ...body } = await req.json();
 
   if (tipo === "aba") {
@@ -181,6 +198,9 @@ export async function POST(req: NextRequest) {
 
 // Editar aba ou campo
 export async function PUT(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { tipo, id, ...body } = await req.json();
 
   if (tipo === "aba") {
@@ -234,6 +254,9 @@ export async function PUT(req: NextRequest) {
 
 // Excluir aba ou campo
 export async function DELETE(req: NextRequest) {
+  const bloqueio = await exigirAdmin(req);
+  if (bloqueio) return bloqueio;
+
   const { tipo, id } = await req.json();
 
   if (tipo === "aba") {

@@ -117,11 +117,7 @@ REGRAS:
       } catch (_) {}
       let filaTexto = "";
       try {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        );
+        const { supabaseAdmin: supabase } = await import("@/lib/supabaseAdmin");
         const filtro = assunto_id ? { assunto_id } : {};
         const { count } = await supabase
           .from("processos")
@@ -177,7 +173,6 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
       const perguntaOriginal = history?.length > 0 ? history[history.length - 2]?.parts?.[0]?.text ?? message : message;
       const resultado = await buscarNoBip(perguntaOriginal, leiEscolhida === "TODAS" ? undefined : leiEscolhida);
       if (resultado.encontrou) {
-        const linksBip = resultado.fontes.slice(0,2).map((f: string) => `📖 Ver no BIP`).join(", ");
         const promptBip = `${systemPrompt}\n\nMODO BIP: Responda em 2-3 frases. Cite artigo e página. Não transcreva.\n\nFRAGMENTOS:\n${resultado.contexto}\n\nFONTES: ${resultado.fontes.join(", ")}`;
         const contents = [...(history ?? []), { role: "user", parts: [{ text: perguntaOriginal }] }];
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: promptBip }] }, contents }) });

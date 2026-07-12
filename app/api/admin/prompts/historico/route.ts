@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,16 +8,19 @@ const supabaseAdmin = createClient(
 );
 
 // GET /api/admin/prompts/historico?chave=P1_TRIAGEM
-// Aceita qualquer chave com prefixo P1_ ou P2_ (suporte multi-assunto Sessão 5C).
+// Aceita qualquer chave com prefixo P1_, P2_ ou P3_ (suporte multi-assunto Sessão 5C).
 // Nota: lip_prompts_historico não tem assunto_id — snapshots são globais por chave.
 export async function GET(req: NextRequest) {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+
   const { searchParams } = new URL(req.url);
   const chave = searchParams.get("chave");
 
   if (!chave)
     return NextResponse.json({ ok: false, erro: "Parâmetro 'chave' obrigatório." }, { status: 400 });
 
-  if (!chave.startsWith("P1_") && !chave.startsWith("P2_"))
+  if (!chave.startsWith("P1_") && !chave.startsWith("P2_") && !chave.startsWith("P3_"))
     return NextResponse.json({ ok: true, data: [] });
 
   const { data, error } = await supabaseAdmin

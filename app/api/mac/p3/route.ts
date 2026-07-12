@@ -71,26 +71,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Carrega prompt P2_MAC
+    // Carrega prompt P3_MAC
     const { data: promptData, error: promptError } = await supabase
       .from("lip_prompts")
       .select("conteudo, versao")
       .eq("ativo", true)
-      .eq("chave", "P2_MAC")
+      .eq("chave", "P3_MAC")
       .order("versao", { ascending: false })
       .limit(1)
       .single();
     if (promptError || !promptData) {
       return NextResponse.json(
-        { ok: false, erro: "Prompt P2_MAC nao cadastrado" },
+        { ok: false, erro: "Prompt P3_MAC nao cadastrado" },
         { status: 500 }
       );
     }
-    console.log(`[P2_MAC] Prompt versao ${promptData.versao} carregado.`);
+    console.log(`[P3_MAC] Prompt versao ${promptData.versao} carregado.`);
 
     // 1) Upload do PDF ao Gemini Files API
     const sizeMb = (file.size / 1024 / 1024).toFixed(2);
-    console.log(`[P2_MAC] Upload PDF: ${file.name} (${sizeMb} MB)`);
+    console.log(`[P3_MAC] Upload PDF: ${file.name} (${sizeMb} MB)`);
     const uploadRes = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
       {
@@ -132,10 +132,10 @@ export async function POST(req: NextRequest) {
       2
     )}\n---`;
     const promptFinal = promptData.conteudo + ctxChecklist;
-    console.log(`[P2_MAC] Prompt tamanho: ${promptFinal.length} chars`);
+    console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars`);
 
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
-    console.log(`[P2_MAC] Enviando para Gemini...`);
+    console.log(`[P3_MAC] Enviando para Gemini...`);
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
               ],
             },
           ],
+          generationConfig: { maxOutputTokens: 8192, temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
         }),
       }
     );
@@ -167,7 +168,7 @@ export async function POST(req: NextRequest) {
     const data = await res.json();
     const texto: string =
       data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-    console.log("[P2_MAC] Resposta recebida:", texto.substring(0, 300));
+    console.log("[P3_MAC] Resposta recebida:", texto.substring(0, 300));
 
     // 4) Faz parse e normaliza valores
     const clean = texto.replace(/```json|```/g, "").trim();
@@ -208,14 +209,14 @@ export async function POST(req: NextRequest) {
     }
 
     const preenchidos = Object.values(itensOut).filter((v) => v !== null).length;
-    console.log(`[P2_MAC] Concluido. ${preenchidos} item(ns) preenchido(s).`);
+    console.log(`[P3_MAC] Concluido. ${preenchidos} item(ns) preenchido(s).`);
 
     // Audita leitura
     try {
       await supabaseAdmin.from("auditoria_log").insert({
         tabela: "analises_mac",
         registro_id: analiseId,
-        operacao: "MAC_P2",
+        operacao: "MAC_P3",
         dados_antes: null,
         dados_depois: {
           arquivo: file.name,
@@ -231,7 +232,7 @@ export async function POST(req: NextRequest) {
       fontes: fontesOut,
     });
   } catch (e: any) {
-    console.error("[P2_MAC] Erro:", e?.message);
+    console.error("[P3_MAC] Erro:", e?.message);
     return NextResponse.json(
       { ok: false, erro: e?.message || "Erro interno" },
       { status: 500 }

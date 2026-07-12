@@ -1,8 +1,11 @@
 // ============================================================
 // Server-only: grava um registro MRP automaticamente após a
-// emissão de um despacho. Idempotente via UNIQUE INDEX parcial
-// (usuario_id, processo_codigo, tipo_despacho, numero_analise)
-// WHERE auto_gerado = TRUE.
+// emissão de um despacho. Rede de segurança do lado do servidor —
+// o cliente (page → /api/mrp/registros) também grava. Ambos usam
+// a MESMA trava de unicidade real da tabela, (usuario_id,
+// numero_despacho), então convergem para a MESMA linha (sem
+// duplicar). Falhas são silenciosas: o despacho NÃO deve quebrar
+// se o MRP estiver indisponível.
 // ============================================================
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -91,10 +94,19 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
       auto_gerado: true,
     };
 
+    // Só grava quando há numero_despacho: a ÚNICA trava de unicidade da
+    // tabela é (usuario_id, numero_despacho) — a mesma que o cliente usa,
+    // então o upsert converge para a MESMA linha (sem duplicar). Sem
+    // numero_despacho não há chave de dedupe; não gravamos aqui para não
+    // arriscar linha duplicada (esse caso fica a cargo do cliente).
+    if (!input.numero_despacho) {
+      return { ok: false, motivo: "sem numero_despacho — gravação delegada ao cliente" };
+    }
+
     const { error } = await supabaseAdmin
       .from("mrp_registros")
       .upsert(payload, {
-        onConflict: "usuario_id,processo_codigo,tipo_despacho,numero_analise",
+        onConflict: "usuario_id,numero_despacho",
         ignoreDuplicates: false,
       });
 

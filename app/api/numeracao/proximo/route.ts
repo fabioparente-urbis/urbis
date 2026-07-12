@@ -61,19 +61,35 @@ export async function GET(req: NextRequest) {
     ? numeroForcado
     : faixaDisponivel.proximo;
   if (modo === "commit") {
-
-    await supabase
+    // Compare-and-swap: só avança o contador se `proximo` ainda for o valor
+    // que lemos. Em concorrência (dois cliques/abas), a 2ª tentativa casa 0
+    // linhas — devolvemos 409 em vez de deixar o contador dessincronizar.
+    const { data: atualizadas, error: erroUpdate } = await supabase
       .from("urbis_numeracao_faixas")
       .update({ proximo: Math.max(faixaDisponivel.proximo, numero + 1) })
-      .eq("id", faixaDisponivel.id);
+      .eq("id", faixaDisponivel.id)
+      .eq("proximo", faixaDisponivel.proximo)
+      .select("id");
 
-    await supabase.from("urbis_numeracao_uso").insert({
+    if (erroUpdate)
+      return NextResponse.json({ ok: false, motivo: "ERRO_BD" }, { status: 500 });
+    if (!atualizadas || atualizadas.length === 0)
+      return NextResponse.json(
+        { ok: false, motivo: "NUMERO_EM_USO", detalhe: "O contador mudou durante a gravação. Recarregue e tente novamente." },
+        { status: 409 },
+      );
+
+    const { error: erroUso } = await supabase.from("urbis_numeracao_uso").insert({
       faixa_id: faixaDisponivel.id,
       usuario_id: usuarioId,
       numero,
       processo_codigo: processo,
       tipo_documento: tipo,
     });
+    // Contador já avançou; se o log de uso falhar, registramos mas não
+    // reprovamos (o número foi legitimamente consumido).
+    if (erroUso)
+      console.error("[numeracao] falha ao gravar urbis_numeracao_uso:", erroUso.message);
   }
 
   const restantes = faixas.reduce((acc, f) => {

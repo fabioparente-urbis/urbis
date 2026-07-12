@@ -25,7 +25,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, data });
   }
   let query = supabase.from("logradouros").select("*", { count: "exact" }).order("bairro").order("nome_logradouro").range(page*30, page*30+29) as any;
-  if (filtro) query = query.or(`bairro.ilike.%${filtro}%,nome_logradouro.ilike.%${filtro}%`);
+  // Remove caracteres com significado no filtro PostgREST (,()* ) antes de
+  // interpolar — evita quebra/injeção na cláusula .or().
+  const filtroLimpo = filtro.replace(/[,()*]/g, " ").trim();
+  if (filtroLimpo) query = query.or(`bairro.ilike.%${filtroLimpo}%,nome_logradouro.ilike.%${filtroLimpo}%`);
   const { data, count, error } = await query;
   if (error) return NextResponse.json({ ok: false, erro: error.message });
   return NextResponse.json({ ok: true, data, total: count });

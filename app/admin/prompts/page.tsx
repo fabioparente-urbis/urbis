@@ -46,8 +46,8 @@ const CHAVES = [
   "P1_TRIAGEM_BACKUP",
   "P2_EXTRACAO",
   "P2_EXTRACAO_BACKUP",
-  "P2_MAC",
-  "P2_MAC_BACKUP",
+  "P3_MAC",
+  "P3_MAC_BACKUP",
   "P3_WORD",
   "P3_WORD_BACKUP",
 ] as const;
@@ -57,8 +57,8 @@ const CHAVE_META: Record<ChaveCanonica, { label: string; sublabel: string; cor: 
   P1_TRIAGEM_BACKUP:   { label: "P1 — BACKUP",        sublabel: "BACKUP DO PROMPT DE TRIAGEM",                  cor: "#0891b2" },
   P2_EXTRACAO:         { label: "P2 — EXTRAÇÃO",      sublabel: "EXTRAÇÃO DE DADOS DO LIP",                     cor: "#d946ef" },
   P2_EXTRACAO_BACKUP:  { label: "P2 — BACKUP",        sublabel: "BACKUP DO PROMPT DE EXTRAÇÃO",                 cor: "#a21caf" },
-  P2_MAC:              { label: "P2 — MAC",            sublabel: "ANÁLISE DO CHECKLIST MAC",                     cor: "#f59e0b" },
-  P2_MAC_BACKUP:       { label: "P2 MAC — BACKUP",    sublabel: "BACKUP DO PROMPT DE ANÁLISE MAC",              cor: "#b45309" },
+  P3_MAC:              { label: "P3 — MAC",            sublabel: "ANÁLISE DO CHECKLIST MAC",                     cor: "#f59e0b" },
+  P3_MAC_BACKUP:       { label: "P3 — BACKUP MAC",   sublabel: "BACKUP DO PROMPT DE ANÁLISE MAC",              cor: "#b45309" },
   P3_WORD:             { label: "P3 — WORD",           sublabel: "GERADOR DO LAUDO / DESPACHO",                  cor: "#22c55e" },
   P3_WORD_BACKUP:      { label: "P3 — BACKUP",        sublabel: "BACKUP DO PROMPT GERADOR DE DOCUMENTO",        cor: "#15803d" },
 };
@@ -439,7 +439,7 @@ export default function AdminPrompts() {
                   : "⚡ INICIALIZAR PROMPTS COPIANDO DE REGULARIZAÇÃO"}
               </button>
               <span style={{ color: "#e2e8f0", fontSize: 9, letterSpacing: 1 }}>
-                Copia os 8 prompts (P1, P2 Extração, P2 MAC, P3 Word + backups) de Regularização para este assunto.
+                Copia os 8 prompts (P1, P2 Extração, P3 MAC, P3 Word + backups) de Regularização para este assunto.
               </span>
             </div>
           )}

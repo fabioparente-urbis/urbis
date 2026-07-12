@@ -16,5 +16,5 @@ create index if not exists idx_lip_prompts_historico_chave_salvo_em
   on lip_prompts_historico (prompt_chave, salvo_em desc);
 
 comment on table  lip_prompts_historico is 'Snapshots de cada versão anterior de lip_prompts, gravados antes de cada atualização (PUT /api/admin/prompts).';
-comment on column lip_prompts_historico.prompt_chave is 'Chave do prompt (P1_TRIAGEM, P2_EXTRACAO). P2_MAC é ignorado pela aplicação.';
+comment on column lip_prompts_historico.prompt_chave is 'Chave do prompt (P1_TRIAGEM, P2_EXTRACAO, P3_MAC, P3_WORD).';
 comment on column lip_prompts_historico.salvo_por    is 'Nome do administrador que executou o salvamento que originou este snapshot.';
