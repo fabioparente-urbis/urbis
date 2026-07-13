@@ -262,6 +262,19 @@ export default function MacPage() {
     } catch { mostrarToast("Erro ao salvar."); }
   }
 
+  // Anexa um bloco à Observação do PROCESSO (aba OBS) e persiste no banco.
+  async function anexarObsProcesso(bloco: string) {
+    const atual = (obsText ?? "").trim();
+    const novo = atual ? atual + "\n\n" + bloco : bloco;
+    setObsText(novo);
+    try {
+      await fetch("/api/processo/salvar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, campos: { observacoes: { valor: novo, origem: "urbis", status: "confirmado" } } })
+      });
+    } catch { /* best-effort */ }
+  }
+
   function aceitarTodasIA(grupo: string) {
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setAceites((prev) => {
@@ -1132,8 +1145,7 @@ export default function MacPage() {
                     const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
-                      mostrarToast(`Erro P3: ${json?.erro || res.statusText}`);
-                      return;
+                      throw new Error(json?.erro || res.statusText || "Falha na leitura P3");
                     }
                     // Só preenche itens que ainda são null (analista não tocou)
                     setItens((prev) => {
@@ -1173,7 +1185,7 @@ export default function MacPage() {
                       `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_seg} | ${total} item(ns) sugerido(s)\n` +
                       `📄 Documentos analisados (${_docs.length}):\n${_linhasDoc}\n` +
                       `🔎 Incompatibilidades:\n${_linhasInc}`;
-                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
+                    void anexarObsProcesso(_obsLeitura);
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
@@ -1184,7 +1196,7 @@ export default function MacPage() {
                       `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
                       `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_seg} | Progresso: ${progressoP2}%\n` +
                       `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
-                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
+                    void anexarObsProcesso(_obsErro);
                     mostrarToast(`Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
