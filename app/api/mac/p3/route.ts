@@ -169,13 +169,16 @@ export async function POST(req: NextRequest) {
     );
     if (!res.ok) {
       const errText = await res.text();
+      console.error("[P3_MAC] Gemini erro completo:", errText);
+      console.error("[P3_MAC] fileUri:", fileUri);
+      console.error("[P3_MAC] modelo:", GEMINI_MODEL);
       if (res.status === 429) {
         return NextResponse.json(
           { ok: false, erro: "LIMITE_DIARIO_GEMINI" },
           { status: 429 }
         );
       }
-      throw new Error(errText);
+      return NextResponse.json({ ok: false, erro: errText }, { status: res.status });
     }
     const data = await res.json();
     const texto: string =
