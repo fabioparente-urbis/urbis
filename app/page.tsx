@@ -156,7 +156,7 @@ export default function Home() {
 
   const cards: Card[] = [
     { chave: "lip", nome: "LIP", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true },
-    { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: souAdmin || irrestrito },
+    { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: false },
     { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
     { chave: "mdp", nome: "MDP", descricao: "Despachos e Pareceres", Icone: FileText, rota: "/mdp", visivel: true },
     { chave: "bdi", nome: "BDI", descricao: "Banco de Dados e Inteligência", Icone: BrainCircuit, rota: "/admin/bdi", visivel: souAdmin || irrestrito },
