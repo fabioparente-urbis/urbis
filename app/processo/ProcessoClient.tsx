@@ -757,7 +757,18 @@ export default function ProcessoClient() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url;
       a.download = `DespachoInterno_${idUrl}_${numDI}.docx`; a.click();
-      URL.revokeObjectURL(url); setModalDI(false);
+      URL.revokeObjectURL(url);
+      // Confirma o número apenas após download bem-sucedido
+      const _num = parseInt(numDI, 10);
+      if (!isNaN(_num)) {
+        for (let i = 0; i < 3; i++) {
+          try {
+            const _c = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=commit&numero=${_num}`, { credentials: "include" });
+            if (_c.ok || (await _c.json()).ok) break;
+          } catch { /* continua */ }
+        }
+      }
+      setModalDI(false);
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
     async function salvar() {
@@ -1133,7 +1144,7 @@ export default function ProcessoClient() {
               setNumDIBloqueio(null);
               setNumDICarregando(true);
               try {
-                const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}`, { credentials: "include" });
+                const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=peek`, { credentials: "include" });
                 const _j = await _r.json();
                 if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
                 else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); }
