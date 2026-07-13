@@ -453,7 +453,35 @@ export default function ProcessoClient() {
     setTimeout(() => setProgresso(0), 1500);
   }
 
+  // Formata um documento do mapa S2 de forma defensiva (nome/tipo, SEI, página)
+  function formatarDocLeitura(d: any): string {
+    if (!d) return "";
+    if (typeof d === "string") return d;
+    const nome = d.nome || d.tipo || d.documento || d.descricao || "Documento";
+    const sei = d.sei || d.numero_sei || d.numeroSei || d.numero || null;
+    const pag = d.pagina || d.paginas || d.pag || d.pages || null;
+    const partes: string[] = [];
+    if (sei) partes.push(`SEI ${sei}`);
+    if (pag) partes.push(`pág. ${pag}`);
+    return partes.length ? `${nome} (${partes.join(", ")})` : String(nome);
+  }
+
+  // Anexa um bloco ao campo Observações do LIP (preservando o conteúdo atual)
+  function anexarObsLip(bloco: string) {
+    setD((prev) => {
+      const novo = { ...prev };
+      const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
+      novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + bloco : bloco, origem: "urbis", fonte: "LIP" };
+      autoSalvar(novo);
+      return novo;
+    });
+  }
+
   async function lerLip(arquivos: File[]) {
+    const _t0Leitura = Date.now();
+    const _dataLeitura = new Date().toLocaleString("pt-BR");
+    let _docsLeitura: any[] = [];
+    let _incompatLeitura: string[] = [];
     try {
       setLendoLip(true);
       setTempoLeitura(0);
@@ -531,8 +559,16 @@ export default function ProcessoClient() {
             alertasMAC: s3Data.alertasMAC ?? [],
             validacoes: s3Data.validacoes ?? {},
             pendencias: s3Data.pendencias ?? [],
+            documentos,
           };
         })(arquivo));
+      }
+
+      // Coleta documentos e incompatibilidades de todos os arquivos lidos
+      for (const r of resultados) {
+        if (Array.isArray((r as any).documentos)) _docsLeitura.push(...(r as any).documentos);
+        if (Array.isArray((r as any).pendencias)) _incompatLeitura.push(...(r as any).pendencias);
+        if (Array.isArray((r as any).alertasMAC)) _incompatLeitura.push(...(r as any).alertasMAC);
       }
 
       setProgresso(90);
@@ -560,33 +596,40 @@ export default function ProcessoClient() {
       });
 
       const preenchidos = Object.values(mesclado).filter((v: any) => v?.valor && v.valor !== "NP").length;
+
+      // ── Registro da leitura (Observações) — status, documentos, incompatibilidades, tempo ──
+      const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
+      const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const _linhasDoc = _docsLeitura.length
+        ? _docsLeitura.map((d) => `  • ${formatarDocLeitura(d)}`).join("\n")
+        : "  • (mapa de documentos não retornado pela IA)";
+      const _incompatUnicas = Array.from(new Set(_incompatLeitura.filter(Boolean).map(String)));
+      const _linhasIncompat = _incompatUnicas.length
+        ? _incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n")
+        : "  • Nenhuma incompatibilidade apontada pela IA.";
+      const _bloco =
+        `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
+        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) preenchido(s)\n` +
+        `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
+        `🔎 Incompatibilidades:\n${_linhasIncompat}`;
+      anexarObsLip(_bloco);
+
       mostrarToast(`✅ LIP preenchido! ${preenchidos} campos extraídos.`, "sucesso");
     } catch (e: any) {
       mostrarToast("❌ Erro: " + e.message, "erro");
-      const agoraErr = new Date().toLocaleString("pt-BR");
-      setD((prev) => {
-        const novo = { ...prev };
-        const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
-        const linhaErro = `❌ ERRO NA LEITURA (${agoraErr}): ${e.message}`;
-        novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n" + linhaErro : linhaErro, origem: "urbis", fonte: "LIP" };
-        autoSalvar(novo);
-        return novo;
-      });
+      const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
+      const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const _pctLido = typeof progresso === "number" ? progresso : 0;
+      const _blocoErro =
+        `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
+        `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_mm}:${_ss} | Progresso: ${_pctLido}%\n` +
+        `⚠ Motivo: ${e.message}`;
+      anexarObsLip(_blocoErro);
     } finally {
       if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
-      setTempoLeitura(t => {
-        const mm = String(Math.floor(t / 60)).padStart(2, '0');
-        const ss = String(t % 60).padStart(2, '0');
-        const linhaTemp = `⏱ Leitura do processo concluída em ${mm}:${ss}.`;
-        setD((prev) => {
-          const novo = { ...prev };
-          const obsAtual = (novo['observacoes']?.valor ?? '').trim();
-          novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'LIP' };
-          autoSalvar(novo);
-          return novo;
-        });
-        return 0;
-      });
+      setTempoLeitura(0);
       setLendoLip(false);
       finalizarProgresso();
     }

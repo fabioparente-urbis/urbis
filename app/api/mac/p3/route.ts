@@ -197,6 +197,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Compatibilidade: aceita tanto o formato novo { itens, documentos,
+    // incompatibilidades } quanto o antigo (mapa flat { id: status }).
+    const mapaItens: Record<string, any> =
+      dados && typeof dados.itens === "object" && dados.itens !== null
+        ? dados.itens
+        : dados;
+    const documentosLidos: any[] = Array.isArray(dados?.documentos) ? dados.documentos : [];
+    const incompatibilidades: string[] = Array.isArray(dados?.incompatibilidades)
+      ? dados.incompatibilidades.filter(Boolean).map(String)
+      : [];
+
     const STATUS_VALIDOS = new Set<StatusItem>([
       "conforme",
       "nao_conforme",
@@ -207,7 +218,7 @@ export async function POST(req: NextRequest) {
     const itensOut: Record<string, StatusItem> = {};
     const fontesOut: Record<string, "p2"> = {};
 
-    for (const [id, raw] of Object.entries(dados)) {
+    for (const [id, raw] of Object.entries(mapaItens)) {
       if (!idsValidos.has(id)) continue;
       let status: StatusItem = null;
       if (raw === null) status = null;
@@ -245,6 +256,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       itens: itensOut,
       fontes: fontesOut,
+      documentos: documentosLidos,
+      incompatibilidades,
     });
   } catch (e: any) {
     console.error("[P3_MAC] Erro:", e?.message);

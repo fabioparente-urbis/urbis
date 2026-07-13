@@ -1153,16 +1153,38 @@ export default function MacPage() {
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
                     const _seg = String(_tempoLeitura % 60).padStart(2, "0");
-                    const _obsLeitura = `📄 Leitura PDF concluída em ${_dataLeitura} | Tempo: ${_min}:${_seg} | ${total} item(ns) sugerido(s) pela IA.`;
-                    setObservacoes((prev: string) => prev ? prev + "\n" + _obsLeitura : _obsLeitura);
+                    const _fmtDoc = (d: any): string => {
+                      if (!d) return "";
+                      if (typeof d === "string") return d;
+                      const nome = d.nome || d.tipo || d.documento || d.descricao || "Documento";
+                      const sei = d.sei || d.numero_sei || d.numeroSei || d.numero || null;
+                      const pag = d.pagina || d.paginas || d.pag || null;
+                      const partes: string[] = [];
+                      if (sei) partes.push(`SEI ${sei}`);
+                      if (pag) partes.push(`pág. ${pag}`);
+                      return partes.length ? `${nome} (${partes.join(", ")})` : String(nome);
+                    };
+                    const _docs: any[] = Array.isArray(json.documentos) ? json.documentos : [];
+                    const _incompat: string[] = Array.from(new Set((Array.isArray(json.incompatibilidades) ? json.incompatibilidades : []).filter(Boolean).map(String)));
+                    const _linhasDoc = _docs.length ? _docs.map((d) => `  • ${_fmtDoc(d)}`).join("\n") : "  • (mapa de documentos não retornado pela IA)";
+                    const _linhasInc = _incompat.length ? _incompat.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA.";
+                    const _obsLeitura =
+                      `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
+                      `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_seg} | ${total} item(ns) sugerido(s)\n` +
+                      `📄 Documentos analisados (${_docs.length}):\n${_linhasDoc}\n` +
+                      `🔎 Incompatibilidades:\n${_linhasInc}`;
+                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
                     const _seg = String(_tempoLeitura % 60).padStart(2, "0");
-                    const _obsErro = `❌ Leitura PDF falhou em ${_dataLeitura} | Tempo: ${_min}:${_seg} | Motivo: ${err?.message || "falha desconhecida"}.`;
-                    setObservacoes((prev: string) => prev ? prev + "\n" + _obsErro : _obsErro);
+                    const _obsErro =
+                      `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
+                      `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_seg} | Progresso: ${progressoP2}%\n` +
+                      `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
+                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
                     mostrarToast(`Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
