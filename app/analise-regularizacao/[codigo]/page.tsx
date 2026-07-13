@@ -1426,6 +1426,15 @@ export default function MacPage() {
   📋 Gerenciar MAC
 </button>
 
+          <button
+            type="button"
+            onClick={() => inputP2Ref.current?.click()}
+            disabled={analisandoP2 || checklistItens.length === 0}
+            title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
+            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            {analisandoP2 ? "⏳ Analisando..." : "📎 LER PROCESSO REGULARIZAÇÃO SEI"}
+          </button>
+
           <button onClick={() => salvar("em_andamento")} disabled={salvando}
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             {salvando ? "Salvando..." : "💾 Salvar"}
@@ -1555,16 +1564,7 @@ export default function MacPage() {
               />
             </div>
 
-            {/* P3 + Limpar MAC (movidos do header — STEP 1e) */}
-            <button
-              type="button"
-              onClick={() => inputP2Ref.current?.click()}
-              disabled={analisandoP2 || checklistItens.length === 0}
-              title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
-              className="w-full mt-2 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              {analisandoP2 ? "⏳ Analisando..." : "🤖 Analisar com Prompt P3"}
-            </button>
+            {/* Limpar MAC */}
             <button
               type="button"
               onClick={() => setModalLimparMac(true)}
