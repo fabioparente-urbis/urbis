@@ -163,6 +163,8 @@ export default function ProcessoClient() {
   const [destinoCustomDI, setDestinoCustomDI] = useState("");
   const [corpoDI, setCorpoDI] = useState("");
   const [gerandoDI, setGerandoDI] = useState(false);
+  const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
+  const [numDICarregando, setNumDICarregando] = useState(false);
   const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
   const [logradouroBusca, setLogradouroBusca] = useState("");
@@ -1059,7 +1061,8 @@ export default function ProcessoClient() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
-                  <input value={numDI} onChange={e => setNumDI(e.target.value)} placeholder="Ex: 042" className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input value={numDICarregando ? "" : numDI} onChange={e => setNumDI(e.target.value)} placeholder={numDICarregando ? "Buscando..." : "Ex: 042"} disabled={numDICarregando} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
+                  {numDIBloqueio && <p className="text-xs text-[var(--error)] mt-1">{numDIBloqueio}</p>}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
@@ -1070,10 +1073,10 @@ export default function ProcessoClient() {
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Destinatário</label>
                 <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Selecione...</option>
-                  <option value="Gerência de Pequeno Porte — DIRAAP/SEFIC">Gerência de Pequeno Porte — DIRAAP</option>
-                  <option value="Gerência de Médio Porte — DIRAAP/SEFIC">Gerência de Médio Porte — DIRAAP</option>
-                  <option value="Gerência de Grande Porte — DIRAAP/SEFIC">Gerência de Grande Porte — DIRAAP</option>
-                  <option value="Diretoria de Análise de Projetos — DIRAAP/SEFIC">Diretoria de Análise de Projetos — DIRAAP/SEFIC</option>
+                  <option value="GERECCO">GERECCO</option>
+                  <option value="GERAED">GERAED</option>
+                  <option value="GERAGP">GERAGP</option>
+                  <option value="DIRAAP">DIRAAP</option>
                   <option value="outro">Outro...</option>
                 </select>
                 {destinoDI === "outro" && (
@@ -1086,7 +1089,7 @@ export default function ProcessoClient() {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !destinoDI || !corpoDI}
+              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
                 className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
               </button>
@@ -1126,7 +1129,18 @@ export default function ProcessoClient() {
             className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
             MAC ↗
           </button>
-          <button onClick={() => setModalDI(true)}
+          <button onClick={async () => {
+              setNumDIBloqueio(null);
+              setNumDICarregando(true);
+              try {
+                const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}`, { credentials: "include" });
+                const _j = await _r.json();
+                if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
+                else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); }
+              } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
+              finally { setNumDICarregando(false); }
+              setModalDI(true);
+            }}
             className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
             📨 Despacho Interno
           </button>
