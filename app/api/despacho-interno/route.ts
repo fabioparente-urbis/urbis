@@ -50,13 +50,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Resolve nome legível do assunto (ex.: "regularizacao" → "Alvará de Regularização")
+    let assuntoNome: string = tipoProcesso || "regularizacao";
+    try {
+      const { data: assunto } = await supabase
+        .from("assuntos")
+        .select("nome")
+        .eq("slug", String(tipoProcesso || "regularizacao"))
+        .maybeSingle();
+      if ((assunto as any)?.nome) assuntoNome = (assunto as any).nome;
+    } catch { /* usa slug como fallback */ }
+
     const { gerarDespachoInterno } = await import("@/lib/geradores");
     const buffer = await gerarDespachoInterno({
       processo: codigo,
       interessado,
       numeroDespacho,
       data,
-      tipoProcesso,
+      tipoProcesso: assuntoNome,
       destino,
       corpo,
       assinante,
