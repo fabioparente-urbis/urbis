@@ -21,6 +21,7 @@ import {
   Settings2,
   LogOut,
   ClipboardList,
+  FileText,
   type LucideIcon,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
@@ -157,6 +158,7 @@ export default function Home() {
     { chave: "lip", nome: "LIP", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true },
     { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: souAdmin || irrestrito },
     { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
+    { chave: "mdp", nome: "MDP", descricao: "Despachos e Pareceres", Icone: FileText, rota: "/mdp", visivel: true },
     { chave: "bdi", nome: "BDI", descricao: "Banco de Dados e Inteligência", Icone: BrainCircuit, rota: "/admin/bdi", visivel: souAdmin || irrestrito },
     { chave: "bip", nome: "BIP", descricao: "Biblioteca de Leis", Icone: BookOpen, rota: "/admin/bdi/leis", visivel: irrestrito },
     { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Aparência do sistema", Icone: Settings2, rota: "/configuracoes/aparencia", visivel: true },

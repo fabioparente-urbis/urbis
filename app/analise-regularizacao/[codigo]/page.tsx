@@ -528,6 +528,27 @@ export default function MacPage() {
         if (!_commitOk) mostrarToast("⚠️ Despacho gerado, mas a numeração não foi confirmada. Confira a numeração antes de gerar o próximo.");
       }
 
+      // MDP: registra despacho (best-effort)
+      fetch("/api/mdp", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          assunto_id: assuntoId || null,
+          tipo: tipoDespacho === "indeferimento" ? "indeferimento" : tipoDespacho === "arquivamento" ? "arquivamento" : "despacho",
+          numero: numeroDespacho,
+          destinatario: null,
+          data_despacho: new Date().toLocaleDateString("pt-BR"),
+          conteudo: {
+            pendencias_mac: checklistItens
+              .filter(i => itens[i.id] === "nao_conforme")
+              .map(i => ({ grupo: i.grupo, texto: i.texto })),
+            pendencias_lip: pendenciasLip,
+            observacoes: observacoes || "",
+          },
+        }),
+      }).catch(() => {});
+
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
         tipo: tipoDespacho,
@@ -658,7 +679,7 @@ export default function MacPage() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -1515,6 +1536,11 @@ export default function MacPage() {
             }} disabled={gerandoDespacho}
               className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
+            </button>
+            <button
+              onClick={() => window.open(`/mdp/${encodeURIComponent(codigo)}`, "_blank")}
+              className="w-full mt-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] font-medium py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              📋 Ver Despachos (MDP)
             </button>
             <div className="mt-2">
               <BotaoGerarLaudo

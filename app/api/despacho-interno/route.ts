@@ -110,6 +110,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── MDP: registra o despacho interno (falha silenciosa) ──
+    try {
+      const cookieHdr = req.headers.get("cookie") ?? "";
+      const usuarioId = cookieHdr.match(/urbis_id=([^;]+)/)?.[1] ?? null;
+      if (usuarioId) {
+        await supabase.from("mdp_registros").insert({
+          processo_codigo: codigo,
+          assunto_id: (body.assunto_id as string | null) || null,
+          tipo: "interno",
+          numero: String(numeroDespacho ?? ""),
+          destinatario: destino || null,
+          data_despacho: data || null,
+          conteudo: {
+            corpo: corpo || "",
+            pendencias_lip: Array.isArray(body.pendencias_lip) ? body.pendencias_lip : [],
+          },
+          usuario_id: usuarioId,
+        });
+      }
+    } catch (_) {}
+
     // ── MRP: grava o despacho interno automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
