@@ -1576,10 +1576,10 @@ export default function MacPage() {
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Destinatário</label>
                 <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
                   <option value="">Selecione...</option>
-                  <option value="Gerência de Pequeno Porte — DIRAAP/SEFIC">Gerência de Pequeno Porte — DIRAAP</option>
-                  <option value="Gerência de Médio Porte — DIRAAP/SEFIC">Gerência de Médio Porte — DIRAAP</option>
-                  <option value="Gerência de Grande Porte — DIRAAP/SEFIC">Gerência de Grande Porte — DIRAAP</option>
-                  <option value="Diretoria de Análise de Projetos — DIRAAP/SEFIC">Diretoria de Análise de Projetos — DIRAAP/SEFIC</option>
+                  <option value="GERECCO">GERECCO</option>
+                  <option value="GERAED">GERAED</option>
+                  <option value="GERAGP">GERAGP</option>
+                  <option value="DIRAAP">DIRAAP</option>
                   <option value="outro">Outro...</option>
                 </select>
                 {destinoDI === "outro" && (
