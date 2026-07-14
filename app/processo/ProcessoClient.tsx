@@ -142,7 +142,8 @@ function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {
   const digits = clean.replace(/^(CAU|CREA)/, "");
   const m = digits.match(/^(\d+)([A-Z]{2})?$/);
   if (m) return m[2] ? `${prefix}-${m[1]}/${m[2]}` : `${prefix}-${m[1]}`;
-  return `${prefix}-${digits}`;
+  // Texto livre que não segue o padrão numérico: retorna só uppercase/trim
+  return v.toUpperCase().trim();
 }
 export default function ProcessoClient() {
   const params = useParams();
@@ -1170,8 +1171,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={async () => {
               // Só bloqueia se houver campos marcados com X (pendências reais)
-              const t = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && (c.valor.trim().toUpperCase() === "X" || (c.origem === "padrao" && c.valor.trim() === ""))).length;
-              if (t > 0) { setConfirmarMac(true); return; }
+              if (totalPadrao > 0) { setConfirmarMac(true); return; }
               await salvar();
               const rotaMac = tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao";
               router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
