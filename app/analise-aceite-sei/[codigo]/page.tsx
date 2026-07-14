@@ -420,7 +420,15 @@ export default function MacPage() {
         if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
         mostrarToast("Salvo!");
         registrar({ modulo: "MAC", acao: "MAC_ANALISE_SALVA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
-        await carregar();
+        // Não chama carregar() — mantém a análise atual selecionada sem troca.
+        const analiseAtualId = analiseAtual.id;
+        const resLista = await fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`);
+        const jsonLista = await resLista.json();
+        if (jsonLista.ok) {
+          setAnalises(jsonLista.data);
+          const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtualId);
+          if (restaurada) setAnaliseAtual(restaurada);
+        }
       }
     } finally {
       setSalvando(false);

@@ -438,7 +438,17 @@ export default function MacPage() {
         if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
         mostrarToast("Salvo!");
         registrar({ modulo: "MAC", acao: "MAC_ANALISE_SALVA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
-        await carregar();
+        // Não chama carregar() — mantém a análise atual selecionada sem troca.
+        // Apenas atualiza a lista de análises para refletir mudanças de status.
+        const analiseAtualId = analiseAtual.id;
+        const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+        const jsonLista = await resLista.json();
+        if (jsonLista.ok) {
+          setAnalises(jsonLista.data);
+          // Restaura a análise que estava sendo editada
+          const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtualId);
+          if (restaurada) setAnaliseAtual(restaurada);
+        }
       }
     } finally {
       setSalvando(false);
