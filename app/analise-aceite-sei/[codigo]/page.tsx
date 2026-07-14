@@ -259,19 +259,6 @@ export default function MacPage() {
     } catch { mostrarToast("Erro ao salvar."); }
   }
 
-  // Anexa um bloco à Observação do PROCESSO (aba OBS) e persiste no banco.
-  async function anexarObsProcesso(bloco: string) {
-    const atual = (obsText ?? "").trim();
-    const novo = atual ? atual + "\n\n" + bloco : bloco;
-    setObsText(novo);
-    try {
-      await fetch("/api/processo/salvar", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, campos: { observacoes: { valor: novo, origem: "urbis", status: "confirmado" } } })
-      });
-    } catch { /* best-effort */ }
-  }
-
   function aceitarTodasIA(grupo: string) {
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setAceites((prev) => {
@@ -1034,10 +1021,10 @@ export default function MacPage() {
       <div className="flex flex-1 gap-0 overflow-hidden">
         {abaAtual === GRUPOS.length && (
           <div className="flex-1 flex flex-col overflow-y-auto px-6 pb-6 pt-4 gap-3">
-            <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações</p>
-            <textarea value={obsText} onChange={(e) => setObsText(e.target.value)} rows={20}
+            <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações do MAC</p>
+            <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={20}
               className="flex-1 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-vertical" />
-            <button onClick={salvarObs}
+            <button onClick={() => salvarSilencioso().then(() => mostrarToast("✅ Observações do MAC salvas!"))}
               className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-medium transition-colors w-fit">
               💾 Salvar Observações
             </button>
@@ -1166,7 +1153,7 @@ export default function MacPage() {
                       `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_seg} | ${total} item(ns) sugerido(s)\n` +
                       `📄 Documentos analisados (${_docs.length}):\n${_linhasDoc}\n` +
                       `🔎 Incompatibilidades:\n${_linhasInc}`;
-                    void anexarObsProcesso(_obsLeitura);
+                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
@@ -1177,7 +1164,7 @@ export default function MacPage() {
                       `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
                       `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_seg} | Progresso: ${progressoP2}%\n` +
                       `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
-                    void anexarObsProcesso(_obsErro);
+                    setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
                     mostrarToast(`Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
