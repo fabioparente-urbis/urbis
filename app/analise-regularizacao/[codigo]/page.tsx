@@ -37,7 +37,9 @@ export default function MacPage() {
   const [itensPendentesIA, setItensPendentesIA] = useState<any[]>([]);
   const [modalItensPendentesIA, setModalItensPendentesIA] = useState(false);
   const [analisandoP2, setAnalisandoP2] = useState(false);
-  const [modalLimparMac, setModalLimparMac] = useState(false);
+  const [modalLimparAnalise, setModalLimparAnalise] = useState<number | null>(null);
+  const [modalExportar, setModalExportar] = useState(false);
+  const [modalImportar, setModalImportar] = useState(false);
   const [progressoP2, setProgressoP2] = useState(0);
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerP2, setTimerP2] = useState(0);
@@ -106,8 +108,11 @@ export default function MacPage() {
   const inputImportRef = useRef<HTMLInputElement>(null);
   const { registrar } = useAuditoria();
   const [importando, setImportando] = useState(false);
-  async function importarExcel(file: File) {
-    if (!file || !analiseAtual?.id) {
+  const [importScope, setImportScope] = useState<"atual" | "todas">("atual");
+
+  async function importarExcel(file: File, scope: "atual" | "todas" = "atual") {
+    if (!file) return;
+    if (scope === "atual" && !analiseAtual?.id) {
       mostrarToast("Crie/salve a análise antes de importar.");
       return;
     }
@@ -115,7 +120,12 @@ export default function MacPage() {
       setImportando(true);
       const fd = new FormData();
       fd.append("file", file);
-      fd.append("analiseId", analiseAtual.id);
+      if (scope === "todas") {
+        fd.append("todas", "true");
+        fd.append("codigo", codigo);
+      } else {
+        fd.append("analiseId", analiseAtual!.id);
+      }
       const res = await fetch("/api/mac/importar-mac", { method: "POST", body: fd });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
@@ -123,8 +133,8 @@ export default function MacPage() {
         return;
       }
       const naoEnc = Array.isArray(json.naoEncontrados) ? json.naoEncontrados.length : 0;
-      mostrarToast(`✅ ${json.atualizados} item(ns) atualizado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`);
-      registrar({ modulo: "MAC", acao: "MAC_EXCEL_IMPORTADO", processo_codigo: codigo, detalhe: { atualizados: json.atualizados } });
+      mostrarToast(`✅ ${json.atualizados} item(ns) importado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`);
+      registrar({ modulo: "MAC", acao: "MAC_EXCEL_IMPORTADO", processo_codigo: codigo, detalhe: { scope, atualizados: json.atualizados } });
       await carregar();
     } catch (e: any) {
       mostrarToast(`Erro ao importar: ${e?.message || "falha"}`);
@@ -132,6 +142,49 @@ export default function MacPage() {
       setImportando(false);
       if (inputImportRef.current) inputImportRef.current.value = "";
     }
+  }
+
+  async function limparAnalise(numeroAnalise: number) {
+    const alvo = analises.find((a) => a.numero_analise === numeroAnalise);
+    if (!alvo) return;
+    // Zera no banco via PUT
+    await fetch("/api/analise-regularizacao", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: alvo.id,
+        itens: {},
+        fontes: {},
+        aceites: {},
+        observacoes: "",
+        observacoes_por_aba: {},
+        status: "em_andamento",
+        numero_revisao: Number(alvo.numero_revisao) || 1,
+        historico_analises: alvo.historico_analises || "",
+      }),
+    });
+    // Se for a análise em exibição, reseta o estado local também
+    if (analiseAtual?.numero_analise === numeroAnalise) {
+      setItens({});
+      setFontes({});
+      setAceites({});
+      setObservacoes("");
+      setObservacoesPorAba({});
+      // Abre seleção de checklist
+      carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
+    }
+    // Atualiza lista sem trocar de análise
+    const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+    const jsonLista = await resLista.json();
+    if (jsonLista.ok) {
+      setAnalises(jsonLista.data);
+      if (analiseAtual?.id) {
+        const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
+        if (restaurada) setAnaliseAtual(restaurada);
+      }
+    }
+    mostrarToast(`🗑️ Análise ${numeroAnalise} zerada.`);
+    setModalLimparAnalise(null);
   }
 
   async function carregarModelos(tipo: string, assunto?: string | null) {
@@ -952,15 +1005,15 @@ export default function MacPage() {
             )}
             <button
               type="button"
-              onClick={() => { if (analiseAtual?.id) window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank"); }}
-              disabled={!analiseAtual?.id}
+              onClick={() => setModalExportar(true)}
+              disabled={analises.length === 0}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               📊 Exportar Excel
             </button>
             <button
               type="button"
-              onClick={() => inputImportRef.current?.click()}
-              disabled={importando || !analiseAtual?.id}
+              onClick={() => setModalImportar(true)}
+              disabled={importando || analises.length === 0}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               {importando ? "⏳ Importando..." : "📥 Importar Excel"}
             </button>
@@ -971,7 +1024,7 @@ export default function MacPage() {
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
-                if (f) importarExcel(f);
+                if (f) { importarExcel(f, importScope); }
               }}
             />
             <div>
@@ -1402,38 +1455,40 @@ export default function MacPage() {
         <div className="w-72 bg-[var(--bg-card)] border-l border-[var(--border)] p-4 flex flex-col gap-4 overflow-y-auto">
           <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Ações</h3>
 
-          {/* Botões de análise 1-5 (STEP 1b) */}
+          {/* Botões de análise 1-5 — compactos + Limpar individual */}
           <div className="flex flex-col gap-1.5 mb-1">
             {[1, 2, 3, 4, 5].map((n) => {
               const existente = analises.find((a) => a.numero_analise === n);
-              const jaEmitida =
-                !!existente && existente.status !== "em_andamento";
-              const liberada =
-                n === 1 ||
-                analises.some(
-                  (a) =>
-                    a.numero_analise === n - 1,
-                );
+              const jaEmitida = !!existente && existente.status !== "em_andamento";
+              const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
               const ativa = analiseAtual?.numero_analise === n;
               return (
-                <button
-                  key={n}
-                  disabled={!liberada && !existente}
-                  onClick={() => selecionarOuCriarAnalise(n)}
-                  className={`w-full py-2 rounded-lg text-sm font-bold border transition-all ${
-                    ativa
-                      ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
-                      : jaEmitida
-                        ? "bg-[var(--success-bg)] border-[var(--border)] text-[var(--accent-fg)] hover:bg-[var(--success-bg)]"
-                        : existente
-                          ? "bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
-                          : liberada
+                <div key={n} className="flex gap-1 items-stretch">
+                  <button
+                    disabled={!liberada && !existente}
+                    onClick={() => selecionarOuCriarAnalise(n)}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                      ativa
+                        ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
+                        : jaEmitida
+                          ? "bg-[var(--success-bg)] border-[var(--border)] text-[var(--accent-fg)]"
+                          : existente || liberada
                             ? "bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
                             : "bg-[var(--bg-primary)] border-[var(--border)] text-slate-600 cursor-not-allowed opacity-50"
-                  }`}
-                >
-                  {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
-                </button>
+                    }`}
+                  >
+                    {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
+                  </button>
+                  {existente && (
+                    <button
+                      onClick={() => setModalLimparAnalise(n)}
+                      title={`Zerar Análise ${n}`}
+                      className="px-2 py-1 rounded-lg text-xs border border-red-400 text-red-400 hover:bg-red-600 hover:text-white transition-colors"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
@@ -1595,14 +1650,6 @@ export default function MacPage() {
               />
             </div>
 
-            {/* Limpar MAC */}
-            <button
-              type="button"
-              onClick={() => setModalLimparMac(true)}
-              className="w-full mt-2 bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors"
-            >
-              🗑️ Limpar MAC
-            </button>
           </div>
         </div>
       </div>
@@ -1682,31 +1729,83 @@ export default function MacPage() {
           </div>
         </div>
       )}
-      {modalLimparMac && (
+      {/* Modal Limpar Análise individual */}
+      {modalLimparAnalise !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
-            <p className="text-sm text-[var(--text-primary)] mb-2">Você está prestes a <strong>apagar toda a análise MAC</strong> deste processo.</p>
-            <p className="text-sm text-red-300 font-semibold mb-4">Todos os itens, observações, fontes e aceites serão zerados. Esta ação não pode ser desfeita.</p>
-            <p className="text-xs text-[var(--text-muted)] mb-4">Recomendamos exportar o Excel antes de continuar.</p>
+            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ Zerar Análise {modalLimparAnalise}</h2>
+            <p className="text-sm text-[var(--text-primary)] mb-4">
+              Todos os itens, observações, fontes e aceites da <strong>Análise {modalLimparAnalise}</strong> serão apagados
+              e você precisará selecionar o checklist novamente. Esta ação não pode ser desfeita.
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mb-4">As outras análises não serão afetadas.</p>
             <div className="flex gap-3">
-              <button onClick={() => setModalLimparMac(false)}
+              <button onClick={() => setModalLimparAnalise(null)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
-              <button onClick={() => {
-                setItens({});
-                setFontes({});
-                setAceites({});
-                setObservacoes("");
-                setObservacoesPorAba({});
-                setModalLimparMac(false);
-                mostrarToast("🗑️ Análise MAC zerada.");
-              }}
-                className="flex-1 bg-red-700 hover:bg-red-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
-                Confirmar — Limpar tudo
+              <button onClick={() => limparAnalise(modalLimparAnalise)}
+                className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+                Zerar Análise {modalLimparAnalise}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Exportar Excel */}
+      {modalExportar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm">
+            <h2 className="text-base font-bold text-[var(--text-primary)] mb-4">📊 Exportar Excel</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-4">Escolha o que deseja exportar:</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  if (analiseAtual?.id)
+                    window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank");
+                  setModalExportar(false);
+                }}
+                disabled={!analiseAtual?.id}
+                className="w-full bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                📋 Análise {analiseAtual?.numero_analise ?? "—"} (atual)
+              </button>
+              <button
+                onClick={() => {
+                  window.open(`/api/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
+                  setModalExportar(false);
+                }}
+                className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-strong)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                📚 Todas as análises ({analises.length} planilha{analises.length !== 1 ? "s" : ""})
+              </button>
+            </div>
+            <button onClick={() => setModalExportar(false)} className="w-full mt-3 text-[var(--text-muted)] text-xs hover:underline">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Importar Excel */}
+      {modalImportar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-sm">
+            <h2 className="text-base font-bold text-[var(--text-primary)] mb-4">📥 Importar Excel</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-4">Escolha o que deseja importar:</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { setImportScope("atual"); setModalImportar(false); inputImportRef.current?.click(); }}
+                disabled={!analiseAtual?.id}
+                className="w-full bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-colors">
+                📋 Análise {analiseAtual?.numero_analise ?? "—"} (atual)
+                <span className="block text-xs font-normal opacity-80">Arquivo com 1 planilha</span>
+              </button>
+              <button
+                onClick={() => { setImportScope("todas"); setModalImportar(false); inputImportRef.current?.click(); }}
+                className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-strong)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                📚 Todas as análises
+                <span className="block text-xs font-normal text-[var(--text-muted)]">Arquivo com múltiplas planilhas (Analise 1, Analise 2…)</span>
+              </button>
+            </div>
+            <button onClick={() => setModalImportar(false)} className="w-full mt-3 text-[var(--text-muted)] text-xs hover:underline">Cancelar</button>
           </div>
         </div>
       )}
