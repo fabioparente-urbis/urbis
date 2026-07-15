@@ -6,7 +6,7 @@ import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 
 type ProcessoTag = {
   id?: string;
-  tipo: "despacho" | "indeferimento" | "arquivamento" | "laudo";
+  tipo: "despacho" | "despacho_interno" | "indeferimento" | "arquivamento" | "laudo";
   numero_analise?: number;
   numero_despacho?: string;
   data?: string;
@@ -28,6 +28,7 @@ type Processo = {
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
   despacho: "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent-hover)]",
+  despacho_interno: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
   indeferimento: "bg-[var(--error-bg)] text-[var(--error)] border-[var(--error)]",
   arquivamento: "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)]",
   laudo: "bg-[var(--success-bg)] text-[var(--success)] border-[var(--border)]",
@@ -45,6 +46,10 @@ function rotuloTag(t: ProcessoTag): string {
       return t.numero_despacho
         ? `Indeferimento — Despacho Nº ${t.numero_despacho}`
         : "Indeferimento";
+    case "despacho_interno":
+      return t.numero_despacho
+        ? `Despacho Interno Nº ${t.numero_despacho}`
+        : "Despacho Interno";
     case "arquivamento":
       return "Arquivamento";
     case "laudo":

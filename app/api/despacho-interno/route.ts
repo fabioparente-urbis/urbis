@@ -131,6 +131,25 @@ export async function POST(req: NextRequest) {
       }
     } catch (_) {}
 
+    // ── TAG no processo: rótulo visível na lista de processos ──
+    try {
+      const novaTag = {
+        tipo: "despacho_interno",
+        numero_despacho: String(numeroDespacho ?? ""),
+        data: new Date().toISOString(),
+      };
+      const { data: procAtual } = await supabase
+        .from("processos")
+        .select("tags")
+        .eq("codigo", codigo)
+        .maybeSingle();
+      const tagsAtuais: any[] = Array.isArray((procAtual as any)?.tags) ? (procAtual as any).tags : [];
+      await supabase
+        .from("processos")
+        .update({ tags: [...tagsAtuais, novaTag] })
+        .eq("codigo", codigo);
+    } catch (_) {}
+
     // ── MRP: grava o despacho interno automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
