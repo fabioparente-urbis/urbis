@@ -562,7 +562,8 @@ export async function gerarDespachoInterno(dados: {
   children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Assunto:  "), txt(dados.tipoProcesso, { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº ${dados.numeroDespacho}`, { bold: true, size: 22 })] }));
+  const ano = new Date().getFullYear().toString();
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº ${dados.numeroDespacho} / ${ano}`, { bold: true, size: 22 })] }));
   children.push(p([txt(`À ${dados.destino}`)], { align: AlignmentType.LEFT, after: 160 }));
   dados.corpo.split("\n").forEach((linha: string) => {
     children.push(p([txt(linha || " ")], { after: 80 }));
