@@ -1006,14 +1006,14 @@ export default function MacPage() {
             <button
               type="button"
               onClick={() => setModalExportar(true)}
-              disabled={analises.length === 0}
+              disabled={!analiseAtual?.id && analises.length === 0}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               📊 Exportar Excel
             </button>
             <button
               type="button"
               onClick={() => setModalImportar(true)}
-              disabled={importando || analises.length === 0}
+              disabled={importando || (!analiseAtual?.id && analises.length === 0)}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               {importando ? "⏳ Importando..." : "📥 Importar Excel"}
             </button>
