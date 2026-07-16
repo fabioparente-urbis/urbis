@@ -14,6 +14,11 @@ const statusLabel: Record<string, string> = {
 };
 
 async function buildSheet(analise: any) {
+  if (!analise.modelo_id) {
+    const ws = XLSX.utils.json_to_sheet([{ "Aba": "", "Item": "(sem checklist)", "Referencia": "", "Status": "" }]);
+    ws["!cols"] = [{ wch: 30 }, { wch: 80 }, { wch: 20 }, { wch: 20 }];
+    return ws;
+  }
   const { data: itens } = await supabase
     .from("mac_checklist_itens")
     .select("id, grupo, ordem, texto, ref")
@@ -62,9 +67,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "Nenhuma análise encontrada" }, { status: 404 });
 
     const wb = XLSX.utils.book_new();
+    const usedNames = new Set<string>();
     for (const analise of lista) {
       const ws = await buildSheet(analise);
-      XLSX.utils.book_append_sheet(wb, ws, `Analise ${analise.numero_analise}`);
+      let sheetName = `Analise ${analise.numero_analise}`;
+      let suffix = 2;
+      while (usedNames.has(sheetName)) sheetName = `Analise ${analise.numero_analise}_${suffix++}`;
+      usedNames.add(sheetName);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
     const buf = Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" }));
     const filename = `MAC_${codigoParam}_todas-analises_${data}.xlsx`;
