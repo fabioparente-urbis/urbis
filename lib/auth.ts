@@ -20,6 +20,7 @@ export type AuthContext = {
   // - derivada do perfil 'Gerência GERECCO/MP/GP' para gerentes
   // - null para Administrador / Diretora / outros
   gerencia: Gerencia | null;
+  _renovarCookie?: boolean;
 };
 
 /**
@@ -36,7 +37,7 @@ export async function autenticar(
   const userId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1];
   if (!userId) {
     return NextResponse.json(
-      { ok: false, erro: "Nao autenticado" },
+      { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
     );
   }
@@ -47,7 +48,7 @@ export async function autenticar(
     .maybeSingle();
   if (error || !usuario) {
     return NextResponse.json(
-      { ok: false, erro: "Usuario nao encontrado" },
+      { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
     );
   }
@@ -73,7 +74,21 @@ export async function autenticar(
     perfis: perfisArr,
     irrestrito: isPerfilIrrestrito(perfisArr.length > 0 ? perfisArr : usuario.perfil),
     gerencia,
+    _renovarCookie: true, // sinal para a rota renovar o cookie urbis_id
   };
+}
+
+/** Aplica renovação do cookie urbis_id na response (estende por mais 8h). */
+export function renovarCookieAuth(res: NextResponse, userId: string): NextResponse {
+  const opcoes = {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax" as const,
+    maxAge: 60 * 60 * 8,
+    path: "/",
+  };
+  res.cookies.set("urbis_id", userId, opcoes);
+  return res;
 }
 
 /**

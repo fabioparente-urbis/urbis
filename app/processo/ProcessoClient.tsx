@@ -378,6 +378,9 @@ export default function ProcessoClient() {
           setStatusSalvo("salvo");
           await carregarHistorico();
           setTimeout(() => setStatusSalvo("idle"), 3000);
+        } else if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
+          mostrarToast("⚠️ Sessão expirada. Faça login em nova aba e salve novamente.", "erro");
+          setStatusSalvo("erro");
         } else {
           setStatusSalvo("erro");
         }
@@ -851,7 +854,11 @@ export default function ProcessoClient() {
       });
       const json = await res.json();
       if (!res.ok || !json?.ok) {
-        mostrarToast("Erro ao salvar: " + JSON.stringify(json), "erro");
+        if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
+          mostrarToast("⚠️ Sua sessão expirou. Faça login em uma nova aba e tente salvar novamente.", "erro");
+        } else {
+          mostrarToast("Erro ao salvar: " + (json?.erro || "desconhecido"), "erro");
+        }
         setStatusSalvo("erro"); return;
       }
       snapRef.current = d;

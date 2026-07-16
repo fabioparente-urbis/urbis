@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { autenticar, verificarOwnership } from "@/lib/auth";
+import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 
 /**
  * Retorna as chaves do objeto `dados` cujos campos estão marcados como
@@ -209,7 +209,10 @@ export async function POST(req: NextRequest) {
       // Falha silenciosa: coluna chave_lip/tipo_processo pode não existir ainda.
     }
 
-    return NextResponse.json({ ok: true, acao, tipo: tipoProcesso });
+    return renovarCookieAuth(
+      NextResponse.json({ ok: true, acao, tipo: tipoProcesso }),
+      auth.userId,
+    );
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }
