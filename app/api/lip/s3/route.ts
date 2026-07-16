@@ -174,7 +174,8 @@ async function processarJobBackground(jobId: string, params: {
     }
 
     const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
-    console.log(`[S3-bg] job=${jobId} concluido. ${preenchidos} campos preenchidos.`);
+    console.log(`[S3-bg] job=${jobId} concluido. ${preenchidos} campos preenchidos. resultado salvo.`);
+    console.log(`[S3-bg] job=${jobId} amostra campos:`, JSON.stringify(Object.entries(campos).slice(0, 5)));
 
     await supabaseAdmin.from("lip_jobs").update({
       status: "concluido",
