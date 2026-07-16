@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 
-export const maxDuration = 120;
+export const maxDuration = 280;
 
 export async function POST(req: NextRequest) {
   try {

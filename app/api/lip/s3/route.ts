@@ -156,7 +156,26 @@ async function processarJobBackground(jobId: string, params: {
     }
 
     const clean = texto.replace(/```json|```/g, "").trim();
-    const dados = JSON.parse(clean);
+    let dados: any;
+    try {
+      dados = JSON.parse(clean);
+    } catch (parseErr: any) {
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: `JSON inválido do Gemini: ${parseErr.message} | Início da resposta: ${clean.slice(0, 400)}`,
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
+    }
+
+    if (!dados.campos || Object.keys(dados.campos).length === 0) {
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: `Gemini respondeu sem a chave "campos". Chaves recebidas: ${Object.keys(dados).join(", ") || "(nenhuma)"} | Resposta: ${clean.slice(0, 400)}`,
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
+    }
 
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
     if (dados.campos) {
