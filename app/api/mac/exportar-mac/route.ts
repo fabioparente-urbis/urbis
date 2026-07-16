@@ -50,6 +50,13 @@ async function buildSheet(analise: any) {
 }
 
 export async function GET(req: NextRequest) {
+  try { return await handleGET(req); } catch (e: any) {
+    console.error("[exportar-mac] erro:", e?.message, e?.stack);
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+  }
+}
+
+async function handleGET(req: NextRequest) {
   const analiseId = req.nextUrl.searchParams.get("analiseId");
   const codigoParam = req.nextUrl.searchParams.get("codigo");
   const todas = req.nextUrl.searchParams.get("todas") === "true";
