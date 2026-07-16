@@ -1,22 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL, type GeminiModel } from "@/lib/constants";
 
-// Força erro de build se GEMINI_MODEL não for um modelo válido
 const _modeloValidado: GeminiModel = GEMINI_MODEL;
 import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
-export const maxDuration = 300;
+
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
   try {
     const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id } = await req.json();
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
-    // Prompt por slot: tenta o do assunto; se o slot não tiver o seu, cai no
-    // global (maior versão) — comportamento antigo, nada quebra.
+
+    // Trava de budget
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: chamadasRecentes } = await supabaseAdmin
+      .from("urbis_api_calls")
+      .select("*", { count: "exact", head: true })
+      .gte("criado_em", umaHoraAtras)
+      .eq("status", "ok");
+    if ((chamadasRecentes ?? 0) >= 50) {
+      return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
+    }
+
+    // Carrega prompt
     const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
     let promptData: { conteudo: string; versao: number } | null = null;
     if (assuntoValido) {
@@ -37,104 +50,120 @@ export async function POST(req: NextRequest) {
     }
     if (!promptData)
       return NextResponse.json({ ok: false, erro: "Prompt S3 nao encontrado." }, { status: 500 });
+
     console.log(`[S3] Prompt versao ${promptData.versao} carregado.`);
     const ctxDocs = documentos?.length
       ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
     const promptFinal = promptData.conteudo + ctxDocs;
-    console.log(`[S3] Prompt tamanho: ${promptFinal.length} chars`);
-    const apiKey = process.env.GEMINI_API_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-    // ── Trava de budget: bloqueia se > 50 chamadas na última hora ──
-    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count: chamadasRecentes } = await supabaseAdmin
-      .from("urbis_api_calls")
-      .select("*", { count: "exact", head: true })
-      .gte("criado_em", umaHoraAtras)
-      .eq("status", "ok");
-    if ((chamadasRecentes ?? 0) >= 50) {
-      console.error("[S3] BUDGET BLOQUEADO: mais de 50 chamadas na última hora");
-      return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
-    }
+    // Cria job no banco
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from("lip_jobs")
+      .insert({ processo_codigo: codigo ?? null, status: "processando" })
+      .select("id")
+      .single();
+
+    if (jobErr || !job)
+      return NextResponse.json({ ok: false, erro: "Erro ao criar job: " + jobErr?.message }, { status: 500 });
+
+    const jobId = (job as any).id as string;
+    const apiKey = process.env.GEMINI_API_KEY!;
+
+    // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
+    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName }).catch(
+      (e) => console.error("[S3-bg] erro não capturado:", e?.message)
+    );
+
+    return NextResponse.json({ ok: true, jobId });
+  } catch (e: any) {
+    console.error("[S3] Erro:", e?.message);
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+  }
+}
+
+const CAMPOS_NP = [
+  "cnae1","cnae2","cnae3","cnae4","cnae5","faixa",
+  "volMin","volAt","caixas","qualOutro","dataEmb",
+  "artCx","foto","despacho","seiCheadv","seiProcuracao",
+  "seiEmbargo","areaAprovada","usoSolo","processoFisico","arqNome","arqCau",
+  "faixaAmpliacacao","caixaRecarga","volMinimoCaixa","volAtendidoCaixa","numCaixas",
+  "areaImpermeavelCalc","nOutroProcesso","dataEmbargo","seiOnerosa",
+  "seiArtCaixaRecarga","seiFotoGoogle",
+];
+
+async function processarJobBackground(jobId: string, params: {
+  fileUri: string;
+  promptFinal: string;
+  apiKey: string;
+  codigo?: string;
+  fileName?: string;
+}) {
+  const { fileUri, promptFinal, apiKey, codigo, fileName } = params;
+  try {
     let texto = "";
-
-    // Cascata: gemini-2.0-flash → gemini-1.5-flash-002 → claude-haiku
-    const modelos = [GEMINI_MODEL];
     let geminiOk = false;
     let ultimoStatus = 0;
     let ultimoCorpo = "";
     const MAX_TENTATIVAS = 4;
-    for (const modelo of modelos) {
-      for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
-        console.log(`[S3] Tentando ${modelo} (tentativa ${tentativa}/${MAX_TENTATIVAS})...`);
-        const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
-              generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
-            }),
-          }
-        );
-        if (res.ok) {
-          const data = await res.json();
-          texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-          if (texto) { geminiOk = true; console.log(`[S3] OK com ${modelo}`); break; }
-          ultimoStatus = 200;
-          ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
-        } else {
-          ultimoStatus = res.status;
-          ultimoCorpo = (await res.text()).slice(0, 500);
+
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      console.log(`[S3-bg] job=${jobId} tentativa ${tentativa}/${MAX_TENTATIVAS}`);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
+            generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
+          }),
         }
-        console.log(`[S3] ${modelo} falhou (status ${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
-        // Retry apenas em sobrecarga (503) ou resposta vazia, com backoff crescente
-        const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
-        if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
-          const esperaMs = tentativa * 4000; // 4s, 8s, 12s
-          console.log(`[S3] Sobrecarga/vazio — aguardando ${esperaMs}ms antes de retry...`);
-          await new Promise((r) => setTimeout(r, esperaMs));
-          continue;
-        }
-        break; // erro não-retryable: sai do loop de tentativas
+      );
+      if (res.ok) {
+        const data = await res.json();
+        texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (texto) { geminiOk = true; console.log(`[S3-bg] job=${jobId} OK`); break; }
+        ultimoStatus = 200;
+        ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+      } else {
+        ultimoStatus = res.status;
+        ultimoCorpo = (await res.text()).slice(0, 500);
       }
-      if (geminiOk) break;
+      console.log(`[S3-bg] job=${jobId} falhou (${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
+      const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
+      if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
+        await new Promise((r) => setTimeout(r, tentativa * 4000));
+        continue;
+      }
+      break;
     }
 
-    // Sem fallback — processo inteiro só via Gemini
     if (!geminiOk) {
       let motivo = "ERRO_GEMINI";
-      const corpoLower = ultimoCorpo.toLowerCase();
-      if (ultimoStatus === 429 || corpoLower.includes("resource_exhausted") || corpoLower.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
-      else if (ultimoStatus === 400 && (corpoLower.includes("invalid_argument") || corpoLower.includes("model") || corpoLower.includes("not found") || corpoLower.includes("does not exist"))) motivo = "MODELO_INVALIDO";
-      else if (ultimoStatus === 400 && (corpoLower.includes("api_key_invalid") || corpoLower.includes("api key not valid"))) motivo = "CHAVE_INVALIDA";
-      else if (ultimoStatus === 400) motivo = "REQUISICAO_INVALIDA";
-      else if (ultimoStatus === 404 || corpoLower.includes("no longer available") || corpoLower.includes("not_found")) motivo = "MODELO_INDISPONIVEL";
-      else if (ultimoStatus === 413 || corpoLower.includes("file_too_large") || corpoLower.includes("too large") || corpoLower.includes("exceeds the limit")) motivo = "ARQUIVO_GRANDE";
-      else if (ultimoStatus === 503 || corpoLower.includes("overloaded") || corpoLower.includes("high demand")) motivo = "GEMINI_SOBRECARREGADO";
+      const cl = ultimoCorpo.toLowerCase();
+      if (ultimoStatus === 429 || cl.includes("resource_exhausted") || cl.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
+      else if (ultimoStatus === 400 && (cl.includes("invalid_argument") || cl.includes("not found"))) motivo = "MODELO_INVALIDO";
+      else if (ultimoStatus === 413 || cl.includes("file_too_large") || cl.includes("too large")) motivo = "ARQUIVO_GRANDE";
+      else if (ultimoStatus === 503 || cl.includes("overloaded")) motivo = "GEMINI_SOBRECARREGADO";
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
-      console.error(`[S3] FALHA DEFINITIVA: motivo=${motivo} status=${ultimoStatus} corpo=${ultimoCorpo}`);
-      return NextResponse.json({ ok: false, erro: motivo, status_http: ultimoStatus, detalhe: ultimoCorpo.slice(0, 300) }, { status: ultimoStatus === 429 ? 429 : 502 });
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: motivo + ": " + ultimoCorpo.slice(0, 300),
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
     }
-    console.log("[S3] Resposta recebida:", texto.substring(0, 300));
-    const clean = texto.replace(/\`\`\`json|\`\`\`/g, "").trim();
+
+    const clean = texto.replace(/```json|```/g, "").trim();
     const dados = JSON.parse(clean);
-    const CAMPOS_NP = [
-      "cnae1","cnae2","cnae3","cnae4","cnae5","faixa",
-      "volMin","volAt","caixas","qualOutro","dataEmb",
-      "artCx","foto","despacho","seiCheadv","seiProcuracao",
-      "seiEmbargo","areaAprovada","usoSolo","processoFisico","arqNome","arqCau","faixaAmpliacacao","caixaRecarga","volMinimoCaixa","volAtendidoCaixa","numCaixas","areaImpermeavelCalc","nOutroProcesso","seiEmbargo","dataEmbargo","seiProcuracao","seiOnerosa","seiArtCaixaRecarga","seiFotoGoogle","areaAprovada",
-    ];
+
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
     if (dados.campos) {
       for (const [chave, item] of Object.entries(dados.campos as Record<string, any>)) {
         const val = item?.valor?.toString().trim();
         if (!val || ["null","n/a","nao identificado",""].includes(val.toLowerCase())) {
-          campos[chave] = CAMPOS_NP.includes(chave)
-            ? { valor: "NP", fonte: "Nao identificado" }
-            : null;
+          campos[chave] = CAMPOS_NP.includes(chave) ? { valor: "NP", fonte: "Nao identificado" } : null;
         } else {
           campos[chave] = { valor: val, fonte: item.fonte ? String(item.fonte).trim() : "Processo SEI" };
         }
@@ -143,16 +172,29 @@ export async function POST(req: NextRequest) {
         if (!campos[c]) campos[c] = { valor: "NP", fonte: "Nao identificado" };
       }
     }
+
     const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
-    console.log(`[S3] Concluido. ${preenchidos} campos preenchidos.`);
-    // Registra leitura no historico
+    console.log(`[S3-bg] job=${jobId} concluido. ${preenchidos} campos preenchidos.`);
+
+    await supabaseAdmin.from("lip_jobs").update({
+      status: "concluido",
+      resultado: {
+        campos,
+        alertasMAC: dados.alertasMAC ?? [],
+        validacoes: dados.validacoes ?? {},
+        pendencias: dados.pendencias ?? [],
+      },
+      atualizado_em: new Date().toISOString(),
+    }).eq("id", jobId);
+
+    // Auditoria
     if (codigo) {
       try {
         const { data: proc } = await supabaseAdmin.from("processos").select("id").eq("codigo", codigo).maybeSingle();
-        if (proc?.id) {
+        if ((proc as any)?.id) {
           await supabaseAdmin.from("auditoria_log").insert({
             tabela: "processos",
-            registro_id: proc.id,
+            registro_id: (proc as any).id,
             operacao: "LIP_LEITURA",
             dados_antes: null,
             dados_depois: { arquivo: fileName ?? "arquivo.pdf", camposPreenchidos: preenchidos, status: "OK" },
@@ -160,9 +202,12 @@ export async function POST(req: NextRequest) {
         }
       } catch (_) {}
     }
-    return NextResponse.json({ ok: true, campos, alertasMAC: dados.alertasMAC ?? [], validacoes: dados.validacoes ?? {}, pendencias: dados.pendencias ?? [] });
   } catch (e: any) {
-    console.error("[S3] Erro:", e?.message);
-    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+    console.error(`[S3-bg] job=${jobId} falha:`, e?.message);
+    await supabaseAdmin.from("lip_jobs").update({
+      status: "erro",
+      erro: e?.message || "Erro desconhecido",
+      atualizado_em: new Date().toISOString(),
+    }).eq("id", jobId);
   }
 }

@@ -478,6 +478,30 @@ export default function ProcessoClient() {
     });
   }
 
+  async function aguardarJobS3(jobId: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      let tentativas = 0;
+      const MAX = 144; // 144 × 5s = 12 minutos
+      const interval = setInterval(async () => {
+        tentativas++;
+        try {
+          const poll = await fetch(`/api/lip/s3/status?jobId=${jobId}`);
+          const data = await poll.json();
+          if (data.status === "concluido") {
+            clearInterval(interval);
+            resolve(data.resultado);
+          } else if (data.status === "erro") {
+            clearInterval(interval);
+            reject(new Error("S3: " + (data.erro || "Erro no processamento")));
+          } else if (tentativas >= MAX) {
+            clearInterval(interval);
+            reject(new Error("S3: Timeout — processamento demorou mais de 12 minutos"));
+          }
+        } catch (_) {}
+      }, 5000);
+    });
+  }
+
   async function lerLip(arquivos: File[]) {
     const _t0Leitura = Date.now();
     const _dataLeitura = new Date().toLocaleString("pt-BR");
@@ -533,26 +557,19 @@ export default function ProcessoClient() {
             r.onload = () => res((r.result as string).split(",")[1]);
             r.readAsDataURL(arquivo);
           });
-          const s3Res = await fetch("/api/lip/s3", {
+          const s3Init = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current }),
-          });
-          const s3Data = await s3Res.json();
-          if (!s3Data.ok) {
-          if (s3Data.erro?.includes("429") || s3Data.erro?.includes("RESOURCE_EXHAUSTED") || s3Data.erro?.includes("quota") || s3Data.erro === "LIMITE_DIARIO_GEMINI") {
-            // Registra falha por limite no historico
-            try {
-              await fetch("/api/lip/registrar-evento", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ codigo: idUrl, fileName: arquivo.name, status: "LIMITE" }),
-              });
-            } catch (_) {}
-            throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
+          }).then(r => r.json());
+          if (!s3Init.ok) {
+            if (s3Init.erro === "LIMITE_DIARIO_GEMINI" || s3Init.erro === "BUDGET_EXCEDIDO") {
+              try { await fetch("/api/lip/registrar-evento", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: idUrl, fileName: arquivo.name, status: "LIMITE" }) }); } catch (_) {}
+            }
+            throw new Error("S3: " + (s3Init.erro || "Erro ao iniciar leitura"));
           }
-          throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
-        }
+          mostrarToast("⏳ Lendo PDF com IA... isso pode levar alguns minutos", "info");
+          const s3Data = await aguardarJobS3(s3Init.jobId);
 
           registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_CONCLUIDA", processo_codigo: idUrl, origem: "IA", detalhe: { campos: Object.keys(s3Data.campos ?? {}).length, alertas: (s3Data.alertasMAC ?? []).length } });
           return {
@@ -687,14 +704,15 @@ export default function ProcessoClient() {
           r.onload = () => res((r.result as string).split(",")[1]);
           r.readAsDataURL(arquivo);
         });
-        const s3Res = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current }) });
-        const s3Data = await s3Res.json();
-        if (!s3Data.ok) throw new Error("S3: " + (s3Data.erro || "Erro na extração"));
+        const s3VcpInit = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current }) }).then(r => r.json());
+        if (!s3VcpInit.ok) throw new Error("S3: " + (s3VcpInit.erro || "Erro ao iniciar leitura"));
+        mostrarToast(`⏳ VCP: Processando ${arquivo.name} com IA...`, "info");
+        const s3VcpData = await aguardarJobS3(s3VcpInit.jobId);
         resultados.push({
           nome: arquivo.name,
           tipo: detectarTipoArquivo(arquivo.name),
           sei: extrairSEIArquivo(arquivo.name),
-          campos: s3Data.campos ?? {},
+          campos: s3VcpData.campos ?? {},
         });
       }
       setProgresso(80);
