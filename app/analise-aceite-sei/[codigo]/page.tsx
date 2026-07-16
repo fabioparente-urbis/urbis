@@ -397,6 +397,10 @@ export default function MacPage() {
         if (json?.ok && json?.data && !skipStateUpdate) {
           setAnaliseAtual(json.data);
           setNovaAnalise(false);
+          fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`)
+            .then(r => r.json())
+            .then(j => { if (j.ok) setAnalises(j.data); })
+            .catch(() => {});
         }
       } else {
         await fetch("/api/analise-aceite-sei", {
@@ -619,7 +623,7 @@ export default function MacPage() {
     setItens(ultima?.itens || {});
     setFontes(ultima?.fontes || {});
     setAceites(ultima?.aceites || {});
-    setObservacoes("");
+    setObservacoes(ultima?.observacoes || "");
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
     setNovaAnalise(true);

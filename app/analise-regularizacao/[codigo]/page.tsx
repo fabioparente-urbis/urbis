@@ -414,6 +414,11 @@ export default function MacPage() {
             if (!skipStateUpdate) {
               setAnaliseAtual(json.data);
               setNovaAnalise(false);
+              // Atualiza lista de análises para que botões 1-5 e lixeiras fiquem corretos
+              fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`)
+                .then(r => r.json())
+                .then(j => { if (j.ok) setAnalises(j.data); })
+                .catch(() => {});
             }
           }
         } finally {
@@ -643,7 +648,7 @@ export default function MacPage() {
     setItens(ultima?.itens || {});
     setFontes(ultima?.fontes || {});
     setAceites(ultima?.aceites || {});
-    setObservacoes("");
+    setObservacoes(ultima?.observacoes || "");
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
     criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
