@@ -479,15 +479,19 @@ export default function ProcessoClient() {
   }
 
   async function aguardarJobS3(jobId: string): Promise<any> {
+    if (!jobId) throw new Error("S3: jobId ausente");
     return new Promise((resolve, reject) => {
       let tentativas = 0;
       const MAX = 144; // 144 × 5s = 12 minutos
       const interval = setInterval(async () => {
         tentativas++;
         try {
-          const poll = await fetch(`/api/lip/s3/status?jobId=${jobId}`);
+          const poll = await fetch(`/api/lip/s3/status?jobId=${encodeURIComponent(jobId)}`);
+          if (!poll.ok) { return; } // erro de rede, continua polling
           const data = await poll.json();
+          console.log(`[S3-poll] tentativa=${tentativas} status=${data.status} temResultado=${!!data.resultado}`);
           if (data.status === "concluido") {
+            if (!data.resultado) { return; } // ainda salvando, aguarda próximo ciclo
             clearInterval(interval);
             resolve(data.resultado);
           } else if (data.status === "erro") {
@@ -497,7 +501,9 @@ export default function ProcessoClient() {
             clearInterval(interval);
             reject(new Error("S3: Timeout — processamento demorou mais de 12 minutos"));
           }
-        } catch (_) {}
+        } catch (e) {
+          console.warn(`[S3-poll] erro tentativa ${tentativas}:`, e);
+        }
       }, 5000);
     });
   }
