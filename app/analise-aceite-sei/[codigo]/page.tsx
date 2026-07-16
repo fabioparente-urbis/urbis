@@ -159,22 +159,25 @@ export default function MacPage() {
         historico_analises: alvo.historico_analises || "",
       }),
     });
-    if (analiseAtual?.numero_analise === numeroAnalise) {
-      setItens({});
-      setFontes({});
-      setAceites({});
-      setObservacoes("");
-      setObservacoesPorAba({});
-      carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
-    }
     const resLista = await fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`);
     const jsonLista = await resLista.json();
-    if (jsonLista.ok) {
-      setAnalises(jsonLista.data);
-      if (analiseAtual?.id) {
-        const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
-        if (restaurada) setAnaliseAtual(restaurada);
+    if (jsonLista.ok) setAnalises(jsonLista.data);
+    if (analiseAtual?.numero_analise === numeroAnalise) {
+      const listaAtualizada: any[] = jsonLista.ok ? jsonLista.data : analises;
+      const anterior = listaAtualizada
+        .filter((a: any) => a.numero_analise < numeroAnalise)
+        .sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+      if (anterior) {
+        selecionarAnalise(anterior);
+      } else {
+        setItens({}); setFontes({}); setAceites({});
+        setObservacoes(""); setObservacoesPorAba({});
+        const alvoPut = jsonLista.ok ? jsonLista.data.find((a: any) => a.id === alvo.id) : null;
+        if (alvoPut) setAnaliseAtual(alvoPut);
       }
+    } else if (jsonLista.ok && analiseAtual?.id) {
+      const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
+      if (restaurada) setAnaliseAtual(restaurada);
     }
     mostrarToast(`🗑️ Análise ${numeroAnalise} zerada.`);
     setModalLimparAnalise(null);
@@ -627,7 +630,12 @@ export default function MacPage() {
     setObservacoesPorAba(ultima?.observacoes_por_aba || {});
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
     setNovaAnalise(true);
-    carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
+    if (ultima?.modelo_id) {
+      setModeloSelecionado({ id: ultima.modelo_id, nome: "", tipo_processo: null, dono_id: null, assunto_id: null });
+      carregarItensModelo(ultima.modelo_id);
+    } else {
+      carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
+    }
   }
 
   function selecionarAnalise(a: any) {

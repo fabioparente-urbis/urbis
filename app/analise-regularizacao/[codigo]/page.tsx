@@ -163,24 +163,28 @@ export default function MacPage() {
         historico_analises: alvo.historico_analises || "",
       }),
     });
-    // Se for a análise em exibição, reseta o estado local também
-    if (analiseAtual?.numero_analise === numeroAnalise) {
-      setItens({});
-      setFontes({});
-      setAceites({});
-      setObservacoes("");
-      setObservacoesPorAba({});
-      // Abre seleção de checklist
-      carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
-    }
-    // Atualiza lista sem trocar de análise
+    // Atualiza lista
     const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
     const jsonLista = await resLista.json();
-    if (jsonLista.ok) {
-      setAnalises(jsonLista.data);
-      if (analiseAtual?.id) {
-        const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
-        if (restaurada) setAnaliseAtual(restaurada);
+    if (jsonLista.ok) setAnalises(jsonLista.data);
+
+    // Se foi a análise em exibição: vai para a análise anterior (ou mantém se for só uma)
+    if (analiseAtual?.numero_analise === numeroAnalise) {
+      const listaAtualizada: any[] = jsonLista.ok ? jsonLista.data : analises;
+      const anterior = listaAtualizada
+        .filter((a: any) => a.numero_analise < numeroAnalise)
+        .sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+      if (anterior) {
+        selecionarAnalise(anterior);
+      } else {
+        // Era a única análise — limpa estado local, mantém na tela zerando
+        setItens({});
+        setFontes({});
+        setAceites({});
+        setObservacoes("");
+        setObservacoesPorAba({});
+        const alvoPut = jsonLista.ok ? jsonLista.data.find((a: any) => a.id === alvo.id) : null;
+        if (alvoPut) setAnaliseAtual(alvoPut);
       }
     }
     mostrarToast(`🗑️ Análise ${numeroAnalise} zerada.`);
@@ -653,7 +657,13 @@ export default function MacPage() {
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
     criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
     setNovaAnalise(true);
-    carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
+    // Reutiliza o checklist da análise anterior sem perguntar
+    if (ultima?.modelo_id) {
+      setModeloSelecionado({ id: ultima.modelo_id, nome: "", tipo_processo: null, dono_id: null, assunto_id: null });
+      carregarItensModelo(ultima.modelo_id);
+    } else {
+      carregarModelos(tipoProcesso, assuntoId).then(() => setModalModelo(true));
+    }
   }
 
   function selecionarAnalise(a: any) {
