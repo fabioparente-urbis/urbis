@@ -30,5 +30,26 @@ export async function PUT(req: NextRequest) {
   const { data, error } = await supabaseAdmin
     .from("urbis_config").update(patch).eq("id", 1).select().single();
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+
+  // Meta versionada: a nova meta passa a valer do mês vigente em diante.
+  // Os meses já fechados continuam sendo avaliados pela meta que valia neles.
+  // Alterar a meta duas vezes no mesmo mês substitui a vigência daquele mês
+  // (upsert por vigente_desde), em vez de acumular registros.
+  if (typeof body.meta_processos_mensal === "number") {
+    const hoje = new Date();
+    const vigenteDesde = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
+    const { error: erroMeta } = await supabaseAdmin
+      .from("mrp_meta_historico")
+      .upsert(
+        { meta: body.meta_processos_mensal, vigente_desde: vigenteDesde, criado_por: ctx.userId },
+        { onConflict: "vigente_desde" },
+      );
+    if (erroMeta)
+      return NextResponse.json(
+        { ok: false, erro: `Meta salva, mas a vigência não foi registrada: ${erroMeta.message}` },
+        { status: 500 },
+      );
+  }
+
   return NextResponse.json({ ok: true, data });
 }

@@ -579,10 +579,10 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
         </div>
 
         {/* Cards rápidos */}
-        <div className="grid grid-cols-5 gap-3">
+        {/* "Meta Normal" saiu daqui: repetia o Necessário/dia do painel de projeção. */}
+        <div className="grid grid-cols-4 gap-3">
           <Kpi label="Doc Emitidos" valor={String(data.total_despachos)} />
           <Kpi label="Áreas Analisadas" valor={data.area_total.toLocaleString("pt-BR")} />
-          <Kpi label="Meta Normal" valor={`${data.pontos_necessarios_por_dia.toFixed(1)} pts/dia`} />
           <Kpi label="Tempo méd." valor={`${data.stats.tempo_medio_analise_dias}d`} />
           {/* Quanto ainda falta, medido sobre o que já foi feito — não sobre a
               projeção. Baseado na projeção o card sumia justamente quando o

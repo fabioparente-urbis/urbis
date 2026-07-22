@@ -8,6 +8,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import {
   calcularMetaEfetiva,
+  metaVigenteNoMes,
+  type MetaVigencia,
   calcularProjecao,
   calcularStatus,
   diasEfetivos,
@@ -61,7 +63,15 @@ export async function GET(req: NextRequest) {
     .maybeSingle();
 
   const reducao = Number((alvoUsuario as any)?.reducao_meta ?? 0);
-  const metaEfetiva = calcularMetaEfetiva(reducao);
+
+  // Meta versionada: alterar a meta hoje não pode mudar como os meses já
+  // fechados foram avaliados. Cada mês usa a meta que vigorava nele.
+  const { data: metasHist } = await supabaseAdmin
+    .from("mrp_meta_historico")
+    .select("meta, vigente_desde")
+    .order("vigente_desde", { ascending: false });
+  const historicoMetas = (metasHist ?? []) as MetaVigencia[];
+  const metaEfetiva = calcularMetaEfetiva(reducao, metaVigenteNoMes(historicoMetas, ano, mes));
 
   // ── Calendário do mês ─────────────────────────────────────
   const { data: calRow } = await supabaseAdmin
@@ -137,9 +147,11 @@ export async function GET(req: NextRequest) {
       .eq("usuario_id", alvoId)
       .eq("ano", a).eq("mes", m);
     const pts = Math.round((rs ?? []).reduce((acc, r: any) => acc + Number(r.pontos ?? 0), 0) * 10) / 10;
+    // Meta daquele mês, não a de hoje.
+    const metaDoMes = calcularMetaEfetiva(reducao, metaVigenteNoMes(historicoMetas, a, m));
     historico.push({
-      mes: m, ano: a, pontos: pts, despachos: (rs ?? []).length,
-      resultado: pts >= metaEfetiva * 1.2 ? "EXCELENTE" : pts >= metaEfetiva ? "OK" : "RUIM",
+      mes: m, ano: a, pontos: pts, despachos: (rs ?? []).length, meta: metaDoMes,
+      resultado: pts >= metaDoMes * 1.2 ? "EXCELENTE" : pts >= metaDoMes ? "OK" : "RUIM",
     });
   }
 

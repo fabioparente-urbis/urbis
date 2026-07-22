@@ -30,9 +30,31 @@ export function inferirPorte(area: number, porteInformado?: string | null): Port
 }
 
 // ─── Meta efetiva (com redução legal) ──────────────────────
-export function calcularMetaEfetiva(percentualReducao: number | null | undefined = 0): number {
+export function calcularMetaEfetiva(
+  percentualReducao: number | null | undefined = 0,
+  metaBase: number = META_BASE,
+): number {
   const r = Math.max(0, Math.min(100, Number(percentualReducao ?? 0)));
-  return Math.round(META_BASE * (1 - r / 100) * 100) / 100;
+  const base = Number(metaBase) > 0 ? Number(metaBase) : META_BASE;
+  return Math.round(base * (1 - r / 100) * 100) / 100;
+}
+
+// ─── Meta vigente em um mês ────────────────────────────────
+// A meta é versionada (mrp_meta_historico): alterar a meta hoje não pode
+// mudar como os meses já fechados foram avaliados. Para um mês qualquer,
+// vale a meta com a maior data de vigência que já tenha começado.
+export type MetaVigencia = { meta: number; vigente_desde: string };
+
+export function metaVigenteNoMes(
+  historico: MetaVigencia[] | null | undefined,
+  ano: number,
+  mes: number,
+): number {
+  const alvo = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const aplicaveis = (historico ?? [])
+    .filter((h) => String(h.vigente_desde).slice(0, 10) <= alvo)
+    .sort((a, b) => String(b.vigente_desde).localeCompare(String(a.vigente_desde)));
+  return aplicaveis.length > 0 ? Number(aplicaveis[0].meta) : META_BASE;
 }
 
 // ─── Dias efetivos a partir do calendário ──────────────────
@@ -203,7 +225,8 @@ export type PainelResposta = {
   dias_efetivos_restantes: number;
   calendario: Calendario;
   historico_mensal: {
-    mes: number; ano: number; pontos: number; despachos: number; resultado: StatusMRP;
+    // `meta` é a meta que vigorava naquele mês — pode diferir da meta atual.
+    mes: number; ano: number; pontos: number; despachos: number; meta: number; resultado: StatusMRP;
   }[];
   stats: {
     por_tipo_despacho: { tipo: string; count: number; pontos: number }[];
