@@ -724,6 +724,7 @@ export default function MacPage() {
               .map(i => ({ grupo: i.grupo, texto: i.texto })),
             pendencias_lip: pendenciasLip,
             observacoes: observacoes || "",
+            observacoes_por_aba: observacoesPorAba || {},
           },
         }),
       }).catch(() => {});
@@ -765,6 +766,12 @@ export default function MacPage() {
       ["despacho", "indeferimento", "arquivamento"].includes(t?.tipo)
     );
     if (tag?.data) return tag.data;
+    // Sem tag = ainda não despachada. Se é a análise que está sendo emitida
+    // agora, vale a data da emissão (hoje) — `criado_em` pode ser de outro
+    // dia (ex.: análise aberta 23:33, despacho gerado 00:02 do dia seguinte).
+    if (a.numero_analise === analiseAtual?.numero_analise) {
+      return new Date().toLocaleDateString("pt-BR");
+    }
     return new Date(a.criado_em).toLocaleDateString("pt-BR");
   }
 

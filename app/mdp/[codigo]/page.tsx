@@ -107,6 +107,10 @@ function ConteudoMdp({ conteudo }: { conteudo: Record<string, any> }) {
   const pendencias_mac: { grupo?: string; texto: string }[] = conteudo.pendencias_mac || [];
   const pendencias_lip: string[] = conteudo.pendencias_lip || [];
   const observacoes: string = conteudo.observacoes || "";
+  // Observações que o analista escreveu em cada aba do checklist.
+  const obsPorAba: [string, string][] = Object.entries(
+    (conteudo.observacoes_por_aba || {}) as Record<string, string>
+  ).filter(([, v]) => typeof v === "string" && v.trim());
 
   return (
     <div className="flex flex-col gap-4 text-sm">
@@ -148,7 +152,20 @@ function ConteudoMdp({ conteudo }: { conteudo: Record<string, any> }) {
           <p className="text-[var(--text-secondary)] whitespace-pre-line">{observacoes}</p>
         </div>
       )}
-      {!corpo && pendencias_mac.length === 0 && pendencias_lip.length === 0 && !observacoes && (
+      {obsPorAba.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1.5">Observações MAC</p>
+          <ul className="flex flex-col gap-2">
+            {obsPorAba.map(([aba, texto]) => (
+              <li key={aba} className="text-[var(--text-secondary)]">
+                <span className="font-medium text-[var(--text-primary)]">[{aba}] </span>
+                <span className="whitespace-pre-line">{texto}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {!corpo && pendencias_mac.length === 0 && pendencias_lip.length === 0 && !observacoes && obsPorAba.length === 0 && (
         <p className="text-[var(--text-muted)] italic">Sem conteúdo registrado.</p>
       )}
     </div>
