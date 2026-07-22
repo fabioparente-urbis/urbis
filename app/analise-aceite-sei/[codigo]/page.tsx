@@ -300,6 +300,22 @@ export default function MacPage() {
   }
 
   async function deferirTudo() {
+    // Sem número de despacho disponível, não salva como deferido — a análise
+    // deferida sempre desemboca em geração de despacho.
+    try {
+      const _peekDespacho = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+      const _jPeekDespacho = await _peekDespacho.json();
+      if (!_jPeekDespacho.ok) {
+        mostrarToast(_jPeekDespacho.esgotado
+          ? "❌ Faixa de despachos esgotada. Acesse Configurações → Numeração para cadastrar nova faixa."
+          : "❌ Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração.");
+        return;
+      }
+    } catch {
+      mostrarToast("❌ Erro ao verificar numeração de despacho.");
+      return;
+    }
+
     const idsTodos = checklistItens.map((i) => i.id);
     const novoItens = { ...itens };
     const novoFontes = { ...fontes };
@@ -757,6 +773,20 @@ export default function MacPage() {
       a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
+
+      // Consome o número SOMENTE após o download bem-sucedido (peek não commita).
+      const _numCommitDI = parseInt(numDI, 10);
+      if (_numCommitDI > 0) {
+        let _commitOkDI = false;
+        for (let _t = 1; _t <= 3 && !_commitOkDI; _t++) {
+          try {
+            const _rc = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitDI)}`, { credentials: "include" });
+            if (_rc.ok || _rc.status === 409) { _commitOkDI = true; break; }
+          } catch { /* rede — tenta de novo */ }
+          if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));
+        }
+        if (!_commitOkDI) mostrarToast("⚠️ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
+      }
       const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
@@ -994,7 +1024,7 @@ export default function MacPage() {
               onClick={async () => {
                 setNumDIBloqueio(null);
                 try {
-                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
                   const _j = await _r.json();
                   if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
                   else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa de despachos esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração."); }
@@ -1545,13 +1575,25 @@ export default function MacPage() {
             <button onClick={async () => {
               const { motivos, obs } = indeferimentoPendente;
               setGerandoDespacho(true);
-              await salvarSilencioso("indeferido");
               try {
+                // Verifica numeração de parecer ANTES de salvar o status
+                // indeferido — sem número disponível, não salva nem emite.
+                const _peekParecer = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+                const _jPeekParecer = await _peekParecer.json();
+                if (!_jPeekParecer.ok) {
+                  mostrarToast(_jPeekParecer.esgotado
+                    ? "❌ Faixa de pareceres esgotada. Acesse Configurações → Numeração para cadastrar nova faixa."
+                    : "❌ Nenhuma faixa de parecer cadastrada. Acesse Configurações → Numeração.");
+                  return;
+                }
+                const numeroParecer = String(_jPeekParecer.numero).padStart(3, "0");
+
+                await salvarSilencioso("indeferido");
                 const res = await fetch("/api/despacho-aceite-sei", { credentials: "include",
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    processo: codigo, tipo: "indeferimento", numeroDespacho: await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r=>r.json()).then(j=>j.ok ? String(j.numero).padStart(3,"0") : "").catch(()=>""),
+                    processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
                     analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                   }),
@@ -1569,6 +1611,18 @@ export default function MacPage() {
                     tipo: "indeferimento",
                     numero_analise: analiseAtual?.numero_analise,
                   });
+
+                  // Consome o número SOMENTE após a geração bem-sucedida.
+                  const _numCommitParecer = parseInt(numeroParecer, 10);
+                  let _commitOkParecer = false;
+                  for (let _t = 1; _t <= 3 && !_commitOkParecer; _t++) {
+                    try {
+                      const _rc = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitParecer)}`, { credentials: "include" });
+                      if (_rc.ok || _rc.status === 409) { _commitOkParecer = true; break; }
+                    } catch { /* rede — tenta de novo */ }
+                    if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));
+                  }
+                  if (!_commitOkParecer) mostrarToast("⚠️ Indeferimento gerado, mas a numeração de parecer não foi confirmada. Confira antes de gerar o próximo.");
                 }
               } finally { setGerandoDespacho(false); }
             }}

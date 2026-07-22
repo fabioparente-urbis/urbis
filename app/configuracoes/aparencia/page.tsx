@@ -18,32 +18,37 @@ type Faixa = {
   numero_inicial: number;
   numero_final: number;
   proximo: number;
+  criado_em?: string;
 };
 
 type StatusSalvar = "idle" | "salvando" | "ok" | "erro";
 
+function formatarDataHora(dataStr?: string) {
+  if (!dataStr) return "—";
+  return new Date(dataStr).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
 function FaixaEditor({ tipo, label }: { tipo: "despacho" | "parecer"; label: string }) {
-  const [faixa, setFaixa] = useState<Faixa | null>(null);
+  const [faixas, setFaixas] = useState<Faixa[]>([]);
   const [inicial, setInicial] = useState("");
   const [final, setFinal] = useState("");
   const [status, setStatus] = useState<StatusSalvar>("idle");
   const [erro, setErro] = useState("");
 
-  useEffect(() => {
+  function carregar() {
     fetch("/api/numeracao/faixa", { credentials: "include" })
       .then((r) => r.json())
       .then((j) => {
         if (j.ok && Array.isArray(j.data)) {
-          const f = j.data.find((d: Faixa) => d.tipo === tipo) ?? null;
-          setFaixa(f);
-          if (f) {
-            setInicial(String(f.numero_inicial));
-            setFinal(String(f.numero_final));
-          }
+          setFaixas(j.data.filter((d: Faixa) => d.tipo === tipo));
         }
       })
       .catch(() => {});
-  }, [tipo]);
+  }
+
+  useEffect(() => { carregar(); }, [tipo]);
 
   async function salvar() {
     setErro("");
@@ -63,7 +68,8 @@ function FaixaEditor({ tipo, label }: { tipo: "despacho" | "parecer"; label: str
       });
       const json = await res.json();
       if (!json.ok) throw new Error(json.erro ?? "Erro");
-      setFaixa(json.data);
+      carregar();
+      setInicial(""); setFinal("");
       setStatus("ok");
       setTimeout(() => setStatus("idle"), 2500);
     } catch (e: any) {
@@ -73,23 +79,26 @@ function FaixaEditor({ tipo, label }: { tipo: "despacho" | "parecer"; label: str
     }
   }
 
-  const disponiveis = faixa ? Math.max(0, faixa.numero_final - faixa.proximo + 1) : null;
-  const total = faixa ? faixa.numero_final - faixa.numero_inicial + 1 : null;
-  const esgotado = faixa && faixa.proximo > faixa.numero_final;
+  // A faixa "ativa" é a primeira (por ordem de criação) que ainda tem
+  // números livres — o mesmo critério usado pelo backend em /api/numeracao/proximo.
+  const faixaAtiva = faixas.find((f) => f.proximo <= f.numero_final) ?? null;
+  const disponiveis = faixaAtiva ? Math.max(0, faixaAtiva.numero_final - faixaAtiva.proximo + 1) : null;
+  const total = faixaAtiva ? faixaAtiva.numero_final - faixaAtiva.numero_inicial + 1 : null;
+  const esgotado = faixas.length > 0 && !faixaAtiva;
 
   return (
     <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5 shadow-sm">
       <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide mb-1">{label}</h3>
 
-      {faixa && (
+      {faixas.length > 0 && (
         <div className={`mb-4 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg ${
           esgotado
             ? "bg-red-50 border border-red-200 text-red-700"
             : "bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)]"
         }`}>
           {esgotado
-            ? <><AlertTriangle size={13} /> Faixa esgotada — cadastre uma nova faixa</>
-            : <><CheckCircle2 size={13} className="text-green-600" /> Disponíveis: <strong>{disponiveis}</strong> de {total} &nbsp;|&nbsp; Próximo: <strong>{faixa.proximo}</strong></>
+            ? <><AlertTriangle size={13} /> Todas as faixas esgotadas — cadastre uma nova</>
+            : <><CheckCircle2 size={13} className="text-green-600" /> Disponíveis: <strong>{disponiveis}</strong> de {total} (faixa {faixaAtiva!.numero_inicial}–{faixaAtiva!.numero_final}) &nbsp;|&nbsp; Próximo: <strong>{faixaAtiva!.proximo}</strong></>
           }
         </div>
       )}
@@ -123,8 +132,50 @@ function FaixaEditor({ tipo, label }: { tipo: "despacho" | "parecer"; label: str
         </button>
       </div>
       {erro && <p className="mt-2 text-xs text-red-600 font-medium">{erro}</p>}
-      {!faixa && (
+      {faixas.length === 0 && (
         <p className="mt-3 text-xs text-[var(--text-muted)]">Nenhuma faixa cadastrada. Informe o intervalo disponibilizado pela chefia.</p>
+      )}
+
+      {faixas.length > 0 && (
+        <div className="mt-4">
+          <h4 className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2">Auditoria — faixas cadastradas</h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-[var(--text-muted)] border-b border-[var(--border)]">
+                  <th className="py-1.5 pr-3 font-semibold">Intervalo</th>
+                  <th className="py-1.5 pr-3 font-semibold">Cadastrada em</th>
+                  <th className="py-1.5 pr-3 font-semibold">Usados</th>
+                  <th className="py-1.5 font-semibold">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...faixas]
+                  .sort((a, b) => (a.criado_em ?? "").localeCompare(b.criado_em ?? ""))
+                  .map((f) => {
+                    const usados = Math.max(0, Math.min(f.proximo, f.numero_final + 1) - f.numero_inicial);
+                    const totalF = f.numero_final - f.numero_inicial + 1;
+                    const esgotadaF = f.proximo > f.numero_final;
+                    const ativaF = faixaAtiva?.id === f.id;
+                    return (
+                      <tr key={f.id} className="border-b border-[var(--border)] last:border-0">
+                        <td className="py-1.5 pr-3 font-mono text-[var(--text-primary)]">{f.numero_inicial}–{f.numero_final}</td>
+                        <td className="py-1.5 pr-3 text-[var(--text-secondary)]">{formatarDataHora(f.criado_em)}</td>
+                        <td className="py-1.5 pr-3 text-[var(--text-secondary)]">{usados} de {totalF}</td>
+                        <td className="py-1.5">
+                          {esgotadaF
+                            ? <span className="text-red-600 font-semibold">Esgotada</span>
+                            : ativaF
+                              ? <span className="text-green-600 font-semibold">Ativa</span>
+                              : <span className="text-[var(--text-muted)]">Aguardando</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
