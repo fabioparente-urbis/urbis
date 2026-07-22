@@ -38,12 +38,23 @@ async function registrarViradaDeMeta(usuarioId: string, perfisAntes: string[], p
   if (antes === depois) return;
   const hoje = new Date();
   const vigenteDesde = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
-  const { error } = await supabase
+  // A unicidade por pessoa é índice PARCIAL (WHERE usuario_id IS NOT NULL) e
+  // ON CONFLICT não infere índice parcial (42P10) — busca e decide na mão.
+  const { data: jaExiste } = await supabase
     .from("mrp_meta_historico")
-    .upsert(
-      { usuario_id: usuarioId, isento: depois, meta: null, vigente_desde: vigenteDesde },
-      { onConflict: "usuario_id,vigente_desde" },
-    );
+    .select("id")
+    .eq("usuario_id", usuarioId)
+    .eq("vigente_desde", vigenteDesde)
+    .maybeSingle();
+
+  const { error } = jaExiste
+    ? await supabase
+        .from("mrp_meta_historico")
+        .update({ isento: depois, meta: null })
+        .eq("id", (jaExiste as any).id)
+    : await supabase
+        .from("mrp_meta_historico")
+        .insert({ usuario_id: usuarioId, isento: depois, meta: null, vigente_desde: vigenteDesde });
   if (error) console.error("[mrp] falha ao registrar virada de meta:", error.message);
 }
 

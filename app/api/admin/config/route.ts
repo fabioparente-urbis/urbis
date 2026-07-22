@@ -38,12 +38,30 @@ export async function PUT(req: NextRequest) {
   if (typeof body.meta_processos_mensal === "number") {
     const hoje = new Date();
     const vigenteDesde = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
-    const { error: erroMeta } = await supabaseAdmin
+    // Não dá para usar upsert com onConflict aqui: a unicidade da regra geral
+    // é um índice PARCIAL (WHERE usuario_id IS NULL), e ON CONFLICT não infere
+    // índice parcial — o Postgres devolve 42P10. Busca e decide explicitamente.
+    const { data: jaExiste } = await supabaseAdmin
       .from("mrp_meta_historico")
-      .upsert(
-        { meta: body.meta_processos_mensal, vigente_desde: vigenteDesde, criado_por: ctx.userId },
-        { onConflict: "vigente_desde" },
-      );
+      .select("id")
+      .is("usuario_id", null)
+      .eq("vigente_desde", vigenteDesde)
+      .maybeSingle();
+
+    const { error: erroMeta } = jaExiste
+      ? await supabaseAdmin
+          .from("mrp_meta_historico")
+          .update({ meta: body.meta_processos_mensal, isento: false, criado_por: ctx.userId })
+          .eq("id", (jaExiste as any).id)
+      : await supabaseAdmin
+          .from("mrp_meta_historico")
+          .insert({
+            meta: body.meta_processos_mensal,
+            vigente_desde: vigenteDesde,
+            usuario_id: null,
+            isento: false,
+            criado_por: ctx.userId,
+          });
     if (erroMeta)
       return NextResponse.json(
         { ok: false, erro: `Meta salva, mas a vigência não foi registrada: ${erroMeta.message}` },
