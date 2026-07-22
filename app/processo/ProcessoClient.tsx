@@ -1220,6 +1220,10 @@ export default function ProcessoClient() {
             className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
+          <button onClick={() => router.push("/processos")}
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            ← Processos
+          </button>
           <button onClick={async () => {
               // Só bloqueia se houver campos marcados com X (pendências reais)
               if (totalPadrao > 0) { setConfirmarMac(true); return; }
