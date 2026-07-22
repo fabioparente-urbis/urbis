@@ -550,6 +550,68 @@ export default function MacPage() {
     }
   }
 
+  // Abre o modal de emissão já com o tipo definido pelo botão de origem.
+  // Arquivamento sai da série de parecer; despacho, da série de despacho.
+  async function abrirModalDespacho(tipo: "despacho" | "arquivamento") {
+    setTipoDespacho(tipo);
+              await salvarSilencioso();
+    // Avisos de pendência só valem para o despacho ao interessado.
+    if (tipo === "despacho") {
+    // Coleta avisos — nunca bloqueia, só informa
+    const pendentesIA = checklistItens.filter(
+      (i) => fontes[i.id] === "p2" && !aceites[i.id]
+    );
+    try {
+      const [procRes, lipRes] = await Promise.all([
+        fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }),
+        fetch("/api/admin/lip"),
+      ]);
+      const procJson = await procRes.json();
+      const lipJson = await lipRes.json();
+      const dados = procJson?.data?.dados || procJson?.dados || {};
+      const pendentesLipX = (lipJson?.data || []).flatMap((a: any) =>
+        (a.lip_campos || [])
+          .filter((c: any) => dados[c.chave]?.valor === "X")
+          .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: `LIP — ${a.nome || "LIP"}` }))
+      );
+      const todosAvisos = [
+        ...pendentesIA,
+        ...pendentesLipX,
+      ];
+      if (todosAvisos.length > 0) {
+        setItensPendentesIA(todosAvisos);
+        setModalItensPendentesIA(true);
+        return;
+      }
+    } catch { /* silencioso */ }
+    }
+    // Busca número de despacho automático
+    setNumeracaoCarregando(true);
+    setNumeracaoBloqueio(null);
+    try {
+      const _tipoSerie = tipo === "arquivamento" ? "parecer" : "despacho";
+      const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+      const _nj = await _nr.json();
+      if (_nj.ok) {
+        setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
+        setNumeracaoBloqueio(null);
+      } else {
+        setNumeroDespacho("");
+        const _labelSerie = _tipoSerie === "parecer" ? "pareceres" : "despachos";
+        setNumeracaoBloqueio(_nj.esgotado
+          ? `Faixa de ${_labelSerie} esgotada. Acesse Configurações → Numeração para cadastrar nova faixa.`
+          : `Nenhuma faixa de ${_labelSerie} cadastrada. Acesse Configurações → Numeração.`);
+      }
+    } catch {
+      setNumeroDespacho("");
+      setNumeracaoBloqueio("Erro ao buscar número de despacho.");
+    } finally {
+      setNumeracaoCarregando(false);
+    }
+    setModalDespacho(true);
+        setModalDespacho(true);
+  }
+
   async function gerarDespacho() {
     setGerandoDespacho(true);
     setModalDespacho(false);
@@ -974,35 +1036,12 @@ export default function MacPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--text-primary)] font-bold text-lg">📄 Gerar Despacho</h2>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">{tipoDespacho === "arquivamento" ? "🗂️ Gerar Arquivamento" : "📄 Gerar Despacho"}</h2>
               <button onClick={() => setModalDespacho(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Tipo de Documento</label>
-                <div className="flex flex-col gap-2">
-                  {[
-                    { value: "despacho", label: "📋 Despacho ao Interessado", desc: "Com itens não conformes" },
-                    { value: "indeferimento", label: "❌ Indeferimento", desc: "Parecer de indeferimento" },
-                    { value: "arquivamento", label: "🗂️ Arquivamento", desc: "Parecer de arquivamento" },
-                  ].map((op) => (
-                    <button key={op.value}
-                      onClick={() => setTipoDespacho(op.value as any)}
-                      className={`flex items-start gap-3 p-3 rounded-lg border text-left transition-colors ${
-                        tipoDespacho === op.value
-                          ? "bg-[var(--accent)] border-[var(--accent-hover)] text-[var(--accent-fg)]"
-                          : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
-                      }`}>
-                      <div>
-                        <p className="text-sm font-semibold">{op.label}</p>
-                        <p className="text-xs opacity-70">{op.desc}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Número do Despacho</label>
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{tipoDespacho === "arquivamento" ? "Número do Parecer" : "Número do Despacho"}</label>
                 {numeracaoCarregando ? (
                   <div className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-muted)]">Buscando número…</div>
                 ) : numeracaoBloqueio ? (
@@ -1640,6 +1679,11 @@ export default function MacPage() {
             ✅ Deferir
           </button>
 
+          <button onClick={() => abrirModalDespacho("despacho")} disabled={gerandoDespacho}
+            className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+            {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
+          </button>
+
 
           {indeferimentoPendente && (
             <button onClick={async () => {
@@ -1710,67 +1754,14 @@ export default function MacPage() {
           <div className="border-t border-[var(--border)] pt-2">
             <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Documentos</h3>
 
-            <button onClick={async () => {
-              await salvarSilencioso();
-              // Coleta avisos — nunca bloqueia, só informa
-              const pendentesIA = checklistItens.filter(
-                (i) => fontes[i.id] === "p2" && !aceites[i.id]
-              );
-              try {
-                const [procRes, lipRes] = await Promise.all([
-                  fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }),
-                  fetch("/api/admin/lip"),
-                ]);
-                const procJson = await procRes.json();
-                const lipJson = await lipRes.json();
-                const dados = procJson?.data?.dados || procJson?.dados || {};
-                const pendentesLipX = (lipJson?.data || []).flatMap((a: any) =>
-                  (a.lip_campos || [])
-                    .filter((c: any) => dados[c.chave]?.valor === "X")
-                    .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: `LIP — ${a.nome || "LIP"}` }))
-                );
-                const todosAvisos = [
-                  ...pendentesIA,
-                  ...pendentesLipX,
-                ];
-                if (todosAvisos.length > 0) {
-                  setItensPendentesIA(todosAvisos);
-                  setModalItensPendentesIA(true);
-                  return;
-                }
-              } catch { /* silencioso */ }
-              // Busca número de despacho automático
-              setNumeracaoCarregando(true);
-              setNumeracaoBloqueio(null);
-              try {
-                const _tipoSerie = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
-                const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
-                const _nj = await _nr.json();
-                if (_nj.ok) {
-                  setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
-                  setNumeracaoBloqueio(null);
-                } else {
-                  setNumeroDespacho("");
-                  const _labelSerie = _tipoSerie === "parecer" ? "pareceres" : "despachos";
-                  setNumeracaoBloqueio(_nj.esgotado
-                    ? `Faixa de ${_labelSerie} esgotada. Acesse Configurações → Numeração para cadastrar nova faixa.`
-                    : `Nenhuma faixa de ${_labelSerie} cadastrada. Acesse Configurações → Numeração.`);
-                }
-              } catch {
-                setNumeroDespacho("");
-                setNumeracaoBloqueio("Erro ao buscar número de despacho.");
-              } finally {
-                setNumeracaoCarregando(false);
-              }
-              setModalDespacho(true);
-            }} disabled={gerandoDespacho}
-              className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-              {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
-            </button>
             <button
               onClick={() => window.open(`/mdp/${encodeURIComponent(codigo)}`, "_blank")}
               className="w-full mt-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] font-medium py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
               📋 Ver Despachos (MDP)
+            </button>
+            <button onClick={() => abrirModalDespacho("arquivamento")} disabled={gerandoDespacho}
+              className="w-full mt-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] font-medium py-2 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+              🗂️ Arquivamento
             </button>
             <div className="mt-2">
               <BotaoGerarLaudo
