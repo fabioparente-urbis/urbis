@@ -642,6 +642,13 @@ export default function MacPage() {
         numero_despacho: numeroDespacho || undefined,
       });
 
+      // Reflete o número na análise em tela, sem esperar um reload — quem
+      // grava em analises_mac é a rota de numeração, fora deste estado.
+      setAnaliseAtual((prev: any) => prev ? {
+        ...prev,
+        [_tipoSerieCommit === "parecer" ? "numero_parecer" : "numero_despacho"]: numeroDespacho,
+      } : prev);
+
       // Análise 5 + despacho ao interessado → abre indeferimento (STEP 1d)
       if (
         tipoDespacho === "despacho" &&
@@ -1096,12 +1103,23 @@ export default function MacPage() {
 {dadosLip?.proprietario?.valor && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">{dadosLip.proprietario.valor}</p>
 )}
-{numeroAnaliseEmAndamento && (
-  <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
-    Análise {numeroAnaliseEmAndamento} em andamento
-    {analiseAtual ? "" : " (não salva)"}
-  </p>
-)}
+{numeroAnaliseEmAndamento && (() => {
+  // Uma análise pode ter emitido despacho E parecer — são séries distintas.
+  const emitidos = [
+    analiseAtual?.numero_despacho ? `Despacho nº ${analiseAtual.numero_despacho}` : null,
+    analiseAtual?.numero_parecer ? `Parecer nº ${analiseAtual.numero_parecer}` : null,
+  ].filter(Boolean);
+  return emitidos.length > 0 ? (
+    <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+      Análise {numeroAnaliseEmAndamento} concluída — {emitidos.join(" e ")}
+    </p>
+  ) : (
+    <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
+      Análise {numeroAnaliseEmAndamento} em andamento
+      {analiseAtual ? "" : " (não salva)"}
+    </p>
+  );
+})()}
 {modeloSelecionado && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
 )}
@@ -1643,6 +1661,7 @@ export default function MacPage() {
                     numero_analise: analiseAtual?.numero_analise,
                     numero_despacho: numeroParecer,
                   });
+                  setAnaliseAtual((prev: any) => prev ? { ...prev, numero_parecer: numeroParecer } : prev);
 
                   // Consome o número SOMENTE após a geração bem-sucedida.
                   const _numCommitParecer = parseInt(numeroParecer, 10);
