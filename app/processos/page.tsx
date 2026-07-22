@@ -114,8 +114,10 @@ const AVISO_ANALISES_OCULTAS =
 function formatarDataTag(data?: string): string | null {
   if (!data) return null;
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return data;
-  const d = new Date(data);
-  return Number.isNaN(d.getTime()) ? data : d.toLocaleDateString("pt-BR");
+  // Lê os componentes da própria string em vez de passar por Date(): a tag
+  // ISO foi gravada como meia-noite UTC, que em Brasília cairia no dia anterior.
+  const iso = data.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return iso ? `${iso[3]}/${iso[2]}/${iso[1]}` : data;
 }
 
 function formatar(dataStr: string | null) {

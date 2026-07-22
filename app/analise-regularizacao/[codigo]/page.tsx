@@ -61,6 +61,10 @@ export default function MacPage() {
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;itens:{aba:string;texto:string;ref:string|null;de:string|null;para:string}[]}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
+  // Número da análise iniciada mas ainda não gravada. Enquanto ela não
+  // existe no banco, analiseAtual é null — sem isso nenhum botão 1..5
+  // acende e o analista não vê em qual análise está.
+  const [numeroAnaliseNova, setNumeroAnaliseNova] = useState<number | null>(null);
   const [toast, setToast] = useState("");
   const [abaAtual, setAbaAtual] = useState(0);
   const [gerandoDespacho, setGerandoDespacho] = useState(false);
@@ -699,6 +703,7 @@ export default function MacPage() {
     // final do array é a análise 1 — não a mais recente. Buscar pelo maior
     // numero_analise torna a cópia independente da ordenação.
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
     setItens(ultima?.itens || {});
     setFontes(ultima?.fontes || {});
@@ -718,6 +723,7 @@ export default function MacPage() {
   }
 
   function selecionarAnalise(a: any) {
+    setNumeroAnaliseNova(null);
     setAnaliseAtual(a);
     setItens(a.itens || {});
     setFontes(a.fontes || {});
@@ -767,6 +773,9 @@ export default function MacPage() {
       // silencioso
     }
   }
+
+  // Análise em andamento: a já gravada, ou a que acabou de ser iniciada.
+  const numeroAnaliseEmAndamento = analiseAtual?.numero_analise ?? numeroAnaliseNova;
 
   const naoConformes = checklistItens.filter((i) => itens[i.id] === "nao_conforme");
   const conformes = checklistItens.filter((i) => itens[i.id] === "conforme");
@@ -1114,6 +1123,12 @@ export default function MacPage() {
               <p className="text-[var(--accent)] font-mono text-sm">{codigo}</p>
 {dadosLip?.proprietario?.valor && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">{dadosLip.proprietario.valor}</p>
+)}
+{numeroAnaliseEmAndamento && (
+  <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
+    Análise {numeroAnaliseEmAndamento} em andamento
+    {analiseAtual ? "" : " (não salva)"}
+  </p>
 )}
 {modeloSelecionado && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
@@ -1544,7 +1559,7 @@ export default function MacPage() {
               const existente = analises.find((a) => a.numero_analise === n);
               const jaEmitida = !!existente && existente.status !== "em_andamento";
               const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
-              const ativa = analiseAtual?.numero_analise === n;
+              const ativa = numeroAnaliseEmAndamento === n;
               return (
                 <div key={n} className="flex gap-1 items-stretch">
                   <button
