@@ -92,20 +92,6 @@ const TIPO_ROTULO: Record<string, string> = {
   aprovacao_mp: "Aprovação MP",
 };
 
-const TIPOS_EMISSAO: ProcessoTag["tipo"][] = ["despacho", "despacho_interno", "indeferimento", "arquivamento", "laudo"];
-
-function ultimaEmissao(tags?: ProcessoTag[]): string | null {
-  if (!Array.isArray(tags) || tags.length === 0) return null;
-  const emissoes = tags.filter((t) => TIPOS_EMISSAO.includes(t.tipo));
-  if (emissoes.length === 0) return null;
-  const ordenadas = [...emissoes].sort((a, b) => {
-    const da = a.criado_em ? new Date(a.criado_em).getTime() : 0;
-    const db = b.criado_em ? new Date(b.criado_em).getTime() : 0;
-    return db - da;
-  });
-  return ordenadas[0].data || null;
-}
-
 function formatar(dataStr: string | null) {
   if (!dataStr) return "—";
   return new Date(dataStr).toLocaleString("pt-BR", {
@@ -331,7 +317,6 @@ export default function ProcessosPage() {
             const proprietario = p.dados?.proprietario?.valor || "—";
             const numero = p.codigo || p.numero_sei || "—";
             const processoFisico = p.dados?.processoFisico?.valor;
-            const dataEmissao = ultimaEmissao(p.tags);
             return (
               <div key={p.id} className="bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--border-strong)] rounded-xl p-4 flex items-center gap-4 transition-all">
                 {/* Clicavel */}
@@ -339,7 +324,6 @@ export default function ProcessosPage() {
                   <p className="font-mono text-[var(--accent)] font-semibold text-sm">
                     {numero}
                     {processoFisico && <span className="text-[var(--text-muted)] font-normal"> · Físico: {processoFisico}</span>}
-                    {dataEmissao && <span className="text-[var(--text-muted)] font-normal"> · Emitido em {dataEmissao}</span>}
                   </p>
                   {Array.isArray(p.tags) && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -352,6 +336,7 @@ export default function ProcessosPage() {
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
                         >
                           {rotuloTag(t)}
+                          {t.data && <span className="font-normal opacity-80">· {t.data}</span>}
                           {souAdmin && t.id && (
                             <button
                               onClick={(e) => { e.stopPropagation(); removerTag(p.id, p.codigo, t.id!); }}
