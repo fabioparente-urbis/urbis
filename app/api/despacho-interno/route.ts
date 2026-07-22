@@ -136,7 +136,9 @@ export async function POST(req: NextRequest) {
       const novaTag = {
         tipo: "despacho_interno",
         numero_despacho: String(numeroDespacho ?? ""),
-        data: new Date().toISOString(),
+        // Mesmo formato das demais tags (gravarTag no MAC) — a lista de
+        // processos exibe o valor direto, sem reformatar.
+        data: new Date().toLocaleDateString("pt-BR"),
       };
       const { data: procAtual } = await supabase
         .from("processos")

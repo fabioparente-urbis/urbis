@@ -92,6 +92,32 @@ const TIPO_ROTULO: Record<string, string> = {
   aprovacao_mp: "Aprovação MP",
 };
 
+// Processos analisados antes de 21/07/2026 22:47 em que as análises antigas
+// ficaram invisíveis para o sistema (gravadas com outra grafia de
+// tipo_processo). A falha de gravação foi corrigida, mas o registro antigo
+// desses processos segue fora da contagem — daí o aviso na lista. Lista
+// fechada: nenhum processo novo entra aqui.
+const PROCESSOS_ANALISES_OCULTAS = new Set([
+  "25.5.000084973-0", "26.5.000011542-3", "24.28.000005986-4",
+  "24.5.000050678-0", "25.5.000081077-0", "25.5.000029786-0",
+  "25.5.000027562-9",
+]);
+const AVISO_ANALISES_OCULTAS =
+  "Análises anteriores a 21/07/2026 não entram na contagem deste processo. " +
+  "Elas foram gravadas com uma grafia que o sistema deixou de reconhecer, " +
+  "e por isso a numeração foi reiniciada. O registro antigo continua no banco, " +
+  "intacto. A falha de gravação foi corrigida em 21/07/2026, 22:47 — " +
+  "processos analisados a partir daí não têm esse problema.";
+
+// Tags antigas de Despacho Interno guardavam a data em ISO; as demais sempre
+// gravaram DD/MM/AAAA. Normaliza para exibição sem depender de correção no banco.
+function formatarDataTag(data?: string): string | null {
+  if (!data) return null;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return data;
+  const d = new Date(data);
+  return Number.isNaN(d.getTime()) ? data : d.toLocaleDateString("pt-BR");
+}
+
 function formatar(dataStr: string | null) {
   if (!dataStr) return "—";
   return new Date(dataStr).toLocaleString("pt-BR", {
@@ -336,7 +362,7 @@ export default function ProcessosPage() {
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
                         >
                           {rotuloTag(t)}
-                          {t.data && <span className="font-normal opacity-80">· {t.data}</span>}
+                          {formatarDataTag(t.data) && <span className="font-normal opacity-80">· {formatarDataTag(t.data)}</span>}
                           {souAdmin && t.id && (
                             <button
                               onClick={(e) => { e.stopPropagation(); removerTag(p.id, p.codigo, t.id!); }}
@@ -351,6 +377,12 @@ export default function ProcessosPage() {
                   )}
                   <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
                   <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p></div>
+                  {PROCESSOS_ANALISES_OCULTAS.has(numero) && (
+                    <p title={AVISO_ANALISES_OCULTAS}
+                      className="text-[var(--warning)] text-[11px] mt-1 leading-snug cursor-help">
+                      ⚠ Análises anteriores a 21/07/2026 não entram na contagem — falha de gravação corrigida em 21/07/2026, 22:47. Registro antigo preservado no banco.
+                    </p>
+                  )}
                 </div>
 
                 {/* Tipo */}
