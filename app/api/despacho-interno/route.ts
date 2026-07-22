@@ -20,7 +20,7 @@ function escapeHtml(s: string): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo } = body;
+    const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo, numero_analise } = body;
     const { data: proc } = await supabase
       .from("processos")
       .select("dados, analista_id, tipo_processo")
@@ -136,6 +136,8 @@ export async function POST(req: NextRequest) {
       const novaTag = {
         tipo: "despacho_interno",
         numero_despacho: String(numeroDespacho ?? ""),
+        // Despacho Interno nasce de uma análise — a tag precisa dizer de qual.
+        ...(Number.isInteger(Number(numero_analise)) ? { numero_analise: Number(numero_analise) } : {}),
         // Mesmo formato das demais tags (gravarTag no MAC) — a lista de
         // processos exibe o valor direto, sem reformatar.
         data: new Date().toLocaleDateString("pt-BR"),

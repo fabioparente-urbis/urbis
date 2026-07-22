@@ -824,7 +824,7 @@ export default function MacPage() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -840,12 +840,13 @@ export default function MacPage() {
         let _commitOkDI = false;
         for (let _t = 1; _t <= 3 && !_commitOkDI; _t++) {
           try {
-            const _rc = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitDI)}`, { credentials: "include" });
+            const _rc = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitDI)}&documento=despacho_interno${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
             if (_rc.ok || _rc.status === 409) { _commitOkDI = true; break; }
           } catch { /* rede — tenta de novo */ }
           if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));
         }
         if (!_commitOkDI) mostrarToast("⚠️ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
+        setAnaliseAtual((prev: any) => prev ? { ...prev, numero_despacho_interno: numDI } : prev);
       }
       const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
@@ -1135,6 +1136,7 @@ export default function MacPage() {
   // Uma análise pode ter emitido despacho E parecer — são séries distintas.
   const emitidos = [
     analiseAtual?.numero_despacho ? `Despacho nº ${analiseAtual.numero_despacho}` : null,
+    analiseAtual?.numero_despacho_interno ? `Despacho Interno nº ${analiseAtual.numero_despacho_interno}` : null,
     analiseAtual?.numero_parecer ? `Parecer nº ${analiseAtual.numero_parecer}` : null,
   ].filter(Boolean);
   return emitidos.length > 0 ? (

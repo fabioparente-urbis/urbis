@@ -24,6 +24,10 @@ export async function GET(req: NextRequest) {
   // documentos que não nascem de uma análise (ex: Despacho Interno).
   const analiseId = searchParams.get("analise_id") || null;
   const analiseNumero = parseInt(searchParams.get("analise_numero") ?? "", 10);
+  // Qual documento está consumindo. Despacho ao interessado e Despacho
+  // Interno saem da MESMA série ('despacho'), então `tipo` não os separa —
+  // e a mesma análise pode emitir os dois.
+  const documento = searchParams.get("documento") || null;
 
   if (!tipo || !["despacho", "parecer"].includes(tipo))
     return NextResponse.json({ ok: false, motivo: "TIPO_INVALIDO" }, { status: 400 });
@@ -100,11 +104,14 @@ export async function GET(req: NextRequest) {
     // tag em processos.tags — se a tag falhar ou for apagada, o vínculo
     // sobrevive aqui e em urbis_numeracao_uso.
     //
-    // Despacho e parecer são séries independentes: a mesma análise pode
-    // emitir os dois, então cada um tem sua coluna. Gravar ambos na mesma
-    // faria o segundo documento apagar o número do primeiro.
+    // Cada documento tem sua coluna: a mesma análise pode emitir despacho
+    // ao interessado, despacho interno e parecer. Gravar em coluna comum
+    // faria um apagar o número do outro.
     if (analiseId) {
-      const coluna = tipo === "parecer" ? "numero_parecer" : "numero_despacho";
+      const coluna =
+        documento === "despacho_interno" ? "numero_despacho_interno"
+        : tipo === "parecer" ? "numero_parecer"
+        : "numero_despacho";
       const { error: erroAnalise } = await supabase
         .from("analises_mac")
         .update({ [coluna]: String(numero) })
