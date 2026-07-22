@@ -584,7 +584,14 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
           <Kpi label="Áreas Analisadas" valor={data.area_total.toLocaleString("pt-BR")} />
           <Kpi label="Meta Normal" valor={`${data.pontos_necessarios_por_dia.toFixed(1)} pts/dia`} />
           <Kpi label="Tempo méd." valor={`${data.stats.tempo_medio_analise_dias}d`} />
-          <Kpi label="Proc. p/ Alcançar a Meta" valor={data.projecao < data.meta_efetiva ? `${Math.ceil((data.meta_efetiva - data.projecao) / 2.5)} proc.` : "—"} />
+          {/* Quanto ainda falta, medido sobre o que já foi feito — não sobre a
+              projeção. Baseado na projeção o card sumia justamente quando o
+              ritmo estava bom, escondendo o que ainda resta para bater a meta.
+              2,5 pts = processo de menor porte (estimativa conservadora). */}
+          <Kpi label="Proc. p/ Alcançar a Meta"
+            valor={data.pontos_acumulados >= data.meta_efetiva
+              ? "Meta atingida"
+              : `${Math.ceil((data.meta_efetiva - data.pontos_acumulados) / 2.5)} proc.`} />
         </div>
 
         {/* Calendário editável */}
