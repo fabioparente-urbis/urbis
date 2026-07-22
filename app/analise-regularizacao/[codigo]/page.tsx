@@ -307,6 +307,22 @@ export default function MacPage() {
     });
   }
 
+  async function deferirTudo() {
+    const idsTodos = checklistItens.map((i) => i.id);
+    const novoItens = { ...itens };
+    const novoFontes = { ...fontes };
+    const novoAceites = { ...aceites };
+    idsTodos.forEach((id) => {
+      novoItens[id] = "conforme";
+      novoFontes[id] = "manual";
+      novoAceites[id] = true;
+    });
+    setItens(novoItens);
+    setFontes(novoFontes);
+    setAceites(novoAceites);
+    await salvar("deferido", novoItens, novoFontes, novoAceites);
+  }
+
 
   async function salvarObs() {
     try {
@@ -455,7 +471,10 @@ export default function MacPage() {
     }
   }
 
-  async function salvar(status = "em_andamento") {
+  async function salvar(status = "em_andamento", itensOverride?: Record<string, StatusItem>, fontesOverride?: Record<string, "auto" | "p2" | "manual" | null>, aceitesOverride?: Record<string, boolean>) {
+    const itensParaSalvar = itensOverride ?? itens;
+    const fontesParaSalvar = fontesOverride ?? fontes;
+    const aceitesParaSalvar = aceitesOverride ?? aceites;
     setSalvando(true);
     try {
       if (novaAnalise || !analiseAtual) {
@@ -464,9 +483,9 @@ export default function MacPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             processo_codigo: codigo,
-            itens,
-            fontes,
-            aceites,
+            itens: itensParaSalvar,
+            fontes: fontesParaSalvar,
+            aceites: aceitesParaSalvar,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -486,9 +505,9 @@ export default function MacPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             id: analiseAtual.id,
-            itens,
-            fontes,
-            aceites,
+            itens: itensParaSalvar,
+            fontes: fontesParaSalvar,
+            aceites: aceitesParaSalvar,
             observacoes,
             observacoes_por_aba: observacoesPorAba,
             status,
@@ -1047,6 +1066,9 @@ export default function MacPage() {
               <p className="text-[var(--text-muted)] text-xs">{assuntoNome}</p>
               <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-[var(--warning)]">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-[var(--success)]">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-[var(--error)]">✗ Erro ao salvar</span>}</div>
               <p className="text-[var(--accent)] font-mono text-sm">{codigo}</p>
+{dadosLip?.proprietario?.valor && (
+  <p className="text-[var(--text-muted)] text-xs mt-0.5">{dadosLip.proprietario.valor}</p>
+)}
 {modeloSelecionado && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
 )}
@@ -1541,7 +1563,7 @@ export default function MacPage() {
             {salvando ? "Salvando..." : "💾 Salvar"}
           </button>
 
-          <button onClick={() => salvar("deferido")} disabled={salvando}
+          <button onClick={() => deferirTudo()} disabled={salvando}
             className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ✅ Deferir
           </button>

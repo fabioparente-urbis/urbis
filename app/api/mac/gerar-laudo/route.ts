@@ -177,6 +177,14 @@ ${membro.cau_crea}`;
     // Registrar último documento emitido
     await supabase.from("processos").update({ dados: { ...(p.dados || {}), ultimo_documento: "Laudo" }, atualizado_em: new Date().toISOString() }).eq("codigo", processoId);
 
+    // Relógio do processo: laudo é resultado definitivo.
+    // Idempotente: só grava se ainda não houver data de conclusão registrada.
+    await supabase
+      .from("processos")
+      .update({ analise_concluida_em: new Date().toISOString() })
+      .eq("codigo", processoId)
+      .is("analise_concluida_em", null);
+
     // ── MRP: grava geração do laudo automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");

@@ -7,6 +7,24 @@ import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
  * "CONFERIR" (origem padrão + valor vazio) ou têm valor literal "X".
  * Essas chaves disparam pré-marcação dos itens do MAC como naoConforme.
  */
+/**
+ * Extrai data_protocolo de dados.data_protocolo.valor (campo do LIP,
+ * preenchido manualmente pelo analista) para espelhar na coluna
+ * estruturada processos.data_protocolo. Retorna null se ausente ou
+ * inválido — nunca deriva de criado_em nem de outra fonte automática.
+ */
+function extrairDataProtocolo(dados: any): string | null {
+  const bruto = dados?.data_protocolo?.valor ?? dados?.dataProtocolo?.valor;
+  if (!bruto || typeof bruto !== "string") return null;
+  const iso = bruto.trim();
+  // Aceita "YYYY-MM-DD" (input type=date) ou "DD/MM/YYYY" (texto livre).
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/) ?? iso.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, a, b, c] = m;
+  const dataFormatada = a.length === 4 ? `${a}-${b}-${c}` : `${c}-${b}-${a}`;
+  return isNaN(Date.parse(dataFormatada)) ? null : dataFormatada;
+}
+
 function chavesVaziasOuX(dados: any): string[] {
   if (!dados || typeof dados !== "object") return [];
   const out: string[] = [];
@@ -77,6 +95,15 @@ export async function POST(req: NextRequest) {
       // Só sobrescreve `dados` quando o cliente envia (a Home cria o
       // processo só com tipo + id; o LIP envia depois com `dados`).
       if (dados !== undefined) update.dados = dados;
+      // Espelha data_protocolo (preenchida manualmente no LIP) na coluna
+      // estruturada. Só sobrescreve quando o analista de fato preencheu
+      // um valor válido — nunca apaga um valor já gravado com um save
+      // que não tocou nesse campo.
+      const dataProtocoloExtraida = dados !== undefined ? extrairDataProtocolo(dados) : null;
+      if (dataProtocoloExtraida) {
+        update.data_protocolo = dataProtocoloExtraida;
+        update.data_protocolo_origem = "analista_lip";
+      }
       // Sessão 4: backfill de assunto_id. Não rebatiza processos que já
       // têm um assunto (proteção contra trocar assunto no meio do
       // caminho); apenas preenche quando ainda está NULL e o lookup
@@ -97,6 +124,7 @@ export async function POST(req: NextRequest) {
       // INSERT: atribui o criador como analista responsavel.
       // Sem isso, o processo recem-criado nasceria com analista_id=null
       // e sumiria da lista do proprio criador (que e Analista, nao irrestrito).
+      const dataProtocoloInicial = extrairDataProtocolo(dados ?? {});
       const { data, error } = await supabase
         .from("processos")
         .insert([{
@@ -110,6 +138,7 @@ export async function POST(req: NextRequest) {
           // slug não bater com nenhum registro em `assuntos` (não deveria
           // acontecer, mas não bloqueia o insert).
           assunto_id: assuntoIdResolvido,
+          ...(dataProtocoloInicial ? { data_protocolo: dataProtocoloInicial, data_protocolo_origem: "analista_lip" } : {}),
         }])
         .select();
 

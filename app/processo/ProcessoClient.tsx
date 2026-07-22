@@ -989,6 +989,26 @@ export default function ProcessoClient() {
                 registrar({ modulo: "LIP", acao: "LIP_CAMPO_ALTERADO", processo_codigo: idUrl, origem: "MANUAL",
                   detalhe: { campo: campo.chave, label: campo.label, valor_anterior: anterior, valor_novo: atual } });
               }
+              // Rotina padrão de dicas do URBI: ao preencher o responsável
+              // técnico, consulta o histórico factual dele (Módulo
+              // Profissionais) e, se houver algo relevante, dispara a
+              // dica. Silencioso em qualquer falha — nunca atrapalha o save.
+              if ((campo.chave === "nome_responsavel_arq" || campo.chave === "nome_responsavel_eng") && atual.trim() && atual !== anterior) {
+                const qs = new URLSearchParams({
+                  nome: atual.trim(),
+                  cau: d.cau?.valor ?? "",
+                  crea: d.crea?.valor ?? "",
+                  processo_atual: idUrl,
+                });
+                fetch(`/api/profissionais/historico?${qs.toString()}`)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((json) => {
+                    if (json?.ok && json.encontrado && json.mensagem) {
+                      window.dispatchEvent(new CustomEvent("urbi:dica", { detail: { processoId: idUrl, mensagem: json.mensagem } }));
+                    }
+                  })
+                  .catch(() => {});
+              }
             }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
@@ -1273,6 +1293,9 @@ export default function ProcessoClient() {
               Processo: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
               {" · "}<span className="text-[var(--text-muted)]">{rotuloTipo(tipoUrl)}</span>
             </p>
+            {d.proprietario?.valor && (
+              <p className="text-[var(--text-muted)] text-sm mt-0.5">{d.proprietario.valor}</p>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">

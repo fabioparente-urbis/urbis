@@ -154,6 +154,17 @@ export async function POST(req: NextRequest) {
     const label = tipo === "despacho" ? `Despacho ${numeroDespacho}` : tipo === "indeferimento" ? "Indeferimento" : "Arquivamento";
     await supabase.from("processos").update({ dados: { ...dados, ultimo_documento: label }, atualizado_em: new Date().toISOString() }).eq("codigo", processo);
 
+    // Relógio do processo: indeferimento e arquivamento são resultado definitivo.
+    // "despacho" comum não é (pode ser exigência intermediária) — não marca conclusão.
+    // Idempotente: só grava se ainda não houver data de conclusão registrada.
+    if (tipo === "indeferimento" || tipo === "arquivamento") {
+      await supabase
+        .from("processos")
+        .update({ analise_concluida_em: new Date().toISOString() })
+        .eq("codigo", processo)
+        .is("analise_concluida_em", null);
+    }
+
     // ── MRP: grava o despacho automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");

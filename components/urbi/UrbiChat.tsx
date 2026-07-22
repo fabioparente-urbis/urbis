@@ -107,11 +107,16 @@ type Props = {
   modo?: "center" | "corner";
   assuntoId?: string | null;
   urbiVoz?: boolean;
+  // Rotina padrão de dicas: quando o URBI é aberto já carregando uma
+  // mensagem pronta (dica pendente de um processo), pula a saudação via
+  // IA e mostra essa mensagem direto. Consumida uma vez e limpa pelo pai.
+  mensagemInicial?: string | null;
+  onMensagemInicialConsumida?: () => void;
 };
 
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
@@ -193,6 +198,23 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     return () => window.removeEventListener("urbi:cmd", handler);
   }, [speech.ouvindo]);
 
+  // Rotina padrão de dicas: se o URBI já está aberto quando uma dica chega
+  // (disparada pelo UrbiGlobal), entrega direto na conversa em vez de
+  // reabrir/reiniciar. Se estiver fechado, quem trata é o UrbiGlobal (peek).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { mensagem } = (e as CustomEvent).detail || {};
+      if (!mensagem || fase === "fora") return;
+      setPoseOpacity(0);
+      setTimeout(() => { setPoseId(selectPose("atencao", poseId)); setPoseOpacity(1); }, 200);
+      setMsgs(m => [...m, { role: "urbi", texto: mensagem }]);
+      setHistory(h => [...h, { role: "model", parts: [{ text: mensagem }] }]);
+      if (!speech.mudo) falar(mensagem);
+    };
+    window.addEventListener("urbi:entregar-dica", handler);
+    return () => window.removeEventListener("urbi:entregar-dica", handler);
+  }, [fase, poseId, speech.mudo]);
+
   useEffect(() => {
     if (abertoProp && fase === "fora") abrir();
     if (!abertoProp && (fase === "idle" || fase === "entrando")) fechar();
@@ -235,8 +257,17 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   function abrir() {
     if (modo === "corner") {
       setFase("idle");
-      setPoseId("tudo-ok");
+      setPoseId("atencao");
       setBalaoVisivel(true);
+      if (mensagemInicial) {
+        setMsgs([{ role: "urbi", texto: mensagemInicial }]);
+        setHistory([{ role: "model", parts: [{ text: mensagemInicial }] }]);
+        resetIdleTimer();
+        if (!speech.mudo) falar(mensagemInicial);
+        onMensagemInicialConsumida?.();
+        return;
+      }
+      setPoseId("tudo-ok");
       setMsgs([{ role: "urbi", texto: "..." }]);
       saudacaoOnMount(urbiVoz);
       return;

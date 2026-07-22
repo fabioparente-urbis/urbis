@@ -61,6 +61,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "Limite de 5 analises atingido. Processo deve ser indeferido." }, { status: 400 });
     }
 
+    // Snapshot do CAU/CREA do responsável técnico no momento desta análise —
+    // uma análise pode ter um RT distinto por revisão, então lemos do LIP
+    // (processos.dados) a cada nova análise em vez de herdar da anterior.
+    const { data: procRT } = await supabase
+      .from("processos")
+      .select("dados")
+      .eq("codigo", processo_codigo)
+      .eq("tipo_processo", TIPO)
+      .maybeSingle();
+    const dadosRT = (procRT as any)?.dados ?? {};
+    const cauResponsavel = dadosRT?.cau?.valor || null;
+    const creaResponsavel = dadosRT?.crea?.valor || null;
+
     const { data, error } = await supabase
       .from("analises_mac")
       .insert({
@@ -75,6 +88,8 @@ export async function POST(req: NextRequest) {
         observacoes: observacoes || "",
         observacoes_por_aba: observacoes_por_aba || {},
         modelo_id: body.modelo_id || null,
+        cau_responsavel: cauResponsavel,
+        crea_responsavel: creaResponsavel,
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
@@ -83,6 +98,17 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+
+    // Relógio do processo: só grava no 1º ciclo, e só se ainda não tiver sido
+    // gravado (idempotente — reprocessar não deve mover a data pra frente).
+    if (proximoNumero === 1) {
+      await supabase
+        .from("processos")
+        .update({ analise_iniciada_em: new Date().toISOString() })
+        .eq("codigo", processo_codigo)
+        .is("analise_iniciada_em", null);
+    }
+
     return NextResponse.json({ ok: true, data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
@@ -128,8 +154,11 @@ export async function PUT(req: NextRequest) {
             analista_nome: (analista as any)?.nome ?? null,
             analista_gerencia: (analista as any)?.gerencia ?? null,
             proprietario: v("proprietario"),
-            autor_levantamento: v("autorLevantamento") ?? v("autor_levantamento"),
-            autor_projeto: v("autorProjeto") ?? v("autor_projeto"),
+            // Chaves reais no LIP são nome_responsavel_arq/nome_responsavel_eng
+            // (autorLevantamento/autorProjeto nunca existiram no schema do
+            // formulário — esses campos ficaram sempre NULL até esta correção).
+            autor_levantamento: v("nome_responsavel_eng") ?? v("autorLevantamento") ?? v("autor_levantamento"),
+            autor_projeto: v("nome_responsavel_arq") ?? v("autorProjeto") ?? v("autor_projeto"),
             checklist_item_id: itemId,
             aba: it?.grupo ?? null,
             item_texto: it?.texto ?? null,
