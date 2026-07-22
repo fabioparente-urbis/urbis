@@ -1641,6 +1641,7 @@ export default function MacPage() {
                   await gravarTag({
                     tipo: "indeferimento",
                     numero_analise: analiseAtual?.numero_analise,
+                    numero_despacho: numeroParecer,
                   });
 
                   // Consome o número SOMENTE após a geração bem-sucedida.

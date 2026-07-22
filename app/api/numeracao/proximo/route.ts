@@ -99,10 +99,15 @@ export async function GET(req: NextRequest) {
     // Prende o número à própria análise. Segundo registro, independente da
     // tag em processos.tags — se a tag falhar ou for apagada, o vínculo
     // sobrevive aqui e em urbis_numeracao_uso.
+    //
+    // Despacho e parecer são séries independentes: a mesma análise pode
+    // emitir os dois, então cada um tem sua coluna. Gravar ambos na mesma
+    // faria o segundo documento apagar o número do primeiro.
     if (analiseId) {
+      const coluna = tipo === "parecer" ? "numero_parecer" : "numero_despacho";
       const { error: erroAnalise } = await supabase
         .from("analises_mac")
-        .update({ numero_despacho: String(numero) })
+        .update({ [coluna]: String(numero) })
         .eq("id", analiseId);
       if (erroAnalise)
         console.error("[numeracao] falha ao vincular número à análise:", erroAnalise.message);
