@@ -30,10 +30,11 @@ export async function GET(req: NextRequest) {
       .order("atualizado_em", { ascending: false })
       .limit(200);
 
-    // Remove caracteres com significado no filtro PostgREST (,()* ) antes de
-    // interpolar o termo de busca — evita quebra/injeção na cláusula .or().
-    const buscaLimpa = busca.replace(/[,()*]/g, " ").trim();
-    if (buscaLimpa) query = query.or(`codigo.ilike.%${buscaLimpa}%,numero_sei.ilike.%${buscaLimpa}%`);
+    // A busca por interessado e numero de despacho depende de campos dentro
+    // de jsonb (dados.proprietario / tags[].numero_despacho), que o filtro
+    // .ilike do PostgREST nao alcança de forma confiável em arrays. Como o
+    // volume de processos é pequeno, filtramos em memória após a query.
+    const buscaLimpa = busca.replace(/[,()*]/g, " ").trim().toLowerCase();
     if (tipo) query = query.eq("tipo_processo", tipo);
     if (status) query = query.eq("status", status);
 
@@ -74,7 +75,27 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await query;
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true, data: data ?? [] });
+
+    let resultado = data ?? [];
+    if (buscaLimpa) {
+      resultado = resultado.filter((p: any) => {
+        const codigo = (p.codigo || "").toLowerCase();
+        const numeroSei = (p.numero_sei || "").toLowerCase();
+        const interessado = (p.dados?.proprietario?.valor || "").toLowerCase();
+        const tags = Array.isArray(p.tags) ? p.tags : [];
+        const temDespachoBatendo = tags.some((t: any) =>
+          (t.numero_despacho || "").toLowerCase().includes(buscaLimpa)
+        );
+        return (
+          codigo.includes(buscaLimpa) ||
+          numeroSei.includes(buscaLimpa) ||
+          interessado.includes(buscaLimpa) ||
+          temDespachoBatendo
+        );
+      });
+    }
+
+    return NextResponse.json({ ok: true, data: resultado });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
