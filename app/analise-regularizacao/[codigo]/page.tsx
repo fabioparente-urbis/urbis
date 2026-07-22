@@ -628,7 +628,7 @@ export default function MacPage() {
         // Confirma a numeração de forma confiável: tenta até 3x em falha de
         // rede/5xx. 409 = servidor já avançou o número (re-emissão) → ok.
         // Se todas falharem, avisa o analista (não trava o fluxo).
-        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}`;
+        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`;
         let _commitOk = false;
         for (let _t = 1; _t <= 3 && !_commitOk; _t++) {
           try {
@@ -1676,7 +1676,7 @@ export default function MacPage() {
                   let _commitOkParecer = false;
                   for (let _t = 1; _t <= 3 && !_commitOkParecer; _t++) {
                     try {
-                      const _rc = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitParecer)}`, { credentials: "include" });
+                      const _rc = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitParecer)}${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
                       if (_rc.ok || _rc.status === 409) { _commitOkParecer = true; break; }
                     } catch { /* rede — tenta de novo */ }
                     if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));

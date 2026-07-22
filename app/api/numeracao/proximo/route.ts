@@ -20,6 +20,10 @@ export async function GET(req: NextRequest) {
   const processo = searchParams.get("processo") ?? "";
   const modo = searchParams.get("modo") ?? "commit";
   const numeroForcado = parseInt(searchParams.get("numero") ?? "", 10);
+  // Vínculo com a análise que está consumindo o número. Ausentes em
+  // documentos que não nascem de uma análise (ex: Despacho Interno).
+  const analiseId = searchParams.get("analise_id") || null;
+  const analiseNumero = parseInt(searchParams.get("analise_numero") ?? "", 10);
 
   if (!tipo || !["despacho", "parecer"].includes(tipo))
     return NextResponse.json({ ok: false, motivo: "TIPO_INVALIDO" }, { status: 400 });
@@ -85,11 +89,24 @@ export async function GET(req: NextRequest) {
       numero,
       processo_codigo: processo,
       tipo_documento: tipo,
+      ...(Number.isInteger(analiseNumero) ? { numero_analise: analiseNumero } : {}),
     });
     // Contador já avançou; se o log de uso falhar, registramos mas não
     // reprovamos (o número foi legitimamente consumido).
     if (erroUso)
       console.error("[numeracao] falha ao gravar urbis_numeracao_uso:", erroUso.message);
+
+    // Prende o número à própria análise. Segundo registro, independente da
+    // tag em processos.tags — se a tag falhar ou for apagada, o vínculo
+    // sobrevive aqui e em urbis_numeracao_uso.
+    if (analiseId) {
+      const { error: erroAnalise } = await supabase
+        .from("analises_mac")
+        .update({ numero_despacho: String(numero) })
+        .eq("id", analiseId);
+      if (erroAnalise)
+        console.error("[numeracao] falha ao vincular número à análise:", erroAnalise.message);
+    }
   }
 
   const restantes = faixas.reduce((acc, f) => {
