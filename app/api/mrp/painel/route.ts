@@ -8,7 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import {
   calcularMetaEfetiva,
-  metaVigenteNoMes,
+  resolverMetaDoMes,
   type MetaVigencia,
   calcularProjecao,
   calcularStatus,
@@ -68,10 +68,15 @@ export async function GET(req: NextRequest) {
   // fechados foram avaliados. Cada mês usa a meta que vigorava nele.
   const { data: metasHist } = await supabaseAdmin
     .from("mrp_meta_historico")
-    .select("meta, vigente_desde")
+    .select("meta, vigente_desde, usuario_id, isento")
     .order("vigente_desde", { ascending: false });
   const historicoMetas = (metasHist ?? []) as MetaVigencia[];
-  const metaEfetiva = calcularMetaEfetiva(reducao, metaVigenteNoMes(historicoMetas, ano, mes));
+
+  // Gerência e Diretoria não têm meta — mas a isenção é datada, então quem
+  // era analista no mês consultado continua sendo avaliado por meta.
+  const regraDoMes = resolverMetaDoMes(historicoMetas, alvoId, ano, mes);
+  const isentoDeMeta = regraDoMes.isento;
+  const metaEfetiva = isentoDeMeta ? 0 : calcularMetaEfetiva(reducao, regraDoMes.metaBase);
 
   // ── Calendário do mês ─────────────────────────────────────
   const { data: calRow } = await supabaseAdmin
@@ -147,11 +152,14 @@ export async function GET(req: NextRequest) {
       .eq("usuario_id", alvoId)
       .eq("ano", a).eq("mes", m);
     const pts = Math.round((rs ?? []).reduce((acc, r: any) => acc + Number(r.pontos ?? 0), 0) * 10) / 10;
-    // Meta daquele mês, não a de hoje.
-    const metaDoMes = calcularMetaEfetiva(reducao, metaVigenteNoMes(historicoMetas, a, m));
+    // Meta daquele mês e daquela pessoa — não a de hoje.
+    const regra = resolverMetaDoMes(historicoMetas, alvoId, a, m);
+    const metaDoMes = regra.isento ? 0 : calcularMetaEfetiva(reducao, regra.metaBase);
     historico.push({
-      mes: m, ano: a, pontos: pts, despachos: (rs ?? []).length, meta: metaDoMes,
-      resultado: pts >= metaDoMes * 1.2 ? "EXCELENTE" : pts >= metaDoMes ? "OK" : "RUIM",
+      mes: m, ano: a, pontos: pts, despachos: (rs ?? []).length,
+      meta: metaDoMes, isento: regra.isento,
+      resultado: regra.isento ? "OK"
+        : pts >= metaDoMes * 1.2 ? "EXCELENTE" : pts >= metaDoMes ? "OK" : "RUIM",
     });
   }
 
@@ -239,6 +247,7 @@ export async function GET(req: NextRequest) {
     total_despachos: linhas.length,
     area_total: areaTotal,
     meta_efetiva: metaEfetiva,
+    isento_de_meta: isentoDeMeta,
     projecao,
     status,
     pontos_necessarios_por_dia: pontosNecDia,

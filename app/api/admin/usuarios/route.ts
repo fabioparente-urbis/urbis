@@ -13,6 +13,40 @@ const ADMIN_FIXO = "Fábio Parente Martins Santos";
  * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
  * `perfil` (singular) é tratado como fallback quando `perfis` não vem.
  */
+// Perfis de chefia sem meta de produtividade. Administrador NÃO entra:
+// acumula chefia e produção.
+const PERFIS_SEM_META = [
+  "Diretora", "Diretor", "Gerente",
+  "Gerência GERECCO", "Gerência GERAED", "Gerência GERAGP", "Gerência GERAP",
+];
+
+function ehChefia(perfis: string[]): boolean {
+  return perfis.some((p) => PERFIS_SEM_META.includes(p));
+}
+
+/**
+ * Registra a virada de meta quando alguém entra ou sai da chefia.
+ * A vigência começa no dia 1º do mês corrente: meses já fechados continuam
+ * avaliados pela regra que valia neles. Sem isso, promover um analista a
+ * gerente apagaria retroativamente a meta dos meses em que ele produziu —
+ * e rebaixar um gerente criaria meta em meses que ele não tinha.
+ * Falha aqui não derruba a edição do usuário; apenas registra no log.
+ */
+async function registrarViradaDeMeta(usuarioId: string, perfisAntes: string[], perfisDepois: string[]) {
+  const antes = ehChefia(perfisAntes);
+  const depois = ehChefia(perfisDepois);
+  if (antes === depois) return;
+  const hoje = new Date();
+  const vigenteDesde = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
+  const { error } = await supabase
+    .from("mrp_meta_historico")
+    .upsert(
+      { usuario_id: usuarioId, isento: depois, meta: null, vigente_desde: vigenteDesde },
+      { onConflict: "usuario_id,vigente_desde" },
+    );
+  if (error) console.error("[mrp] falha ao registrar virada de meta:", error.message);
+}
+
 function normalizarPerfis(input: { nome?: string; perfil?: string; perfis?: unknown }): string[] {
   const raw: string[] = Array.isArray(input.perfis)
     ? (input.perfis as unknown[]).map((p) => String(p)).filter(Boolean)
@@ -132,6 +166,9 @@ export async function PUT(req: NextRequest) {
         { ok: false, erro: dbError.message, code: (dbError as any).code },
         { status: 500 },
       );
+
+    // Entrou ou saiu da chefia? Registra a vigência a partir deste mês.
+    await registrarViradaDeMeta(id, atualPerfis, perfis);
 
     if (senha) {
       const { data: userData } = await supabase.from("usuarios").select("email").eq("id", id).maybeSingle();

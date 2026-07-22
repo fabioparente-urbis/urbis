@@ -43,8 +43,14 @@ export function calcularMetaEfetiva(
 // A meta é versionada (mrp_meta_historico): alterar a meta hoje não pode
 // mudar como os meses já fechados foram avaliados. Para um mês qualquer,
 // vale a meta com a maior data de vigência que já tenha começado.
-export type MetaVigencia = { meta: number; vigente_desde: string };
+export type MetaVigencia = {
+  meta: number | null;
+  vigente_desde: string;
+  usuario_id?: string | null;
+  isento?: boolean | null;
+};
 
+/** Meta geral vigente no mês (ignora regras específicas de pessoa). */
 export function metaVigenteNoMes(
   historico: MetaVigencia[] | null | undefined,
   ano: number,
@@ -52,9 +58,35 @@ export function metaVigenteNoMes(
 ): number {
   const alvo = `${ano}-${String(mes).padStart(2, '0')}-01`;
   const aplicaveis = (historico ?? [])
-    .filter((h) => String(h.vigente_desde).slice(0, 10) <= alvo)
+    .filter((h) => !h.usuario_id && String(h.vigente_desde).slice(0, 10) <= alvo)
     .sort((a, b) => String(b.vigente_desde).localeCompare(String(a.vigente_desde)));
-  return aplicaveis.length > 0 ? Number(aplicaveis[0].meta) : META_BASE;
+  return aplicaveis.length > 0 ? Number(aplicaveis[0].meta ?? META_BASE) : META_BASE;
+}
+
+/**
+ * Resolve a meta de uma pessoa num mês. A regra específica dela prevalece
+ * sobre a geral; sem regra específica, vale a geral.
+ *
+ * Gerência e Diretoria são isentas, mas a isenção é datada: quem virou
+ * gerente em setembro continua com meta em julho, e quem voltou a analista
+ * volta a ter meta a partir do mês em que voltou.
+ */
+export function resolverMetaDoMes(
+  historico: MetaVigencia[] | null | undefined,
+  usuarioId: string,
+  ano: number,
+  mes: number,
+): { isento: boolean; metaBase: number } {
+  const alvo = `${ano}-${String(mes).padStart(2, '0')}-01`;
+  const doUsuario = (historico ?? [])
+    .filter((h) => h.usuario_id === usuarioId && String(h.vigente_desde).slice(0, 10) <= alvo)
+    .sort((a, b) => String(b.vigente_desde).localeCompare(String(a.vigente_desde)))[0];
+
+  if (doUsuario?.isento) return { isento: true, metaBase: 0 };
+  if (doUsuario && doUsuario.meta != null) {
+    return { isento: false, metaBase: Number(doUsuario.meta) };
+  }
+  return { isento: false, metaBase: metaVigenteNoMes(historico, ano, mes) };
 }
 
 // ─── Dias efetivos a partir do calendário ──────────────────
@@ -224,9 +256,13 @@ export type PainelResposta = {
   dias_efetivos_passados: number;
   dias_efetivos_restantes: number;
   calendario: Calendario;
+  // true quando a pessoa era Gerência/Diretoria no mês consultado.
+  isento_de_meta: boolean;
   historico_mensal: {
     // `meta` é a meta que vigorava naquele mês — pode diferir da meta atual.
-    mes: number; ano: number; pontos: number; despachos: number; meta: number; resultado: StatusMRP;
+    // `isento` = sem meta naquele mês (chefia à época).
+    mes: number; ano: number; pontos: number; despachos: number;
+    meta: number; isento: boolean; resultado: StatusMRP;
   }[];
   stats: {
     por_tipo_despacho: { tipo: string; count: number; pontos: number }[];

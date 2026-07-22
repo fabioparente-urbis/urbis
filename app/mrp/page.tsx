@@ -534,20 +534,30 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
         <div className="bg-white rounded-lg shadow border p-6">
           <div className="flex items-start justify-between">
             <div>
-              <div className="text-xs uppercase text-gray-500 tracking-wider">Meta efetiva</div>
-              <div className="text-3xl font-bold text-gray-800">{data.meta_efetiva.toFixed(0)} pts</div>
-              {analista && analista.reducao_meta > 0 && (
+              <div className="text-xs uppercase text-gray-500 tracking-wider">
+                {data.isento_de_meta ? "Produção no mês" : "Meta efetiva"}
+              </div>
+              <div className="text-3xl font-bold text-gray-800">
+                {data.isento_de_meta
+                  ? `${data.pontos_acumulados.toFixed(1)} pts`
+                  : `${data.meta_efetiva.toFixed(0)} pts`}
+              </div>
+              {data.isento_de_meta ? (
+                <div className="text-xs text-gray-500 mt-1">Gerência/Diretoria — sem meta neste mês</div>
+              ) : analista && analista.reducao_meta > 0 ? (
                 <div className="text-xs text-gray-500 mt-1">
                   Redução: {analista.reducao_meta}% {analista.meta_base_legal && `(${analista.meta_base_legal})`}
                 </div>
-              )}
+              ) : null}
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${cores[data.status]}`}>
-              {data.status}
-            </span>
+            {!data.isento_de_meta && (
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${cores[data.status]}`}>
+                {data.status}
+              </span>
+            )}
           </div>
 
-          <div className="mt-4">
+          {!data.isento_de_meta && <div className="mt-4">
             <div className="flex justify-between text-sm text-gray-600 mb-1">
               <span>{data.pontos_acumulados.toFixed(1)} pts</span>
               <span>{pct.toFixed(0)}%</span>
@@ -555,9 +565,9 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
             <div className="w-full bg-gray-200 rounded h-3 overflow-hidden">
               <div className={`${barColor[data.status]} h-full transition-all`} style={{ width: `${pct}%` }} />
             </div>
-          </div>
+          </div>}
 
-          <div className="mt-4">
+          {!data.isento_de_meta && <div className="mt-4">
             <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent)]/10 px-5 py-4 flex items-center justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Projeção para o fim do mês</div>
@@ -575,7 +585,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
                 ⚠ Você precisa de <strong>{data.pontos_necessarios_por_dia.toFixed(1)} pts/dia</strong> para atingir a meta.
               </p>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Cards rápidos */}
@@ -589,9 +599,11 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
               ritmo estava bom, escondendo o que ainda resta para bater a meta.
               2,5 pts = processo de menor porte (estimativa conservadora). */}
           <Kpi label="Proc. p/ Alcançar a Meta"
-            valor={data.pontos_acumulados >= data.meta_efetiva
-              ? "Meta atingida"
-              : `${Math.ceil((data.meta_efetiva - data.pontos_acumulados) / 2.5)} proc.`} />
+            valor={data.isento_de_meta
+              ? "Sem meta"
+              : data.pontos_acumulados >= data.meta_efetiva
+                ? "Meta atingida"
+                : `${Math.ceil((data.meta_efetiva - data.pontos_acumulados) / 2.5)} proc.`} />
         </div>
 
         {/* Calendário editável */}
