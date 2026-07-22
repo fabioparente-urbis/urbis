@@ -54,6 +54,7 @@ export default function MacPage() {
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
   const [dadosLip, setDadosLip] = useState<Record<string,any>>({});
+  const [tagsProcesso, setTagsProcesso] = useState<any[]>([]);
   const [bannerCritico, setBannerCritico] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
@@ -247,7 +248,7 @@ export default function MacPage() {
       // Carrega campos LIP para o banner crítico
       fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" })
         .then(r => r.json())
-        .then(j => setDadosLip(j?.data?.dados || j?.dados || {}));
+        .then(j => { setDadosLip(j?.data?.dados || j?.dados || {}); setTagsProcesso(j?.data?.tags || j?.tags || []); });
 
       // Carrega itens do modelo salvo na análise
       if (ultima.modelo_id) {
@@ -575,7 +576,7 @@ export default function MacPage() {
           observacoesPorAba,
           analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({
             numero: a.numero_analise,
-            data: new Date(a.criado_em).toLocaleDateString("pt-BR"),
+            data: dataDaAnalise(a),
             ultima: a.numero_analise === 5,
           })),
           analiseId: analiseAtual?.id,
@@ -677,12 +678,27 @@ export default function MacPage() {
     }
   }
 
+  // A data de cada análise no despacho é a data em que aquela análise foi
+  // efetivamente despachada — registrada na tag do processo. `criado_em` é
+  // fallback para análises que ainda não geraram documento.
+  function dataDaAnalise(a: any): string {
+    const tag = (tagsProcesso ?? []).find((t: any) =>
+      t?.numero_analise === a.numero_analise &&
+      ["despacho", "indeferimento", "arquivamento"].includes(t?.tipo)
+    );
+    if (tag?.data) return tag.data;
+    return new Date(a.criado_em).toLocaleDateString("pt-BR");
+  }
+
   function iniciarNovaAnalise() {
     if (analises.length >= 5) {
       mostrarToast("Limite de 5 análises atingido.");
       return;
     }
-    const ultima = analises[analises.length - 1];
+    // `analises` vem da API ordenada por numero_analise DESC, então a posição
+    // final do array é a análise 1 — não a mais recente. Buscar pelo maior
+    // numero_analise torna a cópia independente da ordenação.
+    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setAnaliseAtual(null);
     setItens(ultima?.itens || {});
     setFontes(ultima?.fontes || {});
@@ -1623,7 +1639,7 @@ export default function MacPage() {
                   body: JSON.stringify({
                     processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
-                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: new Date(a.criado_em).toLocaleDateString("pt-BR"), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                   }),
                 });
                 if (res.ok) {
