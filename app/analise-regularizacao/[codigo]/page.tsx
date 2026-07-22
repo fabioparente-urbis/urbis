@@ -191,6 +191,11 @@ export default function MacPage() {
         const alvoPut = jsonLista.ok ? jsonLista.data.find((a: any) => a.id === alvo.id) : null;
         if (alvoPut) setAnaliseAtual(alvoPut);
       }
+    } else if (jsonLista.ok && analiseAtual?.id) {
+      // Zerou outra análise: recarrega a que está em tela, senão ela fica
+      // defasada em relação à lista (inclusive nos números de documento).
+      const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
+      if (restaurada) setAnaliseAtual(restaurada);
     }
     mostrarToast(`🗑️ Análise ${numeroAnalise} zerada.`);
     setModalLimparAnalise(null);

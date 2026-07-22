@@ -57,6 +57,9 @@ export default function MacPage() {
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;itens:{aba:string;texto:string;ref:string|null;de:string|null;para:string}[]}[]>([]);
+  // Trava de concorrência: impede dois POST simultâneos de análise nova
+  // (corrida do autosave). Ver salvarSilencioso() e iniciarNovaAnalise().
+  const criandoAnaliseRef = useRef(false);
   const [novaAnalise, setNovaAnalise] = useState(false);
   // Número da análise iniciada mas ainda não gravada. Enquanto ela não
   // existe no banco, analiseAtual é null — sem isso nenhum botão 1..5
@@ -417,30 +420,45 @@ export default function MacPage() {
     setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
-        const res = await fetch("/api/analise-aceite-sei", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            processo_codigo: codigo,
-            itens,
-            fontes,
-            aceites,
-            observacoes,
-            observacoes_por_aba: observacoesPorAba,
-            status,
-            modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
-            numero_revisao: numeroRevisao,
-            historico_analises: historicoAnalises,
-          }),
-        });
-        const json = await res.json().catch(() => null);
-        if (json?.ok && json?.data && !skipStateUpdate) {
-          setAnaliseAtual(json.data);
-          setNovaAnalise(false);
-          fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`)
-            .then(r => r.json())
-            .then(j => { if (j.ok) setAnalises(j.data); })
-            .catch(() => {});
+        // Trava de concorrência: se já há um POST de análise nova em curso,
+        // não dispara outro (evita criar duas análises com o mesmo número).
+        // Ao criar com sucesso, a trava permanece — os próximos saves caem no
+        // PUT; só é liberada ao iniciar outra análise (iniciarNovaAnalise).
+        if (criandoAnaliseRef.current) { setStatusSalvo(""); return; }
+        criandoAnaliseRef.current = true;
+        let criouOk = false;
+        try {
+          const res = await fetch("/api/analise-aceite-sei", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              processo_codigo: codigo,
+              itens,
+              fontes,
+              aceites,
+              observacoes,
+              observacoes_por_aba: observacoesPorAba,
+              status,
+              modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
+              numero_revisao: numeroRevisao,
+              historico_analises: historicoAnalises,
+            }),
+          });
+          const json = await res.json().catch(() => null);
+          if (json?.ok && json?.data) {
+            criouOk = true;
+            if (!skipStateUpdate) {
+              setAnaliseAtual(json.data);
+              setNovaAnalise(false);
+              fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`)
+                .then(r => r.json())
+                .then(j => { if (j.ok) setAnalises(j.data); })
+                .catch(() => {});
+            }
+          }
+        } finally {
+          // Só libera a trava se NÃO criou (falha) — permite nova tentativa.
+          if (!criouOk) criandoAnaliseRef.current = false;
         }
       } else {
         await fetch("/api/analise-aceite-sei", {
@@ -684,6 +702,7 @@ export default function MacPage() {
     // final do array é a análise 1 — não a mais recente. Buscar pelo maior
     // numero_analise torna a cópia independente da ordenação.
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
     setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
     setItens(ultima?.itens || {});
