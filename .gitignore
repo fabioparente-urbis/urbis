@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 importar_logradouros.py
 public/templates/~$*
+
+# Dumps de backfill — contem dados de processos, nao versionar
+backups/
