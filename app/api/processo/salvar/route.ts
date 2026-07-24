@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
+import { extrairMetricasProcesso } from "@/lib/mrp";
 
 /**
  * Retorna as chaves do objeto `dados` cujos campos estão marcados como
@@ -112,6 +113,19 @@ export async function POST(req: NextRequest) {
         update.assunto_id = assuntoIdResolvido;
       }
 
+      // Espelha área e porte nas colunas estruturadas. A view do BDI
+      // (vw_bdi_por_assunto) soma `processos.area_construida` e agrupa por
+      // `processos.porte` — ambas nunca eram preenchidas por código algum,
+      // então o painel mostrava área 0 e porte nulo. A área real vive em
+      // dados.areaTotal.valor como texto PT-BR.
+      if (dados !== undefined) {
+        const m = extrairMetricasProcesso(dados);
+        if (m.area > 0) {
+          update.area_construida = m.area;
+          update.porte = m.porte;
+        }
+      }
+
       const { error } = await supabase
         .from("processos")
         .update(update)
@@ -138,6 +152,11 @@ export async function POST(req: NextRequest) {
           // slug não bater com nenhum registro em `assuntos` (não deveria
           // acontecer, mas não bloqueia o insert).
           assunto_id: assuntoIdResolvido,
+          // Mesmas colunas espelhadas do caminho de UPDATE (ver comentário lá).
+          ...(() => {
+            const m = extrairMetricasProcesso(dados ?? {});
+            return m.area > 0 ? { area_construida: m.area, porte: m.porte } : {};
+          })(),
           ...(dataProtocoloInicial ? { data_protocolo: dataProtocoloInicial, data_protocolo_origem: "analista_lip" } : {}),
         }])
         .select();

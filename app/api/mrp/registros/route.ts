@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import { calcularPontos } from "@/lib/mrp-pontuacao";
-import { inferirPorte } from "@/lib/mrp";
+import { inferirPorte, extrairMetricasProcesso, type DadosProcesso } from "@/lib/mrp";
 import { resolverSlot } from "@/lib/assuntos";
 
 async function podeVer(
@@ -84,6 +84,20 @@ export async function POST(req: NextRequest) {
   }
   // Se não informado, usa o próprio usuário autenticado.
   if (!body.usuario_id) body.usuario_id = auth.userId;
+
+  // Área: extraída do processo pelo parser robusto, e não do que o cliente
+  // mandou. As telas do MAC usavam `replace(",", ".")`, que não remove o
+  // ponto de milhar — "3.158,00" virava 0 e derrubava a pontuação de 4,5
+  // para 2,5. O servidor é a fonte de verdade; o valor do cliente só entra
+  // em registro manual, onde não há processo de onde extrair.
+  if (body.auto_gerado && body.processo_codigo) {
+    const { data: proc } = await supabaseAdmin
+      .from("processos").select("dados").eq("codigo", body.processo_codigo).maybeSingle();
+    if (proc) {
+      const m = extrairMetricasProcesso((proc as { dados?: DadosProcesso }).dados);
+      if (m.area > 0) body.area_construida = m.area;
+    }
+  }
 
   // Se auto_gerado e pontos não informados, calcula pela tabela ANTES da validação
   if (body.auto_gerado && body.pontos === undefined) {

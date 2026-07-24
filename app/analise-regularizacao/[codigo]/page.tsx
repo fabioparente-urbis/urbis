@@ -4,6 +4,7 @@ import { useAuditoria } from "@/hooks/useAuditoria";
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
+import { parseAreaBR } from "@/lib/mrp";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -675,7 +676,7 @@ export default function MacPage() {
           numero_despacho: numeroDespacho,
           numero_analise: analiseAtual?.numero_analise ?? null,
           numero_revisao: numeroRevisao,
-          area_construida: Number((dlFresh?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
+          area_construida: parseAreaBR(dlFresh?.areaTotal?.valor),
           interessado: dlFresh?.proprietario?.valor ?? null,
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,
@@ -956,7 +957,7 @@ export default function MacPage() {
           processo_codigo: codigo,
           tipo_despacho: "DESPACHO_INTERNO",
           numero_despacho: numDI,
-          area_construida: Number((dlFresh?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0,
+          area_construida: parseAreaBR(dlFresh?.areaTotal?.valor),
           interessado: dlFresh?.proprietario?.valor ?? null,
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,

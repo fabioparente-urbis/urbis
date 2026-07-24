@@ -196,19 +196,29 @@ function pickStr(...campos: CampoJsonb[]): string {
   return '';
 }
 
+/**
+ * Converte área em texto para número. Aceita "1.234,56 m²" (PT-BR),
+ * "1234.56" (EN) ou "1234,56".
+ *
+ * Existe exportada porque as telas do MAC faziam `replace(",", ".")`, que
+ * troca a vírgula mas NÃO remove o ponto de milhar: "3.158,00" virava
+ * `Number("3.158")` = 3.158 m² em vez de 3158, e a pontuação caía de 4,5
+ * para 2,5. Todo lugar que lê área deve usar esta função.
+ */
+export function parseAreaBR(valor: unknown): number {
+  if (valor === null || valor === undefined) return 0;
+  if (typeof valor === 'number') return Number.isFinite(valor) && valor > 0 ? valor : 0;
+  let s = String(valor).replace(/m²|m2|\s/gi, '');
+  // PT-BR: ponto é separador de milhar, vírgula é decimal.
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return !Number.isNaN(n) && Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function pickNum(...campos: CampoJsonb[]): number {
   for (const c of campos) {
-    const v = c?.valor;
-    if (v === null || v === undefined) continue;
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
-    // Aceita "1.234,56 m²" (PT-BR), "1234.56" (EN) ou "1234,56".
-    let s = String(v).replace(/m²|m2|\s/gi, '');
-    if (s.includes(',')) {
-      // PT-BR: ponto é separador de milhar, vírgula é decimal.
-      s = s.replace(/\./g, '').replace(',', '.');
-    }
-    const n = Number(s);
-    if (!Number.isNaN(n) && Number.isFinite(n) && n > 0) return n;
+    const n = parseAreaBR(c?.valor);
+    if (n > 0) return n;
   }
   return 0;
 }
