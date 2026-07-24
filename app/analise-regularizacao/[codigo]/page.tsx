@@ -84,8 +84,12 @@ export default function MacPage() {
   const [motivosIndeferimento, setMotivosIndeferimento] = useState<string[]>([]);
   const [obsIndeferimento, setObsIndeferimento] = useState("");
   const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string} | null>(null);
+  const [indeferimentoParaReimprimir, setIndeferimentoParaReimprimir] = useState<{motivos: string[], obs: string, numeroParecer: string, data?: string} | null>(null);
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
+  // Data de emissão do documento (editável no modal). Alimenta documento, tag e
+  // MRP com a MESMA data — evita o descasamento de dia perto da meia-noite.
+  const [dataEmissao, setDataEmissao] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
   const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
@@ -567,6 +571,7 @@ export default function MacPage() {
   // Arquivamento sai da série de parecer; despacho, da série de despacho.
   async function abrirModalDespacho(tipo: "despacho" | "arquivamento") {
     setTipoDespacho(tipo);
+    setDataEmissao(new Date().toLocaleDateString("pt-BR"));
               await salvarSilencioso();
     // Avisos de pendência só valem para o despacho ao interessado.
     if (tipo === "despacho") {
@@ -653,6 +658,7 @@ export default function MacPage() {
           analiseId: analiseAtual?.id,
           assunto_id: assuntoId,
           numero_revisao: numeroRevisao,
+          data: dataEmissao,
         }),
       });
 
@@ -675,6 +681,7 @@ export default function MacPage() {
           numero_sei: dlFresh?.processo?.valor ?? codigo,
           numero_fisico: dlFresh?.processoFisico?.valor ?? null,
           assunto: assuntoNome,
+          data_despacho: dataBRparaISO(dataEmissao),
           auto_gerado: true,
         }),
       }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));
@@ -717,7 +724,7 @@ export default function MacPage() {
           tipo: tipoDespacho === "indeferimento" ? "indeferimento" : tipoDespacho === "arquivamento" ? "arquivamento" : "despacho",
           numero: numeroDespacho,
           destinatario: null,
-          data_despacho: new Date().toLocaleDateString("pt-BR"),
+          data_despacho: dataEmissao,
           conteudo: {
             pendencias_mac: checklistItens
               .filter(i => itens[i.id] === "nao_conforme")
@@ -734,6 +741,7 @@ export default function MacPage() {
         tipo: tipoDespacho,
         numero_analise: analiseAtual?.numero_analise,
         numero_despacho: numeroDespacho || undefined,
+        data: dataEmissao,
       });
 
       // Reflete o número na análise em tela, sem esperar um reload — quem
@@ -767,12 +775,27 @@ export default function MacPage() {
     );
     if (tag?.data) return tag.data;
     // Sem tag = ainda não despachada. Se é a análise que está sendo emitida
-    // agora, vale a data da emissão (hoje) — `criado_em` pode ser de outro
-    // dia (ex.: análise aberta 23:33, despacho gerado 00:02 do dia seguinte).
+    // agora, vale a data escolhida no modal de emissão (padrão hoje) — não a
+    // hora do clique, que perto da meia-noite cai no dia seguinte.
     if (a.numero_analise === analiseAtual?.numero_analise) {
-      return new Date().toLocaleDateString("pt-BR");
+      return dataEmissao;
     }
     return new Date(a.criado_em).toLocaleDateString("pt-BR");
+  }
+
+  // "dd/mm/aaaa" → ISO ao meio-dia local (data não escorrega ao exibir em UTC).
+  function dataBRparaISO(dataBR: string): string {
+    const m = String(dataBR ?? "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (!m) return new Date().toISOString();
+    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12, 0, 0).toISOString();
+  }
+
+  // Máscara progressiva dd/mm/aaaa enquanto o usuário digita.
+  function mascararDataBR(v: string): string {
+    const d = String(v ?? "").replace(/\D/g, "").slice(0, 8);
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+    return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
   }
 
   function iniciarNovaAnalise() {
@@ -837,6 +860,7 @@ export default function MacPage() {
     tipo: "despacho" | "indeferimento" | "arquivamento" | "laudo";
     numero_analise?: number;
     numero_despacho?: string;
+    data?: string;
   }) {
     try {
       await fetch("/api/processo/tag", {
@@ -846,7 +870,7 @@ export default function MacPage() {
           codigo,
           tag: {
             ...tag,
-            data: new Date().toLocaleDateString("pt-BR"),
+            data: tag.data || new Date().toLocaleDateString("pt-BR"),
           },
         }),
       });
@@ -1078,6 +1102,19 @@ export default function MacPage() {
                     className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                   />
                 )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data de emissão</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={dataEmissao}
+                  onChange={(e) => setDataEmissao(mascararDataBR(e.target.value))}
+                  placeholder="dd/mm/aaaa"
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
+                <span className="text-[10px] text-[var(--text-muted)]">Vai para o documento, a tag da pilha e o MRP.</span>
               </div>
 
             </div>
@@ -1731,6 +1768,7 @@ export default function MacPage() {
                     processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
                     analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    data: dataEmissao,
                   }),
                 });
                 if (res.ok) {
@@ -1741,11 +1779,13 @@ export default function MacPage() {
                   document.body.appendChild(link); link.click();
                   document.body.removeChild(link); URL.revokeObjectURL(url);
                   setIndeferimentoPendente(null);
+                  setIndeferimentoParaReimprimir({ motivos, obs, numeroParecer, data: dataEmissao });
                   mostrarToast("✅ Documento de indeferimento gerado!");
                   await gravarTag({
                     tipo: "indeferimento",
                     numero_analise: analiseAtual?.numero_analise,
                     numero_despacho: numeroParecer,
+                    data: dataEmissao,
                   });
                   setAnaliseAtual((prev: any) => prev ? { ...prev, numero_parecer: numeroParecer } : prev);
 
@@ -1767,7 +1807,36 @@ export default function MacPage() {
               📄 Baixar Indeferimento
             </button>
           )}
-          <button onClick={async () => { await salvarSilencioso(); setModalIndeferimento(true); }} disabled={salvando}
+          {!indeferimentoPendente && indeferimentoParaReimprimir && (
+            <button onClick={async () => {
+              setGerandoDespacho(true);
+              try {
+                const { motivos: _m, obs: _o, numeroParecer: _np } = indeferimentoParaReimprimir;
+                const res = await fetch("/api/despacho-regularizacao", { credentials: "include",
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    processo: codigo, tipo: "indeferimento", numeroDespacho: _np,
+                    naoConformes: _m, observacoes: _o,
+                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    data: indeferimentoParaReimprimir.data || dataEmissao,
+                  }),
+                });
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.href = url; link.download = `indeferimento_${codigo}.docx`;
+                  document.body.appendChild(link); link.click();
+                  document.body.removeChild(link); URL.revokeObjectURL(url);
+                  mostrarToast("✅ Parecer re-impresso com sucesso.");
+                } else { mostrarToast("❌ Falha ao re-imprimir o parecer."); }
+              } finally { setGerandoDespacho(false); }
+            }} disabled={gerandoDespacho}
+            className="w-full bg-[var(--bg-secondary)] hover:bg-[#FFF7ED] border border-[#EA580C] text-[#EA580C] font-medium py-2 rounded-lg text-sm transition-colors">
+              🖨️ Re-imprimir Parecer {indeferimentoParaReimprimir.numeroParecer}
+            </button>
+          )}
+          <button onClick={async () => { setDataEmissao(new Date().toLocaleDateString("pt-BR")); await salvarSilencioso(); setModalIndeferimento(true); }} disabled={salvando}
             className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
@@ -1980,6 +2049,16 @@ export default function MacPage() {
             <textarea value={obsIndeferimento} onChange={(e) => setObsIndeferimento(e.target.value)}
               placeholder="Observações adicionais (opcional)..."
               className="w-full mt-3 bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded p-2 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-20" />
+            <div className="flex flex-col gap-1 mt-3">
+              <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data de emissão do parecer</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={dataEmissao}
+                onChange={(e) => setDataEmissao(mascararDataBR(e.target.value))}
+                placeholder="dd/mm/aaaa"
+                className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-2 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-red-500" />
+            </div>
             <div className="flex gap-3 mt-4">
               <button onClick={() => setModalIndeferimento(false)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">

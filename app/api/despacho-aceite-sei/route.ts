@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id } = body;
+    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id, data } = body;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -139,15 +139,16 @@ export async function POST(req: NextRequest) {
       : [];
 
     // Gerar documento baseado no tipo
-    const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento } = await import("@/lib/geradores");
+    const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento, assuntoParaDocumento } = await import("@/lib/geradores");
+    const assunto = assuntoParaDocumento((proc as any)?.tipo_processo);
 
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante, responsavelTecnico });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante, responsavelTecnico, data });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora });
+      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
     } else {
-      buffer = await gerarArquivamento({ processo, interessado, assinante, gerente, diretora });
+      buffer = await gerarArquivamento({ processo, interessado, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
     }
 
     // Registrar último documento emitido
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
         numero_despacho: numeroDespacho ?? null,
         analise_id: analiseId ?? null,
         numero_revisao: Number.isInteger(Number(numero_revisao)) ? Number(numero_revisao) : null,
+        data_despacho: data ?? null,
         cookie_header: req.headers.get("cookie") ?? "",
       });
     } catch (mrpErr) {

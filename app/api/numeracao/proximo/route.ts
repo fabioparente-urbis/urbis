@@ -65,6 +65,23 @@ export async function GET(req: NextRequest) {
   const numeroForcadoValido = Number.isFinite(numeroForcado) &&
     numeroForcado >= faixaDisponivel.proximo &&
     numeroForcado <= faixaDisponivel.numero_final;
+
+  // Idempotência de retry: se o número forçado já foi comprometido (abaixo do
+  // proximo atual) mas ainda pertence à faixa, o commit anterior chegou ao
+  // servidor. Devolvemos ok sem consumir outro número.
+  if (
+    modo === "commit" &&
+    Number.isFinite(numeroForcado) &&
+    numeroForcado >= faixaDisponivel.numero_inicial &&
+    numeroForcado < faixaDisponivel.proximo
+  ) {
+    const restantesIdem = faixas.reduce((acc, f) => {
+      if (f.proximo <= f.numero_final) return acc + (f.numero_final - f.proximo + 1);
+      return acc;
+    }, 0);
+    return NextResponse.json({ ok: true, numero: numeroForcado, restantes: restantesIdem });
+  }
+
   const numero = (modo === "commit" && numeroForcadoValido)
     ? numeroForcado
     : faixaDisponivel.proximo;

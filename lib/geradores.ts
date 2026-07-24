@@ -6,6 +6,21 @@ import {
 import fs from "fs";
 import path from "path";
 
+/**
+ * Assunto que aparece no cabeçalho dos documentos gerados (despacho,
+ * indeferimento, arquivamento). Centralizado aqui para que novos slots
+ * só precisem adicionar uma linha neste mapa.
+ */
+export function assuntoParaDocumento(tipoProcesso: string | null | undefined): string {
+  const t = String(tipoProcesso ?? "").toLowerCase();
+  const mapa: Record<string, string> = {
+    regularizacao: "ALVARÁ DE REGULARIZAÇÃO",
+    aceite_sei:    "ALVARÁ DE REGULARIZAÇÃO",
+    // novos slots → adicionar aqui
+  };
+  return mapa[t] ?? "APROVAÇÃO DE PROJETO";
+}
+
 const TEXTOS_DESPACHO: Record<string, string> = {
   d1: "Rever Certidão de Matrícula do imóvel ou certidão de compra e venda;",
   d2: `Conforme Art. 2º, inc. VII da Lei Complementar 314/2018, além de ART/RRT de levantamento da edificação, deverá ser anexado ao processo "relatório/laudo técnico que conste o tipo de estrutura, condições de segurança e habitabilidade da edificação, registros fotográficos da situação atual do imóvel" onde ATESTE as condições de segurança e habitabilidade da edificação;`,
@@ -337,14 +352,32 @@ function linhaResponsavelTecnico(resp?: { cau?: string | null; crea?: string | n
   return [p(partes, { align: AlignmentType.LEFT, after: 80 })];
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; }): Promise<Buffer> {
+// Data de emissão dos documentos. O cliente envia "dd/mm/aaaa" (data escolhida
+// no modal de emissão); se vier vazia ou inválida, cai para "hoje". Fixamos
+// meio-dia local ao parsear para a data não escorregar de dia ao formatar em
+// qualquer fuso (o servidor Railway roda em UTC).
+function parseDataBR(s?: string | null): Date | null {
+  const m = String(s ?? "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const dt = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+function fmtDataLonga(data?: string | null, comSemana = false): string {
+  const dt = parseDataBR(data) ?? new Date();
+  return dt.toLocaleDateString("pt-BR", {
+    ...(comSemana ? { weekday: "long" as const } : {}),
+    day: "numeric", month: "long", year: "numeric",
+  });
+}
+
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
     cargo: dados.setor || "SEFIC / DIRAAP / GERAED",
     registro: dados.crea || "CREA 11716/D-GO",
   };
-  const dataAssinatura = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const dataAssinatura = fmtDataLonga(dados.data, true);
   const ano = new Date().getFullYear().toString();
   const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   const children: Paragraph[] = [];
@@ -396,14 +429,14 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; }): Promise<Buffer> {
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
     cargo: dados.setor || "SEFIC / DIRAAP / GERAED",
     registro: dados.crea || "CREA 11716/D-GO",
   };
-  const dataAssinatura = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const dataAssinatura = fmtDataLonga(dados.data, true);
   const ano = new Date().getFullYear().toString();
   const children: Paragraph[] = [];
 
@@ -452,14 +485,14 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
     cargo: "Análise e Licenciamento de Edificações",
     registro: dados.crea || "CREA 11716/D-GO",
   };
-  const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+  const dataGoiania = fmtDataLonga(dados.data);
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
   const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
@@ -471,8 +504,8 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   children.push(vazio(160));
   children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
-  children.push(p([txt("Assunto:  "), txt("APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ___   |   ${ano}`, { bold: true, size: 22 })] }));
+  children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(p([txt("AO INTERESSADO/AUTOR")], { align: AlignmentType.LEFT, after: 120 }));
   children.push(p([txt("Versam os autos sobre a solicitação de "), txt("APROVAÇÃO DE PROJETO", { bold: true }), txt(`, para o imóvel situado à `), txt(dados.endereco || dados.processo, { bold: true }), txt(". O processo obteve as seguintes análises:")], { after: 100 }));
   dados.analises.filter(a => a.data && a.data !== "NP").forEach((a, i, arr) => {
@@ -508,14 +541,14 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; }): Promise<Buffer> {
+export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
     cargo: "Análise e Licenciamento de Edificações",
     registro: dados.crea || "CREA 11716/D-GO",
   };
-  const dataGoiania = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+  const dataGoiania = fmtDataLonga(dados.data);
   const ano = new Date().getFullYear().toString();
   const CW = A4_W - MARGINS.left - MARGINS.right;
   const nb = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
@@ -527,8 +560,8 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   children.push(vazio(160));
   children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
-  children.push(p([txt("Assunto:  "), txt("APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
-  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ___   |   ${ano}`, { bold: true, size: 22 })] }));
+  children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
+  children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(p([txt("AO ARQUIVO")], { align: AlignmentType.LEFT, after: 160 }));
   children.push(p([txt("Conforme o Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº. 546, de 27 de fevereiro de 2015, definem procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal, e por não cumprimento ao exigido nos despachos anteriormente listados, esta Diretoria comunica o "), txt("ARQUIVAMENTO DO PROCESSO", { bold: true }), txt(", nos termos do Art. 4, Inciso 4.5 e seguintes do Decreto citado, tendo sido o pedido de reconsideração "), txt("INDEFERIDO", { bold: true }), txt(" pela instância competente e exigirá para expectativa de futura aprovação a abertura de "), txt("NOVO PROCESSO", { bold: true }), txt(", mediante o pagamento das respectivas taxas.")], { after: 240 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));

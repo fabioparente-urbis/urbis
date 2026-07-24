@@ -3,6 +3,7 @@ import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
 
 type Origem = "original" | "urbis" | "manual" | "padrao";
 type Campo = { valor: string; origem: Origem; fonte?: string };
@@ -184,6 +185,9 @@ export default function ProcessoClient() {
   const [vcpDragOver, setVcpDragOver] = useState(false);
   const [vcpSugestoes, setVcpSugestoes] = useState<Record<string, string>>({});
   const [vcpModo, setVcpModo] = useState<"substituir"|"sugerir"|null>(null);
+  // Marco temporal (LC 314/2018): quando a última vistoria reprova a obra,
+  // avisa em janela no meio da tela — só avisa, não bloqueia nada.
+  const [alertaMarco, setAlertaMarco] = useState<VeredictoMarcoTemporal | null>(null);
 
   const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
   const [mostrarPendentes, setMostrarPendentes] = useState(false);
@@ -516,6 +520,7 @@ export default function ProcessoClient() {
     const _dataLeitura = new Date().toLocaleString("pt-BR");
     let _docsLeitura: any[] = [];
     let _incompatLeitura: string[] = [];
+    let _veredicto: VeredictoMarcoTemporal | null = null;
     try {
       setLendoLip(true);
       setTempoLeitura(0);
@@ -586,6 +591,8 @@ export default function ProcessoClient() {
             alertasMAC: s3Data.alertasMAC ?? [],
             validacoes: s3Data.validacoes ?? {},
             pendencias: s3Data.pendencias ?? [],
+            marcoTemporal: s3Data.marcoTemporal ?? null,
+            tipoProcesso: s3Data.tipoProcesso ?? null,
             documentos,
           };
         })(arquivo));
@@ -596,6 +603,29 @@ export default function ProcessoClient() {
         if (Array.isArray((r as any).documentos)) _docsLeitura.push(...(r as any).documentos);
         if (Array.isArray((r as any).pendencias)) _incompatLeitura.push(...(r as any).pendencias);
         if (Array.isArray((r as any).alertasMAC)) _incompatLeitura.push(...(r as any).alertasMAC);
+      }
+
+      // ── Marco temporal (LC 314/2018) ──────────────────────────────
+      // Vale o pior veredito entre os arquivos lidos: basta uma vistoria
+      // reprovar para o processo não passar. O veredito é do fiscal — o
+      // URBIS só lê o último laudo e repassa.
+      const _comMarco = resultados
+        .map((r) => avaliarMarcoTemporal((r as any).tipoProcesso ?? tipoUrl, (r as any).marcoTemporal))
+        .filter((v): v is VeredictoMarcoTemporal => v !== null);
+      _veredicto =
+        _comMarco.find((v) => v.naoApta === true) ??
+        _comMarco.find((v) => v.naoApta === null) ??
+        _comMarco[0] ??
+        null;
+      if (_veredicto?.naoApta === true) {
+        setAlertaMarco(_veredicto);
+        registrar({
+          modulo: "LIP",
+          acao: "LIP_MARCO_TEMPORAL_REPROVADO",
+          processo_codigo: idUrl,
+          origem: "IA",
+          detalhe: { marco: _veredicto.marco.data, leitura: _veredicto.leitura },
+        });
       }
 
       setProgresso(90);
@@ -635,11 +665,22 @@ export default function ProcessoClient() {
       const _linhasIncompat = _incompatUnicas.length
         ? _incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n")
         : "  • Nenhuma incompatibilidade apontada pela IA.";
+      const _linhasMarco = _veredicto
+        ? "\n" + [
+            `⚖️ Marco temporal (LC nº 314/2018 — limite ${_veredicto.marco.data}):`,
+            `  ${_veredicto.naoApta === true ? "⛔" : _veredicto.naoApta === false ? "✅" : "⚠"} ${_veredicto.mensagem}`,
+            `  • Conclusão da obra segundo a vistoria: ${_veredicto.leitura.dataConclusaoObra || "Não informado"}`,
+            `  • Parecer do fiscal: ${_veredicto.leitura.parecerFiscal || "Não informado"}`,
+            ...(_veredicto.leitura.fonte ? [`  • Fonte: ${_veredicto.leitura.fonte}`] : []),
+            ...(_veredicto.leitura.trecho ? [`  • Trecho: "${_veredicto.leitura.trecho}"`] : []),
+          ].join("\n")
+        : "";
       const _bloco =
         `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
         `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) preenchido(s)\n` +
         `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
-        `🔎 Incompatibilidades:\n${_linhasIncompat}`;
+        `🔎 Incompatibilidades:\n${_linhasIncompat}` +
+        _linhasMarco;
       anexarObsLip(_bloco);
 
       mostrarToast(`✅ LIP preenchido! ${preenchidos} campos extraídos.`, "sucesso");
@@ -1065,6 +1106,52 @@ export default function ProcessoClient() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      {alertaMarco && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+            <h2 className="text-lg font-bold text-red-400 mb-1">⛔ MARCO TEMPORAL NÃO ATENDIDO</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Lei Complementar nº 314, de 05 de novembro de 2018 — {alertaMarco.marco.rotulo}: limite {alertaMarco.marco.data}
+            </p>
+            <p className="text-sm text-[var(--text-primary)] mb-4">
+              Segundo a <strong>última vistoria fiscal</strong>, a edificação <strong>não está apta</strong>:
+              a estrutura não estava concluída antes de {alertaMarco.marco.data}.
+            </p>
+            <p className="text-sm text-red-300 font-semibold mb-4">
+              Este processo deve ser INDEFERIDO por não atender ao marco temporal da
+              Lei Complementar nº 314/2018 — não há necessidade de analisá-lo.
+            </p>
+            <div className="bg-[var(--bg-secondary)] rounded-lg p-3 mb-4 text-xs space-y-1">
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--text-muted)]">Conclusão da obra segundo a vistoria:</span>{" "}
+                <strong className="text-[var(--text-primary)]">{alertaMarco.leitura.dataConclusaoObra || "Não informado"}</strong>
+              </p>
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--text-muted)]">Parecer do fiscal:</span>{" "}
+                <strong className="text-[var(--text-primary)]">{alertaMarco.leitura.parecerFiscal || "Não informado"}</strong>
+              </p>
+              {alertaMarco.leitura.fonte && (
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text-muted)]">Fonte:</span> {alertaMarco.leitura.fonte}
+                </p>
+              )}
+              {alertaMarco.leitura.trecho && (
+                <p className="text-[var(--text-muted)] italic pt-1 border-t border-[var(--border)]">
+                  “{alertaMarco.leitura.trecho}”
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Confira o laudo antes de decidir — o URBIS apenas repassa o que o fiscal registrou.
+              O registro completo ficou nas Observações do LIP.
+            </p>
+            <button onClick={() => setAlertaMarco(null)}
+              className="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
       {modalLimparLip && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">

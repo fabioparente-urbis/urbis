@@ -4,6 +4,7 @@ import { GEMINI_MODEL, type GeminiModel } from "@/lib/constants";
 const _modeloValidado: GeminiModel = GEMINI_MODEL;
 import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
+import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,7 +56,22 @@ export async function POST(req: NextRequest) {
     const ctxDocs = documentos?.length
       ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-    const promptFinal = promptData.conteudo + ctxDocs;
+
+    // Marco temporal (LC 314/2018): só Regularização SEI e Aceite SEI têm data
+    // limite. O bloco vai DEPOIS do prompt do slot — acrescenta a verificação
+    // da última vistoria sem alterar nada do que o slot já extrai.
+    let tipoProcesso: string | null = null;
+    if (codigo) {
+      const { data: procTipo } = await supabaseAdmin
+        .from("processos")
+        .select("tipo_processo")
+        .eq("codigo", codigo)
+        .maybeSingle();
+      tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
+    }
+    const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
+
+    const promptFinal = promptData.conteudo + ctxDocs + blocoMarco;
 
     // Cria job no banco
     const { data: job, error: jobErr } = await supabaseAdmin
@@ -71,7 +87,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY!;
 
     // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
-    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName }).catch(
+    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso }).catch(
       (e) => console.error("[S3-bg] erro não capturado:", e?.message)
     );
 
@@ -98,8 +114,9 @@ async function processarJobBackground(jobId: string, params: {
   apiKey: string;
   codigo?: string;
   fileName?: string;
+  tipoProcesso?: string | null;
 }) {
-  const { fileUri, promptFinal, apiKey, codigo, fileName } = params;
+  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso } = params;
   try {
     let texto = "";
     let geminiOk = false;
@@ -190,6 +207,18 @@ async function processarJobBackground(jobId: string, params: {
       for (const c of CAMPOS_NP) {
         if (!campos[c]) campos[c] = { valor: "NP", fonte: "Nao identificado" };
       }
+
+      // "Sem uso definido": o CNAE 000000008 (ou "8") NÃO é atividade econômica —
+      // é a ausência de uso definido. Trata como se não houvesse CNAE (tudo NP) e
+      // marca usoDefinido="Não". Trava determinística: o modelo às vezes devolve o
+      // código cru "000000008" em vez de reconhecer o "sem uso definido".
+      const c1 = (campos.cnae1?.valor || "").trim();
+      if (/^0*8$/.test(c1) || /sem uso definido/i.test(c1)) {
+        for (const c of ["cnae1", "cnae2", "cnae3", "cnae4", "cnae5"]) {
+          campos[c] = { valor: "NP", fonte: "Sem uso definido" };
+        }
+        campos.usoDefinido = { valor: "Não", fonte: campos.usoDefinido?.fonte || "Despacho CHEADV" };
+      }
     }
 
     const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
@@ -203,6 +232,10 @@ async function processarJobBackground(jobId: string, params: {
         alertasMAC: dados.alertasMAC ?? [],
         validacoes: dados.validacoes ?? {},
         pendencias: dados.pendencias ?? [],
+        // Marco temporal (LC 314/2018) — só vem preenchido nos slots que têm
+        // data limite; o veredito é do fiscal, o URBIS só repassa.
+        marcoTemporal: dados.marcoTemporal ?? null,
+        tipoProcesso: tipoProcesso ?? null,
       },
       atualizado_em: new Date().toISOString(),
     }).eq("id", jobId);

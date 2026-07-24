@@ -22,7 +22,16 @@ export type GravarRegistroInput = {
   analise_id?: string | null;     // id em analises_mac (preferido)
   cookie_header: string;           // request.headers.get('cookie')
   numero_revisao?: number | null;  // vindo do body se já souber
+  data_despacho?: string | null;   // data de emissão escolhida ("dd/mm/aaaa")
 };
+
+// "dd/mm/aaaa" → Date local ao meio-dia (evita escorregar de dia em UTC).
+function parseDataBR(s?: string | null): Date | null {
+  const m = String(s ?? "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const dt = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), 12, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
 
 /**
  * Grava (upsert) um registro em mrp_registros. Falhas são silenciosas
@@ -67,7 +76,8 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     const pontos = calcularPontos(metricas.porte, metricas.area);
     const usuarioId = analise?.analista_id || (proc as any).analista_id || analistaId;
     const numeroRev = input.numero_revisao ?? analise?.numero_revisao ?? null;
-    const agora = new Date();
+    // Data de emissão escolhida no modal; sem ela, "agora".
+    const agora = parseDataBR(input.data_despacho) ?? new Date();
 
     // 3) Upsert idempotente
     const payload = {
@@ -81,7 +91,9 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
       bairro: metricas.bairro || null,
       setor: metricas.setor || null,
       numero_sei: input.processo_codigo,
-      numero_fisico: (proc as any).numero_processo_fisico || null,
+      numero_fisico: (proc as any).numero_processo_fisico
+        || (proc as any).dados?.numero_processo_fisico?.valor
+        || null,
       tipo_despacho: input.tipo_despacho,
       numero_despacho: input.numero_despacho ?? null,
       numero_analise: analise?.numero_analise ?? null,
