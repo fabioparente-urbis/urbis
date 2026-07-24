@@ -98,6 +98,20 @@ function rotuloTipo(slug: string): string {
   return "Regularização SEI";
 }
 
+// A SEI é o número que o usuário digitou ao cadastrar (o código do processo) —
+// é a autoridade, não a leitura do PDF. A IA às vezes joga o número FÍSICO
+// (só dígitos) no campo "Processo SEI"; nesse caso recuperamos para o campo
+// físico (se estiver vazio) e restauramos a SEI. Só age em processos SEI
+// (código em formato NUP, ex.: 26.5.000009203-2). Muta `novo` in-place.
+function corrigirSeiFisico(novo: Record<string, Campo>, codigo: string): void {
+  if (!/^\d{2}\.\d{1,2}\.\d{6,}-\d$/.test(codigo)) return;
+  const extraido = novo.processo?.valor ? String(novo.processo.valor).trim() : "";
+  if (extraido && extraido !== codigo && !novo.processoFisico?.valor && /^\d{5,}$/.test(extraido)) {
+    novo.processoFisico = { valor: extraido, origem: "urbis", fonte: novo.processo?.fonte || "Leitura do processo" };
+  }
+  novo.processo = { valor: codigo, origem: "manual", fonte: "Número informado no cadastro" };
+}
+
 // Conversão UTM Zona 22S (SIRGAS 2000) → lat/lng
 function utmToLatLng(easting: number, northing: number): { lat: number; lng: number } {
   const k0 = 0.9996, a = 6378137.0, e = 0.0818191908426;
@@ -648,6 +662,7 @@ export default function ProcessoClient() {
 
           novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
         });
+        corrigirSeiFisico(novo, idUrl);
         autoSalvar(novo);
         return novo;
       });
@@ -817,6 +832,7 @@ export default function ProcessoClient() {
             if (!item?.valor) return;
             novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
           });
+          corrigirSeiFisico(novo, idUrl);
           const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
           const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
           novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
