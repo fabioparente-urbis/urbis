@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
       Interessado: r.interessado ?? "",
       Assunto: r.assunto ?? "",
       "Tipo Processo": r.tipo_processo,
+      Gerência: r.gerencia ?? "",
       Porte: r.porte,
       "Área (m²)": Number(r.area_construida ?? 0),
       "Tipo Despacho": r.tipo_despacho,
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
   const headRow = new TableRow({
     tableHeader: true,
     children: [
-      "Data", "Processo", "Interessado", "Assunto", "Porte",
+      "Data", "Processo", "Interessado", "Assunto", "Gerência", "Porte",
       "Área (m²)", "Tipo Despacho", "Nº Desp.", "Pts", "Obs.",
     ].map((h) => new TableCell({
       shading: { fill: "1e293b" },
@@ -105,6 +106,7 @@ export async function GET(req: NextRequest) {
         r.processo_codigo,
         r.interessado ?? "",
         r.assunto ?? "",
+        r.gerencia ?? "",
         r.porte,
         Number(r.area_construida ?? 0).toLocaleString("pt-BR"),
         r.tipo_despacho,

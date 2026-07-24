@@ -13,6 +13,7 @@ import {
   extrairMetricasProcesso,
   type TipoDespacho,
 } from "@/lib/mrp";
+import { resolverSlot } from "@/lib/assuntos";
 
 export type GravarRegistroInput = {
   processo_codigo: string;
@@ -65,16 +66,31 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     // 2) Carrega processo + dados
     const { data: proc } = await supabaseAdmin
       .from("processos")
-      .select("dados, analista_id, tipo_processo, numero_processo_fisico")
+      .select("dados, analista_id, tipo_processo, assunto_id, numero_processo_fisico")
       .eq("codigo", input.processo_codigo)
       
       .maybeSingle();
 
     if (!proc) return { ok: false, motivo: "processo não encontrado" };
 
+    // Mesma resolução usada pelo caminho cliente (/api/mrp/registros) —
+    // os dois fazem upsert na MESMA linha, então precisam concordar.
+    const slot = await resolverSlot({
+      processo_codigo: input.processo_codigo,
+      tipo_processo: input.tipo_processo,
+      assunto_id: (proc as any).assunto_id,
+    });
+
     const metricas = extrairMetricasProcesso((proc as any).dados);
     const pontos = calcularPontos(metricas.porte, metricas.area);
     const usuarioId = analise?.analista_id || (proc as any).analista_id || analistaId;
+
+    // Gerência de quem assina, congelada nesta data. Vem do cadastro do
+    // usuário — nunca da obra. Se a pessoa mudar de lotação depois, os
+    // despachos já emitidos continuam contando na gerência de origem.
+    const { data: autor } = await supabaseAdmin
+      .from("usuarios").select("gerencia").eq("id", usuarioId).maybeSingle();
+    const gerencia = (autor as { gerencia?: string | null } | null)?.gerencia ?? null;
     const numeroRev = input.numero_revisao ?? analise?.numero_revisao ?? null;
     // Data de emissão escolhida no modal; sem ela, "agora".
     const agora = parseDataBR(input.data_despacho) ?? new Date();
@@ -83,10 +99,13 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     const payload = {
       usuario_id: usuarioId,
       processo_codigo: input.processo_codigo,
-      tipo_processo: input.tipo_processo,
+      tipo_processo: slot.slug ?? input.tipo_processo,
+      assunto_id: slot.assunto_id,
       interessado: metricas.interessado || null,
+      // Assunto da OBRA (extraído do LIP), não o nome do slot.
       assunto: metricas.assunto || null,
-      porte: metricas.porte,
+      porte: metricas.porte,   // PP | MP | GP — porte da edificação
+      gerencia,                // GERECCO | GERAED | GERAGP — do analista
       area_construida: metricas.area,
       bairro: metricas.bairro || null,
       setor: metricas.setor || null,

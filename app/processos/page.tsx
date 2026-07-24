@@ -150,6 +150,17 @@ export default function ProcessosPage() {
   const podeFiltrarAnalista = irrestrito || ehGerente;
   const souAdmin = perfisUsuario.includes("Administrador");
   const [avisoLipVazio, setAvisoLipVazio] = useState(false);
+  // Slots vindos do banco: o filtro e os rótulos acompanham qualquer slot
+  // novo sem precisar de deploy.
+  const [assuntos, setAssuntos] = useState<{ id: string; slug: string; nome: string; ativo: boolean }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/assuntos")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setAssuntos(j.data ?? []); })
+      .catch(() => { /* filtro cai no fallback estático */ });
+  }, []);
+  const rotuloTipo = (slug: string | null | undefined) =>
+    assuntos.find((a) => a.slug === slug)?.nome ?? TIPO_ROTULO[slug ?? ""] ?? slug ?? "—";
 
   async function removerTag(processoId: string, codigo: string, tagId: string) {
     await fetch("/api/processo/tag", {
@@ -318,7 +329,9 @@ export default function ProcessosPage() {
         <select value={tipo} onChange={(e) => setTipo(e.target.value)}
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
           <option value="">Todos os tipos</option>
-          <option value="regularizacao">Regularização SEI</option>
+          {assuntos.filter((a) => a.ativo).map((a) => (
+            <option key={a.id} value={a.slug}>{a.nome}</option>
+          ))}
         </select>
         <select value={status} onChange={(e) => setStatus(e.target.value)}
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
@@ -389,7 +402,7 @@ export default function ProcessosPage() {
 
                 {/* Tipo */}
                 <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-                  {TIPO_ROTULO[p.tipo_processo] || p.tipo_processo || "—"}
+                  {rotuloTipo(p.tipo_processo)}
                 </span>
 
                 {/* Status */}

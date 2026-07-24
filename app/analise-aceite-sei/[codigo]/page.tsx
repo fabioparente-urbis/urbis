@@ -667,7 +667,9 @@ export default function MacPage() {
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,
           numero_fisico: dlFresh?.processoFisico?.valor ?? null,
-          assunto: assuntoNome,
+          // O slot vai por id; `assunto` (obra) o servidor extrai do LIP.
+          assunto_id: assuntoId,
+          tipo_processo: tipoProcesso || null,
           data_despacho: dataBRparaISO(dataEmissao),
           auto_gerado: true,
         }),
@@ -945,7 +947,8 @@ export default function MacPage() {
           bairro: dlFresh?.bairro?.valor ?? null,
           numero_sei: dlFresh?.processo?.valor ?? codigo,
           numero_fisico: dlFresh?.processoFisico?.valor ?? null,
-          assunto: assuntoNome,
+          assunto_id: assuntoId,
+          tipo_processo: tipoProcesso || null,
           auto_gerado: true,
         }),
       }).then(async r => { const j = await r.json(); console.log("[MRP-AUTO]", r.status, JSON.stringify(j)); }).catch(e => console.error("[MRP-AUTO] ERRO:", e?.message));

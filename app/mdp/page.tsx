@@ -13,6 +13,9 @@ type Registro = {
   conteudo: Record<string, any>;
   criado_em: string;
   usuario: { nome: string; gerencia: string | null } | null;
+  assunto_id: string | null;
+  assunto: { slug: string; nome: string } | null;
+  interessado: string | null;
 };
 
 const TIPO_LABEL: Record<string, string> = {
@@ -78,7 +81,7 @@ export default function MdpPage() {
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && buscar()}
-              placeholder="Buscar por processo, número, destinatário..."
+              placeholder="Buscar por interessado ou número do processo..."
               className="w-full pl-9 pr-4 py-2.5 text-sm bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--accent)] text-[var(--text-primary)] placeholder-[var(--text-muted)]"
             />
           </div>
@@ -112,9 +115,18 @@ export default function MdpPage() {
                         {r.data_despacho && (
                           <span className="text-xs text-[var(--text-muted)]">{r.data_despacho}</span>
                         )}
+                        {r.assunto && (
+                          <span className="text-xs font-medium px-2 py-0.5 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]">
+                            {r.assunto.nome}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                        <span className="font-medium truncate">{r.processo_codigo}</span>
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)] flex-wrap">
+                        <span className="font-medium whitespace-nowrap">{r.processo_codigo}</span>
+                        {r.interessado && (
+                          <><span className="text-[var(--text-muted)]">·</span>
+                          <span className="truncate">{r.interessado}</span></>
+                        )}
                         {r.destinatario && <><span className="text-[var(--text-muted)]">→</span><span className="truncate">{r.destinatario}</span></>}
                       </div>
                       {r.usuario && (

@@ -14,14 +14,35 @@ import MrpEquipeView from "@/components/MrpEquipeView";
 type AbaTopo = "usuario" | "equipe";
 type Aba = "dashboard" | "dossie" | "listona";
 
+type Assunto = { id: string; slug: string; nome: string; ativo: boolean };
+
+/**
+ * Slots vindos do banco. Filtros e rótulos do MRP passam a acompanhar
+ * qualquer slot novo sem deploy — antes as opções eram fixas no código e
+ * um slot novo simplesmente não aparecia no filtro de produtividade.
+ */
+function useAssuntos() {
+  const [assuntos, setAssuntos] = useState<Assunto[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/assuntos")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setAssuntos(j.data ?? []); })
+      .catch(() => { /* sem slots: filtro fica só com "Todos" */ });
+  }, []);
+  const rotulo = (slug: string | null | undefined) =>
+    assuntos.find((a) => a.slug === slug)?.nome ?? slug ?? "—";
+  return { assuntos, rotulo };
+}
+
 type FormManual = {
   data_despacho: string;
-  assunto: string;
+  // Slot escolhido. Era um campo de texto livre cujo valor ia parar em
+  // `tipo_processo` — origem das grafias divergentes no banco.
+  assunto_id: string;
   tipo_despacho: string;
   processo_codigo: string;
   numero_fisico: string;
   interessado: string;
-  porte: string;
   area_construida: string;
   pontos: string;
   observacoes: string;
@@ -117,12 +138,11 @@ function MrpInner() {
   const [assuntos, setAssuntos] = useState<{ id: string; nome: string }[]>([]);
   const [formManual, setFormManual] = useState<FormManual>({
     data_despacho: new Date().toISOString().slice(0, 10),
-    assunto: "",
+    assunto_id: "",
     tipo_despacho: "despacho",
     processo_codigo: "",
     numero_fisico: "",
     interessado: "",
-    porte: "GERAED",
     area_construida: "",
     pontos: "2.5",
     observacoes: "",
@@ -165,8 +185,8 @@ function MrpInner() {
         if (j.ok) {
           const ativos = (j.data as any[]).filter((a) => a.ativo);
           setAssuntos(ativos);
-          if (ativos.length > 0 && !formManual.assunto) {
-            setFormManual((f) => ({ ...f, assunto: ativos[0].nome }));
+          if (ativos.length > 0 && !formManual.assunto_id) {
+            setFormManual((f) => ({ ...f, assunto_id: ativos[0].id }));
           }
         }
       } catch { /* usa lista vazia */ }
@@ -191,11 +211,10 @@ function MrpInner() {
           numero_sei: formManual.processo_codigo.trim(),
           numero_fisico: formManual.numero_fisico.trim() || null,
           interessado: formManual.interessado.trim() || null,
-          porte: formManual.porte || null,
           area_construida: Number(formManual.area_construida) || 0,
-          tipo_processo: formManual.assunto || "regularizacao",
+          // Só o id do slot: o servidor resolve slug e nome a partir dele.
+          assunto_id: formManual.assunto_id || null,
           tipo_despacho: formManual.tipo_despacho,
-          assunto: formManual.assunto || null,
           data_despacho: new Date(formManual.data_despacho + "T12:00:00").toISOString(),
           pontos: Number(formManual.pontos) || 2.5,
           observacoes: formManual.observacoes || null,
@@ -206,12 +225,11 @@ function MrpInner() {
         setMsgManual("✅ Registro salvo com sucesso.");
         setFormManual({
           data_despacho: new Date().toISOString().slice(0, 10),
-          assunto: assuntos.length > 0 ? assuntos[0].nome : "",
+          assunto_id: assuntos.length > 0 ? assuntos[0].id : "",
           tipo_despacho: "despacho",
           processo_codigo: "",
           numero_fisico: "",
           interessado: "",
-          porte: "GERAED",
           area_construida: "",
           pontos: "2.5",
           observacoes: "",
@@ -360,19 +378,13 @@ function MrpInner() {
                   className="w-full border rounded px-3 py-2 text-sm"
                 />
               </div>
-              {/* Porte + Área */}
+              {/* Área — gerência vem do cadastro do analista e porte da área */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Gerência</label>
-                  <select
-                    value={formManual.porte}
-                    onChange={(e) => setFormManual((f) => ({ ...f, porte: e.target.value }))}
-                    className="w-full border rounded px-3 py-2 text-sm">
-                    <option value="GERECCO">GERECCO</option>
-                    <option value="GERAED">GERAED</option>
-                    <option value="GERAGP">GERAGP</option>
-                    <option value="DIRAAP">DIRAAP (direto)</option>
-                  </select>
+                  <div className="w-full border rounded px-3 py-2 text-sm bg-gray-50 text-gray-500">
+                    do seu cadastro
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Área m²</label>
@@ -387,20 +399,17 @@ function MrpInner() {
                 </div>
               </div>
 
-              {/* Assunto — livre com sugestões */}
+              {/* Slot — seleção fechada, para não reintroduzir grafias soltas */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Processo</label>
-                <input
-                  type="text"
-                  list="assuntos-list"
-                  value={formManual.assunto}
-                  onChange={(e) => setFormManual((f) => ({ ...f, assunto: e.target.value }))}
-                  placeholder="Ex.: Regularização, Aprovação..."
+                <select
+                  value={formManual.assunto_id}
+                  onChange={(e) => setFormManual((f) => ({ ...f, assunto_id: e.target.value }))}
                   className="w-full border rounded px-3 py-2 text-sm"
-                />
-                <datalist id="assuntos-list">
-                  {assuntos.map((a) => <option key={a.id} value={a.nome} />)}
-                </datalist>
+                >
+                  <option value="">Selecione…</option>
+                  {assuntos.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </select>
               </div>
 
               {/* Tipo de despacho + Pontos */}
@@ -473,6 +482,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
   mes: number; ano: number; usuarioId: string | null; somenteLeitura: boolean; isAdminOuDiretora?: boolean;
 }) {
   const [data, setData] = useState<PainelResposta | null>(null);
+  const { rotulo } = useAssuntos();
   const [analista, setAnalista] = useState<{ nome: string; reducao_meta: number; meta_base_legal: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [cal, setCal] = useState({ dias_uteis: 22, ferias: 0, atestado: 0, feriados: 0, facultativo: 0 });
@@ -662,10 +672,13 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
             <Pie dados={data.stats.por_tipo_despacho.map((x) => ({ label: x.tipo, value: x.count }))} />
           </Card>
           <Card titulo="Por tipo de processo">
-            <Pie dados={data.stats.por_tipo_processo.map((x) => ({ label: x.tipo, value: x.count }))} />
+            <Pie dados={data.stats.por_tipo_processo.map((x) => ({ label: rotulo(x.tipo), value: x.count }))} />
           </Card>
-          <Card titulo="m² por gerência (MP vs GP)">
+          <Card titulo="m² por porte da edificação">
             <BarH dados={data.stats.por_porte.map((x) => ({ label: x.porte, value: x.area_total }))} sufixo=" m²" />
+          </Card>
+          <Card titulo="m² por gerência">
+            <BarH dados={data.stats.por_gerencia.map((x) => ({ label: x.gerencia, value: x.area_total }))} sufixo=" m²" />
           </Card>
           <Card titulo="Produção por dia da semana">
             <BarH dados={data.stats.por_dia_semana.map((x) => ({ label: x.dia, value: x.count }))} />
@@ -769,7 +782,8 @@ function Dossie() {
               <Dl k="Interessado" v={data.processo.interessado || "—"} />
               <Dl k="Assunto" v={data.processo.assunto || "—"} />
               <Dl k="Área construída" v={`${(data.processo.area || 0).toLocaleString("pt-BR")} m²`} />
-              <Dl k="Gerência" v={data.processo.porte} />
+              <Dl k="Gerência" v={data.processo.gerencia || "—"} />
+              <Dl k="Porte" v={data.processo.porte || "—"} />
               <Dl k="Bairro" v={data.processo.bairro || "—"} />
               <Dl k="Setor" v={data.processo.setor || "—"} />
             </dl>
@@ -841,8 +855,9 @@ function Dossie() {
 function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; usuarioId: string | null; isAdmin: boolean }) {
   const [regs, setRegs] = useState<any[]>([]);
   const [filtros, setFiltros] = useState({
-    tipo_processo: "", tipo_despacho: "", porte: "", revisao: "", q: "",
+    tipo_processo: "", tipo_despacho: "", gerencia: "", porte: "", revisao: "", q: "",
   });
+  const { assuntos, rotulo } = useAssuntos();
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<any | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -853,6 +868,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
     if (usuarioId) qs.set("usuario_id", usuarioId);
     if (filtros.tipo_processo) qs.set("tipo_processo", filtros.tipo_processo);
     if (filtros.tipo_despacho) qs.set("tipo_despacho", filtros.tipo_despacho);
+    if (filtros.gerencia) qs.set("gerencia", filtros.gerencia);
     if (filtros.porte) qs.set("porte", filtros.porte);
     if (filtros.revisao) qs.set("revisao", filtros.revisao);
     if (filtros.q) qs.set("q", filtros.q);
@@ -863,7 +879,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
   }
 
   useEffect(() => { carregar(); /* eslint-disable-next-line */ }, [mes, ano, usuarioId,
-    filtros.tipo_processo, filtros.tipo_despacho, filtros.porte, filtros.revisao]);
+    filtros.tipo_processo, filtros.tipo_despacho, filtros.gerencia, filtros.porte, filtros.revisao]);
 
   function exportar(formato: "xlsx" | "docx") {
     const qs = new URLSearchParams({ formato, mes: String(mes), ano: String(ano) });
@@ -895,13 +911,16 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
       <div className="bg-white rounded-lg shadow border p-4 mb-4 flex flex-wrap items-end gap-3">
         <FiltroSel label="Tipo processo" value={filtros.tipo_processo}
           onChange={(v) => setFiltros((f) => ({ ...f, tipo_processo: v }))}
-          options={[["", "Todos"], ["aceite_sei", "Aceite SEI"], ["regularizacao", "Regularização"], ["aprovacao_pp", "Aprovação PP"], ["aprovacao_mp", "Aprovação MP"]]} />
+          options={[["", "Todos"] as [string, string], ...assuntos.filter((a) => a.ativo).map((a) => [a.slug, a.nome] as [string, string])]} />
         <FiltroSel label="Tipo despacho" value={filtros.tipo_despacho}
           onChange={(v) => setFiltros((f) => ({ ...f, tipo_despacho: v }))}
           options={[["", "Todos"], ["despacho", "Despacho"], ["aceite", "Aceite"], ["indeferimento", "Indeferimento"], ["arquivamento", "Arquivamento"]]} />
-        <FiltroSel label="Gerência" value={filtros.porte}
+        <FiltroSel label="Gerência" value={filtros.gerencia}
+          onChange={(v) => setFiltros((f) => ({ ...f, gerencia: v }))}
+          options={[["", "Todas"], ["GERECCO", "GERECCO"], ["GERAED", "GERAED"], ["GERAGP", "GERAGP"]]} />
+        <FiltroSel label="Porte" value={filtros.porte}
           onChange={(v) => setFiltros((f) => ({ ...f, porte: v }))}
-          options={[["", "Todos"], ["GERECCO", "GERECCO"], ["GERAED", "GERAED"], ["GERAGP", "GERAGP"]]} />
+          options={[["", "Todos"], ["PP", "PP (até 540 m²)"], ["MP", "MP (540–2.000 m²)"], ["GP", "GP (acima de 2.000 m²)"]]} />
         <FiltroSel label="Revisão" value={filtros.revisao}
           onChange={(v) => setFiltros((f) => ({ ...f, revisao: v }))}
           options={[["", "Todas"], ["true", "Sim"], ["false", "Não"]]} />
@@ -925,14 +944,14 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
           <thead className="bg-slate-100 text-gray-700 text-xs uppercase">
             <tr>
               <Th>Nº SEI</Th><Th>Nº Físico</Th><Th>Interessado</Th><Th>Tipo de Processo</Th>
-              <Th>Gerência</Th><Th>Tipo de Documento</Th><Th className="text-right">Área m²</Th><Th>Envio</Th>
+              <Th>Gerência</Th><Th>Porte</Th><Th>Tipo de Documento</Th><Th className="text-right">Área m²</Th><Th>Envio</Th>
               <Th>Data</Th><Th className="text-right">Pts</Th>
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={10} className="py-6 text-center text-gray-500">Carregando…</td></tr>}
+            {loading && <tr><td colSpan={11} className="py-6 text-center text-gray-500">Carregando…</td></tr>}
             {!loading && regs.length === 0 && (
-              <tr><td colSpan={10} className="py-6 text-center text-gray-500">Sem registros.</td></tr>
+              <tr><td colSpan={11} className="py-6 text-center text-gray-500">Sem registros.</td></tr>
             )}
             {regs.map((r) => {
               const dur = r.data_inicio
@@ -943,8 +962,10 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   <Td className="font-mono text-xs">{r.numero_sei || "—"}</Td>
                   <Td className="font-mono text-xs">{r.numero_fisico || "—"}</Td>
                   <Td>{r.interessado || "—"}</Td>
-                  <Td>{r.assunto || "Regularização"}</Td>
-                  <Td>{r.porte || "-"}</Td>
+                  <Td>{rotulo(r.tipo_processo)}</Td>
+                  {/* Gerência = do analista na emissão. Porte = da edificação. */}
+                  <Td>{r.gerencia || "—"}</Td>
+                  <Td>{r.porte || "—"}</Td>
                   <Td>{r.tipo_despacho || "—"}</Td>
                   <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
@@ -1021,17 +1042,27 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   className="w-full border rounded px-3 py-1.5 text-sm"
                 />
                 <datalist id="tipo-processo-list">
-                  {["regularizacao","aceite_sei","aprovacao_pp","aprovacao_mp"].map(t => <option key={t} value={t} />)}
+                  {assuntos.map(a => <option key={a.id} value={a.slug}>{a.nome}</option>)}
                 </datalist>
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Gerência</label>
-                <select value={editando.porte || "GERAED"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
+                <select value={editando.gerencia || ""} onChange={e => setEditando((v: any) => ({...v, gerencia: e.target.value}))}
                   className="w-full border rounded px-3 py-1.5 text-sm">
+                  <option value="">—</option>
                   <option value="GERECCO">GERECCO</option>
                   <option value="GERAED">GERAED</option>
                   <option value="GERAGP">GERAGP</option>
                   <option value="DIRAAP">DIRAAP (direto)</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Porte da edificação</label>
+                <select value={editando.porte || "PP"} onChange={e => setEditando((v: any) => ({...v, porte: e.target.value}))}
+                  className="w-full border rounded px-3 py-1.5 text-sm">
+                  <option value="PP">PP — até 540 m²</option>
+                  <option value="MP">MP — 540 a 2.000 m²</option>
+                  <option value="GP">GP — acima de 2.000 m²</option>
                 </select>
               </div>
               <div>

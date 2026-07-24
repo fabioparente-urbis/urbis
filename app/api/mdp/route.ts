@@ -1,11 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isPerfilIrrestrito, gerenciaDoPerfil } from "@/lib/perfis";
+import { normalizarBusca } from "@/lib/texto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+/**
+ * Nome do interessado do processo. Mesma cadeia de fallback usada pelos
+ * geradores de documento (`dados.proprietario` → `interessado` →
+ * `nome_proprietario`), para que a listagem do MDP mostre exatamente o
+ * nome que saiu impresso no despacho.
+ */
+async function interessadoDoProcesso(
+  codigo: string,
+  informado?: string | null,
+): Promise<string | null> {
+  if (typeof informado === "string" && informado.trim()) return informado.trim();
+  const { data } = await supabase
+    .from("processos").select("dados").eq("codigo", codigo).maybeSingle();
+  const d = (data?.dados ?? {}) as Record<string, { valor?: string } | undefined>;
+  const nome = d.proprietario?.valor || d.interessado?.valor || d.nome_proprietario?.valor;
+  return typeof nome === "string" && nome.trim() ? nome.trim() : null;
+}
 
 async function getUsuario(req: NextRequest) {
   const cookie = req.headers.get("cookie") ?? "";
@@ -30,11 +49,18 @@ export async function POST(req: NextRequest) {
   if (!processo_codigo || !tipo)
     return NextResponse.json({ ok: false, erro: "processo_codigo e tipo obrigatórios" }, { status: 400 });
 
+  // Interessado: resolvido aqui para que nenhum caller precise mandá-lo.
+  // Gravado junto do despacho (e não lido por join na hora de exibir) para
+  // preservar quem constava na época da emissão.
+  const interessado = await interessadoDoProcesso(processo_codigo, body.interessado);
+
   const { data, error } = await supabase
     .from("mdp_registros")
     .insert({
       processo_codigo,
       assunto_id: assunto_id || null,
+      interessado,
+      busca_norm: normalizarBusca(interessado, processo_codigo),
       tipo,
       numero: numero || null,
       destinatario: destinatario || null,
@@ -67,13 +93,34 @@ export async function GET(req: NextRequest) {
     .from("mdp_registros")
     .select(`
       id, processo_codigo, tipo, numero, destinatario, data_despacho, conteudo, criado_em,
-      usuario:usuario_id ( nome, gerencia )
+      assunto_id, interessado,
+      usuario:usuario_id ( nome, gerencia ),
+      assunto:assunto_id ( slug, nome )
     `, { count: "exact" })
     .order("criado_em", { ascending: false })
     .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
   if (processo) {
     query = query.eq("processo_codigo", processo);
+  }
+
+  // Busca por interessado OU número do processo, ignorando acentos e caixa.
+  // Antes desta correção o parâmetro era lido e descartado — a caixa de
+  // busca da tela não filtrava nada.
+  if (search) {
+    const termo = normalizarBusca(search);
+    // Limpa os metacaracteres do PostgREST antes de entrar no .or(),
+    // pelo mesmo motivo das demais rotas: evitar injeção de filtro.
+    const limpo = termo.replace(/[,()*]/g, "").trim();
+    if (limpo) {
+      query = query.or(`busca_norm.ilike.%${limpo}%,processo_codigo.ilike.%${limpo}%`);
+    }
+  }
+
+  // Filtro por slot. UUID validado antes de interpolar.
+  const assuntoFiltro = url.searchParams.get("assunto_id");
+  if (assuntoFiltro && /^[0-9a-f-]{36}$/i.test(assuntoFiltro)) {
+    query = query.eq("assunto_id", assuntoFiltro);
   }
 
   if (!irrestrito) {

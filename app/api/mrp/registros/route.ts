@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import { calcularPontos } from "@/lib/mrp-pontuacao";
+import { inferirPorte } from "@/lib/mrp";
+import { resolverSlot } from "@/lib/assuntos";
 
 async function podeVer(
   auth: { userId: string; irrestrito: boolean; gerencia: string | null },
@@ -43,6 +45,7 @@ export async function GET(req: NextRequest) {
   const tipoProcesso = searchParams.get("tipo_processo");
   const tipoDespacho = searchParams.get("tipo_despacho");
   const porte = searchParams.get("porte");
+  const gerencia = searchParams.get("gerencia");
   const bairro = searchParams.get("bairro");
   const revisao = searchParams.get("revisao");
   const processoCodigo = searchParams.get("processo_codigo");
@@ -53,6 +56,7 @@ export async function GET(req: NextRequest) {
   if (tipoProcesso) q = q.eq("tipo_processo", tipoProcesso);
   if (tipoDespacho) q = q.eq("tipo_despacho", tipoDespacho);
   if (porte) q = q.eq("porte", porte);
+  if (gerencia) q = q.eq("gerencia", gerencia);
   if (bairro) q = q.eq("bairro", bairro);
   if (revisao === "true") q = q.eq("revisao", true);
   if (revisao === "false") q = q.eq("revisao", false);
@@ -94,13 +98,38 @@ export async function POST(req: NextRequest) {
   const data_despacho = body.data_despacho ?? new Date().toISOString();
   const dt = new Date(data_despacho);
   const usuarioId = body.usuario_id || auth.userId;
+
+  // Slot: resolvido a partir do processo, NUNCA de um default de texto.
+  // Antes daqui saía `"Regularização"` quando o cliente não mandava
+  // tipo_processo, o que divergia do slug gravado pelo caminho servidor
+  // (mrpGravar) na mesma linha do upsert.
+  const slot = await resolverSlot({
+    processo_codigo: body.processo_codigo,
+    tipo_processo: body.tipo_processo,
+    assunto_id: body.assunto_id,
+  });
+
+  // Gerência de quem assina, lida do cadastro no momento da emissão.
+  const { data: autor } = await supabaseAdmin
+    .from("usuarios").select("gerencia").eq("id", usuarioId).maybeSingle();
+  const gerenciaAutor = (autor as { gerencia?: string | null } | null)?.gerencia ?? null;
+
   const payload = {
     usuario_id: usuarioId,
     processo_codigo: body.processo_codigo,
-    tipo_processo: body.tipo_processo ?? "Regularização",
+    tipo_processo: slot.slug ?? body.tipo_processo ?? null,
+    assunto_id: slot.assunto_id,
     interessado: body.interessado ?? null,
-    assunto: body.assunto ?? null,
-    porte: body.porte ?? "GERAED",
+    // `assunto` é o assunto da OBRA. Se vier o nome do slot (cliente antigo),
+    // descarta — esse dado já vive em assunto_id.
+    assunto: body.assunto && String(body.assunto).toLowerCase().trim() !== String(slot.nome ?? "").toLowerCase().trim()
+      ? body.assunto
+      : null,
+    // Porte da EDIFICAÇÃO pela área. Antes daqui saía "GERAED", que é
+    // gerência — os dois conceitos dividiam esta coluna.
+    porte: inferirPorte(Number(body.area_construida ?? 0), body.porte),
+    // Gerência do analista, congelada na emissão.
+    gerencia: body.gerencia ?? gerenciaAutor,
     area_construida: Number(body.area_construida ?? 0),
     bairro: body.bairro ?? null,
     numero_sei: body.numero_sei ?? null,
@@ -140,7 +169,7 @@ export async function PUT(req: NextRequest) {
 
   const patch: any = {};
   for (const k of [
-    "interessado", "assunto", "porte", "area_construida", "bairro", "setor", "numero_sei", "numero_fisico",
+    "interessado", "assunto", "assunto_id", "porte", "gerencia", "area_construida", "bairro", "setor", "numero_sei", "numero_fisico",
     "tipo_despacho", "numero_despacho", "numero_analise", "numero_revisao",
     "data_inicio", "data_despacho", "pontos", "observacoes",
   ]) {

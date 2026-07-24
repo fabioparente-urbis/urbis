@@ -8,17 +8,37 @@ import path from "path";
 
 /**
  * Assunto que aparece no cabeçalho dos documentos gerados (despacho,
- * indeferimento, arquivamento). Centralizado aqui para que novos slots
- * só precisem adicionar uma linha neste mapa.
+ * indeferimento, arquivamento).
+ *
+ * Lê o nome do slot direto da tabela `assuntos` (em maiúsculas). Assim um
+ * slot novo já sai com o cabeçalho certo sem deploy, e renomear o slot no
+ * admin muda o texto do documento. Aceita o slug (`tipo_processo`) ou o
+ * `assunto_id` — este último tem prioridade por ser o vínculo firme.
+ *
+ * Só cai no genérico "APROVAÇÃO DE PROJETO" se o slot não for encontrado
+ * (processo órfão, sem tipo). Falha de banco também cai no genérico: o
+ * documento NÃO deve deixar de ser emitido por causa do cabeçalho.
  */
-export function assuntoParaDocumento(tipoProcesso: string | null | undefined): string {
-  const t = String(tipoProcesso ?? "").toLowerCase();
-  const mapa: Record<string, string> = {
-    regularizacao: "ALVARÁ DE REGULARIZAÇÃO",
-    aceite_sei:    "ALVARÁ DE REGULARIZAÇÃO",
-    // novos slots → adicionar aqui
-  };
-  return mapa[t] ?? "APROVAÇÃO DE PROJETO";
+export async function assuntoParaDocumento(
+  tipoProcesso: string | null | undefined,
+  assuntoId?: string | null,
+): Promise<string> {
+  const GENERICO = "APROVAÇÃO DE PROJETO";
+  const slug = String(tipoProcesso ?? "").toLowerCase().trim();
+  const idValido = typeof assuntoId === "string" && /^[0-9a-f-]{36}$/i.test(assuntoId);
+  if (!idValido && !slug) return GENERICO;
+
+  try {
+    const { supabaseAdmin } = await import("@/lib/supabaseAdmin");
+    const q = supabaseAdmin.from("assuntos").select("nome");
+    const { data } = idValido
+      ? await q.eq("id", assuntoId).maybeSingle()
+      : await q.eq("slug", slug).maybeSingle();
+    const nome = String((data as { nome?: string } | null)?.nome ?? "").trim();
+    return nome ? nome.toUpperCase() : GENERICO;
+  } catch {
+    return GENERICO;
+  }
 }
 
 const TEXTOS_DESPACHO: Record<string, string> = {

@@ -7,26 +7,37 @@
 
 export const META_BASE = 100;
 
-export type Porte = 'GERECCO' | 'GERAED' | 'GERAGP';
+/** Porte da EDIFICAÇÃO, pela área construída. Não confundir com gerência. */
+export type Porte = 'PP' | 'MP' | 'GP';
+/** Gerência do ANALISTA — vem do cadastro do usuário, nunca da obra. */
+export type Gerencia = 'GERECCO' | 'GERAED' | 'GERAGP';
 export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo';
 export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 
+/** Faixas de área que definem o porte. Fonte única — usada no cálculo e na inferência. */
+export const AREA_PP_MAX = 540;
+export const AREA_MP_MAX = 2000;
+
 // ─── Cálculo de pontos ─────────────────────────────────────
-// Regra: GP ou área > 2000 → 4.5 pts | MP (área entre 540 e 2000) → 3.5 | PP → 2.5
-// Laudo segue o mesmo peso do despacho normal (baseado em porte/área).
+// Regra: GP (área > 2000) → 4.5 pts | MP (540 a 2000) → 3.5 | PP → 2.5
+// Laudo segue o mesmo peso do despacho normal.
+//
+// As faixas são as mesmas de antes de 2026-07-24 — a separação entre porte e
+// gerência não alterou nenhuma pontuação. O parâmetro segue aceitando os
+// rótulos antigos de gerência para não quebrar registros ainda não migrados.
 export function calcularPontos(porte: string | null | undefined, area: number, tipoDespacho?: TipoDespacho): number {
   const p = String(porte ?? '').toUpperCase();
-  if (p === 'GERAGP' || area > 2000) return 4.5;
-  if (area > 540) return 3.5;
+  if (p === 'GP' || p === 'GERAGP' || area > AREA_MP_MAX) return 4.5;
+  if (area > AREA_PP_MAX) return 3.5;
   return 2.5;
 }
 
 export function inferirPorte(area: number, porteInformado?: string | null): Porte {
   const p = String(porteInformado ?? '').toUpperCase();
-  if (p === 'GERAGP' || p === 'GERAED' || p === 'GERECCO') return p as Porte;
-  if (area > 2000) return 'GERAGP';
-  if (area > 540) return 'GERAED';
-  return 'GERECCO';
+  if (p === 'PP' || p === 'MP' || p === 'GP') return p as Porte;
+  if (area > AREA_MP_MAX) return 'GP';
+  if (area > AREA_PP_MAX) return 'MP';
+  return 'PP';
 }
 
 // ─── Meta efetiva (com redução legal) ──────────────────────
@@ -228,6 +239,8 @@ export type RegistroMRP = {
   interessado: string | null;
   assunto: string | null;
   porte: Porte;
+  /** Gerência do analista na data da emissão (congelada). */
+  gerencia: Gerencia | null;
   area_construida: number;
   bairro: string | null;
   setor: string | null;
@@ -268,6 +281,7 @@ export type PainelResposta = {
     por_tipo_despacho: { tipo: string; count: number; pontos: number }[];
     por_tipo_processo: { tipo: string; count: number; area_total: number }[];
     por_porte: { porte: string; count: number; area_total: number }[];
+    por_gerencia: { gerencia: string; count: number; area_total: number }[];
     por_faixa_area: { faixa: string; count: number }[];
     taxa_revisao: number;
     taxa_indeferimento: number;

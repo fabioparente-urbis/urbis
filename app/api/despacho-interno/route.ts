@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enviarEmail } from "@/lib/email";
+import { normalizarBusca } from "@/lib/texto";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -23,11 +24,14 @@ export async function POST(req: NextRequest) {
     const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo, numero_analise } = body;
     const { data: proc } = await supabase
       .from("processos")
-      .select("dados, analista_id, tipo_processo")
+      .select("dados, analista_id, tipo_processo, assunto_id")
       .eq("codigo", codigo)
       .maybeSingle();
     const dadosProc = (proc as any)?.dados || {};
     const interessado = dadosProc?.nome_proprietario?.valor || dadosProc?.proprietario?.valor || codigo;
+    // No documento o código serve de fallback; no MDP não — ali `interessado`
+    // é coluna de nome e alimenta a busca. Sem nome real, fica nulo.
+    const interessadoMdp: string | null = interessado === codigo ? null : interessado;
 
     let assinante: { nome: string; matricula?: string; cargo?: string; registro?: string } | undefined;
     let analistaEmail: string | null = null;
@@ -117,7 +121,12 @@ export async function POST(req: NextRequest) {
       if (usuarioId) {
         await supabase.from("mdp_registros").insert({
           processo_codigo: codigo,
-          assunto_id: (body.assunto_id as string | null) || null,
+          // Fallback para o assunto do próprio processo: a tela do LIP não
+          // envia assunto_id, e sem isso o MDP não sabe de qual slot é o
+          // despacho (14/14 registros estavam órfãos antes desta correção).
+          assunto_id: (body.assunto_id as string | null) || (proc as any)?.assunto_id || null,
+          interessado: interessadoMdp,
+          busca_norm: normalizarBusca(interessadoMdp, codigo),
           tipo: "interno",
           numero: String(numeroDespacho ?? ""),
           destinatario: destino || null,

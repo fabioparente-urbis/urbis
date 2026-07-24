@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
 
     const { data: proc } = await supabase
       .from("processos")
-      .select("dados, numero_processo_fisico, analista_id, tipo_processo")
+      .select("dados, numero_processo_fisico, analista_id, tipo_processo, assunto_id")
       .eq("codigo", processo)
       .maybeSingle();
 
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     // Gerar documento baseado no tipo
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento, assuntoParaDocumento } = await import("@/lib/geradores");
-    const assunto = assuntoParaDocumento((proc as any)?.tipo_processo);
+    const assunto = await assuntoParaDocumento((proc as any)?.tipo_processo, assunto_id ?? (proc as any)?.assunto_id);
 
     let buffer: Buffer;
     if (tipo === "despacho") {

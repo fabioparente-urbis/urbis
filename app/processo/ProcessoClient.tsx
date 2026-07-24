@@ -878,7 +878,7 @@ export default function ProcessoClient() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI }),
+        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();

@@ -186,6 +186,11 @@ export async function GET(req: NextRequest) {
   const porPorte = Array.from(acc("porte").entries()).map(([porte, v]) => ({
     porte, count: v.count, area_total: Math.round(v.area_total * 100) / 100,
   }));
+  // Gerência do analista na emissão — conceito distinto do porte da obra,
+  // que até 2026-07-24 dividia a mesma coluna.
+  const porGerencia = Array.from(acc("gerencia").entries()).map(([gerencia, v]) => ({
+    gerencia, count: v.count, area_total: Math.round(v.area_total * 100) / 100,
+  }));
   const porBairro = Array.from(acc("bairro").entries())
     .sort((a, b) => b[1].count - a[1].count).slice(0, 10)
     .map(([bairro, v]) => ({ bairro, count: v.count, area_total: Math.round(v.area_total * 100) / 100 }));
@@ -259,6 +264,7 @@ export async function GET(req: NextRequest) {
       por_tipo_despacho: porTipoDespacho,
       por_tipo_processo: porTipoProcesso,
       por_porte: porPorte,
+      por_gerencia: porGerencia,
       por_faixa_area: porFaixaArea,
       taxa_revisao: taxaRevisao,
       taxa_indeferimento: taxaInd,
