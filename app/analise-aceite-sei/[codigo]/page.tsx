@@ -568,6 +568,54 @@ export default function MacPage() {
     }
   }
 
+  /**
+   * Prepara a numeração e abre o modal de emissão.
+   *
+   * Existe como função única porque havia DOIS caminhos até aqui — o botão
+   * "Gerar Despacho" e o "Emitir mesmo assim" do modal de pendências — e o
+   * segundo tinha a lógica escrita no próprio onClick. Resultado: em
+   * processo com pendência de LIP, a reemissão pedia número novo e
+   * queimava a numeração, mesmo com o botão dizendo "Reemitir nº X".
+   */
+  async function prepararNumeracao(tipo: "despacho" | "arquivamento") {
+    const serie = tipo === "arquivamento" ? "parecer" : "despacho";
+    const jaEmitido = serie === "parecer" ? analiseAtual?.numero_parecer : analiseAtual?.numero_despacho;
+
+    // Reemissão: reaproveita o número da análise e não consulta a série.
+    if (jaEmitido) {
+      setReemitindo(true);
+      setNumeroDespacho(String(jaEmitido));
+      setNumeracaoBloqueio(null);
+      setNumeracaoCarregando(false);
+      setModalDespacho(true);
+      return;
+    }
+
+    setReemitindo(false);
+    setNumeracaoCarregando(true);
+    setNumeracaoBloqueio(null);
+    try {
+      const r = await fetch(`/api/numeracao/proximo?tipo=${serie}&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+      const j = await r.json();
+      if (j.ok) {
+        setNumeroDespacho(String(j.numero).padStart(3, "0"));
+        setNumeracaoBloqueio(null);
+      } else {
+        setNumeroDespacho("");
+        const label = serie === "parecer" ? "pareceres" : "despachos";
+        setNumeracaoBloqueio(j.esgotado
+          ? `Faixa de ${label} esgotada. Acesse Configurações → Numeração para cadastrar nova faixa.`
+          : `Nenhuma faixa de ${label} cadastrada. Acesse Configurações → Numeração.`);
+      }
+    } catch {
+      setNumeroDespacho("");
+      setNumeracaoBloqueio("Erro ao buscar número de despacho.");
+    } finally {
+      setNumeracaoCarregando(false);
+    }
+    setModalDespacho(true);
+  }
+
   // Abre o modal de emissão já com o tipo definido pelo botão de origem.
   // Arquivamento sai da série de parecer; despacho, da série de despacho.
   async function abrirModalDespacho(tipo: "despacho" | "arquivamento") {
@@ -608,52 +656,19 @@ export default function MacPage() {
       }
     } catch { /* silencioso */ }
     }
-    // Reemissão: a análise já tem número para esta série. Reaproveita e
-    // não consulta a numeração — o número já foi consumido na 1ª emissão.
-    const _serie = tipo === "arquivamento" ? "parecer" : "despacho";
-    const _jaEmitido = _serie === "parecer" ? analiseAtual?.numero_parecer : analiseAtual?.numero_despacho;
-    if (_jaEmitido) {
-      setReemitindo(true);
-      setNumeroDespacho(String(_jaEmitido));
-      setNumeracaoBloqueio(null);
-      setNumeracaoCarregando(false);
-      setModalDespacho(true);
-      return;
-    }
-    setReemitindo(false);
-
-    // Busca número de despacho automático
-    setNumeracaoCarregando(true);
-    setNumeracaoBloqueio(null);
-    try {
-      const _tipoSerie = tipo === "arquivamento" ? "parecer" : "despacho";
-      const _nr = await fetch(`/api/numeracao/proximo?tipo=${_tipoSerie}&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
-      const _nj = await _nr.json();
-      if (_nj.ok) {
-        setNumeroDespacho(String(_nj.numero).padStart(3, "0"));
-        setNumeracaoBloqueio(null);
-      } else {
-        setNumeroDespacho("");
-        const _labelSerie = _tipoSerie === "parecer" ? "pareceres" : "despachos";
-        setNumeracaoBloqueio(_nj.esgotado
-          ? `Faixa de ${_labelSerie} esgotada. Acesse Configurações → Numeração para cadastrar nova faixa.`
-          : `Nenhuma faixa de ${_labelSerie} cadastrada. Acesse Configurações → Numeração.`);
-      }
-    } catch {
-      setNumeroDespacho("");
-      setNumeracaoBloqueio("Erro ao buscar número de despacho.");
-    } finally {
-      setNumeracaoCarregando(false);
-    }
-    setModalDespacho(true);
-        setModalDespacho(true);
+    await prepararNumeracao(tipo);
   }
 
   async function gerarDespacho() {
     setGerandoDespacho(true);
     setModalDespacho(false);
-    // Garante que itens e observações atuais estejam persistidos antes do docx
-    await salvarSilencioso();
+    // Garante que itens e observações atuais estejam persistidos antes do
+    // docx — é isto que faz a reemissão sair com o checklist e as
+    // observações COMO ESTÃO AGORA (a rota relê `analises_mac.itens`).
+    // Preserva o status: sem isso, reemitir uma análise concluída a
+    // reabria como "em andamento", porque salvarSilencioso() assume
+    // "em_andamento" quando não recebe status.
+    await salvarSilencioso(analiseAtual?.status || "em_andamento");
     try {
       const naoConformesIds = checklistItens
         .filter((i) => itens[i.id] === "nao_conforme")
@@ -2156,7 +2171,7 @@ export default function MacPage() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={async () => { setModalItensPendentesIA(false); setNumeracaoCarregando(true); try { const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" }); const _j = await _r.json(); if (_j.ok) { setNumeroDespacho(String(_j.numero).padStart(3, "0")); setNumeracaoBloqueio(null); } else { setNumeroDespacho(""); setNumeracaoBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); } } catch { setNumeroDespacho(""); setNumeracaoBloqueio("Erro ao buscar número."); } finally { setNumeracaoCarregando(false); } setModalDespacho(true); }}
+                onClick={async () => { setModalItensPendentesIA(false); await prepararNumeracao(tipoDespacho === "arquivamento" ? "arquivamento" : "despacho"); }}
                 className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Emitir mesmo assim
               </button>
