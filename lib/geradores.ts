@@ -165,13 +165,9 @@ function blocoAssinaturaAnalista(ass: Assinante): Paragraph[] {
     indent: { left: 2400, right: 2400 },
     children: [txt(ass.nome, { bold: true })],
   }));
-  if (ass.matricula) {
-    out.push(new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { before: 0, after: 30 },
-      children: [txt(`Matrícula: ${ass.matricula}`)],
-    }));
-  }
+  // Matrícula NÃO sai em documento — decisão de 25/07/2026. Ela continua
+  // no cadastro do usuário e no tipo `Assinante` (as rotas seguem lendo do
+  // banco), mas a assinatura publica so leva nome, cargo e CREA/CAU.
   if (ass.cargo) {
     out.push(new Paragraph({
       alignment: AlignmentType.CENTER,
