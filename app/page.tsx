@@ -140,7 +140,7 @@ export default function Home() {
   const souAdmin = perfis.includes("Administrador");
 
   const cards: Card[] = [
-    { chave: "lip", nome: "PROCESSOS", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true, destaque: true },
+    { chave: "lip", nome: "PROCESSOS", descricao: "", Icone: ScanSearch, rota: "/processos", visivel: true, destaque: true },
     { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: false },
     { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
     { chave: "mdp", nome: "MDP", descricao: "Despachos e Pareceres", Icone: FileText, rota: "/mdp", visivel: true },
@@ -236,7 +236,7 @@ export default function Home() {
                     <Icone className="text-[var(--accent)]" size={24} aria-hidden="true" />
                   </div>
                   <h2 className={`text-lg font-bold tracking-wide ${destaque ? "text-red-600" : "text-[var(--text-primary)]"}`}>{nome}</h2>
-                  <p className="text-sm text-[var(--text-muted)] mt-1 leading-snug">{descricao}</p>
+                  {descricao && <p className="text-sm text-[var(--text-muted)] mt-1 leading-snug">{descricao}</p>}
                 </button>
               ))}
             </div>
