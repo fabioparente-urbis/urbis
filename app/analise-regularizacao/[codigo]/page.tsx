@@ -908,6 +908,14 @@ export default function MacPage() {
         [_tipoSerieCommit === "parecer" ? "numero_parecer" : "numero_despacho"]: numeroDespacho,
       } : prev);
 
+      // Salva DEPOIS de emitir, além do save que antecede o docx. Na
+      // reemissão não há commit de numeração — e é o commit que normalmente
+      // grava em analises_mac depois da emissão. Sem este save, o que foi
+      // ajustado no checklist ficava só no save anterior e a tela seguia
+      // marcando alteração pendente. Status preservado para não reabrir
+      // análise concluída.
+      await salvarSilencioso(analiseAtual?.status || "em_andamento");
+
       // Análise 5 + despacho ao interessado → abre indeferimento (STEP 1d)
       if (
         tipoDespacho === "despacho" &&
