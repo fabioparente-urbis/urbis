@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
+import { aplicarMarcadores } from "@/lib/promptCampos";
 
 export const maxDuration = 280;
 
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
             role: "user",
             parts: [
               { fileData: { mimeType: tipo, fileUri } },
-              { text: promptData.conteudo },
+              { text: await aplicarMarcadores(promptData.conteudo, { assunto_id: assuntoValido ? assunto_id : null, codigo: null }) },
             ],
           }],
           generationConfig: { maxOutputTokens: 8192, temperature: 0.1 },

@@ -1135,7 +1135,16 @@ export default function ProcessoClient() {
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
     { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
   ];
-  const camposPreenchidos = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "");
+  // "Preenchido" é o que alguém de fato preencheu — leitura da IA ou
+  // digitação. Valor padrão não conta: com 59 padrões na Aprovação de
+  // Projeto, o LIP abria dizendo que 59 campos já estavam preenchidos,
+  // o que inflava o percentual e escondia o trabalho que faltava.
+  const camposPreenchidos = Object.entries(d).filter(
+    ([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "" && c.origem !== "padrao",
+  );
+  const totalPadraoComValor = Object.entries(d).filter(
+    ([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "" && c.origem === "padrao",
+  ).length;
   const totalPreenchidos = camposPreenchidos.length;
   const totalUrbis = camposPreenchidos.filter(([_, c]) => c.origem === "urbis").length;
   const pctIA = totalPreenchidos > 0 ? Math.round((totalUrbis / totalPreenchidos) * 100) : 0;
@@ -1482,6 +1491,10 @@ export default function ProcessoClient() {
                 </text>
               </svg>
               <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
+              <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
+                {totalUrbis} lidos · {totalPreenchidos - totalUrbis} digitados
+                {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
+              </span>
             </div>
           </div>
         </div>
