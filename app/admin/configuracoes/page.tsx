@@ -5,7 +5,10 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle } from "lucide-react";
 
-type Assunto = { id: string; slug: string; nome: string; ativo: boolean; ordem: number; criado_em: string; };
+// `nome` é o nome de TELA. `nome_documento` (quando existe) é o texto que
+// sai no cabeçalho "Assunto:" dos documentos — ver migration
+// 2026_07_25_assuntos_nome_documento.sql.
+type Assunto = { id: string; slug: string; nome: string; nome_documento?: string | null; ativo: boolean; ordem: number; criado_em: string; };
 type InventarioSlot = {
   config: { lip_abas: number; lip_campos: number; lip_prompts: number; mac_modelos: number; mac_itens: number; total: number };
   bloqueios: { processos: number; analises_mac: number; mrp_registros: number; mdp_registros: number; total: number };
@@ -114,6 +117,23 @@ function ConfiguracoesInner() {
     setZerarAlvo(a); setZerarPasso(1); setZerarInv(null); setZerarImpedimento(null);
     setZerarTexto(""); setZerarErro(""); setZerarCarregando(true);
     try {
+      // O servidor só zera slot inativo. Se o admin desligou o toggle mas
+      // ainda não clicou em Salvar, a desativação é gravada aqui — foi o
+      // que ele acabou de pedir na tela, e sem isso o Zerar bateria numa
+      // trave que ele não tem como enxergar.
+      const pendente = edicao[a.id];
+      if (a.ativo && pendente && !pendente.ativo) {
+        const resDesativa = await fetch("/api/admin/assuntos", {
+          method: "PUT", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ id: a.id, nome: (pendente.nome || a.nome).trim(), ativo: false }),
+        });
+        const jsonDesativa = await resDesativa.json();
+        if (!jsonDesativa.ok) { setZerarErro(jsonDesativa.erro || "Falha ao desativar o slot."); return; }
+        a = jsonDesativa.data as Assunto;
+        setZerarAlvo(a);
+        setAssuntos((prev) => prev.map((x) => (x.id === a.id ? a : x)));
+        setEdicao((prev) => ({ ...prev, [a.id]: { nome: a.nome, ativo: a.ativo } }));
+      }
       const res = await fetch(`/api/admin/assuntos/zerar?id=${encodeURIComponent(a.id)}`);
       const json = await res.json();
       if (!json.ok) { setZerarErro(json.erro || "Falha ao carregar o inventário do slot."); return; }
@@ -216,6 +236,11 @@ function ConfiguracoesInner() {
                       {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
                       ) : (<input type="text" value={v.nome} onChange={(e) => atualizarLinha(a.id, { nome: e.target.value })} placeholder={`Slot ${String(a.ordem).padStart(2, "0")}`} className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]" maxLength={80} />)}
                       <div className="text-xs text-[var(--text-muted)] mt-1 font-mono">{a.slug}</div>
+                      {a.nome_documento && (
+                        <div className="text-xs text-[var(--text-muted)] mt-0.5" title="Este slot tem texto próprio para o cabeçalho “Assunto:” do documento — o nome de tela acima não altera o documento.">
+                          documento: <span className="text-[var(--text-secondary)]">{a.nome_documento.toUpperCase()}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex justify-center">
                       {fixo ? (<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--success-bg)]/40 text-[var(--accent-fg)] text-xs"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Ativo</span>
@@ -226,7 +251,8 @@ function ConfiguracoesInner() {
                       ) : (<>
                         {sucessoId === a.id ? (<span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check size={14} /> Salvo</span>
                         ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
-                        <button type="button" onClick={() => abrirZerar(a)} title={a.ativo ? "Desative o slot antes de zerar" : "Zerar o slot (apaga LIP, MAC e prompts)"} disabled={a.ativo} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${a.ativo ? "border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-50" : "border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white"}`}><Trash2 size={12} /> Zerar</button>
+                        {/* Segue o toggle na tela, não o estado salvo: desligou, liberou. */}
+                        <button type="button" onClick={() => abrirZerar(a)} title={v.ativo ? "Desative o slot para liberar" : "Zerar o slot (apaga LIP, MAC e prompts)"} disabled={v.ativo} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${v.ativo ? "border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-50" : "border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white"}`}><Trash2 size={12} /> Zerar</button>
                       </>)}
                     </div>
                   </div>

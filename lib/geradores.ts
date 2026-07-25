@@ -30,11 +30,17 @@ export async function assuntoParaDocumento(
 
   try {
     const { supabaseAdmin } = await import("@/lib/supabaseAdmin");
-    const q = supabaseAdmin.from("assuntos").select("nome");
+    // `select("*")` de propósito: `nome_documento` é coluna nova e um
+    // select explícito quebraria o documento se o deploy chegasse antes da
+    // migration. Aqui, coluna ausente vira `undefined` e cai no `nome`.
+    const q = supabaseAdmin.from("assuntos").select("*");
     const { data } = idValido
       ? await q.eq("id", assuntoId).maybeSingle()
       : await q.eq("slug", slug).maybeSingle();
-    const nome = String((data as { nome?: string } | null)?.nome ?? "").trim();
+    const row = data as { nome?: string; nome_documento?: string | null } | null;
+    // O nome de TELA ("Regularização SEI") não serve para o cabeçalho do
+    // ato oficial; quando existe `nome_documento`, ele manda.
+    const nome = String(row?.nome_documento ?? row?.nome ?? "").trim();
     return nome ? nome.toUpperCase() : GENERICO;
   } catch {
     return GENERICO;

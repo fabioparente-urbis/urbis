@@ -27,9 +27,11 @@ export async function GET(req: NextRequest) {
   const ctx = await autenticar(req);
   if (ctx instanceof NextResponse) return ctx;
 
+  // `select("*")` para não quebrar caso o deploy chegue antes da migration
+  // que cria `nome_documento` (a tela mostra esse campo quando existe).
   const { data, error } = await supabaseAdmin
     .from("assuntos")
-    .select("id, slug, nome, ativo, ordem, criado_em")
+    .select("*")
     .order("ordem", { ascending: true });
 
   if (error) {
@@ -188,7 +190,10 @@ async function clonarDeRegularizacao(destino_id: string, destino_slug: string, d
     if (modeloOrigem?.id) {
       const { data: novoModelo } = await supabaseAdmin
         .from("mac_checklist_modelos")
-        .insert({ nome: `PADRÃO — ${destino_nome.toUpperCase()}`, tipo_processo: destino_slug.toUpperCase(), assunto_id: destino_id, dono_id: null, criado_por: null })
+        // `tipo_processo` guarda o slug em minúsculas, como nos modelos
+        // antigos — grafia divergente aqui já custou caro na auditoria de
+        // 2026-07-24. O vínculo firme é o `assunto_id`.
+        .insert({ nome: `PADRÃO — ${destino_nome.toUpperCase()}`, tipo_processo: destino_slug, assunto_id: destino_id, dono_id: null, criado_por: null })
         .select().single();
       const { data: itens } = await supabaseAdmin
         .from("mac_checklist_itens")
