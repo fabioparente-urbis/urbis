@@ -1,4 +1,5 @@
 "use client";
+import { perfilDe } from "@/lib/numeracao";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useEffect, useRef, useState } from "react";
@@ -103,7 +104,10 @@ export default function MacPage() {
   const [modeloSelecionado, setModeloSelecionado] = useState<Modelo | null>(null);
   const [tipoProcesso, setTipoProcesso] = useState<string>("");
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
-  const [assuntoNome, setAssuntoNome] = useState<string>("Aceite SEI");
+  const [assuntoNome, setAssuntoNome] = useState<string>("");
+  // Numeração do assunto: define se o número mostrado é Processo SEI
+  // ou Nº do Alvará (Projeto). Ver lib/numeracao.ts.
+  const [numeracao, setNumeracao] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
@@ -228,7 +232,13 @@ export default function MacPage() {
     const assunto: string | null = jsonPoc.ok && jsonPoc.data.length > 0 ? (jsonPoc.data[0].assunto_id ?? null) : null;
     setTipoProcesso(tipo);
     setAssuntoId(assunto);
-    if (assunto) { fetch("/api/admin/assuntos").then(r=>r.json()).then(j=>{ const a = j.data?.find((x: {id:string;nome:string}) => x.id === assunto); if(a) setAssuntoNome(a.nome); }); }
+    // Resolve por assunto_id e, se o processo for antigo e não tiver,
+    // cai no slug — antes disso a tela assumia "Regularização SEI".
+    fetch("/api/admin/assuntos").then(r=>r.json()).then(j=>{
+      const lista = j?.data ?? [];
+      const a = lista.find((x: {id:string}) => x.id === assunto) ?? lista.find((x: {slug:string}) => x.slug === tipo);
+      if (a) { setAssuntoNome(a.nome); setNumeracao(a.numeracao ?? null); }
+    }).catch(()=>{});
     fetch("/api/auth/me").then(r=>r.json()).then(j=>{ if(j.ok){ const p=Array.isArray(j.data?.perfis)?j.data.perfis:[]; setIsAdmin(p.includes("Administrador")); } });
 
     const res = await fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`);
@@ -1206,7 +1216,7 @@ export default function MacPage() {
               <h1 className="text-xl font-bold">🔍 MAC — Aceite SEI</h1>
               <p className="text-[var(--text-muted)] text-xs">{assuntoNome}</p>
               <div className="text-xs h-4 mt-0.5">{statusSalvo==="pendente"&&<span className="text-[var(--warning)]">● Alterações não salvas</span>}{statusSalvo==="salvando"&&<span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}{statusSalvo==="salvo"&&<span className="text-[var(--success)]">✓ Salvo automaticamente</span>}{statusSalvo==="erro"&&<span className="text-[var(--error)]">✗ Erro ao salvar</span>}</div>
-              <p className="text-[var(--accent)] font-mono text-sm">{codigo}</p>
+              <p className="text-sm"><span className="text-[var(--text-muted)]">{perfilDe(numeracao).rotulo}: </span><span className="text-[var(--accent)] font-mono">{codigo}</span></p>
 {dadosLip?.proprietario?.valor && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">{dadosLip.proprietario.valor}</p>
 )}

@@ -3,6 +3,7 @@ import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
 
 type Origem = "original" | "urbis" | "manual" | "padrao";
@@ -231,22 +232,30 @@ export default function ProcessoClient() {
   // o prompt do slot certo. Ref (não state) porque é lido dentro de handlers async.
   const assuntoIdRef = useRef<string | null>(null);
 
-  // Nome do slot vindo do banco. Sem isto, um slot novo (slot_05,
+  // Assuntos ativos vindos do banco. Sem isto, um slot novo (slot_05,
   // slot_06…) cairia no `else` do `rotuloTipo` e a tela chamaria de
-  // "Regularização SEI" um processo que não é.
-  const [nomeAssunto, setNomeAssunto] = useState<string | null>(null);
+  // "Regularização SEI" um processo que não é — e a caixa "Ir para
+  // processo" só oferecia Regularização, que era opção fixa no código.
+  const [assuntosAtivos, setAssuntosAtivos] = useState<{ slug: string; nome: string; numeracao?: string | null }[]>([]);
   useEffect(() => {
     let vivo = true;
     fetch("/api/admin/assuntos")
       .then((r) => r.json())
       .then((j) => {
         if (!vivo || !j?.ok || !Array.isArray(j.data)) return;
-        const a = j.data.find((x: { slug: string }) => x.slug === tipoUrl);
-        if (a?.nome) setNomeAssunto(String(a.nome));
+        setAssuntosAtivos(
+          j.data.filter((x: any) => x?.ativo === true)
+            .map((x: any) => ({ slug: x.slug, nome: x.nome, numeracao: x.numeracao })),
+        );
       })
       .catch(() => { /* fica no rótulo estático */ });
     return () => { vivo = false; };
-  }, [tipoUrl]);
+  }, []);
+  const nomeAssunto = assuntosAtivos.find((a) => a.slug === tipoUrl)?.nome ?? null;
+  // Como ESTE assunto numera seus processos (SEI x alvará/OS).
+  const perfilNum = perfilDe(assuntosAtivos.find((a) => a.slug === tipoUrl)?.numeracao);
+  // E como numera o assunto escolhido na caixa de navegação, que pode ser outro.
+  const perfilNumNavegacao = perfilDe(assuntosAtivos.find((a) => a.slug === tipoNavegacao)?.numeracao);
 
   useEffect(() => {
     // Sessão 4: LIP é parametrizado por assunto. Antes de buscar abas/campos,
@@ -1415,7 +1424,7 @@ export default function ProcessoClient() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-[var(--text-muted)] text-sm mt-1">
-              Processo: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
+              {perfilNum.rotulo}: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
               {" · "}<span className="text-[var(--text-muted)]">{nomeAssunto ?? rotuloTipo(tipoUrl)}</span>
             </p>
             {d.proprietario?.valor && (
@@ -1475,14 +1484,16 @@ export default function ProcessoClient() {
 
       {/* NAVEGAÇÃO */}
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
-        <span className="text-[var(--text-muted)] text-sm whitespace-nowrap">🔍 Ir para processo:</span>
+        <span className="text-[var(--text-muted)] text-sm whitespace-nowrap">🔍 Ir para {perfilNumNavegacao.rotuloCurto}:</span>
         <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
-          placeholder="Ex: 25.5.000082553-3"
+          placeholder={perfilNumNavegacao.exemplo}
           className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
         <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
           className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="regularizacao">Regularização SEI</option>
+          {(assuntosAtivos.length ? assuntosAtivos : [{ slug: tipoUrl, nome: nomeAssunto ?? rotuloTipo(tipoUrl) }]).map((a) => (
+            <option key={a.slug} value={a.slug}>{a.nome}</option>
+          ))}
         </select>
         <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
           className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">

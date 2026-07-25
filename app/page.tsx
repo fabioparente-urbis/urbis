@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
+import { perfilDe, validarNumero, normalizarNumero } from "@/lib/numeracao";
 
 // `tipo` enviado ao backend continua sendo uma string canonica (ex.:
 // "REGULARIZACAO"). A Sessao 3 substituiu o dropdown fixo por uma
@@ -36,6 +37,8 @@ type AssuntoAtivo = {
   id: string;
   slug: string;
   nome: string;
+  /** 'sei' | 'alvara' — ver lib/numeracao.ts. Ausente = 'sei'. */
+  numeracao?: string | null;
 };
 
 type Card = {
@@ -73,7 +76,7 @@ export default function Home() {
         if (!json.ok || !Array.isArray(json.data)) return;
         const ativos: AssuntoAtivo[] = json.data
           .filter((a: any) => a?.ativo === true)
-          .map((a: any) => ({ id: a.id, slug: a.slug, nome: a.nome }));
+          .map((a: any) => ({ id: a.id, slug: a.slug, nome: a.nome, numeracao: a.numeracao }));
         setAssuntosAtivos(ativos);
         // Garante que Regularizacao fica selecionada por padrao se
         // estiver presente; caso contrario, mantem o que ja estava.
@@ -107,47 +110,27 @@ export default function Home() {
     })();
   }, []);
 
-  // ── Validação do número (mesma lógica da Home antiga) ─────
-  function identificarTipoNumero(valor: string) {
-    const v = valor.trim().toUpperCase();
-    if (/^OS\s\d{1,3}(\.\d{3})+$/.test(v)) return "OS";
-    if (/^\d{2}\.\d{1,2}\.\d{8,10}-\d$/.test(v)) return "SEI";
-    if (/^\d{5}$/.test(v)) return "PROJETO";
-    if (/^\d{7,9}$/.test(v)) return "FISICO";
-    return "INVALIDO";
-  }
+  // ── Validação do número ───────────────────────────────────
+  // A regra vem do assunto selecionado (`assuntos.numeracao`), não de uma
+  // lista de slugs no código: era assim que todo slot novo caía na regra
+  // do SEI. Ver lib/numeracao.ts.
+  const numeracaoAtual = assuntosAtivos.find((a) => a.slug === tipo)?.numeracao;
+  const perfilNum = perfilDe(numeracaoAtual);
 
   async function validar() {
-    const tipoNumero = identificarTipoNumero(numero);
-    if (tipoNumero === "INVALIDO") {
-      setErro("O número informado não corresponde a um formato válido do URBIS.");
-      return;
-    }
-    if (tipo === "aprovacao_pp" && tipoNumero === "SEI") {
-      setErro("Número SEI não é compatível com aprovação de projeto.");
-      return;
-    }
-    if ((tipo === "aceite_sei" || tipo === "regularizacao") && (tipoNumero === "OS" || tipoNumero === "PROJETO")) {
-      setErro("Número de projeto ou ordem de serviço não pode ser usado neste fluxo.");
+    const resultado = validarNumero(numeracaoAtual, numero);
+    if (!resultado.ok) {
+      setErro(resultado.erro ?? "Número inválido.");
       return;
     }
     setErro("");
+    const id = normalizarNumero(numero);
     await fetch("/api/processo/salvar", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: numero.trim(), tipo }),
+      body: JSON.stringify({ id, tipo }),
     });
-    router.push(`/processo/${encodeURIComponent(numero.trim())}?tipo=${encodeURIComponent(tipo)}`);
-  }
-
-  function getPlaceholder() {
-    if (tipo === "aprovacao_pp") return "Ex.: 12345 | OS 343.512 | 91944504";
-    return "Ex.: 25.5.000082553-3 ou 91944504";
-  }
-
-  function getAjuda() {
-    if (tipo === "aprovacao_pp") return "Use número de projeto, OS ou processo físico.";
-    return "Use número SEI ou processo físico.";
+    router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipo)}`);
   }
 
   // ── Gates de visibilidade ─────────────────────────────────
@@ -222,7 +205,7 @@ export default function Home() {
                 value={numero}
                 onChange={(e) => { setNumero(e.target.value); setErro(""); }}
                 onKeyDown={(e) => e.key === "Enter" && validar()}
-                placeholder={getPlaceholder()}
+                placeholder={perfilNum.exemplo}
                 className="flex-1 border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               />
               <button
@@ -232,7 +215,7 @@ export default function Home() {
               </button>
             </div>
             <div className="mt-2 flex items-center justify-between gap-3 px-1">
-              <p className="text-xs text-[var(--text-muted)]">{getAjuda()}</p>
+              <p className="text-xs text-[var(--text-muted)]">{perfilNum.ajuda}</p>
               {erro && <p className="text-xs text-red-600 font-medium">{erro}</p>}
             </div>
           </section>
