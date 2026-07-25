@@ -48,6 +48,8 @@ type Card = {
   Icone: LucideIcon;
   rota: string;
   visivel: boolean;
+  /** Destaca o nome do card — hoje só o de Processos, a pedido do usuário. */
+  destaque?: boolean;
 };
 
 const SLUG_REGULARIZACAO = "regularizacao";
@@ -138,7 +140,7 @@ export default function Home() {
   const souAdmin = perfis.includes("Administrador");
 
   const cards: Card[] = [
-    { chave: "lip", nome: "LIP", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true },
+    { chave: "lip", nome: "PROCESSOS", descricao: "Leitura Inteligente de Projetos", Icone: ScanSearch, rota: "/processos", visivel: true, destaque: true },
     { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: false },
     { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
     { chave: "mdp", nome: "MDP", descricao: "Despachos e Pareceres", Icone: FileText, rota: "/mdp", visivel: true },
@@ -225,7 +227,7 @@ export default function Home() {
             <p className="text-center text-[var(--text-muted)] text-sm">Carregando…</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {visiveis.map(({ chave, nome, descricao, Icone, rota }) => (
+              {visiveis.map(({ chave, nome, descricao, Icone, rota, destaque }) => (
                 <button
                   key={chave}
                   onClick={() => router.push(rota)}
@@ -233,7 +235,7 @@ export default function Home() {
                   <div className="w-12 h-12 rounded-lg bg-[var(--bg-secondary)] group-hover:bg-[var(--border)] flex items-center justify-center mb-4 transition-colors">
                     <Icone className="text-[var(--accent)]" size={24} aria-hidden="true" />
                   </div>
-                  <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-wide">{nome}</h2>
+                  <h2 className={`text-lg font-bold tracking-wide ${destaque ? "text-red-600" : "text-[var(--text-primary)]"}`}>{nome}</h2>
                   <p className="text-sm text-[var(--text-muted)] mt-1 leading-snug">{descricao}</p>
                 </button>
               ))}
