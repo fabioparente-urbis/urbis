@@ -216,6 +216,7 @@ function ConfiguracoesInner() {
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("pontuacao")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "pontuacao" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🎯 Pontuação</button>}
           {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
+          {isAdmin && <button onClick={() => router.push("/admin/lixeira")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🗑️ Lixeira</button>}
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => router.push("/admin/backup")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">💾 Backups</button>}
         </div>
       </header>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { autenticar } from "@/lib/auth";
+import { autenticar, verificarOwnership } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,6 +27,9 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("processos")
       .select("id, codigo, numero_sei, tipo_processo, assunto_id, status, criado_em, atualizado_em, dados, analista_id, tags")
+      // Lixeira: o que foi excluído some da lista, mas continua no banco
+      // e aparece em /admin/lixeira, de onde pode voltar.
+      .is("excluido_em", null)
       .order("atualizado_em", { ascending: false })
       .limit(200);
 
@@ -120,11 +123,35 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json();
+    // Duas mudanças aqui, ambas por causa do mesmo susto: esta rota
+    // apagava a linha do banco DE VEZ e SEM autenticação nenhuma — um
+    // clique errado levava junto o LIP, o histórico e o vínculo com as
+    // análises, sem registro de quem fez.
+    const ctx = await autenticar(req);
+    if (ctx instanceof NextResponse) return ctx;
+
+    const { id, motivo } = await req.json();
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
-    const { error } = await supabase.from("processos").delete().eq("id", id);
+
+    const { data: alvo } = await supabase
+      .from("processos").select("id, analista_id, excluido_em").eq("id", id).maybeSingle();
+    if (!alvo) return NextResponse.json({ ok: false, erro: "Processo não encontrado." }, { status: 404 });
+    // Dono ou perfil irrestrito — mesma regra do salvar.
+    const ownerErr = verificarOwnership(ctx, (alvo as any).analista_id);
+    if (ownerErr) return ownerErr;
+
+    const { error } = await supabase.from("processos").update({
+      excluido_em: new Date().toISOString(),
+      excluido_por: ctx.userId,
+      excluido_motivo: typeof motivo === "string" ? motivo.slice(0, 300) : null,
+    }).eq("id", id);
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-    return NextResponse.json({ ok: true });
+
+    await supabase.from("auditoria_log").insert({
+      tabela: "processos", registro_id: id, operacao: "ENVIADO_PARA_LIXEIRA",
+      dados_antes: null, dados_depois: { por: ctx.userId, motivo: motivo ?? null },
+    });
+    return NextResponse.json({ ok: true, lixeira: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
