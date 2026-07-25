@@ -1,5 +1,6 @@
 "use client";
 import { perfilDe } from "@/lib/numeracao";
+import { filtrosDoAssunto, type FiltroMac } from "@/lib/macFiltros";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useEffect, useRef, useState } from "react";
@@ -325,6 +326,32 @@ export default function MacPage() {
     setFontes((prev) => ({ ...prev, [id]: "manual" }));
     setAceites((prev) => ({ ...prev, [id]: fontes[id] !== undefined ? false : prev[id] }));
     registrar({ modulo: "MAC", acao: "MAC_ITEM_MARCADO", processo_codigo: codigo, detalhe: { item_id: id, status } });
+  }
+
+  /**
+   * Filtro rápido: derruba de uma vez os grupos que não se aplicam ao
+   * projeto ("não é posto", "sem marquise"). Mesma trava do resto: só
+   * marca item ainda não respondido e confirma mostrando os números.
+   */
+  function aplicarFiltro(f: FiltroMac) {
+    if (f.grupos.length === 0) { mostrarToast(`Filtro "${f.nome}" ainda não foi configurado.`); return; }
+    const existentes = f.grupos.filter((g) => GRUPOS.includes(g));
+    if (existentes.length === 0) { mostrarToast(`Nenhum grupo deste filtro existe neste checklist.`); return; }
+    const alvo = checklistItens.filter((i) => existentes.includes(i.grupo) && !itens[i.id]);
+    if (alvo.length === 0) { mostrarToast("Esses grupos já estão respondidos."); return; }
+    if (!confirm(`"${f.nome}" — marcar como NÃO SE APLICA:\n\n${existentes.map((g) => "• " + g).join("\n")}\n\n${alvo.length} item(ns). Itens já respondidos não são tocados.`)) return;
+    setItens((prev) => {
+      const novo = { ...prev };
+      for (const i of alvo) novo[i.id] = "nao_aplica";
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      for (const i of alvo) novo[i.id] = "manual";
+      return novo;
+    });
+    void salvarSilencioso();
+    mostrarToast(`✅ ${f.nome}: ${alvo.length} item(ns) marcados como N/A.`);
   }
 
   const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -1400,6 +1427,23 @@ export default function MacPage() {
           )}
           {MUITOS_GRUPOS && verIndice && (
             <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
+              {filtrosDoAssunto(tipoProcesso).length > 0 && (
+                <div className="max-w-4xl mb-4">
+                  <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-2">Filtros rápidos — derrubam abas inteiras para N/A</p>
+                  <div className="flex flex-wrap gap-2">
+                    {filtrosDoAssunto(tipoProcesso).map((f) => (
+                      <button key={f.nome} onClick={() => aplicarFiltro(f)} title={f.grupos.length ? f.grupos.join(" · ") : "Ainda não configurado"}
+                        className={`px-3 py-2 rounded text-xs font-bold uppercase tracking-wide transition-colors ${
+                          f.grupos.length
+                            ? "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"
+                            : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-dashed border-[var(--border)]"
+                        }`}>
+                        {f.nome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="max-w-4xl mb-4">
                 <div className="flex gap-2 flex-wrap">
                   <input value={buscaTexto} onChange={(e) => { setBuscaTexto(e.target.value); setBuscaErro(""); }}
