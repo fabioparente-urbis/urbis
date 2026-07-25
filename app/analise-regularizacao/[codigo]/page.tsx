@@ -111,6 +111,13 @@ export default function MacPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   // Só usado quando MUITOS_GRUPOS: mostra o índice ou a página do grupo.
   const [verIndice, setVerIndice] = useState(true);
+  // Busca no checklist: o filtro é local e instantâneo; a busca semântica
+  // (Gemini) só sai quando o analista pede, para não torrar o orçamento
+  // de chamadas por tecla digitada.
+  const [buscaTexto, setBuscaTexto] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const [buscaErro, setBuscaErro] = useState("");
+  const [buscaIA, setBuscaIA] = useState<{ id: string; grupo: string; texto: string; motivo: string }[] | null>(null);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
   const grupoAtual = GRUPOS[abaAtual] ?? "";
@@ -318,6 +325,49 @@ export default function MacPage() {
     setFontes((prev) => ({ ...prev, [id]: "manual" }));
     setAceites((prev) => ({ ...prev, [id]: fontes[id] !== undefined ? false : prev[id] }));
     registrar({ modulo: "MAC", acao: "MAC_ITEM_MARCADO", processo_codigo: codigo, detalhe: { item_id: id, status } });
+  }
+
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  async function buscarComIA() {
+    const pergunta = buscaTexto.trim();
+    if (pergunta.length < 3) { setBuscaErro("Escreva o que você procura."); return; }
+    if (!assuntoId) { setBuscaErro("Assunto do processo não resolvido."); return; }
+    setBuscando(true); setBuscaErro(""); setBuscaIA(null);
+    try {
+      const res = await fetch("/api/mac/buscar", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assunto_id: assuntoId, pergunta }),
+      });
+      const json = await res.json();
+      if (!json.ok) { setBuscaErro(json.erro || "Falha na busca."); return; }
+      setBuscaIA(json.itens ?? []);
+      if ((json.itens ?? []).length === 0) setBuscaErro("Nenhum item trata desse assunto.");
+    } catch (e: any) { setBuscaErro(e?.message || "Erro inesperado."); } finally { setBuscando(false); }
+  }
+
+  /**
+   * Marca como "não se aplica" tudo que está FORA dos grupos informados.
+   * Só toca em item ainda não respondido — nunca sobrescreve o que o
+   * analista já decidiu.
+   */
+  function marcarDemaisComoNA(gruposManter: string[]) {
+    const manter = new Set(gruposManter);
+    const alvo = checklistItens.filter((i) => !manter.has(i.grupo) && !itens[i.id]);
+    if (alvo.length === 0) { mostrarToast("Nada a marcar — os outros grupos já estão respondidos."); return; }
+    if (!confirm(`Marcar ${alvo.length} item(ns) de ${new Set(alvo.map(i => i.grupo)).size} grupo(s) como "não se aplica"?\n\nItens já respondidos não são tocados.`)) return;
+    setItens((prev) => {
+      const novo = { ...prev };
+      for (const i of alvo) novo[i.id] = "nao_aplica";
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      for (const i of alvo) novo[i.id] = "manual";
+      return novo;
+    });
+    void salvarSilencioso();
+    mostrarToast(`✅ ${alvo.length} item(ns) marcados como não se aplica.`);
   }
 
   function marcarGrupo(grupo: string, status: "conforme" | "nao_conforme" | "nao_aplica") {
@@ -1350,9 +1400,59 @@ export default function MacPage() {
           )}
           {MUITOS_GRUPOS && verIndice && (
             <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
+              <div className="max-w-4xl mb-4">
+                <div className="flex gap-2 flex-wrap">
+                  <input value={buscaTexto} onChange={(e) => { setBuscaTexto(e.target.value); setBuscaErro(""); }}
+                    onKeyDown={(e) => e.key === "Enter" && buscarComIA()}
+                    placeholder="Procurar no checklist — ex.: vaga de idoso, acessibilidade, recuo frontal"
+                    className="flex-1 min-w-[260px] bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                  <button onClick={buscarComIA} disabled={buscando}
+                    className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">
+                    {buscando ? "⏳ Buscando..." : "🔎 Buscar com IA"}
+                  </button>
+                  {(buscaTexto || buscaIA) && (
+                    <button onClick={() => { setBuscaTexto(""); setBuscaIA(null); setBuscaErro(""); }}
+                      className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-2 rounded-lg text-sm">Limpar</button>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--text-muted)] mt-1">
+                  Digitar já filtra a lista pelo texto. O botão usa a IA para achar também o que fala do assunto com outras palavras.
+                </p>
+                {buscaErro && <p className="text-xs text-[var(--error)] mt-2">{buscaErro}</p>}
+
+                {buscaIA && buscaIA.length > 0 && (
+                  <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] p-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                      <span className="text-sm font-bold text-[var(--text-primary)]">
+                        {buscaIA.length} item(ns) em {new Set(buscaIA.map((x) => x.grupo)).size} grupo(s)
+                      </span>
+                      <button onClick={() => marcarDemaisComoNA([...new Set(buscaIA.map((x) => x.grupo))])}
+                        className="bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white border border-[#2563EB] text-[#2563EB] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                        ⬜ Marcar os outros grupos como N/A
+                      </button>
+                    </div>
+                    <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+                      {buscaIA.map((r) => (
+                        <button key={r.id} onClick={() => { const idx = GRUPOS.indexOf(r.grupo); if (idx >= 0) { void salvarSilencioso(); setAbaAtual(idx); setVerIndice(false); } }}
+                          className="text-left px-3 py-2 rounded border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--bg-card-hover)] transition-colors">
+                          <span className="text-xs text-[var(--accent)] font-semibold">{r.grupo}</span>
+                          {r.motivo && <span className="text-xs text-[var(--text-muted)]"> — {r.motivo}</span>}
+                          <span className="block text-xs text-[var(--text-secondary)] mt-0.5">{String(r.texto).slice(0, 160)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-3">Itens do checklist — {GRUPOS.length} grupos</p>
               <div className="flex flex-col gap-1.5 max-w-4xl">
-                {GRUPOS.map((grupo, idx) => {
+                {GRUPOS.filter((grupo) => {
+                  const q = semAcento(buscaTexto.trim());
+                  if (!q) return true;
+                  if (semAcento(grupo).includes(q)) return true;
+                  return checklistItens.some((i) => i.grupo === grupo && semAcento(String(i.texto ?? "")).includes(q));
+                }).map((grupo) => {
+                  const idx = GRUPOS.indexOf(grupo);
                   const total = checklistItens.filter((i) => i.grupo === grupo).length;
                   const respondidos = checklistItens.filter((i) => i.grupo === grupo && itens[i.id]).length;
                   const temErro = temNaoConformeNaAba(idx);
