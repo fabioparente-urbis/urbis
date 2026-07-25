@@ -37,6 +37,9 @@ export default function MacPage() {
   const [fontes, setFontes] = useState<Record<string, "auto" | "p2" | "manual" | null>>({});
   const [aceites, setAceites] = useState<Record<string, boolean>>({});
   const [itensPendentesIA, setItensPendentesIA] = useState<any[]>([]);
+  // Reemissão: gerar de novo o documento de uma análise já concluída,
+  // mantendo o número dela e pegando o checklist como está agora.
+  const [reemitindo, setReemitindo] = useState(false);
   const [modalItensPendentesIA, setModalItensPendentesIA] = useState(false);
   const [analisandoP2, setAnalisandoP2] = useState(false);
   const [modalLimparAnalise, setModalLimparAnalise] = useState<number | null>(null);
@@ -605,6 +608,20 @@ export default function MacPage() {
       }
     } catch { /* silencioso */ }
     }
+    // Reemissão: a análise já tem número para esta série. Reaproveita e
+    // não consulta a numeração — o número já foi consumido na 1ª emissão.
+    const _serie = tipo === "arquivamento" ? "parecer" : "despacho";
+    const _jaEmitido = _serie === "parecer" ? analiseAtual?.numero_parecer : analiseAtual?.numero_despacho;
+    if (_jaEmitido) {
+      setReemitindo(true);
+      setNumeroDespacho(String(_jaEmitido));
+      setNumeracaoBloqueio(null);
+      setNumeracaoCarregando(false);
+      setModalDespacho(true);
+      return;
+    }
+    setReemitindo(false);
+
     // Busca número de despacho automático
     setNumeracaoCarregando(true);
     setNumeracaoBloqueio(null);
@@ -699,10 +716,11 @@ export default function MacPage() {
       URL.revokeObjectURL(url);
       mostrarToast("✅ Despacho gerado!");
 
-      // Consome o número SOMENTE após o download bem-sucedido
+      // Consome o número SOMENTE após o download bem-sucedido — e nunca na
+      // reemissão, onde o número já foi consumido na primeira vez.
       const _tipoSerieCommit = tipoDespacho === "arquivamento" || tipoDespacho === "indeferimento" ? "parecer" : "despacho";
       const _numCommit = parseInt(numeroDespacho, 10);
-      if (_numCommit > 0) {
+      if (_numCommit > 0 && !reemitindo) {
         // Confirma a numeração de forma confiável: tenta até 3x em falha de
         // rede/5xx. 409 = servidor já avançou o número (re-emissão) → ok.
         // Se todas falharem, avisa o analista (não trava o fluxo).
@@ -1085,7 +1103,11 @@ export default function MacPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--text-primary)] font-bold text-lg">{tipoDespacho === "arquivamento" ? "🗂️ Gerar Arquivamento" : "📄 Gerar Despacho"}</h2>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">
+                {reemitindo
+                  ? (tipoDespacho === "arquivamento" ? "🔄 Reemitir Arquivamento" : "🔄 Reemitir Despacho")
+                  : (tipoDespacho === "arquivamento" ? "🗂️ Gerar Arquivamento" : "📄 Gerar Despacho")}
+              </h2>
               <button onClick={() => setModalDespacho(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
             <div className="flex flex-col gap-4">
@@ -1743,7 +1765,7 @@ export default function MacPage() {
 
           <button onClick={() => abrirModalDespacho("despacho")} disabled={gerandoDespacho}
             className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
-            {gerandoDespacho ? "⏳ Gerando..." : "📄 Gerar Despacho"}
+            {gerandoDespacho ? "⏳ Gerando..." : analiseAtual?.numero_despacho ? `🔄 Reemitir Despacho nº ${analiseAtual.numero_despacho}` : "📄 Gerar Despacho"}
           </button>
 
 

@@ -54,20 +54,44 @@ export async function POST(req: NextRequest) {
   // preservar quem constava na época da emissão.
   const interessado = await interessadoDoProcesso(processo_codigo, body.interessado);
 
+  const payload = {
+    processo_codigo,
+    assunto_id: assunto_id || null,
+    interessado,
+    busca_norm: normalizarBusca(interessado, processo_codigo),
+    tipo,
+    numero: numero || null,
+    destinatario: destinatario || null,
+    data_despacho: data_despacho || null,
+    conteudo: conteudo || {},
+    usuario_id: usuario.id,
+  };
+
+  // Reemissão: o mesmo número, no mesmo processo e do mesmo tipo, É o mesmo
+  // documento — não um segundo. Antes daqui, reemitir um despacho criava
+  // uma linha nova no MDP e o despacho aparecia duplicado na lista. Agora
+  // atualiza o registro existente (o conteúdo muda: o checklist foi
+  // revisado entre uma emissão e outra).
+  if (numero) {
+    const { data: existente } = await supabase
+      .from("mdp_registros")
+      .select("id")
+      .eq("processo_codigo", processo_codigo)
+      .eq("tipo", tipo)
+      .eq("numero", numero)
+      .maybeSingle();
+
+    if (existente?.id) {
+      const { error: errUp } = await supabase
+        .from("mdp_registros").update(payload).eq("id", existente.id);
+      if (errUp) return NextResponse.json({ ok: false, erro: errUp.message }, { status: 500 });
+      return NextResponse.json({ ok: true, id: existente.id, reemissao: true });
+    }
+  }
+
   const { data, error } = await supabase
     .from("mdp_registros")
-    .insert({
-      processo_codigo,
-      assunto_id: assunto_id || null,
-      interessado,
-      busca_norm: normalizarBusca(interessado, processo_codigo),
-      tipo,
-      numero: numero || null,
-      destinatario: destinatario || null,
-      data_despacho: data_despacho || null,
-      conteudo: conteudo || {},
-      usuario_id: usuario.id,
-    })
+    .insert(payload)
     .select("id")
     .single();
 
