@@ -46,8 +46,8 @@ export const PERFIS: Record<Numeracao, PerfilNumeracao> = {
   alvara: {
     rotulo: "Nº do Alvará (Projeto)",
     rotuloCurto: "alvará",
-    exemplo: "Ex.: 12345 (alvará) ou 1234567 (OS)",
-    ajuda: "Use o nº do alvará/projeto (5 ou 6 dígitos) ou a ordem de serviço (7 ou 8 dígitos).",
+    exemplo: "Ex.: 12345 ou 1234567",
+    ajuda: "Só números: alvará/projeto tem 5 ou 6 dígitos; ordem de serviço, 7 ou 8.",
     formatos: [
       // Alvará e projeto são o mesmo número — 5 ou 6 dígitos.
       { nome: "alvará/projeto", re: /^\d{5,6}$/ },
@@ -61,17 +61,12 @@ export function perfilDe(numeracao: string | null | undefined): PerfilNumeracao 
 }
 
 /**
- * Normaliza o que o usuário digitou: tira espaços, aceita um prefixo "OS"
- * digitado por hábito ("OS 1234567") e pontuação de milhar da OS antiga
- * ("OS 343.512" -> "343512").
+ * Só tira espaço das pontas. Alvará, projeto e ordem de serviço são
+ * sequências de dígitos puras — sem prefixo "OS", sem ponto de milhar.
+ * O SEI usa ponto de propósito e é validado pelo formato dele.
  */
 export function normalizarNumero(valor: string): string {
-  const v = valor.trim().toUpperCase();
-  const semPrefixo = v.replace(/^OS[\s.:-]*/, "");
-  // Só tira os pontos quando o que sobra é claramente numérico com
-  // separador de milhar — nunca no SEI, que usa ponto de propósito.
-  if (/^\d{1,3}(\.\d{3})+$/.test(semPrefixo)) return semPrefixo.replace(/\./g, "");
-  return semPrefixo === v ? v : semPrefixo;
+  return valor.trim();
 }
 
 /** Valida o número contra os formatos do assunto. */
