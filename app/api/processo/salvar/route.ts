@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
 
@@ -69,7 +70,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Resolve assunto_id a partir do slug (já é o valor canônico do banco).
-    const { data: assuntoRow } = await supabase
+    // ATENÇÃO: tem que ser o client ADMIN. `assuntos` tem RLS e, com a
+    // chave anônima, esta consulta voltava `null` SEM erro — o processo
+    // nascia com assunto_id nulo e a tela caía no fallback (Regularização).
+    // Era a origem dos 36 processos órfãos que o backfill de 2026-07-24
+    // teve que consertar depois.
+    const { data: assuntoRow } = await supabaseAdmin
       .from("assuntos")
       .select("id")
       .eq("slug", tipoProcesso)
