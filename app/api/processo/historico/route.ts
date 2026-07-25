@@ -7,6 +7,8 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Fallback para chaves que não existem mais no LIP (processos antigos).
+// O rótulo bom vem do próprio LIP do assunto — ver `rotulosDoAssunto`.
 const LABEL_CAMPO: Record<string, string> = {
   proprietario: "Proprietário", logradouro: "Logradouro", processo: "Processo Nº",
   quadra: "Quadra", lote: "Lote", bairro: "Bairro", iptu: "IPTU",
@@ -28,7 +30,25 @@ const LABEL_CAMPO: Record<string, string> = {
   usoSolo: "Uso do Solo para Aprovação", foto: "Foto do Google",
 }
 
-function diffDados(antes: any, depois: any): { campo: string; de: string; para: string }[] {
+/**
+ * Rótulos de campo lidos do LIP do assunto do processo. Sem isto, o
+ * histórico mostrava a chave crua (`seiCheadv`, `unidComerciais`…) para
+ * tudo que não estivesse no mapa fixo — que só conhece a Regularização.
+ */
+async function rotulosDoAssunto(assunto_id: string | null): Promise<Record<string, string>> {
+  if (!assunto_id) return {}
+  const { data: abas } = await supabaseAdmin
+    .from('lip_abas').select('id').eq('assunto_id', assunto_id)
+  const ids = (abas ?? []).map((a: any) => a.id)
+  if (ids.length === 0) return {}
+  const { data: campos } = await supabaseAdmin
+    .from('lip_campos').select('chave, label').in('aba_id', ids)
+  const mapa: Record<string, string> = {}
+  for (const c of campos ?? []) if (c.chave && c.label) mapa[c.chave] = c.label
+  return mapa
+}
+
+function diffDados(antes: any, depois: any, rotulos: Record<string, string>): { campo: string; de: string; para: string }[] {
   if (!antes || !depois) return []
   const alterados: { campo: string; de: string; para: string }[] = []
   const todosCampos = new Set([...Object.keys(antes), ...Object.keys(depois)])
@@ -37,7 +57,7 @@ function diffDados(antes: any, depois: any): { campo: string; de: string; para: 
     const valorDepois = depois[chave]?.valor ?? ''
     if (valorAntes !== valorDepois) {
       alterados.push({
-        campo: LABEL_CAMPO[chave] ?? chave,
+        campo: rotulos[chave] ?? LABEL_CAMPO[chave] ?? chave,
         de: valorAntes,
         para: valorDepois,
       })
@@ -60,7 +80,7 @@ export async function GET(req: NextRequest) {
   // Busca o uuid do processo pelo codigo (e analista_id para checar ownership)
   const { data: processo, error: erroProcesso } = await supabaseAdmin
     .from('processos')
-    .select('id, analista_id')
+    .select('id, analista_id, assunto_id')
     .eq('codigo', codigo)
     .maybeSingle()
 
@@ -92,10 +112,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })
   }
 
+  const rotulos = await rotulosDoAssunto((processo as any).assunto_id ?? null)
+
   const eventos = (data ?? []).map((ev) => {
     const dadosAntes = ev.dados_antes?.dados ?? null
     const dadosDepois = ev.dados_depois?.dados ?? null
-    const campos = diffDados(dadosAntes, dadosDepois)
+    const campos = diffDados(dadosAntes, dadosDepois, rotulos)
     return {
       id: ev.id,
       operacao: ev.operacao,
