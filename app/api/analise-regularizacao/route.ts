@@ -8,6 +8,28 @@ const supabase = createClient(
 
 const TIPO = "regularizacao";
 
+/**
+ * O tipo do processo vem do PRÓPRIO processo, não de uma constante.
+ *
+ * Esta rota nasceu só para a Regularização e gravava `tipo_processo`
+ * fixo. Com a tela do MAC servindo também a Aprovação de Projeto (que
+ * usa a mesma rota), a análise de um alvará era registrada como se
+ * fosse Regularização — dado errado em `analises_mac`, e estatística e
+ * produtividade contando no assunto errado.
+ *
+ * Fallback na constante quando o processo não é encontrado: preserva o
+ * comportamento antigo e nunca derruba a gravação da análise.
+ */
+async function tipoDoProcesso(codigo: string): Promise<string> {
+  const { data } = await supabase
+    .from("processos")
+    .select("tipo_processo")
+    .eq("codigo", codigo)
+    .order("criado_em", { ascending: true })
+    .limit(1);
+  return (data?.[0] as any)?.tipo_processo || TIPO;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const codigo = searchParams.get("codigo");
@@ -17,11 +39,13 @@ export async function GET(req: NextRequest) {
   const assunto_id = searchParams.get("assunto_id");
   if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
+  const tipoAtual = await tipoDoProcesso(codigo);
+
   let query = supabase
     .from("analises_mac")
     .select("*")
     .eq("processo_codigo", codigo)
-    .eq("tipo_processo", TIPO)
+    .eq("tipo_processo", tipoAtual)
     .order("numero_analise", { ascending: false });
 
   // Só aplica o filtro se assunto_id for um UUID válido — evita injeção no .or().
@@ -47,11 +71,13 @@ export async function POST(req: NextRequest) {
     const cookieHeader = req.headers.get("cookie") || "";
     const analistaId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1] ?? null;
 
+    const tipoAtual = await tipoDoProcesso(processo_codigo);
+
     const { data: existentes } = await supabase
       .from("analises_mac")
       .select("numero_analise")
       .eq("processo_codigo", processo_codigo)
-      .eq("tipo_processo", TIPO)
+      .eq("tipo_processo", tipoAtual)
       .order("numero_analise", { ascending: false })
       .limit(1);
 
@@ -68,7 +94,7 @@ export async function POST(req: NextRequest) {
       .from("processos")
       .select("dados")
       .eq("codigo", processo_codigo)
-      .eq("tipo_processo", TIPO)
+      .eq("tipo_processo", tipoAtual)
       .maybeSingle();
     const dadosRT = (procRT as any)?.dados ?? {};
     const cauResponsavel = dadosRT?.cau?.valor || null;
@@ -78,7 +104,7 @@ export async function POST(req: NextRequest) {
       .from("analises_mac")
       .insert({
         processo_codigo,
-        tipo_processo: TIPO,
+        tipo_processo: tipoAtual,
         analista_id: analistaId,
         numero_analise: proximoNumero,
         status: status || "em_andamento",

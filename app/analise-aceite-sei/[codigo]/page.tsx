@@ -260,7 +260,7 @@ export default function MacPage() {
       setHistoricoAnalises(ultima.historico_analises || "");
       setNovaAnalise(false);
       // Carrega campos LIP para o banner crítico
-      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" })
+      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" })
         .then(r => r.json())
         .then(j => { setDadosLip(j?.data?.dados || j?.dados || {}); setTagsProcesso(j?.data?.tags || j?.tags || []); });
 
@@ -579,7 +579,7 @@ export default function MacPage() {
     );
     try {
       const [procRes, lipRes] = await Promise.all([
-        fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }),
+        fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }),
         fetch("/api/admin/lip"),
       ]);
       const procJson = await procRes.json();
@@ -663,7 +663,7 @@ export default function MacPage() {
       if (!res.ok) { mostrarToast("Erro ao gerar despacho."); return; }
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
       // Auto-registro MRP
-      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
+      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -945,7 +945,7 @@ export default function MacPage() {
         if (!_commitOkDI) mostrarToast("⚠️ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
         setAnaliseAtual((prev: any) => prev ? { ...prev, numero_despacho_interno: numDI } : prev);
       }
-      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
+      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -988,7 +988,7 @@ export default function MacPage() {
                   <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Campos LIP em rascunho</p>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                     {pendentesLIPItems.map((p, i) => (
-                      <a key={i} href={`/processo/${codigo}?tipo=aceite_sei`}
+                      <a key={i} href={`/processo/${codigo}?tipo=${tipoProcesso || "aceite_sei"}`}
                         style={{ fontSize:12, color:"white", background:"rgba(255,255,255,0.2)", borderRadius:4, padding:"3px 10px", textDecoration:"none", fontWeight:600 }}>
                         {p.label} →
                       </a>
@@ -1159,11 +1159,11 @@ export default function MacPage() {
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}?tipo=aceite_sei`))}
+                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}?tipo=${tipoProcesso || "aceite_sei"}`))}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
-            <button onClick={() => window.open(`/processo/${codigo}?tipo=aceite_sei`, "_blank")}
+            <button onClick={() => window.open(`/processo/${codigo}?tipo=${tipoProcesso || "aceite_sei"}`, "_blank")}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
@@ -1724,7 +1724,7 @@ export default function MacPage() {
             disabled={analisandoP2 || checklistItens.length === 0}
             title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            {analisandoP2 ? "⏳ Analisando..." : "📎 LER PROCESSO ACEITE SEI"}
+            {analisandoP2 ? "⏳ Analisando..." : `📎 LER PROCESSO ${(assuntoNome || "").toUpperCase()}`.trim()}
           </button>
 
           <button onClick={() => salvar("em_andamento")} disabled={salvando}
