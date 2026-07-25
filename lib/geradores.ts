@@ -246,7 +246,7 @@ function subtituloSecao(titulo: string) {
     spacing: { before: 240, after: 100, line: 260 },
     keepLines: true,
     keepNext: true,
-    children: [txt(titulo, { bold: true, underline: true })],
+    children: [txt(titulo, { bold: true })],
   });
 }
 
@@ -396,7 +396,7 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
   });
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -426,8 +426,21 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
-  children.push(vazio(120)); children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
+  children.push(vazio(120));
+  // "AVISOS:" só no despacho de Regularização SEI — o texto "a/b" abaixo
+  // (LC 314/2018, vistoria fiscal) fala só dela; esta função é
+  // compartilhada com o despacho do Aceite SEI, que não deve levar isto.
+  if ((dados.tipoProcesso ?? "regularizacao") === "regularizacao") {
+    children.push(p([txt("AVISOS:", { bold: true, underline: true })], { after: 80 }));
+  }
+  children.push(p([txt(`a – Art. 1º §1º LC n°314/2018: "Entende-se por edificações estruturalmente definidas aquelas concluídas ou em fase de cobertura, com lajes ou telhados definitivos, OU ainda aquelas parcialmente concluídas, desde que os pavimentos para os quais se solicita a regularização estejam estruturalmente concluídos e ainda apresente estrutura, a alvenaria e o revestimento externo concluído."`)], { after: 140 }));
   children.push(p([txt("b – Sanar estas irregularidades no local, corrigindo os pontos citados pelo fiscal. Após correção desses itens, o interessado deverá solicitar nova vistoria fiscal, sujeita a nova taxa;")], { after: 80 }));
+  const temItensChecklist =
+    (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) ||
+    (dados.naoConformes && dados.naoConformes.length > 0);
+  if (temItensChecklist) {
+    children.push(p([txt("PENDÊNCIAS:", { bold: true, underline: true })], { after: 80 }));
+  }
   if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
     gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
   } else {
@@ -484,6 +497,12 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  const temItensChecklist =
+    (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) ||
+    (dados.naoConformes && dados.naoConformes.length > 0);
+  if (temItensChecklist) {
+    children.push(p([txt("PENDÊNCIAS:", { bold: true, underline: true })], { after: 80 }));
+  }
   if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
     gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
   } else {
