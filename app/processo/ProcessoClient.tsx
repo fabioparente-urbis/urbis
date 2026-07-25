@@ -91,6 +91,7 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
   );
 }
 
+/** Fallback estático — o nome bom vem do banco (`nomeAssunto`). */
 function rotuloTipo(slug: string): string {
   if (slug === "aceite_sei") return "Aceite SEI";
   if (slug === "aprovacao_pp") return "Aprovação PP";
@@ -229,6 +230,23 @@ export default function ProcessoClient() {
   // Guarda o assunto_id resolvido do processo — usado para pedir a IA (s2/s3)
   // o prompt do slot certo. Ref (não state) porque é lido dentro de handlers async.
   const assuntoIdRef = useRef<string | null>(null);
+
+  // Nome do slot vindo do banco. Sem isto, um slot novo (slot_05,
+  // slot_06…) cairia no `else` do `rotuloTipo` e a tela chamaria de
+  // "Regularização SEI" um processo que não é.
+  const [nomeAssunto, setNomeAssunto] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/admin/assuntos")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo || !j?.ok || !Array.isArray(j.data)) return;
+        const a = j.data.find((x: { slug: string }) => x.slug === tipoUrl);
+        if (a?.nome) setNomeAssunto(String(a.nome));
+      })
+      .catch(() => { /* fica no rótulo estático */ });
+    return () => { vivo = false; };
+  }, [tipoUrl]);
 
   useEffect(() => {
     // Sessão 4: LIP é parametrizado por assunto. Antes de buscar abas/campos,
@@ -1398,7 +1416,7 @@ export default function ProcessoClient() {
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
             <p className="text-[var(--text-muted)] text-sm mt-1">
               Processo: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
-              {" · "}<span className="text-[var(--text-muted)]">{rotuloTipo(tipoUrl)}</span>
+              {" · "}<span className="text-[var(--text-muted)]">{nomeAssunto ?? rotuloTipo(tipoUrl)}</span>
             </p>
             {d.proprietario?.valor && (
               <p className="text-[var(--text-muted)] text-sm mt-0.5">{d.proprietario.valor}</p>
@@ -1481,7 +1499,7 @@ export default function ProcessoClient() {
           </div>
           <div className="ml-auto flex gap-2">
             <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
-              {lendoLip ? "⏳ Lendo..." : `📎 LER PROCESSO ${rotuloTipo(tipoUrl).toUpperCase()}`}
+              {lendoLip ? "⏳ Lendo..." : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
               <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
             </label>
