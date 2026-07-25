@@ -109,9 +109,16 @@ export default function MacPage() {
   // ou Nº do Alvará (Projeto). Ver lib/numeracao.ts.
   const [numeracao, setNumeracao] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Só usado quando MUITOS_GRUPOS: mostra o índice ou a página do grupo.
+  const [verIndice, setVerIndice] = useState(true);
 
   const GRUPOS = [...new Set(checklistItens.map((i) => i.grupo))];
   const grupoAtual = GRUPOS[abaAtual] ?? "";
+  // Com poucos grupos (Regularização e Aceite têm 9) a régua horizontal de
+  // sempre dá conta. A Aprovação de Projeto tem 48: viram uma parede
+  // ilegível. Acima do limite, a navegação vira índice vertical + uma
+  // página por grupo. Abaixo dele, NADA muda — é o fluxo de produção.
+  const MUITOS_GRUPOS = GRUPOS.length > 12;
   const itensGrupo = checklistItens.filter((i) => i.grupo === grupoAtual);
 
   function mostrarToast(msg: string) {
@@ -1321,7 +1328,7 @@ export default function MacPage() {
       </div>
 
       <div className="flex flex-1 gap-0 overflow-hidden">
-        {abaAtual === GRUPOS.length && (
+        {abaAtual === GRUPOS.length && !(MUITOS_GRUPOS && verIndice) && (
           <div className="flex-1 flex flex-col overflow-y-auto px-6 pb-6 pt-4 gap-3">
             <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações do MAC</p>
             <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={20}
@@ -1334,7 +1341,40 @@ export default function MacPage() {
         )}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* ABAS — sempre visíveis */}
-          <div className="flex flex-wrap gap-2 px-6 pt-4 pb-2 bg-[var(--bg-primary)]">
+          {MUITOS_GRUPOS && !verIndice && (
+            <div className="flex items-center gap-3 px-6 pt-4 pb-2 bg-[var(--bg-primary)]">
+              <button onClick={() => { void salvarSilencioso(); setVerIndice(true); }}
+                className="px-3 py-1.5 rounded text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] transition-colors">← Índice</button>
+              <span className="font-bold text-[var(--text-primary)] truncate">{abaAtual === GRUPOS.length ? "📝 OBS" : grupoAtual}</span>
+            </div>
+          )}
+          {MUITOS_GRUPOS && verIndice && (
+            <div className="flex-1 overflow-y-auto px-6 pt-4 pb-6">
+              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-3">Itens do checklist — {GRUPOS.length} grupos</p>
+              <div className="flex flex-col gap-1.5 max-w-4xl">
+                {GRUPOS.map((grupo, idx) => {
+                  const total = checklistItens.filter((i) => i.grupo === grupo).length;
+                  const respondidos = checklistItens.filter((i) => i.grupo === grupo && itens[i.id]).length;
+                  const temErro = temNaoConformeNaAba(idx);
+                  return (
+                    <button key={grupo} onClick={() => { void salvarSilencioso(); setAbaAtual(idx); setVerIndice(false); }}
+                      className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
+                      <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">{idx + 1}</span>
+                      <span className="flex-1 text-sm text-[var(--text-primary)] font-medium">{grupo}</span>
+                      {temErro && <span className="w-2.5 h-2.5 bg-[var(--error)] rounded-full shrink-0" />}
+                      <span className={`text-xs shrink-0 ${respondidos === total ? "text-[#059669]" : "text-[var(--text-muted)]"}`}>{respondidos}/{total}</span>
+                    </button>
+                  );
+                })}
+                <button onClick={() => { void salvarSilencioso(); setAbaAtual(GRUPOS.length); setVerIndice(false); }}
+                  className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
+                  <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">📝</span>
+                  <span className="flex-1 text-sm text-[var(--text-primary)] font-medium">OBS</span>
+                </button>
+              </div>
+            </div>
+          )}
+          <div className={`flex flex-wrap gap-2 px-6 pt-4 pb-2 bg-[var(--bg-primary)]${MUITOS_GRUPOS ? " hidden" : ""}`}>
             {GRUPOS.map((grupo, idx) => {
               const total = checklistItens.filter((i) => i.grupo === grupo).length;
               const respondidos = checklistItens.filter((i) => i.grupo === grupo && itens[i.id]).length;
@@ -1356,7 +1396,7 @@ export default function MacPage() {
             </button>
           </div>
 
-          <div className={`flex-1 overflow-y-auto px-6 pb-6${abaAtual === GRUPOS.length ? " hidden" : ""}`}>
+          <div className={`flex-1 overflow-y-auto px-6 pb-6${abaAtual === GRUPOS.length || (MUITOS_GRUPOS && verIndice) ? " hidden" : ""}`}>
             <div className="flex flex-wrap gap-2 pt-3 pb-1">
               <button onClick={() => marcarGrupo(grupoAtual, "conforme")}
                 className="flex items-center gap-1.5 bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
