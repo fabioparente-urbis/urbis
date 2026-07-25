@@ -1,6 +1,7 @@
 "use client";
 import { AbaAuditoria } from "./auditoria-aba";
 import { AbaPontuacao } from "./pontuacao-aba";
+import { AbaObsCod } from "./obs-cod-aba";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle } from "lucide-react";
@@ -32,7 +33,7 @@ function ConfiguracoesInner() {
   const [metaInput, setMetaInput] = useState<string>("100");
   const [salvandoMeta, setSalvandoMeta] = useState(false);
   const [sucessoMeta, setSucessoMeta] = useState(false);
-  const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros" | "auditoria" | "pontuacao">("geral");
+  const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros" | "auditoria" | "pontuacao" | "obscod">("geral");
   const [logFiltro, setLogFiltro] = useState("");
   const [logData, setLogData] = useState<LogRow[]>([]);
   const [logTotal, setLogTotal] = useState(0);
@@ -208,12 +209,13 @@ function ConfiguracoesInner() {
         <div className="flex items-center gap-2">
           <button onClick={() => router.push("/")} className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }} className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
-          <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2 ml-4"><Settings2 size={20} /> {abaAtual === "geral" ? "Configurações — Geral" : abaAtual === "logradouros" ? "Configurações — Logradouros" : abaAtual === "pontuacao" ? "MRP — Tabela de Pontuação" : "MAP — Módulo de Auditoria e Produtividade"}</h1>
+          <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2 ml-4"><Settings2 size={20} /> {abaAtual === "geral" ? "Configurações — Geral" : abaAtual === "logradouros" ? "Configurações — Logradouros" : abaAtual === "pontuacao" ? "MRP — Tabela de Pontuação" : abaAtual === "obscod" ? "OBS COD — Observações sobre o código" : "MAP — Módulo de Auditoria e Produtividade"}</h1>
         </div>
         <div className="flex gap-1">
           <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("pontuacao")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "pontuacao" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🎯 Pontuação</button>}
+          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("obscod")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "obscod" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📝 OBS COD</button>}
           {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
           {isAdmin && <button onClick={() => router.push("/admin/lixeira")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🗑️ Lixeira</button>}
@@ -423,6 +425,7 @@ function ConfiguracoesInner() {
 
         {abaAtual === "auditoria" && <AbaAuditoria isAdmin={isAdmin} />}
         {abaAtual === "pontuacao" && <AbaPontuacao />}
+        {abaAtual === "obscod" && <AbaObsCod />}
 
 
       </main>
