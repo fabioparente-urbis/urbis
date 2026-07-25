@@ -51,6 +51,8 @@ function ConfiguracoesInner() {
   const [zerarErro, setZerarErro] = useState("");
   const [zerarCarregando, setZerarCarregando] = useState(false);
   const [zerando, setZerando] = useState(false);
+  // Resultado do auto-clone disparado ao ativar um slot.
+  const [avisoClone, setAvisoClone] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(j => {
@@ -107,6 +109,15 @@ function ConfiguracoesInner() {
       const atualizado: Assunto = json.data;
       setAssuntos((prev) => prev.map((x) => (x.id === a.id ? atualizado : x)));
       setEdicao((prev) => ({ ...prev, [a.id]: { nome: atualizado.nome, ativo: atualizado.ativo } }));
+      // Ativar dispara o clone de Regularização. Ele já foi silencioso —
+      // slot ativo e vazio, e o admin só descobria ao abrir o LIP.
+      if (json.clone && !json.clone.ok) {
+        setErro(`Slot ativado, MAS a cópia falhou: ${json.clone.erro} — zere o slot e ative de novo.`);
+      } else if (json.clone?.copiado) {
+        const c = json.clone.copiado;
+        setAvisoClone(`Slot ativado e copiado de Regularização: ${c.abas} abas, ${c.campos} campos, ${c.mac_itens} itens de checklist e ${c.prompts} prompts.`);
+        setTimeout(() => setAvisoClone(""), 12000);
+      }
       setSucessoId(a.id); setTimeout(() => setSucessoId((cur) => (cur === a.id ? null : cur)), 2500);
     } catch (e: any) { setErro(e?.message || "Erro inesperado."); } finally { setSalvandoId(null); }
   }
@@ -220,6 +231,7 @@ function ConfiguracoesInner() {
             <p className="text-sm text-[var(--text-muted)] mt-1">Configure os 15 trilhos de processo do sistema. Regularização é fixa e sempre ativa.</p>
           </div>
           {erro && <div className="mb-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{erro}</div>}
+          {avisoClone && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">✅ {avisoClone}</div>}
           {carregando ? (<div className="text-[var(--text-muted)] text-sm inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Carregando assuntos…</div>) : (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] overflow-hidden">
               <div className="grid grid-cols-[60px_1fr_140px_190px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">

@@ -122,19 +122,53 @@ export async function PUT(req: NextRequest) {
 
   // 5. Auto-clone: se o slot acabou de ser ativado (false → true), clona
   //    LIP + MAC + prompts de Regularização automaticamente.
+  let clone: { ok: boolean; erro?: string; copiado?: Record<string, number> } | undefined;
   if (patch.ativo === true && atual.ativo === false) {
     try {
       await clonarDeRegularizacao(id, atualizado.slug, atualizado.nome);
+      // Confere o que de fato caiu no banco. Antes daqui, uma falha no
+      // meio do clone era engolida e o slot ficava ativo e vazio, sem
+      // ninguém saber — o admin só descobria ao abrir o LIP.
+      clone = { ok: true, copiado: await conferirClone(id) };
+      if ((clone.copiado?.abas ?? 0) === 0) {
+        clone = { ok: false, erro: "O slot foi ativado, mas nenhuma aba do LIP foi copiada.", copiado: clone.copiado };
+      }
     } catch (e: any) {
-      // Falha silenciosa no clone — não bloqueia a ativação
       console.error("[assuntos] auto-clone falhou:", e?.message);
+      clone = { ok: false, erro: e?.message ?? "Falha ao clonar de Regularização." };
     }
   }
 
-  return NextResponse.json({ ok: true, data: atualizado });
+  // `clone` só vem quando houve ativação. A ativação em si deu certo — por
+  // isso ok:true — mas a tela precisa avisar se o conteúdo não veio junto.
+  return NextResponse.json({ ok: true, data: atualizado, ...(clone ? { clone } : {}) });
 }
 
 const SLUG_REG = "regularizacao";
+
+/** Conta o que realmente existe no slot depois do clone. */
+async function conferirClone(assunto_id: string): Promise<Record<string, number>> {
+  const { data: abas } = await supabaseAdmin.from("lip_abas").select("id").eq("assunto_id", assunto_id);
+  const { data: modelos } = await supabaseAdmin.from("mac_checklist_modelos").select("id").eq("assunto_id", assunto_id);
+  const ids = (r: any[] | null) => (r ?? []).map((x) => x.id);
+
+  const conta = async (tabela: string, coluna: string, valores: string[]) => {
+    if (valores.length === 0) return 0;
+    const { count } = await supabaseAdmin.from(tabela).select("*", { count: "exact", head: true }).in(coluna, valores);
+    return count ?? 0;
+  };
+
+  const { count: prompts } = await supabaseAdmin
+    .from("lip_prompts").select("*", { count: "exact", head: true }).eq("assunto_id", assunto_id);
+
+  return {
+    abas: ids(abas).length,
+    campos: await conta("lip_campos", "aba_id", ids(abas)),
+    mac_modelos: ids(modelos).length,
+    mac_itens: await conta("mac_checklist_itens", "modelo_id", ids(modelos)),
+    prompts: prompts ?? 0,
+  };
+}
 
 async function clonarDeRegularizacao(destino_id: string, destino_slug: string, destino_nome: string) {
   // Busca ID da Regularização
