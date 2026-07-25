@@ -3,9 +3,13 @@ import { AbaAuditoria } from "./auditoria-aba";
 import { AbaPontuacao } from "./pontuacao-aba";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Settings2, Check, Loader2, Lock } from "lucide-react";
+import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle } from "lucide-react";
 
 type Assunto = { id: string; slug: string; nome: string; ativo: boolean; ordem: number; criado_em: string; };
+type InventarioSlot = {
+  config: { lip_abas: number; lip_campos: number; lip_prompts: number; mac_modelos: number; mac_itens: number; total: number };
+  bloqueios: { processos: number; analises_mac: number; mrp_registros: number; mdp_registros: number; total: number };
+};
 type LogRow = { id?: string; bairro: string; nome_logradouro: string; hierarquia_viaria?: string; largura_via?: string; larg_calcada?: string; largura_pista?: string; largura_ilha?: string; area?: string; };
 const LOG_VAZIO: LogRow = { bairro: "", nome_logradouro: "", hierarquia_viaria: "", largura_via: "", larg_calcada: "", largura_pista: "", largura_ilha: "", area: "" };
 const SLUG_FIXO = "regularizacao";
@@ -35,6 +39,15 @@ function ConfiguracoesInner() {
   const [logModal, setLogModal] = useState(false);
   const [logSalvando, setLogSalvando] = useState(false);
   const [logErro, setLogErro] = useState("");
+  // Zerar slot — dois avisos em sequência antes de apagar.
+  const [zerarAlvo, setZerarAlvo] = useState<Assunto | null>(null);
+  const [zerarPasso, setZerarPasso] = useState<1 | 2>(1);
+  const [zerarInv, setZerarInv] = useState<InventarioSlot | null>(null);
+  const [zerarImpedimento, setZerarImpedimento] = useState<string | null>(null);
+  const [zerarTexto, setZerarTexto] = useState("");
+  const [zerarErro, setZerarErro] = useState("");
+  const [zerarCarregando, setZerarCarregando] = useState(false);
+  const [zerando, setZerando] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(j => {
@@ -94,6 +107,41 @@ function ConfiguracoesInner() {
       setSucessoId(a.id); setTimeout(() => setSucessoId((cur) => (cur === a.id ? null : cur)), 2500);
     } catch (e: any) { setErro(e?.message || "Erro inesperado."); } finally { setSalvandoId(null); }
   }
+  // ── Zerar slot ───────────────────────────────────────────────────────
+  // Aviso 1: mostra o inventário do que será apagado (buscado no servidor).
+  // Aviso 2: exige digitar o nome exato do slot. Só então o POST sai.
+  async function abrirZerar(a: Assunto) {
+    setZerarAlvo(a); setZerarPasso(1); setZerarInv(null); setZerarImpedimento(null);
+    setZerarTexto(""); setZerarErro(""); setZerarCarregando(true);
+    try {
+      const res = await fetch(`/api/admin/assuntos/zerar?id=${encodeURIComponent(a.id)}`);
+      const json = await res.json();
+      if (!json.ok) { setZerarErro(json.erro || "Falha ao carregar o inventário do slot."); return; }
+      setZerarInv(json.data.inventario);
+      setZerarImpedimento(json.data.impedimento);
+    } catch (e: any) { setZerarErro(e?.message || "Erro inesperado."); } finally { setZerarCarregando(false); }
+  }
+  function fecharZerar() {
+    setZerarAlvo(null); setZerarInv(null); setZerarImpedimento(null);
+    setZerarTexto(""); setZerarErro(""); setZerando(false);
+  }
+  async function confirmarZerar() {
+    if (!zerarAlvo) return;
+    setZerando(true); setZerarErro("");
+    try {
+      const res = await fetch("/api/admin/assuntos/zerar", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: zerarAlvo.id, confirmacao: zerarTexto.trim() }),
+      });
+      const json = await res.json();
+      if (!json.ok) { setZerarErro(json.erro || "Falha ao zerar o slot."); return; }
+      const atualizado: Assunto = json.data;
+      setAssuntos((prev) => prev.map((x) => (x.id === atualizado.id ? atualizado : x)));
+      setEdicao((prev) => ({ ...prev, [atualizado.id]: { nome: atualizado.nome, ativo: atualizado.ativo } }));
+      fecharZerar();
+    } catch (e: any) { setZerarErro(e?.message || "Erro inesperado."); } finally { setZerando(false); }
+  }
+
   function linhaSofreuMudanca(a: Assunto): boolean {
     const v = edicao[a.id]; if (!v) return false;
     return v.nome.trim() !== a.nome || v.ativo !== a.ativo;
@@ -138,7 +186,6 @@ function ConfiguracoesInner() {
           {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => router.push("/admin/backup")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">💾 Backups</button>}
-          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => router.push("/admin/prompts")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🪄 Prompts</button>}
         </div>
       </header>
 
@@ -155,7 +202,7 @@ function ConfiguracoesInner() {
           {erro && <div className="mb-4 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{erro}</div>}
           {carregando ? (<div className="text-[var(--text-muted)] text-sm inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Carregando assuntos…</div>) : (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] overflow-hidden">
-              <div className="grid grid-cols-[60px_1fr_140px_140px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+              <div className="grid grid-cols-[60px_1fr_140px_190px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
                 <div>Ordem</div><div>Nome</div><div className="text-center">Ativo</div><div className="text-right pr-2">Ação</div>
               </div>
               {assuntos.map((a) => {
@@ -163,7 +210,7 @@ function ConfiguracoesInner() {
                 const v = edicao[a.id] ?? { nome: a.nome, ativo: a.ativo };
                 const podeSalvar = !fixo && linhaSofreuMudanca(a) && !salvandoId;
                 return (
-                  <div key={a.id} className="grid grid-cols-[60px_1fr_140px_140px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0">
+                  <div key={a.id} className="grid grid-cols-[60px_1fr_140px_190px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0">
                     <div className="text-[var(--text-muted)] text-sm">{a.ordem}</div>
                     <div className="min-w-0">
                       {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
@@ -174,14 +221,89 @@ function ConfiguracoesInner() {
                       {fixo ? (<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--success-bg)]/40 text-[var(--accent-fg)] text-xs"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Ativo</span>
                       ) : (<button type="button" role="switch" aria-checked={v.ativo} onClick={() => atualizarLinha(a.id, { ativo: !v.ativo })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${v.ativo ? "bg-[var(--accent)]" : "bg-[var(--bg-secondary)]"}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${v.ativo ? "translate-x-6" : "translate-x-1"}`} /></button>)}
                     </div>
-                    <div className="flex justify-end pr-2">
+                    <div className="flex justify-end items-center gap-2 pr-2">
                       {fixo ? (<span className="text-xs text-slate-600">—</span>
-                      ) : sucessoId === a.id ? (<span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check size={14} /> Salvo</span>
-                      ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
+                      ) : (<>
+                        {sucessoId === a.id ? (<span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check size={14} /> Salvo</span>
+                        ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
+                        <button type="button" onClick={() => abrirZerar(a)} title={a.ativo ? "Desative o slot antes de zerar" : "Zerar o slot (apaga LIP, MAC e prompts)"} disabled={a.ativo} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${a.ativo ? "border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-50" : "border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white"}`}><Trash2 size={12} /> Zerar</button>
+                      </>)}
                     </div>
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* ── Zerar slot: AVISO 1 de 2 — o que será apagado ───────────── */}
+          {zerarAlvo && zerarPasso === 1 && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+              <div className="bg-[var(--surface)] border border-[var(--error)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                <div className="flex items-center gap-2 mb-1 text-[var(--error)]">
+                  <AlertTriangle size={20} />
+                  <h2 className="font-bold text-lg">Aviso 1 de 2 — Zerar slot {zerarAlvo.ordem}</h2>
+                </div>
+                <p className="text-sm text-[var(--text-muted)] mb-4">
+                  <span className="text-[var(--text-primary)] font-medium">{zerarAlvo.nome}</span>
+                  <span className="font-mono text-xs ml-2">{zerarAlvo.slug}</span>
+                </p>
+
+                {zerarCarregando ? (
+                  <div className="text-[var(--text-muted)] text-sm inline-flex items-center gap-2 py-4"><Loader2 size={16} className="animate-spin" /> Conferindo o que existe neste slot…</div>
+                ) : zerarErro ? (
+                  <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{zerarErro}</div>
+                ) : zerarImpedimento ? (
+                  <div className="rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">🚫 {zerarImpedimento}</div>
+                ) : zerarInv && (<>
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 text-sm mb-4">
+                    <div className="text-[var(--text-muted)] text-xs uppercase tracking-wide mb-2">Será apagado permanentemente</div>
+                    {zerarInv.config.total === 0 ? (
+                      <div className="text-[var(--text-secondary)]">Nada — este slot nunca foi configurado. Só o nome e o slug voltam ao padrão.</div>
+                    ) : (
+                      <ul className="space-y-1 text-[var(--text-secondary)]">
+                        <li>• {zerarInv.config.lip_abas} aba(s) do LIP e {zerarInv.config.lip_campos} campo(s)</li>
+                        <li>• {zerarInv.config.mac_modelos} checklist(s) do MAC e {zerarInv.config.mac_itens} item(ns)</li>
+                        <li>• {zerarInv.config.lip_prompts} prompt(s) de IA deste slot</li>
+                      </ul>
+                    )}
+                    <div className="text-[var(--text-muted)] mt-3 pt-3 border-t border-[var(--border)] text-xs">
+                      O nome vira <span className="font-mono">Slot {String(zerarAlvo.ordem).padStart(2, "0")}</span>, o slug vira <span className="font-mono">slot_{String(zerarAlvo.ordem).padStart(2, "0")}</span> e o slot fica inativo.
+                    </div>
+                  </div>
+                  <div className="text-xs text-[var(--text-muted)] mb-4">
+                    Processos, análises do MAC, MRP e MDP <span className="text-[var(--text-secondary)]">não são tocados</span> — se houvesse algum vinculado, este botão estaria bloqueado.
+                  </div>
+                </>)}
+
+                <div className="flex gap-3 mt-5">
+                  <button onClick={fecharZerar} className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2.5 rounded-lg text-sm">Cancelar</button>
+                  <button onClick={() => { setZerarErro(""); setZerarPasso(2); }} disabled={zerarCarregando || !!zerarImpedimento || !!zerarErro || !zerarInv} className="flex-1 bg-[var(--error)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-sm">Entendi, continuar →</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Zerar slot: AVISO 2 de 2 — confirmação digitada ─────────── */}
+          {zerarAlvo && zerarPasso === 2 && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+              <div className="bg-[var(--surface)] border-2 border-[var(--error)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+                <div className="flex items-center gap-2 mb-3 text-[var(--error)]">
+                  <AlertTriangle size={20} />
+                  <h2 className="font-bold text-lg">Aviso 2 de 2 — Não tem volta</h2>
+                </div>
+                <p className="text-sm text-[var(--text-secondary)] mb-4">
+                  Esta ação é <span className="text-[var(--error)] font-bold">irreversível</span>. Não existe desfazer nem lixeira: o LIP, o checklist do MAC e os prompts deste slot serão apagados do banco. Para recriar, será preciso ativar o slot de novo (o sistema clona de Regularização) e refazer os ajustes.
+                </p>
+                <label className="text-xs text-[var(--text-muted)] mb-1 block">
+                  Para confirmar, digite exatamente o nome do slot: <span className="text-[var(--text-primary)] font-mono">{zerarAlvo.nome}</span>
+                </label>
+                <input autoFocus value={zerarTexto} onChange={(e) => setZerarTexto(e.target.value)} placeholder={zerarAlvo.nome} className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--error)]" />
+                {zerarErro && <div className="mt-3 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{zerarErro}</div>}
+                <div className="flex gap-3 mt-5">
+                  <button onClick={fecharZerar} className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2.5 rounded-lg text-sm">Cancelar</button>
+                  <button onClick={confirmarZerar} disabled={zerando || zerarTexto.trim() !== zerarAlvo.nome.trim()} className="flex-1 inline-flex items-center justify-center gap-2 bg-[var(--error)] hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-2.5 rounded-lg text-sm">{zerando ? <><Loader2 size={14} className="animate-spin" /> Apagando…</> : <><Trash2 size={14} /> Apagar definitivamente</>}</button>
+                </div>
+              </div>
             </div>
           )}
         </>)}
