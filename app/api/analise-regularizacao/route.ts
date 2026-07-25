@@ -45,7 +45,15 @@ export async function GET(req: NextRequest) {
     .from("analises_mac")
     .select("*")
     .eq("processo_codigo", codigo)
-    .eq("tipo_processo", tipoAtual)
+    // `ilike` e nao `eq`: em 25/06/2026 a constante desta rota mudou de
+    // "REGULARIZACAO" para "regularizacao" e 51 analises de 38 processos
+    // sumiram da tela por um mes — inclusive analises com despacho ja
+    // emitido. Comparar sem diferenciar caixa impede que uma troca de
+    // grafia volte a esconder historico.
+    .ilike("tipo_processo", tipoAtual)
+    // Analise na lixeira nao aparece na tela do MAC, mas continua no banco
+    // e em /admin/lixeira.
+    .is("excluido_em", null)
     .order("numero_analise", { ascending: false });
 
   // Só aplica o filtro se assunto_id for um UUID válido — evita injeção no .or().
@@ -73,11 +81,14 @@ export async function POST(req: NextRequest) {
 
     const tipoAtual = await tipoDoProcesso(processo_codigo);
 
+    // Conta TODAS as analises do processo, inclusive as que estao na
+    // lixeira: se a numeracao ignorasse as antigas, uma analise nova
+    // nasceria como "1" por cima de uma que ja existe.
     const { data: existentes } = await supabase
       .from("analises_mac")
       .select("numero_analise")
       .eq("processo_codigo", processo_codigo)
-      .eq("tipo_processo", tipoAtual)
+      .ilike("tipo_processo", tipoAtual)
       .order("numero_analise", { ascending: false })
       .limit(1);
 
@@ -94,7 +105,7 @@ export async function POST(req: NextRequest) {
       .from("processos")
       .select("dados")
       .eq("codigo", processo_codigo)
-      .eq("tipo_processo", tipoAtual)
+      .ilike("tipo_processo", tipoAtual)
       .maybeSingle();
     const dadosRT = (procRT as any)?.dados ?? {};
     const cauResponsavel = dadosRT?.cau?.valor || null;
