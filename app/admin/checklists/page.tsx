@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Item = {
+  gera_indeferimento?: boolean;
   id: string;
   grupo: string;
   texto: string;
@@ -225,6 +226,23 @@ export default function ChecklistsPage() {
 
   async function confirmarCriacaoComSelecao() {
     await criarModelo(Array.from(itensSelecionados));
+  }
+
+  /**
+   * Marca/desmarca o item como "gera indeferimento". Serve para o
+   * analista ver o peso do item na tela de análise, para a IA priorizar
+   * o que decide o destino do processo, e para a estatística de
+   * "qual item mais indefere".
+   */
+  async function toggleIndeferimento(item: Item) {
+    const novo = !item.gera_indeferimento;
+    const res = await fetch("/api/mac/checklists/itens", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: item.id, gera_indeferimento: novo }),
+    });
+    const json = await res.json();
+    if (!json.ok && json.error) { mostrarToast("Erro ao marcar item"); return; }
+    setItens((prev) => prev.map((i) => (i.id === item.id ? { ...i, gera_indeferimento: novo } : i)));
   }
 
   async function salvarItem() {
@@ -652,11 +670,17 @@ export default function ChecklistsPage() {
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
+                            {item.gera_indeferimento && (
+                              <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-300">⚠ Indefere</span>
+                            )}
                             <p className="text-sm text-[var(--text-primary)] leading-relaxed">{item.texto}</p>
                             {item.ref && <p className="text-xs text-[var(--text-muted)] mt-1">{item.ref}</p>}
                           </div>
                           {podeEditar && (
                             <div className="flex gap-2 shrink-0">
+                              <button onClick={() => toggleIndeferimento(item)}
+                                title={item.gera_indeferimento ? "Deixar de tratar como indeferimento" : "Marcar: não conformidade aqui indefere o processo"}
+                                className={`text-xs px-2 py-0.5 rounded border transition-colors ${item.gera_indeferimento ? "bg-red-100 border-red-400 text-red-700" : "bg-slate-50 hover:bg-red-50 border-slate-300 text-slate-500"}`}>⚠</button>
                               <button onClick={() => abrirEditarItem(item)}
                                 className="bg-blue-50 hover:bg-blue-100 border border-blue-300 text-blue-700 text-xs px-2 py-0.5 rounded transition-colors">✏️</button>
                               <button onClick={() => removerItem(item.id)}

@@ -17,6 +17,8 @@ type Item = {
   texto: string;
   ref?: string;
   ordem: number;
+  /** Item que, nao conforme, leva a indeferimento — nao e mera exigencia. */
+  gera_indeferimento?: boolean;
 };
 
 type Modelo = {
@@ -1719,6 +1721,12 @@ export default function MacPage() {
                     }`}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
+                        {item.gera_indeferimento && (
+                          <span className="inline-block mb-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#FEF2F2] text-[#DC2626] border border-[#DC2626]"
+                            title="Não conformidade neste item leva a indeferimento, não a exigência.">
+                            ⚠ Indefere
+                          </span>
+                        )}
                         <p className="text-sm text-[var(--text-primary)] leading-relaxed">{item.texto}</p>
                         {item.ref && <p className="text-xs text-[var(--text-muted)] mt-1">{item.ref}</p>}
                       </div>
