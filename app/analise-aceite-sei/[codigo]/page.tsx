@@ -574,21 +574,25 @@ export default function MacPage() {
     // Avisos de pendência só valem para o despacho ao interessado.
     if (tipo === "despacho") {
     // Coleta avisos — nunca bloqueia, só informa
-    const pendentesIA = checklistItens.filter(
-      (i) => fontes[i.id] === "p2" && !aceites[i.id]
-    );
+    // origem explícita — sem isso o modal prefixava "MAC —" também nos
+    // itens vindos do LIP, virando "MAC — LIP — 3. Uso do Solo".
+    const pendentesIA = checklistItens
+      .filter((i) => fontes[i.id] === "p2" && !aceites[i.id])
+      .map((i) => ({ id: i.id, texto: i.texto, grupo: i.grupo, origem: "mac" as const }));
     try {
       const [procRes, lipRes] = await Promise.all([
         fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }),
-        fetch("/api/admin/lip"),
+        fetch(`/api/admin/lip${assuntoId ? `?assunto_id=${encodeURIComponent(assuntoId)}` : ""}`),
       ]);
       const procJson = await procRes.json();
       const lipJson = await lipRes.json();
       const dados = procJson?.data?.dados || procJson?.dados || {};
+      const vistosLip = new Set<string>();
       const pendentesLipX = (lipJson?.data || []).flatMap((a: any) =>
         (a.lip_campos || [])
           .filter((c: any) => dados[c.chave]?.valor === "X")
-          .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: `LIP — ${a.nome || "LIP"}` }))
+          .filter((c: any) => (vistosLip.has(c.chave) ? false : (vistosLip.add(c.chave), true)))
+          .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: a.nome || "LIP", origem: "lip" as const }))
       );
       const todosAvisos = [
         ...pendentesIA,
@@ -2092,19 +2096,42 @@ export default function MacPage() {
               <h2 className="text-[var(--text-primary)] font-bold text-xl">Itens sugeridos pela IA aguardam aprovação</h2>
             </div>
             <p className="text-[var(--text-muted)] text-sm mb-4">
-              Os itens abaixo foram marcados pela IA e precisam ser revisados antes de emitir o despacho. Localize cada item no MAC e confirme ou rejeite:
+              Há pendências antes de emitir o despacho: campos do LIP ainda em rascunho (marcados com "X") e/ou itens do checklist do MAC que a IA sugeriu e você ainda não confirmou ou rejeitou.
             </p>
-            <ul className="space-y-3 max-h-[60vh] overflow-y-auto mb-5 pr-1">
-              {itensPendentesIA.map((item) => (
-                <li key={item.id} className="flex items-start gap-3 bg-[var(--bg-secondary)]/60 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm text-[var(--text-primary)]">
-                  <span className="text-yellow-400 mt-0.5 text-lg shrink-0">⚠</span>
-                  <div className="flex flex-col gap-1 min-w-0">
-                    <span className="text-xs text-[var(--warning)] font-semibold uppercase tracking-wide">MAC — {item.grupo || "Checklist"}</span>
-                    <span className="text-[var(--text-primary)] leading-relaxed">{item.texto || item.id}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+            <div className="max-h-[60vh] overflow-y-auto mb-5 pr-1 space-y-5">
+              {itensPendentesIA.some((i: any) => i.origem === "lip") && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--accent)] mb-2">📋 Campos do LIP marcados como rascunho (X)</p>
+                  <ul className="space-y-2">
+                    {itensPendentesIA.filter((i: any) => i.origem === "lip").map((item) => (
+                      <li key={item.id} className="flex items-start gap-3 bg-[var(--bg-secondary)]/60 border border-[var(--accent)]/30 rounded-xl px-4 py-3 text-sm">
+                        <span className="text-[var(--accent)] mt-0.5 text-lg shrink-0">📋</span>
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="text-xs text-[var(--accent)] font-semibold uppercase tracking-wide">Aba do LIP — {item.grupo || "LIP"}</span>
+                          <span className="text-[var(--text-primary)] leading-relaxed">{item.texto || item.id}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {itensPendentesIA.some((i: any) => i.origem === "mac") && (
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--warning)] mb-2">☑ Itens do MAC sugeridos pela IA (não confirmados)</p>
+                  <ul className="space-y-2">
+                    {itensPendentesIA.filter((i: any) => i.origem === "mac").map((item) => (
+                      <li key={item.id} className="flex items-start gap-3 bg-[var(--bg-secondary)]/60 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm">
+                        <span className="text-yellow-400 mt-0.5 text-lg shrink-0">⚠</span>
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="text-xs text-[var(--warning)] font-semibold uppercase tracking-wide">Grupo do MAC — {item.grupo || "Checklist"}</span>
+                          <span className="text-[var(--text-primary)] leading-relaxed">{item.texto || item.id}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={async () => { setModalItensPendentesIA(false); setNumeracaoCarregando(true); try { const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" }); const _j = await _r.json(); if (_j.ok) { setNumeroDespacho(String(_j.numero).padStart(3, "0")); setNumeracaoBloqueio(null); } else { setNumeroDespacho(""); setNumeracaoBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); } } catch { setNumeroDespacho(""); setNumeracaoBloqueio("Erro ao buscar número."); } finally { setNumeracaoCarregando(false); } setModalDespacho(true); }}
