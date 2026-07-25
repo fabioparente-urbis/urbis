@@ -579,10 +579,14 @@ export default function ProcessoClient() {
           }
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
+          // O tipo vai junto: print de tela (PNG/JPG) precisa chegar ao
+          // Gemini como imagem, não como PDF.
+          const tipoArquivo = arquivo.type || "application/pdf";
           const s1Res = await fetch("/api/lip/s1", {
             method: "POST",
             headers: {
-              "Content-Type": "application/pdf",
+              "Content-Type": tipoArquivo,
+              "X-File-Type": tipoArquivo,
               "X-File-Size": arquivo.size.toString(),
               "X-File-Name": arquivo.name,
             },
@@ -598,7 +602,7 @@ export default function ProcessoClient() {
           const s2Res = await fetch("/api/lip/s2", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current }),
+            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }),
           });
           const s2Data = await s2Res.json();
           const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
@@ -615,7 +619,7 @@ export default function ProcessoClient() {
           const s3Init = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current }),
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }),
           }).then(r => r.json());
           if (!s3Init.ok) {
             if (s3Init.erro === "LIMITE_DIARIO_GEMINI" || s3Init.erro === "BUDGET_EXCEDIDO") {
@@ -782,14 +786,15 @@ export default function ProcessoClient() {
         const arquivo = vcpArquivos[i];
         setProgresso(Math.round(10 + (i / total) * 60));
         mostrarToast(`📄 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
+        const tipoVcp = arquivo.type || "application/pdf";
         const s1Res = await fetch("/api/lip/s1", {
           method: "POST",
-          headers: { "Content-Type": "application/pdf", "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
+          headers: { "Content-Type": tipoVcp, "X-File-Type": tipoVcp, "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
           body: arquivo,
         });
         const s1Data = await s1Res.json();
         if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
-        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current }) });
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }) });
         const s2Data = await s2Res.json();
         const pdfBase64vcp = await new Promise<string>((res) => {
           const r = new FileReader();
@@ -1238,7 +1243,7 @@ export default function ProcessoClient() {
               <p className="text-[var(--text-secondary)] text-sm mb-2">Arraste os PDFs aqui</p>
               <label className="cursor-pointer text-xs text-[var(--accent)] underline">
                 ou clique para selecionar
-                <input type="file" accept=".pdf" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); e.target.value = ""; }} />
+                <input type="file" accept=".pdf,image/*" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); e.target.value = ""; }} />
               </label>
             </div>
             {vcpArquivos.length > 0 && (
@@ -1511,8 +1516,8 @@ export default function ProcessoClient() {
           <div className="ml-auto flex gap-2">
             <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
               {lendoLip ? "⏳ Lendo..." : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
-              <input ref={inputFileRef} type="file" accept=".pdf" className="hidden" disabled={lendoLip}
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) lerLip([f]); e.target.value = ""; }} />
+              <input ref={inputFileRef} type="file" accept=".pdf,image/*" multiple className="hidden" disabled={lendoLip}
+                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) lerLip(fs); e.target.value = ""; }} />
             </label>
             <button
               disabled={lendoLip}

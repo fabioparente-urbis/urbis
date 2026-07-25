@@ -14,6 +14,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB. Comprima o PDF antes de enviar.` }, { status: 413 });
     }
     const fileName = req.headers.get("x-file-name") || "processo.pdf";
+    // O tipo tem que ser o real: o pipeline mandava application/pdf fixo,
+    // então print de tela (PNG/JPG) subia rotulado como PDF e o Gemini
+    // recusava ou lia lixo. Aceita PDF e imagem; qualquer outra coisa cai
+    // no PDF, que era o comportamento antigo.
+    const tipoBruto = (req.headers.get("x-file-type") || req.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const mimeType = /^(application\/pdf|image\/(png|jpeg|jpg|webp|heic|heif))$/.test(tipoBruto)
+      ? (tipoBruto === "image/jpg" ? "image/jpeg" : tipoBruto)
+      : "application/pdf";
 
     console.log(`[S1] Streaming: ${fileName} (${(parseInt(contentLength) / 1024 / 1024).toFixed(2)} MB)`);
 
@@ -22,10 +30,10 @@ export async function POST(req: NextRequest) {
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/pdf",
+          "Content-Type": mimeType,
           "X-Goog-Upload-Command": "upload, finalize",
           "X-Goog-Upload-Header-Content-Length": contentLength,
-          "X-Goog-Upload-Header-Content-Type": "application/pdf",
+          "X-Goog-Upload-Header-Content-Type": mimeType,
         },
         body: Buffer.from(await req.arrayBuffer()),
       }
@@ -46,6 +54,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       fileUri,
+      mimeType,
       fileName: filName,
       state,
       tamanhoMB: (parseInt(contentLength) / 1024 / 1024).toFixed(2),

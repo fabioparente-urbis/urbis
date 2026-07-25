@@ -6,7 +6,9 @@ export const maxDuration = 280;
 
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, assunto_id } = await req.json();
+    const { fileUri, assunto_id, mimeType } = await req.json();
+    // Sem isto, print de tela ia para o Gemini rotulado como PDF.
+    const tipo = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "application/pdf";
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri não informado" }, { status: 400 });
 
@@ -47,7 +49,7 @@ export async function POST(req: NextRequest) {
           contents: [{
             role: "user",
             parts: [
-              { fileData: { mimeType: "application/pdf", fileUri } },
+              { fileData: { mimeType: tipo, fileUri } },
               { text: promptData.conteudo },
             ],
           }],

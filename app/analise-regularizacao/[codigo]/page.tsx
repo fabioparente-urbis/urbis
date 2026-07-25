@@ -3,7 +3,7 @@ import { perfilDe } from "@/lib/numeracao";
 import { filtrosDoAssunto, type FiltroMac } from "@/lib/macFiltros";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
 import { parseAreaBR } from "@/lib/mrp";
@@ -353,6 +353,25 @@ export default function MacPage() {
     void salvarSilencioso();
     mostrarToast(`✅ ${f.nome}: ${alvo.length} item(ns) marcados como N/A.`);
   }
+
+  // O índice mostra, por grupo, quantos itens existem, quantos foram
+  // respondidos e se há não-conformidade. Calcular isso dentro do map
+  // custava 3 varreduras dos 561 itens POR grupo — ~80 mil operações a
+  // cada tecla digitada na busca. Aqui é uma varredura só, memoizada.
+  const statsPorGrupo = useMemo(() => {
+    const m: Record<string, { total: number; respondidos: number; temErro: boolean; busca: string }> = {};
+    for (const i of checklistItens) {
+      const g = m[i.grupo] ?? (m[i.grupo] = { total: 0, respondidos: 0, temErro: false, busca: "" });
+      g.total++;
+      if (itens[i.id]) g.respondidos++;
+      if (itens[i.id] === "nao_conforme") g.temErro = true;
+      g.busca += " " + String(i.texto ?? "");
+    }
+    for (const k of Object.keys(m)) {
+      m[k].busca = (k + m[k].busca).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    }
+    return m;
+  }, [checklistItens, itens]);
 
   const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -1492,14 +1511,13 @@ export default function MacPage() {
               <div className="flex flex-col gap-1.5 max-w-4xl">
                 {GRUPOS.filter((grupo) => {
                   const q = semAcento(buscaTexto.trim());
-                  if (!q) return true;
-                  if (semAcento(grupo).includes(q)) return true;
-                  return checklistItens.some((i) => i.grupo === grupo && semAcento(String(i.texto ?? "")).includes(q));
+                  return !q || (statsPorGrupo[grupo]?.busca ?? "").includes(q);
                 }).map((grupo) => {
                   const idx = GRUPOS.indexOf(grupo);
-                  const total = checklistItens.filter((i) => i.grupo === grupo).length;
-                  const respondidos = checklistItens.filter((i) => i.grupo === grupo && itens[i.id]).length;
-                  const temErro = temNaoConformeNaAba(idx);
+                  const st = statsPorGrupo[grupo] ?? { total: 0, respondidos: 0, temErro: false };
+                  const total = st.total;
+                  const respondidos = st.respondidos;
+                  const temErro = st.temErro;
                   return (
                     <button key={grupo} onClick={() => { void salvarSilencioso(); setAbaAtual(idx); setVerIndice(false); }}
                       className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">

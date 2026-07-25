@@ -15,7 +15,8 @@ export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id } = await req.json();
+    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id, mimeType } = await req.json();
+    const tipoArquivo = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "application/pdf";
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
 
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY!;
 
     // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
-    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso }).catch(
+    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, tipoArquivo }).catch(
       (e) => console.error("[S3-bg] erro não capturado:", e?.message)
     );
 
@@ -115,8 +116,11 @@ async function processarJobBackground(jobId: string, params: {
   codigo?: string;
   fileName?: string;
   tipoProcesso?: string | null;
+  /** application/pdf ou image/* — o print de tela precisa ir como imagem. */
+  tipoArquivo?: string;
 }) {
   const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso } = params;
+  const tipoArquivo = params.tipoArquivo ?? "application/pdf";
   try {
     let texto = "";
     let geminiOk = false;
@@ -132,7 +136,7 @@ async function processarJobBackground(jobId: string, params: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ fileData: { mimeType: "application/pdf", fileUri } }, { text: promptFinal }] }],
+            contents: [{ role: "user", parts: [{ fileData: { mimeType: tipoArquivo, fileUri } }, { text: promptFinal }] }],
             generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
           }),
         }
