@@ -638,6 +638,38 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("volumeDaCaixaDeRecarga", pr.volumeCaixa != null ? fmt(pr.volumeCaixa) : null, "lido",
       "carimbo da prancha (a conferir por cálculo)");
 
+  /**
+   * PRIMITIVOS — os fatos que produzem o veredito, criados no LIP em 27/07/2026.
+   * O que a camada de texto entrega já entra preenchido; o que ela não alcança fica VAZIO de
+   * propósito, para o analista digitar. Campo vazio é honesto; campo chutado contamina a
+   * conferência que depende dele.
+   */
+  const qtd = (d: any, re: RegExp) => {
+    const v = d.atividades?.find((x: Atividade) => re.test(x.unidade))?.quantidade;
+    return v ?? null;
+  };
+  set("areaNaArtDeProjeto", qtd(aProj, /QUADRAD/i), "lido", "quadro de atividade técnica da ART de projeto");
+  set("areaNaArtDeExecucao", qtd(aExec, /QUADRAD/i), "lido", "quadro de atividade técnica da ART de execução");
+  set("volumeNaArtDeCaixa", qtd(aCx, /C[ÚU]BIC/i), "lido", "quadro de atividade técnica da ART de caixa");
+  set("areaPermeavelProjetada", pr.permeavel != null ? fmt(pr.permeavel) : null, "lido",
+      "cobertura vegetal permeável no carimbo");
+  set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "lido",
+      "ICCAP EXIGIDO no carimbo (IN 007/2024)");
+  // área impermeabilizada: quando o carimbo traz o EXIGIDO, ela é dedutível do parâmetro do UDS
+  if (pr.iccapExigido != null && uds.iccapDivisor) {
+    set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "calculado",
+        `${fmt(pr.iccapExigido)} m³ × ${uds.iccapDivisor} m²/m³ (parâmetro do Uso do Solo)`);
+  }
+  // alertas do Uso do Solo: o que o próprio documento sinaliza e muda a análise
+  {
+    const alertas: string[] = [];
+    if (uds.corredorViario) alertas.push(`corredor viário: ${uds.corredorViario}`);
+    if (uds.embargo && /SIM/i.test(uds.embargo)) alertas.push("imóvel COM EMBARGO");
+    if (uds.embarqueDesembarque && /SIM/i.test(uds.embarqueDesembarque)) alertas.push("exige embarque/desembarque");
+    set("alertasDoUsoDoSolo", alertas.length ? alertas.join(" · ") : (uds.numero ? "nenhum alerta no documento" : null),
+        "calculado", "Uso do Solo");
+  }
+
   // fração ideal
   if (/90,00m²/.test(uds.fracaoIdeal ?? "") && /ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
     set("aabEApac190", "SIM", "calculado", uds.fracaoIdeal);
