@@ -168,6 +168,9 @@ export default function ProcessoClient() {
   const searchParams = useSearchParams();
   const idUrl = (params?.id as string) ?? "";
   const tipoUrl = searchParams?.get("tipo") ?? "regularizacao";
+  // Aprovação de Projeto lê PASTA (a pasta é a rodada de análise); os outros assuntos
+  // seguem escolhendo arquivos, sem nenhuma mudança de comportamento.
+  const ehSlot5 = tipoUrl === "slot_05";
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
@@ -554,6 +557,77 @@ export default function ProcessoClient() {
         }
       }, 5000);
     });
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+   * LER PASTA — triagem local do slot 5, ANTES de gastar Gemini.
+   *
+   * O `lerLip` manda cada arquivo por S1+S2+S3, ou seja três chamadas ao
+   * Gemini por arquivo. Apontar a pasta inteira sem filtrar custaria trinta
+   * chamadas e mandaria o DWG e os documentos pessoais escaneados junto.
+   *
+   * Aqui nada vai para a rede: a pasta é a rodada (raiz = 1ª análise, cada
+   * subpasta a seguinte), o hash derruba arquivo repetido, e três papéis
+   * ficam fora por decisão do analista — documentos pessoais e declaração de
+   * responsabilidade são escopo da CHEADV, e o DWG não é legível.
+   *
+   * Ver docs/PROMPT_LEITURA_PASTA_SLOT5.md
+   * ───────────────────────────────────────────────────────────────────────── */
+  const SO_PRESENCA_SLOT5: { re: RegExp; motivo: string }[] = [
+    { re: /\.(dwg|dxf)$/i, motivo: "arquivo CAD, não é legível" },
+    { re: /DOCUMENTOS/i, motivo: "documentos pessoais — escopo da CHEADV" },
+    { re: /DECLARA/i, motivo: "declaração de responsabilidade — escopo da CHEADV" },
+  ];
+
+  async function hashArquivo(f: File): Promise<string> {
+    const buf = await f.arrayBuffer();
+    const d = await crypto.subtle.digest("SHA-256", buf);
+    return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function lerPasta(todos: File[]) {
+    // a pasta é a rodada: sem "/" no caminho relativo, está na raiz
+    const rodadaDe = (f: File) => {
+      const rel = (f as any).webkitRelativePath as string | undefined;
+      // webkitRelativePath vem como "SLOT 5/PROJETO.pdf" (raiz) ou
+      // "SLOT 5/REV01/ARQ....pdf" (subpasta) — a profundidade É a rodada
+      const partes = (rel || f.name).split("/").filter(Boolean);
+      return Math.max(1, partes.length - 1);
+    };
+
+    const ignorados: string[] = [];
+    const candidatos = todos.filter((f) => {
+      if (f.name.startsWith(".")) return false; // .DS_Store e afins
+      const regra = SO_PRESENCA_SLOT5.find((r) => r.re.test(f.name));
+      if (regra) { ignorados.push(`${f.name} — ${regra.motivo}`); return false; }
+      return true;
+    });
+
+    // hash derruba o mesmo arquivo salvo com dois nomes (a ART de execução e a
+    // de caixa costumam ser a MESMA folha) e o reenvio sem alteração
+    const vistos = new Map<string, File>();
+    const repetidos: string[] = [];
+    for (const f of candidatos) {
+      const h = await hashArquivo(f);
+      const antes = vistos.get(h);
+      if (antes) { repetidos.push(`${f.name} = ${antes.name}`); continue; }
+      vistos.set(h, f);
+    }
+    const aLer = [...vistos.values()].sort((a, b) => rodadaDe(a) - rodadaDe(b));
+
+    const rodadas = new Set(candidatos.map(rodadaDe));
+    const resumo = [
+      `📁 ${todos.length} arquivo(s) na pasta · ${rodadas.size} rodada(s)`,
+      ignorados.length ? `⊘ ${ignorados.length} fora do escopo: ${ignorados.join(" · ")}` : "",
+      repetidos.length ? `⊘ ${repetidos.length} idêntico(s) por hash: ${repetidos.join(" · ")}` : "",
+      `→ ${aLer.length} arquivo(s) serão lidos com IA`,
+    ].filter(Boolean).join("\n");
+
+    if (!aLer.length) { mostrarToast("Nenhum arquivo legível na pasta.", "erro"); return; }
+    if (!confirm(`${resumo}\n\nConfirma a leitura?`)) return;
+
+    mostrarToast(`📁 Triagem: ${todos.length} na pasta → ${aLer.length} para ler`, "info");
+    await lerLip(aLer);
   }
 
   async function lerLip(arquivos: File[]) {
@@ -1524,13 +1598,21 @@ export default function ProcessoClient() {
         <div className="flex items-center gap-4 flex-wrap">
           <div>
             <p className="text-sm font-bold text-[var(--text-primary)]">📄 Leitura Inteligente do LIP</p>
-            <p className="text-xs text-[var(--text-muted)] mt-0.5">Upload do PDF — preenche os campos automaticamente</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              {ehSlot5
+                ? "Escolha a pasta do processo — a pasta é a rodada (raiz = 1ª análise, cada subpasta a seguinte)"
+                : "Upload do PDF — preenche os campos automaticamente"}
+            </p>
           </div>
           <div className="ml-auto flex gap-2">
             <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
-              {lendoLip ? "⏳ Lendo..." : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
-              <input ref={inputFileRef} type="file" accept=".pdf,image/*" multiple className="hidden" disabled={lendoLip}
-                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) lerLip(fs); e.target.value = ""; }} />
+              {lendoLip ? "⏳ Lendo..." : ehSlot5 ? "📁 LER PASTA" : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
+              {/* No slot 5 o analista escolhe a PASTA do processo, não os arquivos: a pasta é a
+                  rodada de análise (raiz = 1ª, cada subpasta a seguinte). `webkitdirectory` desce
+                  nas subpastas e cada File chega com webkitRelativePath, de onde sai a rodada. */}
+              <input ref={inputFileRef} type="file" accept={ehSlot5 ? undefined : ".pdf,image/*"} multiple className="hidden" disabled={lendoLip}
+                {...(ehSlot5 ? { webkitdirectory: "", directory: "" } as any : {})}
+                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) (ehSlot5 ? lerPasta(fs) : lerLip(fs)); e.target.value = ""; }} />
             </label>
             <button
               disabled={lendoLip}
