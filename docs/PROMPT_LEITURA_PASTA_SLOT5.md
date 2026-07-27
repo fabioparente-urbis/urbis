@@ -1,8 +1,24 @@
 # Leitura da pasta — Slot 5 (Aprovação de Projeto)
 
-> Rascunho iniciado em 26/07/2026, a partir do OBS COD (entrada "POR ONDE COMEÇAR o slot 5").
-> **Nada implementado.** Este documento é o contrato: o que roda local, o que vai para o Gemini,
-> o que o código decide, e o texto dos prompts.
+> Iniciado em 26/07/2026 a partir do OBS COD (entrada "POR ONDE COMEÇAR o slot 5").
+> **Implementado em 27/07/2026** — E0 e E1 rodam dentro do URBIS. Este documento é o contrato: o
+> que roda local, o que vai para o Gemini, o que o código decide, e o texto dos prompts.
+
+## Estado — 27/07/2026
+
+| | |
+|---|---|
+| **Pronto e em produção** | Botão **LER PASTA** no LIP do slot 5 · rota `POST /api/lip/ler-pasta` · aceite em bloco · 11 campos primitivos no LIP · carimbo lido pelo modelo oficial da IN 007/2024 |
+| **Na pasta de amostra** | **45 dos 136 campos** preenchidos · **13 conferências** · **1,6 s** · **zero chamadas de IA** |
+| **Onde mora** | [`lib/lerPastaSlot5.ts`](../lib/lerPastaSlot5.ts) · [`app/api/lip/ler-pasta/route.ts`](../app/api/lip/ler-pasta/route.ts) · o modal em `ProcessoClient.tsx` |
+| **Teste** | `npx tsx scripts/testar_leitura_pasta.mts "~/Desktop/SLOT 5"` |
+| **Ainda não existe** | tabelas em imagem da prancha (vagas, permeável detalhado) · persistência por rodada · MAC · despachos, pareceres e laudos |
+
+**Duas armadilhas que não podem ser desfeitas por engano:**
+`serverExternalPackages: ["pdfjs-dist"]` no `next.config.ts` — empacotado, o pdfjs não acha o
+próprio worker e a leitura falha inteira. E o agrupamento de linha segue a **altura da fonte**,
+não um número fixo: com tolerância fixa, `R 2` e `COLETORA` da mesma linha do Uso do Solo caem em
+linhas diferentes e a classificação da via some.
 
 ---
 
