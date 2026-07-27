@@ -79,6 +79,13 @@ export type ResultadoLeitura = {
            paginasReaproveitadas: number; paginasProcessadas: number };
   /** texto e estrutura de cada arquivo processado agora — o que o MHD guarda no lugar do PDF */
   extratos: { hash: string; texto: string; linhas: unknown }[];
+  /**
+   * papel → hash do arquivo VENCEDOR daquele papel. Só o vencedor vira versão no MHD: sem isto,
+   * a mesma folha salva com dois nomes (a ART de execução e a de caixa são o MESMO arquivo)
+   * criava duas versões do mesmo papel, e a segunda aparecia como "correção" numa leitura em que
+   * nada foi corrigido.
+   */
+  vigentesPorPapel: Record<string, string>;
 };
 
 // ───────────────────────────── infra ─────────────────────────────
@@ -948,7 +955,11 @@ export async function lerPastaSlot5(
 
   const paginasNaPasta = catalogo.reduce((s, it) => s + it.paginas, 0);
   const paginasIgnoradas = catalogo.filter((it) => it.soPresenca).reduce((s, it) => s + it.paginas, 0);
-  const paginasReaproveitadas = catalogo.filter((it) => it.daMemoria).reduce((s, it) => s + it.paginas, 0);
+  // só conta como reaproveitada a página que teria sido processada: as ignoradas por escopo
+  // (documentos pessoais, declaração, DWG) nunca entram na conta, senão o saldo fica negativo
+  const paginasReaproveitadas = catalogo
+    .filter((it) => it.daMemoria && !it.soPresenca)
+    .reduce((s, it) => s + it.paginas, 0);
 
   return {
     catalogo, campos, conferencias, obrigatorios, duplicidades,
@@ -961,5 +972,6 @@ export async function lerPastaSlot5(
       paginasProcessadas: paginasNaPasta - paginasIgnoradas - paginasReaproveitadas,
     },
     extratos,
+    vigentesPorPapel: Object.fromEntries(Object.entries(vig).map(([papel, it]) => [papel, it.hash])),
   };
 }

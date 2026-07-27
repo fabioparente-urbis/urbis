@@ -98,32 +98,39 @@ export async function POST(req: NextRequest) {
 
     const resultado = await lerPastaSlot5(entradas, conhecidos);
 
-    // grava o conhecimento produzido agora e devolve o resumo da leitura incremental
+    /**
+     * O MHD recebe UM registro por arquivo distinto, com apenas os papéis em que aquele arquivo
+     * é o VIGENTE. Sem isso: (a) a mesma folha salva com dois nomes viraria duas versões do
+     * mesmo papel, e (b) a segunda apareceria como "correção" numa leitura em que nada mudou.
+     */
     const porHash = new Map(resultado.extratos.map((x) => [x.hash, x]));
+    const jaEnviado = new Set<string>();
+    const paraMHD = resultado.catalogo
+      .filter((it) => {
+        if (jaEnviado.has(it.hash)) return false;
+        jaEnviado.add(it.hash);
+        return true;
+      })
+      .map((it) => ({
+        ...it,
+        papeis: it.papeis.filter(
+          (p) => p !== "outros" && resultado.vigentesPorPapel[p] === it.hash,
+        ),
+      }))
+      .filter((it) => it.papeis.length > 0);
     const mhd = await registrarLeitura({
       processoCodigo: processoCodigo || "sem-processo",
       assuntoId: assuntoId || null,
-      entradas: resultado.catalogo
-        .filter((it) => !it.daMemoria && it.papeis.length && !it.papeis.includes("outros"))
-        .map((it) => ({
-          hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
-          papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
-          dataArquivo: datasArquivo.get(it.hash) ?? null,
-          texto: porHash.get(it.hash)?.texto ?? null,
-          linhas: porHash.get(it.hash)?.linhas ?? null,
-          dados: it.dados ?? null,
-          origem: "texto" as const,
-          custoPaginasIA: 0,
-        }))
-        .concat(
-          resultado.catalogo.filter((it) => it.daMemoria).map((it) => ({
-            hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
-            papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
-            dataArquivo: datasArquivo.get(it.hash) ?? null,
-            texto: null, linhas: null, dados: it.dados ?? null,
-            origem: "texto" as const, custoPaginasIA: 0,
-          })),
-        ),
+      entradas: paraMHD.map((it) => ({
+        hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
+        papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
+        dataArquivo: datasArquivo.get(it.hash) ?? null,
+        texto: porHash.get(it.hash)?.texto ?? null,
+        linhas: porHash.get(it.hash)?.linhas ?? null,
+        dados: it.dados ?? null,
+        origem: "texto" as const,
+        custoPaginasIA: 0,
+      })),
       conferencias: resultado.conferencias.map((c) => ({ nome: c.nome })),
     });
 

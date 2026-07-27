@@ -21,7 +21,11 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-import { supabase } from "@/lib/supabaseClient";
+// SERVICE ROLE, não o cliente anônimo: RLS bloqueia escrita anônima em TODAS as tabelas do
+// projeto — e de um jeito traiçoeiro, porque o SELECT passa devolvendo vazio e só o INSERT é
+// recusado. Com o cliente anônimo a memória parecia "ligada" e não gravava nada. Este módulo só
+// roda no servidor (rotas /api), nunca no navegador.
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { rotuloDe, camposAfetados, conferenciasAfetadas } from "@/lib/mhdDependencias";
 
 export type EstadoDocumento = "novo" | "conhecido" | "corrigido";
@@ -162,7 +166,10 @@ async function acharOuCriarDocumento(
     .from("mhd_documentos")
     .insert({ processo_codigo: processoCodigo, assunto_id: assuntoId, papel, rotulo: rotuloDe(papel) })
     .select("id").single();
-  return error ? null : data.id;
+  // falha aqui não pode ser silenciosa: foi exatamente assim que a memória ficou "ligada"
+  // gravando nada, quando o módulo ainda usava o cliente anônimo e o RLS recusava o insert
+  if (error) { console.error("[MHD] não consegui criar o documento lógico:", papel, error.message); return null; }
+  return data.id;
 }
 
 export async function registrarEvento(e: {
@@ -248,7 +255,7 @@ export async function registrarLeitura(args: {
       // cada papel é um documento lógico, e cada um ganha a sua versão
       for (const papel of e.papeis) {
         const documentoId = await acharOuCriarDocumento(processoCodigo, assuntoId, papel);
-        if (!documentoId) continue;
+        if (!documentoId) continue; // já logado acima
 
         const { data: anteriores } = await supabase
           .from("mhd_versoes").select("id,versao,dados,nome_arquivo")
