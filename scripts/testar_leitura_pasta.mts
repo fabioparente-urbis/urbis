@@ -4,7 +4,7 @@
  *   npx tsx scripts/testar_leitura_pasta.mts "~/Desktop/SLOT 5"
  *
  * Roda a MESMA biblioteca que a rota /api/lip/ler-pasta usa, sem subir servidor e sem IA.
- * Referência atual da pasta de amostra: 40 campos, 13 conferências, 0 chamadas de IA.
+ * Referência atual da pasta de amostra: 45 campos, 13 conferências, 0 chamadas de IA.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -39,7 +39,7 @@ console.log("\n── CAMPOS DO LIP ──");
 const porOrigem: Record<string, string[]> = {};
 for (const [k, v] of Object.entries(r.campos)) (porOrigem[v.origem] ||= []).push(`${k.padEnd(36)} ${String(v.valor).padEnd(28)} ← ${v.fonte}`);
 for (const o of ["lido","calculado","padrao"]) { console.log(` ${o.toUpperCase()} (${(porOrigem[o]||[]).length})`); (porOrigem[o]||[]).forEach(l=>console.log("   "+l)); }
-console.log(`\n  TOTAL: ${Object.keys(r.campos).length} de 125 campos`);
+console.log(`\n  TOTAL: ${Object.keys(r.campos).length} de 136 campos`);
 console.log("\n── CONFERÊNCIAS ──");
 const ic: any = { "CONFERE":"✔", "NÃO CONFERE":"✘", "SEM DADO":"?", "INFORMATIVO":"i" };
 for (const c of r.conferencias) console.log(`  ${ic[c.estado]} [${c.estado}] ${c.nome}\n      ${c.detalhe}`);
