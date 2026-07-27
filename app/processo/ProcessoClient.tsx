@@ -197,6 +197,9 @@ export default function ProcessoClient() {
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
   const [modalVCP, setModalVCP] = useState(false);
+  const [lendoPasta, setLendoPasta] = useState(false);
+  // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
+  const [propostaPasta, setPropostaPasta] = useState<any>(null);
   const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
   const [vcpProcessando, setVcpProcessando] = useState(false);
   const [tempoLeitura, setTempoLeitura] = useState(0); // segundos
@@ -573,61 +576,70 @@ export default function ProcessoClient() {
    *
    * Ver docs/PROMPT_LEITURA_PASTA_SLOT5.md
    * ───────────────────────────────────────────────────────────────────────── */
-  const SO_PRESENCA_SLOT5: { re: RegExp; motivo: string }[] = [
-    { re: /\.(dwg|dxf)$/i, motivo: "arquivo CAD, não é legível" },
-    { re: /DOCUMENTOS/i, motivo: "documentos pessoais — escopo da CHEADV" },
-    { re: /DECLARA/i, motivo: "declaração de responsabilidade — escopo da CHEADV" },
-  ];
+  async function lerPasta(todos: File[]) {
+    const arquivos = todos.filter((f) => !f.name.startsWith("."));
+    if (!arquivos.length) { mostrarToast("Nenhum arquivo na pasta.", "erro"); return; }
 
-  async function hashArquivo(f: File): Promise<string> {
-    const buf = await f.arrayBuffer();
-    const d = await crypto.subtle.digest("SHA-256", buf);
-    return Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("");
+    try {
+      setLendoPasta(true);
+      mostrarToast(`📁 Lendo ${arquivos.length} arquivo(s) da pasta...`, "info");
+
+      const fd = new FormData();
+      for (const f of arquivos) {
+        fd.append("arquivos", f, f.name);
+        fd.append("caminhos", (f as any).webkitRelativePath || f.name);
+      }
+
+      const r = await fetch("/api/lip/ler-pasta", { method: "POST", body: fd });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.erro || "Falha ao ler a pasta");
+
+      setPropostaPasta(data);
+      registrar({
+        modulo: "LIP", acao: "LIP_LEITURA_PASTA", processo_codigo: idUrl, origem: "SISTEMA",
+        detalhe: { arquivos: arquivos.length, campos: Object.keys(data.campos ?? {}).length, ms: data.msLeitura },
+      });
+    } catch (e: any) {
+      mostrarToast("Erro na leitura da pasta: " + (e?.message ?? e), "erro");
+    } finally {
+      setLendoPasta(false);
+    }
   }
 
-  async function lerPasta(todos: File[]) {
-    // a pasta é a rodada: sem "/" no caminho relativo, está na raiz
-    const rodadaDe = (f: File) => {
-      const rel = (f as any).webkitRelativePath as string | undefined;
-      // webkitRelativePath vem como "SLOT 5/PROJETO.pdf" (raiz) ou
-      // "SLOT 5/REV01/ARQ....pdf" (subpasta) — a profundidade É a rodada
-      const partes = (rel || f.name).split("/").filter(Boolean);
-      return Math.max(1, partes.length - 1);
-    };
-
-    const ignorados: string[] = [];
-    const candidatos = todos.filter((f) => {
-      if (f.name.startsWith(".")) return false; // .DS_Store e afins
-      const regra = SO_PRESENCA_SLOT5.find((r) => r.re.test(f.name));
-      if (regra) { ignorados.push(`${f.name} — ${regra.motivo}`); return false; }
-      return true;
+  /**
+   * Aceite em bloco. Nada entra no LIP sozinho: a leitura é uma PROPOSTA, e é aqui — e só aqui —
+   * que ela vira valor gravado. Decisão do analista: aceita tudo de uma vez, sem marcar campo a
+   * campo.
+   */
+  function aceitarPropostaPasta() {
+    const p = propostaPasta;
+    if (!p) return;
+    setD((prev) => {
+      const novo = { ...prev };
+      for (const [chave, item] of Object.entries(p.campos as Record<string, any>)) {
+        if (!item?.valor) continue;
+        novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+      }
+      // o log da leitura vai para a aba OBS, como já acontece na leitura por arquivo
+      const linhas = [
+        `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
+        `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · sem IA`,
+        ...p.obrigatorios.filter((o: any) => !o.presente).map((o: any) => `  ⚠ FALTA: ${o.nome}`),
+        ...p.conferencias
+          .filter((c: any) => c.estado === "NÃO CONFERE")
+          .map((c: any) => `  ✘ ${c.nome} — ${c.detalhe}`),
+        ...p.conferencias
+          .filter((c: any) => c.estado === "SEM DADO" && c.dependencia)
+          .map((c: any) => `  ? ${c.nome} (depende de: ${c.dependencia})`),
+      ].join("\n");
+      const obsAtual = novo["observacoes"]?.valor ?? "";
+      novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + linhas : linhas, origem: "urbis", fonte: "LIP" };
+      corrigirSeiFisico(novo, idUrl);
+      autoSalvar(novo);
+      return novo;
     });
-
-    // hash derruba o mesmo arquivo salvo com dois nomes (a ART de execução e a
-    // de caixa costumam ser a MESMA folha) e o reenvio sem alteração
-    const vistos = new Map<string, File>();
-    const repetidos: string[] = [];
-    for (const f of candidatos) {
-      const h = await hashArquivo(f);
-      const antes = vistos.get(h);
-      if (antes) { repetidos.push(`${f.name} = ${antes.name}`); continue; }
-      vistos.set(h, f);
-    }
-    const aLer = [...vistos.values()].sort((a, b) => rodadaDe(a) - rodadaDe(b));
-
-    const rodadas = new Set(candidatos.map(rodadaDe));
-    const resumo = [
-      `📁 ${todos.length} arquivo(s) na pasta · ${rodadas.size} rodada(s)`,
-      ignorados.length ? `⊘ ${ignorados.length} fora do escopo: ${ignorados.join(" · ")}` : "",
-      repetidos.length ? `⊘ ${repetidos.length} idêntico(s) por hash: ${repetidos.join(" · ")}` : "",
-      `→ ${aLer.length} arquivo(s) serão lidos com IA`,
-    ].filter(Boolean).join("\n");
-
-    if (!aLer.length) { mostrarToast("Nenhum arquivo legível na pasta.", "erro"); return; }
-    if (!confirm(`${resumo}\n\nConfirma a leitura?`)) return;
-
-    mostrarToast(`📁 Triagem: ${todos.length} na pasta → ${aLer.length} para ler`, "info");
-    await lerLip(aLer);
+    mostrarToast(`✅ ${Object.keys(p.campos).length} campos aceitos`, "sucesso");
+    setPropostaPasta(null);
   }
 
   async function lerLip(arquivos: File[]) {
@@ -1307,6 +1319,102 @@ export default function ProcessoClient() {
           </div>
         </div>
       )}
+      {/* PROPOSTA DA LEITURA DA PASTA (slot 5) — nada entra no LIP sem passar por aqui */}
+      {propostaPasta && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-4xl max-h-[88vh] overflow-y-auto">
+            <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border)] p-4">
+              <p className="text-base font-bold text-[var(--text-primary)]">📁 Leitura da pasta — proposta</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                {propostaPasta.catalogo.length} arquivo(s) · rodada(s) {(propostaPasta.rodadas ?? []).join(", ")} ·
+                {" "}{propostaPasta.custo?.paginasNaPasta} páginas · <b>sem IA</b> ·
+                {" "}{Math.round((propostaPasta.msLeitura ?? 0) / 100) / 10}s
+              </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* documentos obrigatórios ausentes */}
+              {propostaPasta.obrigatorios?.some((o: any) => !o.presente) && (
+                <div>
+                  <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Documentos obrigatórios ausentes</p>
+                  {propostaPasta.obrigatorios.filter((o: any) => !o.presente).map((o: any) => (
+                    <p key={o.papel} className="text-xs text-[#DC2626]">✘ {o.nome}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* catálogo */}
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)] mb-1">O que foi identificado</p>
+                <div className="text-xs text-[var(--text-secondary)] space-y-0.5">
+                  {propostaPasta.catalogo.map((it: any, i: number) => (
+                    <p key={i}>
+                      <span className="text-[var(--text-muted)]">r{it.rodada}</span>{" "}
+                      {it.soPresenca ? "○" : "●"} {it.nome} → <b>{it.papeis.join(" + ")}</b>
+                      {it.confianca !== "alta" && <span className="text-[#EA580C]"> ({it.confianca})</span>}
+                      {it.soPresenca && <span className="text-[var(--text-muted)]"> — só presença, não lido</span>}
+                      {it.alertaRetrocesso && <span className="text-[#DC2626]"> ⚠ {it.alertaRetrocesso}</span>}
+                      {it.divergenciaNome && <span className="text-[#EA580C]"> ⚠ {it.divergenciaNome}</span>}
+                    </p>
+                  ))}
+                  {propostaPasta.duplicidades?.entreRodadas?.map((g: string[], i: number) => (
+                    <p key={"d" + i} className="text-[var(--text-muted)]">↺ reenviado sem alteração: {g.join(" → ")}</p>
+                  ))}
+                </div>
+              </div>
+
+              {/* conferências */}
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Conferências</p>
+                <div className="space-y-1">
+                  {propostaPasta.conferencias.map((c: any, i: number) => (
+                    <div key={i} className="text-xs">
+                      <p className={c.estado === "NÃO CONFERE" ? "text-[#DC2626] font-semibold"
+                        : c.estado === "CONFERE" ? "text-[#16A34A]"
+                        : c.estado === "SEM DADO" ? "text-[#EA580C]" : "text-[var(--text-muted)]"}>
+                        {c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘" : c.estado === "SEM DADO" ? "?" : "i"} {c.nome}
+                      </p>
+                      <p className="text-[var(--text-muted)] pl-4">{c.detalhe}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* campos propostos, com o valor atual ao lado quando houver conflito */}
+              <div>
+                <p className="text-sm font-bold text-[var(--text-primary)] mb-1">
+                  Campos a preencher ({Object.keys(propostaPasta.campos).length})
+                </p>
+                <div className="text-xs space-y-0.5">
+                  {Object.entries(propostaPasta.campos as Record<string, any>).map(([k, v]) => {
+                    const atual = d[k]?.valor;
+                    const conflito = atual && atual !== v.valor;
+                    return (
+                      <p key={k} className="text-[var(--text-secondary)]">
+                        <span className="text-[var(--text-muted)]">{k}</span>: <b>{v.valor}</b>
+                        {conflito && <span className="text-[#DC2626]"> (substitui &quot;{atual}&quot;)</span>}
+                        <span className="text-[var(--text-muted)]"> — {v.origem} · {v.fonte}</span>
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-[var(--bg-card)] border-t border-[var(--border)] p-4 flex justify-end gap-2">
+              <button onClick={() => setPropostaPasta(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                Descartar
+              </button>
+              <button onClick={aceitarPropostaPasta}
+                className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-bold">
+                Aceitar tudo ({Object.keys(propostaPasta.campos).length} campos)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalVCP && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setModalVCP(false)}>
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1605,12 +1713,12 @@ export default function ProcessoClient() {
             </p>
           </div>
           <div className="ml-auto flex gap-2">
-            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
-              {lendoLip ? "⏳ Lendo..." : ehSlot5 ? "📁 LER PASTA" : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip || lendoPasta ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
+              {lendoLip ? "⏳ Lendo..." : lendoPasta ? "⏳ Lendo a pasta..." : ehSlot5 ? "📁 LER PASTA" : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
               {/* No slot 5 o analista escolhe a PASTA do processo, não os arquivos: a pasta é a
                   rodada de análise (raiz = 1ª, cada subpasta a seguinte). `webkitdirectory` desce
                   nas subpastas e cada File chega com webkitRelativePath, de onde sai a rodada. */}
-              <input ref={inputFileRef} type="file" accept={ehSlot5 ? undefined : ".pdf,image/*"} multiple className="hidden" disabled={lendoLip}
+              <input ref={inputFileRef} type="file" accept={ehSlot5 ? undefined : ".pdf,image/*"} multiple className="hidden" disabled={lendoLip || lendoPasta}
                 {...(ehSlot5 ? { webkitdirectory: "", directory: "" } as any : {})}
                 onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) (ehSlot5 ? lerPasta(fs) : lerLip(fs)); e.target.value = ""; }} />
             </label>
