@@ -200,6 +200,23 @@ export default function ProcessoClient() {
   const [lendoPasta, setLendoPasta] = useState(false);
   // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
   const [propostaPasta, setPropostaPasta] = useState<any>(null);
+  // MHD — histórico documental. Módulo satélite: vale para todo slot e todo assunto.
+  const [mhd, setMhd] = useState<any>(null);
+  const [carregandoMhd, setCarregandoMhd] = useState(false);
+
+  async function abrirMHD() {
+    try {
+      setCarregandoMhd(true);
+      const r = await fetch(`/api/mhd?processo=${encodeURIComponent(idUrl)}`);
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.erro || "Falha ao abrir o histórico");
+      setMhd(data);
+    } catch (e: any) {
+      mostrarToast("MHD: " + (e?.message ?? e), "erro");
+    } finally {
+      setCarregandoMhd(false);
+    }
+  }
   const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
   const [vcpProcessando, setVcpProcessando] = useState(false);
   const [tempoLeitura, setTempoLeitura] = useState(0); // segundos
@@ -585,6 +602,9 @@ export default function ProcessoClient() {
       mostrarToast(`📁 Lendo ${arquivos.length} arquivo(s) da pasta...`, "info");
 
       const fd = new FormData();
+      // o MHD precisa saber de qual processo e assunto e esta leitura para montar o historico
+      fd.append("processo_codigo", idUrl);
+      if (assuntoIdRef.current) fd.append("assunto_id", assuntoIdRef.current);
       for (const f of arquivos) {
         fd.append("arquivos", f, f.name);
         fd.append("caminhos", (f as any).webkitRelativePath || f.name);
@@ -1319,6 +1339,86 @@ export default function ProcessoClient() {
           </div>
         </div>
       )}
+      {/* MHD — HISTÓRICO DOCUMENTAL. Módulo satélite: o LIP só consulta. */}
+      {mhd && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setMhd(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-4xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border)] p-4">
+              <p className="text-base font-bold text-[var(--text-primary)]">🗂 Histórico Documental (MHD)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                {mhd.ativo
+                  ? `${mhd.totais.documentos} documento(s) · ${mhd.totais.versoes} versão(ões) · ${mhd.totais.paginasIA} página(s) enviadas à IA no total`
+                  : "módulo ainda não instalado"}
+              </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {!mhd.ativo && (
+                <p className="text-xs text-[#EA580C]">{mhd.aviso}</p>
+              )}
+
+              {mhd.ativo && !mhd.documentos.length && (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Nenhum documento na memória ainda. Ele começa a se encher na próxima leitura de pasta.
+                </p>
+              )}
+
+              {mhd.documentos.map((d: any) => (
+                <div key={d.id} className="border border-[var(--border)] rounded-lg p-3">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    {d.rotulo} <span className="text-[var(--text-muted)] font-normal">· {d.versoes.length} versão(ões)</span>
+                  </p>
+                  <div className="mt-1 space-y-1">
+                    {d.versoes.map((v: any) => (
+                      <div key={v.id} className="text-xs text-[var(--text-secondary)] flex flex-wrap gap-x-2">
+                        <span className={v.vigente ? "text-[#16A34A] font-semibold" : "text-[var(--text-muted)]"}>
+                          v{v.versao}{v.vigente ? " (vigente)" : ""}
+                        </span>
+                        <span>{v.nome_arquivo}</span>
+                        <span className="text-[var(--text-muted)]">
+                          rodada {v.rodada}
+                          {v.revisao ? ` · ${v.revisao}` : ""}
+                          {v.data_documento ? ` · emitido ${v.data_documento}` : ""}
+                          {v.paginas ? ` · ${v.paginas}p` : ""}
+                          {` · ${v.origem}`}
+                          {v.custo_paginas_ia ? ` · ${v.custo_paginas_ia}p de IA` : " · sem IA"}
+                        </span>
+                        <span className="text-[var(--text-muted)]">
+                          lido em {new Date(v.lido_em).toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {!!mhd.eventos?.length && (
+                <div>
+                  <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Linha do tempo</p>
+                  <div className="space-y-1">
+                    {mhd.eventos.map((e: any) => (
+                      <p key={e.id} className="text-xs text-[var(--text-secondary)]">
+                        <span className="text-[var(--text-muted)]">
+                          {new Date(e.criado_em).toLocaleString("pt-BR")}
+                        </span>{" "}
+                        <span className="text-[var(--text-muted)]">[{e.tipo}]</span> {e.titulo}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-[var(--bg-card)] border-t border-[var(--border)] p-4 flex justify-end">
+              <button onClick={() => setMhd(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PROPOSTA DA LEITURA DA PASTA (slot 5) — nada entra no LIP sem passar por aqui */}
       {propostaPasta && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
@@ -1333,6 +1433,51 @@ export default function ProcessoClient() {
             </div>
 
             <div className="p-4 space-y-4">
+              {/* RESUMO DA LEITURA INCREMENTAL (MHD) — o que já era conhecido e o que mudou */}
+              {propostaPasta.mhd?.ativa && (
+                <div className="border border-[var(--border-strong)] rounded-lg p-3 bg-[var(--bg-secondary)]">
+                  <p className="text-sm font-bold text-[var(--text-primary)] mb-1">🗂 Memória documental</p>
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    encontrados <b>{propostaPasta.mhd.encontrados}</b> ·
+                    já conhecidos <b>{propostaPasta.mhd.jaConhecidos}</b> ·
+                    novos <b>{propostaPasta.mhd.novos}</b> ·
+                    corrigidos <b>{propostaPasta.mhd.corrigidos}</b>
+                  </p>
+                  {propostaPasta.mhd.paginasEconomizadas > 0 && (
+                    <p className="text-xs text-[#16A34A] mt-0.5">
+                      {propostaPasta.mhd.paginasEconomizadas} página(s) não foram reprocessadas — vieram da memória
+                    </p>
+                  )}
+                  {!!propostaPasta.mhd.versoesCriadas?.length && (
+                    <div className="mt-1.5">
+                      <p className="text-xs font-semibold text-[var(--text-primary)]">Versões criadas</p>
+                      {propostaPasta.mhd.versoesCriadas.map((v: any, i: number) => (
+                        <p key={i} className="text-xs text-[var(--text-secondary)]">
+                          · {v.rotulo} — versão {v.versao} ({v.nome})
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {!!propostaPasta.mhd.alteracoes?.length && (
+                    <div className="mt-1.5">
+                      <p className="text-xs font-semibold text-[#DC2626]">Alterações em relação à versão anterior</p>
+                      {propostaPasta.mhd.alteracoes.map((a: any, i: number) => (
+                        <p key={i} className="text-xs text-[var(--text-secondary)]">
+                          · {a.campo}: <span className="text-[var(--text-muted)]">{a.de}</span> → <b>{a.para}</b>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {!!propostaPasta.mhd.papeisAlterados?.length && (
+                    <p className="text-xs text-[var(--text-muted)] mt-1.5">
+                      Compatibilização: {propostaPasta.mhd.conferenciasAfetadas.length} análise(s) afetadas por esta
+                      correção, {propostaPasta.mhd.conferenciasNaoAfetadas.length} não afetadas.
+                      {" "}<i>Todas foram recalculadas de qualquer forma — conferência é cálculo local, custo zero.</i>
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* documentos obrigatórios ausentes */}
               {propostaPasta.obrigatorios?.some((o: any) => !o.presente) && (
                 <div>
@@ -1728,6 +1873,15 @@ export default function ProcessoClient() {
               className={`px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}
             >
               📎 LER ARQUIVOS INDIVIDUAIS
+            </button>
+            {/* MHD — módulo satélite, vale para todo slot e todo assunto */}
+            <button
+              disabled={carregandoMhd}
+              onClick={abrirMHD}
+              title="Histórico Documental — o que já foi lido, versões e alterações"
+              className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+            >
+              {carregandoMhd ? "⏳ Abrindo..." : "🗂 HISTÓRICO DOCUMENTAL"}
             </button>
           </div>
         </div>

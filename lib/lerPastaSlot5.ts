@@ -56,6 +56,8 @@ export type ItemCatalogo = {
   dados?: any;
   caixaDedicada?: boolean;
   caixaRepetida?: string;
+  /** veio da memória do MHD: nada foi reprocessado */
+  daMemoria?: boolean;
 };
 
 export type Conferencia = {
@@ -73,7 +75,10 @@ export type ResultadoLeitura = {
   conferencias: Conferencia[];
   obrigatorios: { papel: string; nome: string; presente: boolean }[];
   duplicidades: { mesmaRodada: string[][]; entreRodadas: string[][] };
-  custo: { paginasNaPasta: number; paginasIgnoradas: number; arquivosDistintos: number; chamadasIA: number };
+  custo: { paginasNaPasta: number; paginasIgnoradas: number; arquivosDistintos: number; chamadasIA: number;
+           paginasReaproveitadas: number; paginasProcessadas: number };
+  /** texto e estrutura de cada arquivo processado agora — o que o MHD guarda no lugar do PDF */
+  extratos: { hash: string; texto: string; linhas: unknown }[];
 };
 
 // ───────────────────────────── infra ─────────────────────────────
@@ -433,10 +438,46 @@ function lerCertidao(doc: DocTexto) {
 
 // ───────────────────────────── catálogo ─────────────────────────────
 
-async function catalogar(arquivos: ArquivoEntrada[]): Promise<ItemCatalogo[]> {
+/**
+ * Conhecimento já guardado no MHD, indexado por hash. Documento com hash conhecido NÃO é
+ * reprocessado: o catálogo é reconstruído da memória, sem abrir o PDF.
+ */
+export type Conhecido = {
+  papeis: string[];
+  dados: any;
+  paginas: number | null;
+  charsTexto?: number | null;
+  dataDocumento: string | null;
+  revisao: string | null;
+  lidoEm?: string;
+};
+
+async function catalogar(
+  arquivos: ArquivoEntrada[],
+  conhecidos?: Map<string, Conhecido>,
+): Promise<{ catalogo: ItemCatalogo[]; extratos: { hash: string; texto: string; linhas: unknown }[] }> {
   const out: ItemCatalogo[] = [];
+  const extratos: { hash: string; texto: string; linhas: unknown }[] = [];
 
   for (const a of arquivos) {
+    // ── MEMÓRIA: mesmo hash = mesmo conteúdo. Não abre o arquivo, não extrai, não chama IA.
+    const memo = conhecidos?.get(a.hash);
+    if (memo) {
+      out.push({
+        nome: a.nome, rodada: a.rodada, hash: a.hash,
+        ext: (a.nome.match(/\.[a-z0-9]+$/i) || [""])[0].toLowerCase(),
+        bytes: a.buffer.length, paginas: memo.paginas ?? 0,
+        charsTexto: memo.charsTexto ?? 0, temCamadaTexto: (memo.charsTexto ?? 0) > 50,
+        papeis: memo.papeis, confianca: "alta",
+        prova: `reaproveitado da memória do MHD${memo.lidoEm ? ` (lido em ${new Date(memo.lidoEm).toLocaleDateString("pt-BR")})` : ""}`,
+        atividades: memo.dados?.atividades ?? [],
+        soPresenca: memo.papeis.some((p) => SO_PRESENCA.has(p)),
+        dataDocumento: memo.dataDocumento, revisao: memo.revisao,
+        dados: memo.dados, daMemoria: true,
+      });
+      continue;
+    }
+
     const ext = (a.nome.match(/\.[a-z0-9]+$/i) || [""])[0].toLowerCase();
     const base: ItemCatalogo = {
       nome: a.nome, rodada: a.rodada, hash: a.hash, ext, bytes: a.buffer.length,
@@ -464,6 +505,9 @@ async function catalogar(arquivos: ArquivoEntrada[]): Promise<ItemCatalogo[]> {
     }
 
     const item: ItemCatalogo = { ...base, paginas: doc.paginas, charsTexto: doc.charsTexto, temCamadaTexto: doc.temCamadaTexto };
+    // o que o MHD guarda no lugar do PDF: o texto e a ESTRUTURA com coordenada. Sem a
+    // coordenada não se relê carimbo de prancha, e a reanálise futura exigiria o arquivo.
+    extratos.push({ hash: a.hash, texto: doc.texto, linhas: { paginas: doc.paginas, itens: doc.itens } });
     const T = norm(doc.texto);
     const achado = ASSINATURAS.find((s) => s.re.test(T)) || null;
     const pista = a.rodada === 1 ? SLOTS_SEI.find((s) => s.re.test(a.nome))?.papel ?? null : null;
@@ -519,11 +563,25 @@ async function catalogar(arquivos: ArquivoEntrada[]): Promise<ItemCatalogo[]> {
 
     out.push(item);
   }
-  return out;
+  return { catalogo: out, extratos };
 }
 
 // ──────────────────── vigência: mais recente EMITIDO vence ────────────────────
 
+/**
+ * Vigência por papel.
+ *
+ * REGRA DO FÁBIO (27/07/2026, corrigindo a versão anterior): **a subpasta mais recente SEMPRE tem
+ * prioridade** sobre qualquer outra pasta ou arquivo. A subpasta É a correção que o requerente
+ * mandou — ela manda, e ponto. Não se discute com ela por data.
+ *
+ * A versão anterior deste código decidia pela data de emissão impressa no documento, e isso estava
+ * errado: fazia uma correção nova perder para um documento antigo melhor datado.
+ *
+ * A data continua sendo lida, mas **rebaixada a aviso**: se o arquivo da rodada nova for emitido
+ * antes do que ele substitui, o sistema avisa e usa mesmo assim. Custa nada e às vezes pega o
+ * requerente reenviando arquivo velho por engano.
+ */
 function vigentes(catalogo: ItemCatalogo[]) {
   const porPapel: Record<string, ItemCatalogo> = {};
 
@@ -531,18 +589,29 @@ function vigentes(catalogo: ItemCatalogo[]) {
     for (const papel of it.papeis) {
       const atual = porPapel[papel];
       if (!atual) { porPapel[papel] = it; continue; }
-      const dNovo = paraDate(it.dataDocumento), dAtual = paraDate(atual.dataDocumento);
-      let venceu: boolean;
-      if (dNovo && dAtual && +dNovo !== +dAtual) venceu = dNovo > dAtual;
-      else {
-        const rNovo = num(it.revisao), rAtual = num(atual.revisao);
-        if (rNovo != null && rAtual != null && rNovo !== rAtual) venceu = rNovo > rAtual;
-        else venceu = it.rodada > atual.rodada;
+
+      // 1º critério e critério soberano: rodada maior vence
+      let venceu = it.rodada > atual.rodada;
+      // dentro da MESMA rodada, aí sim desempata por data e depois por revisão
+      if (it.rodada === atual.rodada) {
+        const dNovo = paraDate(it.dataDocumento), dAtual = paraDate(atual.dataDocumento);
+        if (dNovo && dAtual && +dNovo !== +dAtual) venceu = dNovo > dAtual;
+        else {
+          const rNovo = num(it.revisao), rAtual = num(atual.revisao);
+          venceu = rNovo != null && rAtual != null ? rNovo > rAtual : false;
+        }
       }
-      if (venceu) porPapel[papel] = it;
-      else if (it.rodada > atual.rodada && dNovo && dAtual && dNovo < dAtual) {
-        it.alertaRetrocesso =
-          `rodada ${it.rodada} traz documento emitido em ${it.dataDocumento}, anterior ao vigente (${atual.dataDocumento})`;
+
+      if (venceu) {
+        // aviso, nunca bloqueio: a rodada nova vence de qualquer jeito
+        const dNovo = paraDate(it.dataDocumento), dAtual = paraDate(atual.dataDocumento);
+        if (dNovo && dAtual && dNovo < dAtual) {
+          it.alertaRetrocesso =
+            `a rodada ${it.rodada} passa a valer (é a correção mais recente), mas o documento está ` +
+            `emitido em ${it.dataDocumento}, ANTES do que ele substitui (${atual.dataDocumento}) — ` +
+            `confira se o requerente não reenviou arquivo desatualizado`;
+        }
+        porPapel[papel] = it;
       }
     }
   }
@@ -856,8 +925,11 @@ function conferir(vig: Record<string, ItemCatalogo>): Conferencia[] {
 // ───────────────────────────── entrada ─────────────────────────────
 
 /** Lê a pasta inteira e devolve catálogo, campos do LIP e conferências. Zero chamadas de IA. */
-export async function lerPastaSlot5(arquivos: ArquivoEntrada[]): Promise<ResultadoLeitura> {
-  const catalogo = await catalogar(arquivos);
+export async function lerPastaSlot5(
+  arquivos: ArquivoEntrada[],
+  conhecidos?: Map<string, Conhecido>,
+): Promise<ResultadoLeitura> {
+  const { catalogo, extratos } = await catalogar(arquivos, conhecidos);
   const vig = vigentes(catalogo);
   const campos = preencherLip(vig);
   const conferencias = conferir(vig);
@@ -876,6 +948,7 @@ export async function lerPastaSlot5(arquivos: ArquivoEntrada[]): Promise<Resulta
 
   const paginasNaPasta = catalogo.reduce((s, it) => s + it.paginas, 0);
   const paginasIgnoradas = catalogo.filter((it) => it.soPresenca).reduce((s, it) => s + it.paginas, 0);
+  const paginasReaproveitadas = catalogo.filter((it) => it.daMemoria).reduce((s, it) => s + it.paginas, 0);
 
   return {
     catalogo, campos, conferencias, obrigatorios, duplicidades,
@@ -884,6 +957,9 @@ export async function lerPastaSlot5(arquivos: ArquivoEntrada[]): Promise<Resulta
       paginasIgnoradas,
       arquivosDistintos: new Set(catalogo.filter((it) => !it.soPresenca).map((it) => it.hash)).size,
       chamadasIA: 0,
+      paginasReaproveitadas,
+      paginasProcessadas: paginasNaPasta - paginasIgnoradas - paginasReaproveitadas,
     },
+    extratos,
   };
 }

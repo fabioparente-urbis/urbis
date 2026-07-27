@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { lerPastaSlot5, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
+import { lerPastaSlot5, type ArquivoEntrada, type Conhecido } from "@/lib/lerPastaSlot5";
+import { buscarPorHash, registrarLeitura } from "@/lib/mhd";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -27,6 +28,8 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const arquivos = form.getAll("arquivos").filter((f): f is File => f instanceof File);
     const caminhos = form.getAll("caminhos").map(String);
+    const processoCodigo = String(form.get("processo_codigo") ?? "");
+    const assuntoId = String(form.get("assunto_id") ?? "");
 
     if (!arquivos.length) {
       return NextResponse.json({ ok: false, erro: "Nenhum arquivo enviado" }, { status: 400 });
@@ -53,14 +56,19 @@ export async function POST(req: NextRequest) {
     };
 
     const entradas: ArquivoEntrada[] = [];
+    // lastModified serve de rótulo para o humano reconhecer o arquivo; NUNCA de identidade,
+    // porque copiar ou baixar o arquivo muda essa data. Quem identifica é o hash.
+    const datasArquivo = new Map<string, string>();
     for (let i = 0; i < arquivos.length; i++) {
       const f = arquivos[i];
       if (f.name.startsWith(".")) continue; // .DS_Store e afins
       const buffer = new Uint8Array(await f.arrayBuffer());
+      const hash = crypto.createHash("sha256").update(buffer).digest("hex");
+      if (f.lastModified) datasArquivo.set(hash, new Date(f.lastModified).toISOString());
       entradas.push({
         nome: f.name,
         rodada: rodadaDe(caminhos[i] ?? "", f.name),
-        hash: crypto.createHash("sha256").update(buffer).digest("hex"),
+        hash,
         buffer,
       });
     }
@@ -70,7 +78,54 @@ export async function POST(req: NextRequest) {
     }
 
     const t0 = Date.now();
-    const resultado = await lerPastaSlot5(entradas);
+
+    /**
+     * MEMÓRIA (MHD). Antes de abrir qualquer PDF, pergunta ao módulo o que já foi lido.
+     * Hash conhecido não é reprocessado — o catálogo daquele arquivo vem da memória.
+     * Se as tabelas do MHD ainda não existirem, `conhecidos` volta vazio e a leitura roda
+     * exatamente como antes.
+     */
+    const memoria = await buscarPorHash(entradas.map((e) => e.hash));
+    const conhecidos: Map<string, Conhecido> = new Map();
+    for (const [hash, v] of memoria) {
+      if (!v.papeis?.length) continue;
+      conhecidos.set(hash, {
+        papeis: v.papeis, dados: v.dados, paginas: v.paginas,
+        charsTexto: v.texto ? v.texto.replace(/\s/g, "").length : 0,
+        dataDocumento: v.data_documento, revisao: v.revisao, lidoEm: v.lido_em,
+      });
+    }
+
+    const resultado = await lerPastaSlot5(entradas, conhecidos);
+
+    // grava o conhecimento produzido agora e devolve o resumo da leitura incremental
+    const porHash = new Map(resultado.extratos.map((x) => [x.hash, x]));
+    const mhd = await registrarLeitura({
+      processoCodigo: processoCodigo || "sem-processo",
+      assuntoId: assuntoId || null,
+      entradas: resultado.catalogo
+        .filter((it) => !it.daMemoria && it.papeis.length && !it.papeis.includes("outros"))
+        .map((it) => ({
+          hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
+          papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
+          dataArquivo: datasArquivo.get(it.hash) ?? null,
+          texto: porHash.get(it.hash)?.texto ?? null,
+          linhas: porHash.get(it.hash)?.linhas ?? null,
+          dados: it.dados ?? null,
+          origem: "texto" as const,
+          custoPaginasIA: 0,
+        }))
+        .concat(
+          resultado.catalogo.filter((it) => it.daMemoria).map((it) => ({
+            hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
+            papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
+            dataArquivo: datasArquivo.get(it.hash) ?? null,
+            texto: null, linhas: null, dados: it.dados ?? null,
+            origem: "texto" as const, custoPaginasIA: 0,
+          })),
+        ),
+      conferencias: resultado.conferencias.map((c) => ({ nome: c.nome })),
+    });
 
     // o buffer não volta para o cliente
     const catalogo = resultado.catalogo.map(({ dados, ...resto }) => ({
@@ -79,10 +134,15 @@ export async function POST(req: NextRequest) {
       dados: dados ? { revisao: dados.revisao ?? null } : undefined,
     }));
 
+    // `extratos` fica no servidor: e a estrutura completa com coordenadas, centenas de KB que a
+    // tela nao usa. Ele ja foi gravado no MHD acima.
+    const { extratos: _extratos, ...semExtratos } = resultado;
+
     return NextResponse.json({
       ok: true,
-      ...resultado,
+      ...semExtratos,
       catalogo,
+      mhd,
       rodadas: [...new Set(entradas.map((e) => e.rodada))].sort(),
       msLeitura: Date.now() - t0,
     });
