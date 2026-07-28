@@ -23,6 +23,7 @@ import {
   ClipboardList,
   FileText,
   type LucideIcon,
+  Route,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 import { perfilDe, validarNumero, normalizarNumero } from "@/lib/numeracao";
@@ -149,6 +150,8 @@ export default function Home() {
     { chave: "configuracoes", nome: "CONFIGURAÇÕES", descricao: "Aparência do sistema", Icone: Settings2, rota: "/configuracoes/aparencia", visivel: true },
     { chave: "map", nome: "MAP", descricao: "Auditoria e Produtividade", Icone: ClipboardList, rota: "/admin/configuracoes?aba=auditoria", visivel: souAdmin },
     { chave: "admin", nome: "ADMIN", descricao: "Configurações do sistema", Icone: Settings2, rota: "/admin/configuracoes", visivel: souAdmin || irrestrito },
+    // Matriz de rastreabilidade: a especificação de como o URBIS decide cada campo.
+    { chave: "rastreabilidade", nome: "RASTREABILIDADE", descricao: "Slot 5 — como cada campo é preenchido", Icone: Route, rota: "/admin/rastreabilidade", visivel: souAdmin || irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);
