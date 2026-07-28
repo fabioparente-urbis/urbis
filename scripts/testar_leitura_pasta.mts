@@ -41,7 +41,7 @@ for (const [k, v] of Object.entries(r.campos)) (porOrigem[v.origem] ||= []).push
 for (const o of ["lido","calculado","padrao"]) { console.log(` ${o.toUpperCase()} (${(porOrigem[o]||[]).length})`); (porOrigem[o]||[]).forEach(l=>console.log("   "+l)); }
 console.log(`\n  TOTAL: ${Object.keys(r.campos).length} de 136 campos`);
 console.log("\n── CONFERÊNCIAS ──");
-const ic: any = { "CONFERE":"✔", "NÃO CONFERE":"✘", "SEM DADO":"?", "INFORMATIVO":"i" };
+const ic: any = { "CONFERE":"✔", "NÃO CONFERE":"✘", "ALERTA":"⚠", "SEM DADO":"?", "INFORMATIVO":"i" };
 for (const c of r.conferencias) console.log(`  ${ic[c.estado]} [${c.estado}] ${c.nome}\n      ${c.detalhe}`);
 const cnt = (e: string) => r.conferencias.filter((c) => c.estado === e).length;
 console.log(`\n  ${cnt("CONFERE")} confere · ${cnt("NÃO CONFERE")} não confere · ${cnt("SEM DADO")} sem dado`);

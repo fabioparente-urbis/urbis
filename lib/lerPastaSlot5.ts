@@ -62,7 +62,7 @@ export type ItemCatalogo = {
 
 export type Conferencia = {
   nome: string;
-  estado: "CONFERE" | "NÃO CONFERE" | "SEM DADO" | "INFORMATIVO";
+  estado: "CONFERE" | "NÃO CONFERE" | "ALERTA" | "SEM DADO" | "INFORMATIVO";
   detalhe: string;
   dependencia?: string;
 };
@@ -367,6 +367,10 @@ function lerPrancha(doc: DocTexto) {
   // a data do carimbo tem que vir DO RÓTULO: a prancha está cheia de outras datas (especificação
   // de porta, nota de norma) e a primeira do arquivo é de 2019
   d.data = valorPerto(doc, "DATA:", P_DATA);
+  // DATAS SEPARADAS: "a prancha é anterior à ART" é conclusão, não fato. O fato são as datas, e um
+  // projeto tem várias. Guardar só uma obriga a escolher qual, e a comparação fica frágil.
+  d.dataElaboracao = valorPerto(doc, "DATA DE ELABORAÇÃO", P_DATA) ?? d.data;
+  d.dataRevisao = valorPerto(doc, "DATA DA REVISÃO", P_DATA) ?? valorPerto(doc, "REVISÃO:", P_DATA);
   d.folha = valorPerto(doc, "FOLHA:", /^\d+\s*\/\s*\d+$|^\d+$/);
   d.desenho = valorPerto(doc, "DESENHO:", /\S/);
 
@@ -400,6 +404,11 @@ function lerArt(doc: DocTexto) {
     (t.match(/Data de Registro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] ||
     (t.match(/Registrada em\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
   d.declaracaoAcessibilidade = /Declara[çc][ãa]o de Acessibilidade/i.test(t);
+  // datas separadas da ART: cadastro, registro e assinatura são coisas diferentes
+  d.dataCadastro = (t.match(/Data de Cadastro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
+  d.dataAssinatura = (t.match(/na data e hora:\s*(\d{4})-(\d{2})-(\d{2})/i) || []).slice(1, 4)
+    .reverse().join("/") || null;
+  d.dataElaboracao = d.dataCadastro ?? d.dataCelebracao ?? null;
 
   // ART do CREA: a linha tem três células — descrição, quantidade, unidade
   for (const l of doc.linhas) {
@@ -517,13 +526,21 @@ async function catalogar(
     extratos.push({ hash: a.hash, texto: doc.texto, linhas: { paginas: doc.paginas, itens: doc.itens } });
     const T = norm(doc.texto);
     const achado = ASSINATURAS.find((s) => s.re.test(T)) || null;
-    const pista = a.rodada === 1 ? SLOTS_SEI.find((s) => s.re.test(a.nome))?.papel ?? null : null;
+    /**
+     * Pista do nome. Na RAIZ vale como sinal forte (os 10 slots do SEI têm nome padronizado) e a
+     * divergência com o conteúdo é alerta. Na SUBPASTA o nome não pode CONTRADIZER o conteúdo, mas
+     * serve de ÚLTIMO RECURSO quando o conteúdo não diz nada — sem isso, uma declaração de
+     * responsabilidade que chega numa correção virava "outros", porque o texto dela é curto demais
+     * para ter assinatura reconhecível.
+     */
+    const pista = SLOTS_SEI.find((s) => s.re.test(a.nome))?.papel ?? null;
+    const pistaForte = a.rodada === 1;
 
     if (!doc.temCamadaTexto) {
       item.papeis = pista ? [pista] : ["outros"];
       item.confianca = pista ? "media" : "baixa";
       item.escaneado = true;
-      item.prova = "PDF sem camada de texto (digitalizado) — identificado pela pista do nome na raiz";
+      item.prova = "PDF sem camada de texto (digitalizado) — identificado pela pista do nome";
     } else if (achado?.papel === "art") {
       // o papel da ART sai EXCLUSIVAMENTE do quadro de atividade técnica
       const art = lerArt(doc);
@@ -543,8 +560,10 @@ async function catalogar(
       item.prova = `assinatura de conteúdo: ${achado.papel}`;
     } else {
       item.papeis = pista ? [pista] : ["outros"];
-      item.confianca = pista ? "media" : "baixa";
-      item.prova = pista ? "pista do nome na raiz, sem assinatura de conteúdo" : "não reconhecido";
+      item.confianca = pista ? (pistaForte ? "media" : "baixa") : "baixa";
+      item.prova = pista
+        ? `pista do nome${pistaForte ? " na raiz" : " (subpasta — último recurso)"}, sem assinatura de conteúdo`
+        : "não reconhecido";
     }
 
     if (item.papeis.some((p) => SO_PRESENCA.has(p))) item.soPresenca = true;
@@ -563,8 +582,8 @@ async function catalogar(
       item.dados?.dataEmissao || item.dados?.dataRegistro || item.dados?.dataCelebracao || item.dados?.data || null;
     item.revisao = item.dados?.revisao ?? null;
 
-    // divergência nome × conteúdo só é sinal na rodada 1
-    if (a.rodada === 1 && pista && !item.papeis.includes(pista) && !item.papeis.includes("art_indefinida")) {
+    // divergência nome × conteúdo só é sinal na raiz, onde o nome é padronizado
+    if (pistaForte && pista && !item.papeis.includes(pista) && !item.papeis.includes("art_indefinida")) {
       item.divergenciaNome = `nome diz "${pista}", conteúdo diz "${item.papeis.join("+")}"`;
     }
 
@@ -629,16 +648,25 @@ function vigentes(catalogo: ItemCatalogo[]) {
    * ou numeroDeArtExecucao, e o campo do LIP só repetiria. Prefere ART DEDICADA; não havendo,
    * cai para a de execução e MARCA que é repetição.
    */
-  const candidatos = catalogo.filter((it) => it.papeis.includes("art_caixa"));
-  if (candidatos.length > 1) {
+  const todosCaixa = catalogo.filter((it) => it.papeis.includes("art_caixa"));
+  if (todosCaixa.length > 1) {
+    // A RODADA É SOBERANA: a preferência abaixo é desempate DENTRO da rodada mais recente, nunca
+    // por cima dela. Sem este recorte, uma ART de caixa que chega numa correção perdia para a da
+    // raiz só porque a da raiz também era a de execução.
+    const ultimaRodada = Math.max(...todosCaixa.map((it) => it.rodada));
+    const candidatos = todosCaixa.filter((it) => it.rodada === ultimaRodada);
+
     const ehPluvial = (a: Atividade) => /PLUVIA|DRENAG|SANEAM|RECARGA|INFILTRA/i.test(a.descricao);
     const dedicada = candidatos.find((it) => it.atividades.length > 0 && it.atividades.every(ehPluvial));
-    if (dedicada) { porPapel.art_caixa = dedicada; dedicada.caixaDedicada = true; }
-    else {
+    if (dedicada) {
+      porPapel.art_caixa = dedicada;
+      dedicada.caixaDedicada = true;
+    } else {
       const exec = candidatos.find((it) => it.papeis.includes("art_execucao"));
-      const escolhido = exec ?? porPapel.art_caixa;
+      const escolhido = exec ?? candidatos[0];
       porPapel.art_caixa = escolhido;
-      escolhido.caixaRepetida = exec ? "ART de execução" : "ART de projeto";
+      escolhido.caixaRepetida = escolhido.papeis.includes("art_execucao")
+        ? "ART de execução" : "ART de projeto";
     }
   }
 
@@ -898,20 +926,36 @@ function conferir(vig: Record<string, ItemCatalogo>): Conferencia[] {
     dependencia: "área ocupada pela atividade (tabela em imagem)",
   });
 
-  // coerência de datas: um projeto não pode ser anterior à ART que o acoberta
+  /**
+   * Coerência de datas. É ALERTA, não veredito.
+   *
+   * A versão anterior afirmava "um projeto não pode ser anterior à ART que o acoberta" — categórico
+   * demais. A prancha pode ter data de elaboração legitimamente anterior, a ART pode ser registrada
+   * depois, pode haver revisão sem atualizar o carimbo, ou pode ser erro de ano. Quem decide o
+   * efeito é a regra do slot e, em última instância, o analista.
+   *
+   * O sistema aponta o fato e a hipótese mais provável; não conclui irregularidade.
+   */
   out.push((() => {
     const nome = "As datas dos documentos são coerentes entre si?";
-    const dPr = paraDate(pr.data), dArt = paraDate(aProj.dataRegistro ?? aProj.dataCelebracao);
+    const dPr = paraDate(pr.dataElaboracao ?? pr.data);
+    const dArt = paraDate(aProj.dataRegistro ?? aProj.dataElaboracao ?? aProj.dataCelebracao);
     if (!dPr || !dArt) return { nome, estado: "SEM DADO" as const, detalhe: "falta data da prancha ou da ART de projeto" };
     const dias = Math.round((+dArt - +dPr) / 86400000);
-    if (dias <= 0) return { nome, estado: "CONFERE" as const, detalhe: `prancha ${pr.data} · ART de projeto ${aProj.dataRegistro}` };
+    if (dias <= 0) {
+      return { nome, estado: "CONFERE" as const,
+               detalhe: `prancha ${pr.dataElaboracao ?? pr.data} · ART de projeto ${aProj.dataRegistro ?? aProj.dataElaboracao}` };
+    }
+    const provavelAno = dias > 300 && dias < 400;
     return {
-      nome, estado: "NÃO CONFERE" as const,
-      detalhe: `a prancha está datada ${pr.data}, ${dias} dias ANTES da ART de projeto (${aProj.dataRegistro}). ` +
-               `Um projeto não pode ser anterior à ART que o acoberta.` +
-               (dias > 300 && dias < 400
-                 ? ` A diferença é de aproximadamente um ano com o MESMO dia e mês — indício forte de ano errado ` +
-                   `digitado no carimbo, não de projeto antigo.` : ""),
+      nome, estado: "ALERTA" as const,
+      detalhe: `a data declarada na prancha (${pr.dataElaboracao ?? pr.data}) é ${dias} dias anterior à da ` +
+               `ART/RRT correspondente (${aProj.dataRegistro ?? aProj.dataElaboracao}). ` +
+               (provavelAno
+                 ? `A diferença é de aproximadamente um ano com o MESMO dia e mês — o mais provável é ano ` +
+                   `errado digitado no carimbo. `
+                 : "") +
+               `Verificar possível erro no carimbo, registro posterior da ART ou irregularidade documental.`,
     };
   })());
 

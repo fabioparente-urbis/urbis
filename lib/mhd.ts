@@ -4,31 +4,38 @@
  * Módulo SATÉLITE: não pertence ao LIP nem ao MAC, e serve todos os slots e assuntos. O LIP e o
  * MAC apenas consultam.
  *
- * Guarda o CONHECIMENTO extraído dos documentos — texto, estrutura, dados, versões, linha do
- * tempo. Nunca guarda PDF, DWG ou imagem: o arquivo continua no SEI e na pasta do analista.
+ * Guarda o CONHECIMENTO extraído dos documentos. Nunca guarda PDF, DWG ou imagem: o arquivo
+ * continua no SEI e na pasta do analista.
  *
- * A memória serve a um objetivo só: **documento já lido não é lido de novo**. Quando chega
- * correção, cria-se versão, compara-se com a anterior e a compatibilização roda sobre o que já
- * está guardado — sem tocar no arquivo e sem gastar IA.
+ * ── O MODELO ──────────────────────────────────────────────────────────────────
+ *   mhd_conteudos  → a extração, UMA VEZ POR HASH. Global entre processos.
+ *   mhd_documentos → o documento lógico: (processo, papel, escopo).
+ *   mhd_versoes    → o VÍNCULO: qual conteúdo é a versão N daquele documento.
+ *   mhd_eventos    → a linha do tempo.
  *
- * ─────────────────────────────────────────────────────────────────────────────
- * TOLERANTE A AUSÊNCIA DE TABELA, DE PROPÓSITO
+ * Separar conteúdo de versão não é purismo: sem isso, uma ART que exerce dois papéis grava o texto
+ * e as coordenadas duas vezes, e o mesmo Uso do Solo em dez processos grava dez cópias.
  *
- * Enquanto a migration 2026_07_27_mhd_historico_documentos.sql não for aplicada, TODA função
- * daqui falha em silêncio e devolve vazio. A leitura da pasta continua funcionando exatamente
- * como antes — só não ganha memória. Nada quebra em produção por causa de uma tabela que ainda
- * não existe, e o dia em que a migration rodar, a memória começa a funcionar sozinha.
- * ─────────────────────────────────────────────────────────────────────────────
+ * ── SEGURANÇA ─────────────────────────────────────────────────────────────────
+ * Usa SERVICE ROLE, que ignora o RLS — quem autoriza é `lib/autorizacao.ts`, na rota, ANTES de
+ * chamar qualquer função daqui. O conteúdo é global, mas o vínculo é do processo: a autorização se
+ * aplica ao vínculo, nunca ao conteúdo, senão reaproveitar por hash vazaria texto entre processos.
+ *
+ * ── FALHA NUNCA É SILENCIOSA ──────────────────────────────────────────────────
+ * Falhar sem derrubar a análise é correto; esconder a falha não é. Toda função devolve o que
+ * conseguiu fazer E o que falhou, em `problemas[]`, que a tela mostra ao analista. `gravou` só é
+ * true quando NADA falhou — relatar sucesso parcial como sucesso é pior que relatar falha, porque
+ * o analista passa a confiar numa memória que não existe.
  */
 
-// SERVICE ROLE, não o cliente anônimo: RLS bloqueia escrita anônima em TODAS as tabelas do
-// projeto — e de um jeito traiçoeiro, porque o SELECT passa devolvendo vazio e só o INSERT é
-// recusado. Com o cliente anônimo a memória parecia "ligada" e não gravava nada. Este módulo só
-// roda no servidor (rotas /api), nunca no navegador.
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { rotuloDe, camposAfetados, conferenciasAfetadas } from "@/lib/mhdDependencias";
 
-export type EstadoDocumento = "novo" | "conhecido" | "corrigido";
+/**
+ * Versão do extrator. SUBIR ISTO quando a extração mudar de forma que valha reprocessar o que já
+ * está na memória — é o que permite saber o que está velho sem reler tudo por precaução.
+ */
+export const EXTRATOR_VERSAO = "v1";
 
 export type EntradaMHD = {
   hash: string;
@@ -36,38 +43,64 @@ export type EntradaMHD = {
   rodada: number;
   bytes: number;
   paginas: number;
+  /** os papéis em que ESTE arquivo é o vigente nesta leitura — é o que gera versão */
   papeis: string[];
-  dataArquivo?: string | null;
+  /**
+   * TODOS os papéis que o conteúdo exerce, independentemente de vigência.
+   *
+   * Tem que ser guardado inteiro: papel é propriedade do CONTEÚDO (sai do quadro de atividade
+   * técnica), não daquela leitura. Guardar a lista filtrada pela vigência fazia o arquivo voltar da
+   * memória exercendo MENOS papéis do que exerce — bug observado com a ART que registra projeto e
+   * águas pluviais na mesma folha.
+   */
+  papeisTodos?: string[];
+  /** discriminante quando o processo tem dois documentos do mesmo papel. Vazio no caso normal. */
+  escopo?: string;
   dataDocumento?: string | null;
+  dataElaboracao?: string | null;
+  dataRevisao?: string | null;
+  dataAssinatura?: string | null;
+  dataRegistro?: string | null;
   revisao?: string | null;
   texto?: string | null;
   linhas?: unknown;
   dados?: unknown;
   origem?: "texto" | "visao" | "manual";
-  custoPaginasIA?: number;
+  modelo?: string | null;
+  paginasIA?: number;
+  /**
+   * true = a extração veio da memória (hash já conhecido) e NÃO foi refeita.
+   *
+   * Mesmo assim a VERSÃO é criada: o conteúdo é global por hash, mas o vínculo é do processo.
+   * Pular o vínculo junto com a extração — como a primeira versão deste código fazia — deixava sem
+   * histórico neste processo o documento que já havia sido lido em outro.
+   */
+  reaproveitado?: boolean;
 };
 
-export type MemoriaVersao = {
+export type MemoriaConteudo = {
   id: string;
-  documento_id: string;
-  versao: number;
   hash: string;
-  nome_arquivo: string;
-  rodada: number;
   paginas: number | null;
-  data_documento: string | null;
-  revisao: string | null;
-  papeis: string[] | null;
-  dados: any;
   texto: string | null;
+  linhas: unknown;
+  dados: any;
+  papeis: string[] | null;
+  revisao: string | null;
+  data_documento: string | null;
   origem: string;
-  custo_paginas_ia: number;
-  lido_em: string;
-  vigente: boolean;
+  paginas_ia: number;
+  extrator_versao: string;
+  extraido_em: string;
 };
 
 export type ResumoLeitura = {
-  ativa: boolean;                    // a memória está ligada? (tabelas existem)
+  /** as tabelas existem e a consulta funcionou */
+  ativa: boolean;
+  /** a gravação foi CONFIRMADA. false com ativa=true significa falha parcial. */
+  gravou: boolean;
+  /** o que deu errado, em português, para mostrar ao analista */
+  problemas: string[];
   encontrados: number;
   jaConhecidos: number;
   novos: number;
@@ -82,16 +115,22 @@ export type ResumoLeitura = {
   custoIA: number;
 };
 
-// ─────────────────────────── infra tolerante ───────────────────────────
+// ─────────────────────────── disponibilidade ───────────────────────────
 
 let avisou = false;
 
-/** true = as tabelas do MHD existem. Falso silencia o módulo inteiro. */
+/** As tabelas do MHD existem? Checa também `mhd_conteudos`, da 2ª migration. */
 export async function mhdDisponivel(): Promise<boolean> {
-  const { error } = await supabase.from("mhd_documentos").select("id").limit(1);
-  if (error) {
+  const [d, c] = await Promise.all([
+    supabase.from("mhd_documentos").select("id").limit(1),
+    supabase.from("mhd_conteudos").select("id").limit(1),
+  ]);
+  if (d.error || c.error) {
     if (!avisou) {
-      console.warn("[MHD] tabelas ausentes — memória desligada. Rode supabase/migrations/2026_07_27_mhd_historico_documentos.sql");
+      console.warn(
+        "[MHD] indisponível — rode as migrations 2026_07_27_mhd_historico_documentos.sql e " +
+        "2026_07_27_mhd_conteudos_por_hash.sql. Detalhe: " + (d.error?.message ?? c.error?.message),
+      );
       avisou = true;
     }
     return false;
@@ -99,54 +138,65 @@ export async function mhdDisponivel(): Promise<boolean> {
   return true;
 }
 
-// ─────────────────────────── consulta da memória ───────────────────────────
+// ─────────────────────────── consulta ───────────────────────────
 
 /**
- * Dado o conjunto de hashes de uma leitura, devolve o que já está na memória.
- * Escopo GLOBAL por hash: hash igual significa bytes idênticos, então o conhecimento é o mesmo
- * documento, esteja em que processo estiver. É o que evita reler o mesmo Uso do Solo que aparece
- * em vários processos do mesmo lote.
+ * Conteúdo já extraído, por hash. Escopo GLOBAL: hash igual são bytes iguais, então a extração é a
+ * mesma esteja o arquivo em que processo estiver.
+ *
+ * Conteúdo produzido por extrator ANTIGO não é reaproveitado — volta em `desatualizados`, para ser
+ * reextraído sem que ninguém precise adivinhar o que está velho.
  */
-export async function buscarPorHash(hashes: string[]): Promise<Map<string, MemoriaVersao>> {
-  const out = new Map<string, MemoriaVersao>();
-  if (!hashes.length) return out;
+export async function buscarPorHash(
+  hashes: string[],
+): Promise<{ conhecidos: Map<string, MemoriaConteudo>; desatualizados: Set<string> }> {
+  const conhecidos = new Map<string, MemoriaConteudo>();
+  const desatualizados = new Set<string>();
+  if (!hashes.length) return { conhecidos, desatualizados };
+
   const { data, error } = await supabase
-    .from("mhd_versoes")
-    .select("*")
+    .from("mhd_conteudos")
+    .select("id,hash,paginas,texto,linhas,dados,papeis,revisao,data_documento,origem,paginas_ia,extrator_versao,extraido_em")
     .in("hash", hashes)
-    .order("lido_em", { ascending: false });
-  if (error || !data) return out;
-  for (const v of data as MemoriaVersao[]) if (!out.has(v.hash)) out.set(v.hash, v);
-  return out;
+    .eq("status", "ok");
+  if (error || !data) return { conhecidos, desatualizados };
+
+  for (const c of data as MemoriaConteudo[]) {
+    if (c.extrator_versao !== EXTRATOR_VERSAO) { desatualizados.add(c.hash); continue; }
+    conhecidos.set(c.hash, c);
+  }
+  return { conhecidos, desatualizados };
 }
 
-/** Documentos lógicos do processo, com suas versões — alimenta a tela do MHD. */
+/** Documentos lógicos do processo, com versões e conteúdo — alimenta a tela do MHD. */
 export async function historicoDoProcesso(processoCodigo: string) {
   const { data: docs, error } = await supabase
-    .from("mhd_documentos")
-    .select("*")
-    .eq("processo_codigo", processoCodigo)
-    .order("papel");
+    .from("mhd_documentos").select("*")
+    .eq("processo_codigo", processoCodigo).order("papel");
   if (error || !docs?.length) return { documentos: [], eventos: [] };
 
   const { data: versoes } = await supabase
     .from("mhd_versoes")
-    .select("id,documento_id,versao,vigente,hash,nome_arquivo,rodada,paginas,data_documento,revisao,papeis,origem,custo_paginas_ia,lido_em,dados")
+    .select("id,documento_id,versao,vigente,hash,nome_arquivo,rodada,lido_em,conteudo_id," +
+            "mhd_conteudos(paginas,papeis,revisao,data_documento,origem,paginas_ia,extrator_versao,dados)")
     .in("documento_id", docs.map((d: any) => d.id))
     .order("versao", { ascending: false });
 
   const { data: eventos } = await supabase
-    .from("mhd_eventos")
-    .select("*")
+    .from("mhd_eventos").select("*")
     .eq("processo_codigo", processoCodigo)
-    .order("criado_em", { ascending: false })
-    .limit(300);
+    .order("criado_em", { ascending: false }).limit(300);
 
   return {
     documentos: docs.map((d: any) => ({
       ...d,
       rotulo: d.rotulo ?? rotuloDe(d.papel),
-      versoes: (versoes ?? []).filter((v: any) => v.documento_id === d.id),
+      versoes: (versoes ?? [])
+        .filter((v: any) => v.documento_id === d.id)
+        .map((v: any) => {
+          const { mhd_conteudos: c, ...resto } = v;
+          return { ...resto, ...(c ?? {}) };
+        }),
     })),
     eventos: eventos ?? [],
   };
@@ -155,32 +205,77 @@ export async function historicoDoProcesso(processoCodigo: string) {
 // ─────────────────────────── gravação ───────────────────────────
 
 async function acharOuCriarDocumento(
-  processoCodigo: string, assuntoId: string | null, papel: string,
-): Promise<string | null> {
+  processoCodigo: string, assuntoId: string | null, papel: string, escopo: string,
+): Promise<{ id: string | null; erro?: string }> {
   const { data: existente } = await supabase
     .from("mhd_documentos").select("id")
-    .eq("processo_codigo", processoCodigo).eq("papel", papel).maybeSingle();
-  if (existente?.id) return existente.id;
+    .eq("processo_codigo", processoCodigo).eq("papel", papel).eq("escopo", escopo).maybeSingle();
+  if (existente?.id) return { id: existente.id };
 
   const { data, error } = await supabase
     .from("mhd_documentos")
-    .insert({ processo_codigo: processoCodigo, assunto_id: assuntoId, papel, rotulo: rotuloDe(papel) })
+    .insert({ processo_codigo: processoCodigo, assunto_id: assuntoId, papel, escopo, rotulo: rotuloDe(papel) })
     .select("id").single();
-  // falha aqui não pode ser silenciosa: foi exatamente assim que a memória ficou "ligada"
-  // gravando nada, quando o módulo ainda usava o cliente anônimo e o RLS recusava o insert
-  if (error) { console.error("[MHD] não consegui criar o documento lógico:", papel, error.message); return null; }
-  return data.id;
+  if (error) {
+    console.error("[MHD] documento lógico não criado:", papel, error.message);
+    return { id: null, erro: `documento "${rotuloDe(papel)}": ${error.message}` };
+  }
+  return { id: data.id };
 }
 
-export async function registrarEvento(e: {
+/** Grava a extração de um hash, ou reaproveita a que já existe. */
+async function acharOuCriarConteudo(e: EntradaMHD): Promise<{ id: string | null; erro?: string }> {
+  const { data: existente } = await supabase
+    .from("mhd_conteudos").select("id,extrator_versao").eq("hash", e.hash).maybeSingle();
+
+  // veio da memória: a extração já está guardada e não foi refeita, então não há payload novo
+  if (e.reaproveitado) {
+    if (existente?.id) return { id: existente.id };
+    return { id: null, erro: `"${e.nome}" foi marcado como conhecido mas não está na memória` };
+  }
+
+  const payload = {
+    hash: e.hash, bytes: e.bytes, paginas: e.paginas,
+    texto: e.texto ?? null, linhas: e.linhas ?? null, dados: e.dados ?? null,
+    papeis: e.papeisTodos ?? e.papeis, revisao: e.revisao ?? null,
+    data_documento: e.dataDocumento ?? null,
+    data_elaboracao: e.dataElaboracao ?? null,
+    data_revisao: e.dataRevisao ?? null,
+    data_assinatura: e.dataAssinatura ?? null,
+    data_registro: e.dataRegistro ?? null,
+    origem: e.origem ?? "texto", modelo: e.modelo ?? null,
+    paginas_ia: e.paginasIA ?? 0,
+    extrator_versao: EXTRATOR_VERSAO, status: "ok",
+    extraido_em: new Date().toISOString(),
+  };
+
+  // extrator novo sobre conteúdo antigo: atualiza a extração preservando o mesmo id,
+  // para que as versões que já apontam para ele continuem válidas
+  if (existente?.id) {
+    if (existente.extrator_versao === EXTRATOR_VERSAO) return { id: existente.id };
+    const { error } = await supabase.from("mhd_conteudos").update(payload).eq("id", existente.id);
+    if (error) return { id: existente.id, erro: `reextração de "${e.nome}": ${error.message}` };
+    return { id: existente.id };
+  }
+
+  const { data, error } = await supabase.from("mhd_conteudos").insert(payload).select("id").single();
+  if (error) {
+    console.error("[MHD] conteúdo não gravado:", e.nome, error.message);
+    return { id: null, erro: `conteúdo de "${e.nome}": ${error.message}` };
+  }
+  return { id: data.id };
+}
+
+export async function registrarEvento(ev: {
   processoCodigo: string; assuntoId?: string | null; documentoId?: string | null;
   versaoId?: string | null; tipo: string; titulo: string; detalhe?: unknown; usuarioId?: string | null;
-}) {
-  await supabase.from("mhd_eventos").insert({
-    processo_codigo: e.processoCodigo, assunto_id: e.assuntoId ?? null,
-    documento_id: e.documentoId ?? null, versao_id: e.versaoId ?? null,
-    tipo: e.tipo, titulo: e.titulo, detalhe: e.detalhe ?? null, usuario_id: e.usuarioId ?? null,
+}): Promise<string | null> {
+  const { error } = await supabase.from("mhd_eventos").insert({
+    processo_codigo: ev.processoCodigo, assunto_id: ev.assuntoId ?? null,
+    documento_id: ev.documentoId ?? null, versao_id: ev.versaoId ?? null,
+    tipo: ev.tipo, titulo: ev.titulo, detalhe: ev.detalhe ?? null, usuario_id: ev.usuarioId ?? null,
   });
+  return error ? error.message : null;
 }
 
 /** Compara os dados de duas versões e devolve as diferenças, campo a campo. */
@@ -198,104 +293,108 @@ export function compararVersoes(antes: any, depois: any, papel: string) {
 }
 
 /**
- * Grava a leitura na memória e devolve o resumo.
+ * Grava a leitura e devolve o resumo. NUNCA lança.
  *
- * Contrato: NUNCA lança. Se a memória estiver indisponível, devolve resumo com `ativa: false` e a
- * leitura segue normalmente.
+ * `entradas` deve conter UM registro por arquivo distinto, já com apenas os papéis em que aquele
+ * arquivo é o VIGENTE — quem decide isso é `lerPastaSlot5`, não este módulo.
  */
 export async function registrarLeitura(args: {
   processoCodigo: string;
   assuntoId?: string | null;
   usuarioId?: string | null;
+  /** TODOS os arquivos da leitura, reaproveitados inclusive — cada um precisa do seu vínculo. */
   entradas: EntradaMHD[];
   conferencias: { nome: string }[];
 }): Promise<ResumoLeitura> {
-  const vazio: ResumoLeitura = {
-    ativa: false, encontrados: args.entradas.length, jaConhecidos: 0, novos: 0, corrigidos: 0,
+  const reaproveitados = args.entradas.filter((e) => e.reaproveitado);
+  const base: ResumoLeitura = {
+    ativa: false, gravou: false, problemas: [],
+    encontrados: args.entradas.length,
+    jaConhecidos: reaproveitados.length,
+    novos: 0, corrigidos: 0,
     versoesCriadas: [], alteracoes: [], papeisAlterados: [],
-    conferenciasAfetadas: [], conferenciasNaoAfetadas: [],
-    paginasEconomizadas: 0, paginasLidas: 0, custoIA: 0,
+    conferenciasAfetadas: [], conferenciasNaoAfetadas: args.conferencias.map((c) => c.nome),
+    paginasEconomizadas: reaproveitados.reduce((s, k) => s + (k.paginas || 0), 0),
+    paginasLidas: 0, custoIA: 0,
   };
 
   try {
-    if (!(await mhdDisponivel())) return vazio;
+    if (!(await mhdDisponivel())) {
+      return { ...base, problemas: ["O Histórico Documental não está instalado — nada foi registrado."] };
+    }
 
     const { processoCodigo, assuntoId = null, usuarioId = null, entradas } = args;
-    const memoria = await buscarPorHash(entradas.map((e) => e.hash));
-
-    const resumo: ResumoLeitura = { ...vazio, ativa: true };
+    const r: ResumoLeitura = { ...base, ativa: true };
     const papeisAlterados = new Set<string>();
 
-    await registrarEvento({
+    const errEvento = await registrarEvento({
       processoCodigo, assuntoId, tipo: "leitura_iniciada", usuarioId,
-      titulo: `Leitura da pasta — ${entradas.length} arquivo(s)`,
-      detalhe: { rodadas: [...new Set(entradas.map((e) => e.rodada))].sort() },
+      titulo: `Leitura da pasta — ${r.encontrados} arquivo(s)`,
+      detalhe: { extraidos: entradas.length - r.jaConhecidos, reaproveitados: r.jaConhecidos },
     });
+    if (errEvento) r.problemas.push(`linha do tempo: ${errEvento}`);
 
     for (const e of entradas) {
-      const conhecido = memoria.get(e.hash);
-
-      if (conhecido) {
-        // MESMO HASH = mesmo conteúdo. Não relê, não extrai, não chama IA.
-        resumo.jaConhecidos++;
-        resumo.paginasEconomizadas += e.paginas || 0;
-        await registrarEvento({
-          processoCodigo, assuntoId, documentoId: conhecido.documento_id, versaoId: conhecido.id,
-          tipo: "documento_conhecido", usuarioId,
-          titulo: `${e.nome} já estava na memória — não foi relido`,
-          detalhe: { hash: e.hash, lidoEm: conhecido.lido_em, paginasEconomizadas: e.paginas },
+      if (e.reaproveitado) {
+        const err = await registrarEvento({
+          processoCodigo, assuntoId, tipo: "documento_conhecido", usuarioId,
+          titulo: `${e.nome} já estava na memória — extração reaproveitada`,
+          detalhe: { hash: e.hash, paginasEconomizadas: e.paginas },
         });
-        continue;
+        if (err) r.problemas.push(`evento de "${e.nome}": ${err}`);
+      } else {
+        r.paginasLidas += e.paginas || 0;
+        r.custoIA += e.paginasIA ?? 0;
       }
 
-      resumo.paginasLidas += e.paginas || 0;
-      resumo.custoIA += e.custoPaginasIA ?? 0;
+      const conteudo = await acharOuCriarConteudo(e);
+      if (conteudo.erro) r.problemas.push(conteudo.erro);
+      if (!conteudo.id) continue;
 
-      // um arquivo pode exercer vários papéis (uma ART registra várias atividades):
-      // cada papel é um documento lógico, e cada um ganha a sua versão
+      const escopo = e.escopo ?? "";
       for (const papel of e.papeis) {
-        const documentoId = await acharOuCriarDocumento(processoCodigo, assuntoId, papel);
-        if (!documentoId) continue; // já logado acima
+        const doc = await acharOuCriarDocumento(processoCodigo, assuntoId, papel, escopo);
+        if (doc.erro) r.problemas.push(doc.erro);
+        if (!doc.id) continue;
 
         const { data: anteriores } = await supabase
-          .from("mhd_versoes").select("id,versao,dados,nome_arquivo")
-          .eq("documento_id", documentoId).order("versao", { ascending: false }).limit(1);
-        const anterior = anteriores?.[0] ?? null;
+          .from("mhd_versoes")
+          .select("id,versao,conteudo_id,nome_arquivo,mhd_conteudos(dados)")
+          .eq("documento_id", doc.id).order("versao", { ascending: false }).limit(1);
+        const anterior: any = anteriores?.[0] ?? null;
+
+        // o MESMO conteúdo já é a versão vigente deste documento: nada a criar
+        if (anterior?.conteudo_id === conteudo.id) continue;
+
         const versao = (anterior?.versao ?? 0) + 1;
-        const ehCorrecao = !!anterior;
+        if (anterior) await supabase.from("mhd_versoes").update({ vigente: false }).eq("documento_id", doc.id);
 
-        // versão anterior deixa de ser a vigente, mas NUNCA é apagada
-        if (anterior) await supabase.from("mhd_versoes").update({ vigente: false }).eq("documento_id", documentoId);
-
-        const { data: nova } = await supabase.from("mhd_versoes").insert({
-          documento_id: documentoId, versao, vigente: true,
-          hash: e.hash, nome_arquivo: e.nome, rodada: e.rodada, bytes: e.bytes, paginas: e.paginas,
-          data_arquivo: e.dataArquivo ?? null, data_documento: e.dataDocumento ?? null,
-          revisao: e.revisao ?? null, papeis: e.papeis,
-          texto: e.texto ?? null, linhas: e.linhas ?? null, dados: e.dados ?? null,
-          origem: e.origem ?? "texto", custo_paginas_ia: e.custoPaginasIA ?? 0, usuario_id: usuarioId,
+        const { data: nova, error: errVersao } = await supabase.from("mhd_versoes").insert({
+          documento_id: doc.id, conteudo_id: conteudo.id, versao, vigente: true,
+          hash: e.hash, nome_arquivo: e.nome, rodada: e.rodada, usuario_id: usuarioId,
         }).select("id").single();
+        if (errVersao) { r.problemas.push(`versão de "${rotuloDe(papel)}": ${errVersao.message}`); continue; }
 
         await supabase.from("mhd_documentos")
-          .update({ status: "ativo", atualizado_em: new Date().toISOString() }).eq("id", documentoId);
+          .update({ status: "ativo", atualizado_em: new Date().toISOString() }).eq("id", doc.id);
 
-        resumo.versoesCriadas.push({ papel, rotulo: rotuloDe(papel), versao, nome: e.nome });
+        r.versoesCriadas.push({ papel, rotulo: rotuloDe(papel), versao, nome: e.nome });
         papeisAlterados.add(papel);
 
-        if (ehCorrecao) {
-          resumo.corrigidos++;
-          const difs = compararVersoes(anterior.dados, e.dados, papel);
-          resumo.alteracoes.push(...difs);
+        if (anterior) {
+          r.corrigidos++;
+          const difs = compararVersoes(anterior.mhd_conteudos?.dados, e.dados, papel);
+          r.alteracoes.push(...difs);
           await registrarEvento({
-            processoCodigo, assuntoId, documentoId, versaoId: nova?.id ?? null,
+            processoCodigo, assuntoId, documentoId: doc.id, versaoId: nova?.id ?? null,
             tipo: "alteracao_detectada", usuarioId,
             titulo: `${rotuloDe(papel)} — versão ${versao} substitui a ${anterior.versao}`,
             detalhe: { de: anterior.nome_arquivo, para: e.nome, alteracoes: difs },
           });
         } else {
-          resumo.novos++;
+          r.novos++;
           await registrarEvento({
-            processoCodigo, assuntoId, documentoId, versaoId: nova?.id ?? null,
+            processoCodigo, assuntoId, documentoId: doc.id, versaoId: nova?.id ?? null,
             tipo: "documento_novo", usuarioId,
             titulo: `${rotuloDe(papel)} — versão 1 (${e.nome})`,
             detalhe: { hash: e.hash, rodada: e.rodada },
@@ -305,26 +404,32 @@ export async function registrarLeitura(args: {
     }
 
     // a matriz de dependências EXPLICA o impacto; não pula cálculo (ver mhdDependencias.ts)
-    resumo.papeisAlterados = [...papeisAlterados];
-    const afetada = conferenciasAfetadas(resumo.papeisAlterados);
+    r.papeisAlterados = [...papeisAlterados];
+    const afetada = conferenciasAfetadas(r.papeisAlterados);
+    r.conferenciasAfetadas = [];
+    r.conferenciasNaoAfetadas = [];
     for (const c of args.conferencias) {
-      (afetada(c.nome) ? resumo.conferenciasAfetadas : resumo.conferenciasNaoAfetadas).push(c.nome);
+      (afetada(c.nome) ? r.conferenciasAfetadas : r.conferenciasNaoAfetadas).push(c.nome);
     }
 
     await registrarEvento({
       processoCodigo, assuntoId, tipo: "compatibilizacao", usuarioId,
-      titulo: `Compatibilização — ${resumo.conferenciasAfetadas.length} análise(s) afetada(s) por esta correção`,
+      titulo: `Compatibilização — ${r.conferenciasAfetadas.length} análise(s) afetada(s)`,
       detalhe: {
-        papeisAlterados: resumo.papeisAlterados,
-        camposAfetados: [...camposAfetados(resumo.papeisAlterados)],
-        afetadas: resumo.conferenciasAfetadas,
-        naoAfetadas: resumo.conferenciasNaoAfetadas,
+        papeisAlterados: r.papeisAlterados,
+        camposAfetados: [...camposAfetados(r.papeisAlterados)],
+        afetadas: r.conferenciasAfetadas, naoAfetadas: r.conferenciasNaoAfetadas,
+        problemas: r.problemas,
       },
     });
 
-    return resumo;
-  } catch (err) {
-    console.warn("[MHD] falha ao registrar leitura (a leitura em si não foi afetada):", err);
-    return vazio;
+    r.gravou = r.problemas.length === 0;
+    return r;
+  } catch (err: any) {
+    console.error("[MHD] falha ao registrar leitura:", err);
+    return {
+      ...base, ativa: true, gravou: false,
+      problemas: [`falha inesperada ao registrar: ${err?.message ?? err}`],
+    };
   }
 }

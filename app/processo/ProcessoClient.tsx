@@ -1433,6 +1433,39 @@ export default function ProcessoClient() {
             </div>
 
             <div className="p-4 space-y-4">
+              {/* FALHA DO MHD NUNCA FICA INVISÍVEL. A leitura continua, o aceite não é bloqueado,
+                  mas o analista precisa saber que o histórico não foi atualizado — senão ele confia
+                  numa memória que não existe e espera economia que não vai acontecer. */}
+              {propostaPasta.mhd && !propostaPasta.mhd.gravou && (
+                <div className="border border-[#EA580C] rounded-lg p-3">
+                  <p className="text-sm font-bold text-[#EA580C]">⚠ O Histórico Documental não foi atualizado</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    A leitura foi concluída e você pode aceitar os campos normalmente. Mas estes documentos
+                    poderão ser processados novamente numa leitura futura, porque não ficaram registrados.
+                  </p>
+                  {propostaPasta.mhd.problemas?.map((p: string, i: number) => (
+                    <p key={i} className="text-xs text-[var(--text-muted)] mt-0.5">· {p}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* ORDEM DAS SUBPASTAS AMBÍGUA — pergunta, não escolhe calado */}
+              {propostaPasta.rodadaAmbigua && (
+                <div className="border border-[#EA580C] rounded-lg p-3">
+                  <p className="text-sm font-bold text-[#EA580C]">⚠ Não foi possível determinar a ordem das subpastas</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-1">
+                    Os nomes não trazem número nem data, e as datas dos arquivos não diferenciam. A ordem abaixo
+                    foi assumida em ordem alfabética — <b>confira antes de aceitar</b>. Renomear as pastas com
+                    número ("Correção 01", "Correção 02") resolve de forma definitiva.
+                  </p>
+                  {propostaPasta.pastas?.filter((x: any) => x.caminho).map((x: any) => (
+                    <p key={x.caminho} className="text-xs text-[var(--text-muted)] mt-0.5">
+                      · rodada {x.rodada}: {x.caminho}
+                    </p>
+                  ))}
+                </div>
+              )}
+
               {/* RESUMO DA LEITURA INCREMENTAL (MHD) — o que já era conhecido e o que mudou */}
               {propostaPasta.mhd?.ativa && (
                 <div className="border border-[var(--border-strong)] rounded-lg p-3 bg-[var(--bg-secondary)]">
@@ -1516,8 +1549,10 @@ export default function ProcessoClient() {
                     <div key={i} className="text-xs">
                       <p className={c.estado === "NÃO CONFERE" ? "text-[#DC2626] font-semibold"
                         : c.estado === "CONFERE" ? "text-[#16A34A]"
+                        : c.estado === "ALERTA" ? "text-[#EA580C] font-semibold"
                         : c.estado === "SEM DADO" ? "text-[#EA580C]" : "text-[var(--text-muted)]"}>
-                        {c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘" : c.estado === "SEM DADO" ? "?" : "i"} {c.nome}
+                        {c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘"
+                          : c.estado === "ALERTA" ? "⚠" : c.estado === "SEM DADO" ? "?" : "i"} {c.nome}
                       </p>
                       <p className="text-[var(--text-muted)] pl-4">{c.detalhe}</p>
                     </div>

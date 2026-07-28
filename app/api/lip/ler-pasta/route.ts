@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { lerPastaSlot5, type ArquivoEntrada, type Conhecido } from "@/lib/lerPastaSlot5";
 import { buscarPorHash, registrarLeitura } from "@/lib/mhd";
+import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
+import { mapaDeRodadas } from "@/lib/rodadas";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -34,6 +36,15 @@ export async function POST(req: NextRequest) {
     if (!arquivos.length) {
       return NextResponse.json({ ok: false, erro: "Nenhum arquivo enviado" }, { status: 400 });
     }
+
+    // esta rota GRAVA no MHD com service role: precisa saber quem é e se pode
+    const usuario = await usuarioDaRequisicao(req);
+    if (processoCodigo) {
+      const permissao = await autorizar(req, processoCodigo);
+      if (!permissao.ok) {
+        return NextResponse.json({ ok: false, erro: permissao.erro }, { status: permissao.status });
+      }
+    }
     if (arquivos.length > MAX_ARQUIVOS) {
       return NextResponse.json(
         { ok: false, erro: `Pasta com ${arquivos.length} arquivos — o limite é ${MAX_ARQUIVOS}` },
@@ -48,12 +59,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // a profundidade do caminho relativo É a rodada:
-    // "SLOT 5/PROJETO.pdf" → 1 · "SLOT 5/REV01/ARQ....pdf" → 2
-    const rodadaDe = (rel: string, nome: string) => {
-      const partes = (rel || nome).split("/").filter(Boolean);
-      return Math.max(1, partes.length - 1);
-    };
+    /**
+     * A rodada NÃO sai da profundidade do caminho. Subpastas irmãs — "Correção 01", "Correção 02",
+     * "Correção 03" — têm todas a mesma profundidade, e a versão anterior dava rodada 2 para as
+     * três. Ver lib/rodadas.ts: a ordem vem de número no nome → data no nome → data do arquivo, e
+     * quando nada decide o resultado é marcado como AMBÍGUO para a tela confirmar com o analista.
+     */
+    const { pastas, rodadaDoArquivo, ambigua } = mapaDeRodadas(
+      arquivos.map((f) => ({
+        caminhoRelativo: (f as File & { webkitRelativePath?: string }).name,
+        nome: f.name,
+        modificadoEm: f.lastModified || 0,
+      })).map((a, i) => ({ ...a, caminhoRelativo: caminhos[i] ?? a.nome })),
+    );
 
     const entradas: ArquivoEntrada[] = [];
     // lastModified serve de rótulo para o humano reconhecer o arquivo; NUNCA de identidade,
@@ -67,7 +85,7 @@ export async function POST(req: NextRequest) {
       if (f.lastModified) datasArquivo.set(hash, new Date(f.lastModified).toISOString());
       entradas.push({
         nome: f.name,
-        rodada: rodadaDe(caminhos[i] ?? "", f.name),
+        rodada: rodadaDoArquivo(caminhos[i] ?? "", f.name).rodada,
         hash,
         buffer,
       });
@@ -87,12 +105,12 @@ export async function POST(req: NextRequest) {
      */
     const memoria = await buscarPorHash(entradas.map((e) => e.hash));
     const conhecidos: Map<string, Conhecido> = new Map();
-    for (const [hash, v] of memoria) {
-      if (!v.papeis?.length) continue;
+    for (const [hash, c] of memoria.conhecidos) {
+      if (!c.papeis?.length) continue;
       conhecidos.set(hash, {
-        papeis: v.papeis, dados: v.dados, paginas: v.paginas,
-        charsTexto: v.texto ? v.texto.replace(/\s/g, "").length : 0,
-        dataDocumento: v.data_documento, revisao: v.revisao, lidoEm: v.lido_em,
+        papeis: c.papeis, dados: c.dados, paginas: c.paginas,
+        charsTexto: c.texto ? c.texto.replace(/\s/g, "").length : 0,
+        dataDocumento: c.data_documento, revisao: c.revisao, lidoEm: c.extraido_em,
       });
     }
 
@@ -113,7 +131,8 @@ export async function POST(req: NextRequest) {
       })
       .map((it) => ({
         ...it,
-        papeis: it.papeis.filter(
+        papeisTodos: it.papeis,   // tudo que o conteúdo exerce — vai para mhd_conteudos
+        papeis: it.papeis.filter( // só onde ESTE arquivo vence — é o que gera versão
           (p) => p !== "outros" && resultado.vigentesPorPapel[p] === it.hash,
         ),
       }))
@@ -121,15 +140,24 @@ export async function POST(req: NextRequest) {
     const mhd = await registrarLeitura({
       processoCodigo: processoCodigo || "sem-processo",
       assuntoId: assuntoId || null,
+      usuarioId: usuario?.id ?? null,
+      // TODOS os arquivos vão ao MHD, reaproveitados inclusive: o conteúdo é global por hash, mas
+      // a VERSÃO é do processo. Mandar só os extraídos agora deixava sem histórico neste processo o
+      // documento que já havia sido lido em outro.
       entradas: paraMHD.map((it) => ({
+        reaproveitado: !!it.daMemoria,
         hash: it.hash, nome: it.nome, rodada: it.rodada, bytes: it.bytes, paginas: it.paginas,
-        papeis: it.papeis, dataDocumento: it.dataDocumento, revisao: it.revisao,
-        dataArquivo: datasArquivo.get(it.hash) ?? null,
+        papeis: it.papeis, papeisTodos: it.papeisTodos,
+        dataDocumento: it.dataDocumento, revisao: it.revisao,
+        dataElaboracao: it.dados?.dataElaboracao ?? null,
+        dataRevisao: it.dados?.dataRevisao ?? null,
+        dataAssinatura: it.dados?.dataAssinatura ?? null,
+        dataRegistro: it.dados?.dataRegistro ?? it.dados?.dataCelebracao ?? null,
         texto: porHash.get(it.hash)?.texto ?? null,
         linhas: porHash.get(it.hash)?.linhas ?? null,
         dados: it.dados ?? null,
         origem: "texto" as const,
-        custoPaginasIA: 0,
+        paginasIA: 0,
       })),
       conferencias: resultado.conferencias.map((c) => ({ nome: c.nome })),
     });
@@ -150,7 +178,10 @@ export async function POST(req: NextRequest) {
       ...semExtratos,
       catalogo,
       mhd,
-      rodadas: [...new Set(entradas.map((e) => e.rodada))].sort(),
+      rodadas: [...new Set(entradas.map((e) => e.rodada))].sort((a, b) => a - b),
+      // como as subpastas foram ordenadas, e se a ordem precisa da confirmação do analista
+      pastas,
+      rodadaAmbigua: ambigua,
       msLeitura: Date.now() - t0,
     });
   } catch (e: any) {

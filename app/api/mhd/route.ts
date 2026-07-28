@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { historicoDoProcesso, mhdDisponivel } from "@/lib/mhd";
+import { autorizar } from "@/lib/autorizacao";
 
 /**
  * GET /api/mhd?processo=<codigo> — histórico documental de um processo.
@@ -14,16 +15,31 @@ export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    if (!(await mhdDisponivel())) {
-      return NextResponse.json({
-        ok: true, ativo: false, documentos: [], eventos: [],
-        aviso: "MHD ainda não instalado — rode supabase/migrations/2026_07_27_mhd_historico_documentos.sql",
-      });
-    }
-
     const processo = req.nextUrl.searchParams.get("processo");
     if (!processo) {
       return NextResponse.json({ ok: false, erro: "processo é obrigatório" }, { status: 400 });
+    }
+
+    /**
+     * AUTORIZAÇÃO PRIMEIRO, SEMPRE — antes de qualquer outra checagem.
+     *
+     * A ordem importa e já falhou: a verificação de "MHD instalado?" estava acima daqui, e como ela
+     * retorna cedo, requisição sem sessão nenhuma recebia 200. O guarda não guardava nada enquanto
+     * a segunda migration não rodasse. Nada pode retornar antes deste bloco.
+     *
+     * O MHD usa service role, que IGNORA o RLS: sem isto, qualquer um com a URL leria o histórico
+     * de qualquer processo. E nunca confiar no `processo` que veio do cliente.
+     */
+    const permissao = await autorizar(req, processo);
+    if (!permissao.ok) {
+      return NextResponse.json({ ok: false, erro: permissao.erro }, { status: permissao.status });
+    }
+
+    if (!(await mhdDisponivel())) {
+      return NextResponse.json({
+        ok: true, ativo: false, documentos: [], eventos: [],
+        aviso: "MHD ainda não instalado — rode as migrations 2026_07_27_mhd_historico_documentos.sql e 2026_07_27_mhd_conteudos_por_hash.sql",
+      });
     }
 
     const { documentos, eventos } = await historicoDoProcesso(processo);
