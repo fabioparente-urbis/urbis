@@ -67,7 +67,16 @@ export type Conferencia = {
   dependencia?: string;
 };
 
-export type CampoLido = { valor: string; origem: "lido" | "calculado" | "padrao"; fonte: string };
+/**
+ * `origem` diz COMO o valor chegou. `nao_aplicavel` é resposta legítima e frequente: metade do LIP
+ * do slot 5 trata de uso habitacional, e a amostra é comercial térrea. Campo que fecha em NP está
+ * respondido, não esquecido.
+ */
+export type CampoLido = {
+  valor: string;
+  origem: "lido" | "calculado" | "padrao" | "nao_aplicavel" | "aguardando_fato";
+  fonte: string;
+};
 
 export type ResultadoLeitura = {
   catalogo: ItemCatalogo[];
@@ -404,6 +413,10 @@ function lerArt(doc: DocTexto) {
     (t.match(/Data de Registro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] ||
     (t.match(/Registrada em\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
   d.declaracaoAcessibilidade = /Declara[çc][ãa]o de Acessibilidade/i.test(t);
+  // A ART do CREA imprime "Coordenadas Geográficas: -16.6773299,-49.2573366". O campo do LIP era
+  // tratado como digitação manual desde a Regularização — nunca ninguém tinha olhado aqui.
+  d.coordenadas = (t.match(/Coordenadas Geogr[áa]ficas:\s*(-?\d+[.,]\d+\s*,\s*-?\d+[.,]\d+)/i) || [])[1]
+    ?.replace(/\s+/g, "") || null;
   // datas separadas da ART: cadastro, registro e assinatura são coisas diferentes
   d.dataCadastro = (t.match(/Data de Cadastro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
   d.dataAssinatura = (t.match(/na data e hora:\s*(\d{4})-(\d{2})-(\d{2})/i) || []).slice(1, 4)
@@ -791,6 +804,183 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "padrao", "valor padrão do assunto");
   set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "lido", "Requerimento");
   set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "calculado", "CNAEs no Uso do Solo");
+
+  /* ══════════════════════════════════════════════════════════════════════════════
+   * GRUPO A — sem IA. Regra sobre dado já lido, ou resultado de conferência que já
+   * rodou. Ver lib/lipMapa.ts para o inventário completo dos 136 campos.
+   *
+   * "NÃO APLICÁVEL" É RESPOSTA, NÃO OMISSÃO. Metade do LIP do slot 5 trata de uso
+   * habitacional, de 2ª a 4ª via e de documentos que este processo não tem. Deixar
+   * esses campos vazios obriga o analista a reconferir um por um para descobrir que
+   * não havia nada a preencher. Fechá-los em NP com o motivo à vista é o que faz o
+   * LIP virar retrato do processo em vez de formulário meio preenchido.
+   * ══════════════════════════════════════════════════════════════════════════════ */
+  const np = (chave: string, motivo: string) => set(chave, "NP", "nao_aplicavel", motivo);
+
+  // ── 2ª a 4ª via: só existem quando o imóvel tem mais de uma frente
+  const umaVia = !!uds.via && !uds.via2;
+  if (umaVia) {
+    for (const n of [2, 3, 4]) {
+      np(`via${n}`, "o Uso do Solo traz uma via só");
+      np(`tipoDeVia${n}`, "o Uso do Solo traz uma via só");
+      np(`larguraDaVia${n}`, "o Uso do Solo traz uma via só");
+      np(`larguraDoPasseio${n}`, "o Uso do Solo traz uma via só");
+    }
+  }
+
+  // ── tipo de uso: derivado do que o requerimento marca e do que o UDS lista
+  const ehComercial = /comercial/i.test(rq.tipoUso ?? "") || (uds.cnaes?.length ?? 0) > 0;
+  const ehHabitacional = /residencial|habitacional/i.test(rq.tipoUso ?? "");
+  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "lido", "Requerimento");
+
+  if (ehComercial && !ehHabitacional) {
+    np("habSeriada", "uso comercial");
+    np("habColetiva", "uso comercial");
+    np("quitinete", "uso comercial");
+    np("institucional", "uso comercial");
+    np("atendeDecreto9451PUsoHab", "o Decreto 9.451 só alcança uso habitacional");
+  }
+
+  // ── térreo: não há acesso vertical nem tráfego de elevador para analisar
+  const pav = num(pr.pavimentos);
+  if (pav === 1) {
+    np("trafegoElevadores", "edificação térrea");
+    np("acessoVertical", "edificação térrea");
+  }
+
+  // ── documentos: presença no catálogo, ou alerta do próprio Uso do Solo
+  if (vig.uso_solo) {
+    np("docEmitidoPeloComandoDaAeronautica",
+       "o Uso do Solo alerta quando é área aeroportuária, e não alertou");
+    if (!uds.corredorViario) np("smmPCorredoresDoArtigo116", "sem corredor viário no Uso do Solo");
+    // Art. 163 só alcança via expressa e acesso direto proibido
+    if (uds.classificacaoVia && !/EXPRESSA|MARGINAL/i.test(uds.classificacaoVia)) {
+      np("art163BaiaDeDesaceleracaoAa", `via ${uds.classificacaoVia.toLowerCase()}`);
+    }
+  }
+  if (vig.projeto) {
+    np("tDC", "nenhum documento de T.D.C. na pasta");
+    np("demolicao", "nenhum documento de demolição na pasta");
+    np("certidaoDeAcessib", "certidão de acessibilidade não regulamentada");
+    np("dimensoesDoLoteConferemComRememb", "sem remembramento, remanejamento ou desmembramento na pasta");
+  }
+
+  // ── a ART de execução do CREA não traz declaração de acessibilidade
+  if (vig.art_execucao && !aExec.declaracaoAcessibilidade) {
+    np("aArtDeExecucaoAtendeA", "a ART de execução não traz declaração de acessibilidade");
+  }
+
+  // ── coordenadas: estão na ART, e o campo era digitado à mão
+  set("coordenadas", aExec.coordenadas ?? aProj.coordenadas ?? aCx.coordenadas, "lido",
+      "campo Coordenadas Geográficas da ART");
+
+  /* ── endereço: comparar quadra e lote SEPARADAMENTE, e normalizados.
+   *
+   * Comparar a string inteira dá falso negativo garantido: o mesmo lote aparece como
+   * "QUADRA 18 A LOTE 06" no carimbo, "Quadra A-18 Lote 06" no requerimento e "A18"/"06"
+   * no Uso do Solo. Letra e número trocam de ordem, e há hífen, ponto e espaço no meio.
+   * Normalizar cada parte e aceitar a inversão é o que faz a conferência dizer a verdade. */
+  const chaveLocal = (x?: string | null) => {
+    const t = norm(x ?? "").replace(/[^A-Z0-9]/g, "");
+    const letras = t.replace(/[0-9]/g, "");
+    const numeros = t.replace(/[^0-9]/g, "").replace(/^0+(?=\d)/, ""); // "06" e "6" são o mesmo lote
+    return letras + numeros;
+  };
+  const achaApos = (texto: string | null | undefined, rotulo: RegExp) =>
+    (norm(texto ?? "").match(rotulo) || [])[1] ?? null;
+
+  if (uds.quadra && uds.lote && (pr.endereco || rq.enderecoImovel)) {
+    const alvoQ = chaveLocal(uds.quadra), alvoL = chaveLocal(uds.lote);
+    const fontes = [
+      ["carimbo da prancha", pr.endereco],
+      ["requerimento", rq.enderecoImovel],
+    ] as [string, string | null][];
+
+    const divergentes: string[] = [];
+    let comparou = 0;
+    for (const [nome, texto] of fontes) {
+      if (!texto) continue;
+      const q = achaApos(texto, /QUADRA\s*([A-Z0-9 -]{1,8}?)\s*LOTE/);
+      // o lote é token compacto ("06", "12/15", "6A"); aceitar espaço aqui engolia o bairro
+      // seguinte e transformava "Lote 06 Jardim Goiás" em lote "06 JARDI"
+      const l = achaApos(texto, /LOTE\s*([0-9]{1,4}(?:\/[0-9]{1,4})?[A-Z]?)\b/);
+      if (!q && !l) continue;
+      comparou++;
+      if ((q && chaveLocal(q) !== alvoQ) || (l && chaveLocal(l) !== alvoL)) {
+        divergentes.push(`${nome}: quadra ${q?.trim() ?? "?"} lote ${l?.trim() ?? "?"}`);
+      }
+    }
+    if (comparou) {
+      set("oEnderecoEstaCorretoNoUso", divergentes.length ? "NÃO" : "SIM", "calculado",
+          divergentes.length
+            ? `Uso do Solo diz quadra ${uds.quadra} lote ${uds.lote}; diverge em ${divergentes.join(" · ")}`
+            : `quadra ${uds.quadra} e lote ${uds.lote} batem no carimbo e no requerimento`);
+    }
+  }
+
+  /* ── conferências que já rodam e cujo veredito não chegava ao campo ─────────────
+   * A aritmética destes três já é feita em `conferir()`. O campo do LIP ficava vazio
+   * ao lado de uma conferência que dizia CONFERE — a informação existia e não era
+   * gravada onde o analista olha. */
+  const confere = (a: number | null, b: number | null) =>
+    a == null || b == null ? null : Math.abs(a - b) <= TOL ? "SIM" : "NÃO";
+  const qtdArt = (d: any, re: RegExp) =>
+    num(d.atividades?.find((x: Atividade) => re.test(x.unidade))?.quantidade);
+
+  set("aAreaNaArtDeProjeto", confere(qtdArt(aProj, /QUADRAD/i), pr.areaTotalConstrucao), "calculado",
+      "área da ART de projeto × área do carimbo");
+  set("aAreaNaArtDeExecucao", confere(qtdArt(aExec, /QUADRAD/i), pr.areaTotalConstrucao), "calculado",
+      "área da ART de execução × área do carimbo");
+  set("volumeConfereComOProjeto", confere(qtdArt(aCx, /C[ÚU]BIC/i), pr.volumeCaixa), "calculado",
+      "volume da ART de caixa × volume do carimbo");
+
+  /* ══════════════════════════════════════════════════════════════════════════════
+   * GRUPO B — cálculo novo sobre o que já se tem. Nada aqui vai à IA.
+   * ══════════════════════════════════════════════════════════════════════════════ */
+
+  // ── classificação de uso e porte
+  set("habitacional", ehHabitacional ? "SIM" : ehComercial ? "NÃO" : null, "calculado",
+      "derivado do tipo de uso do requerimento e dos CNAEs do Uso do Solo");
+  set("misto", ehHabitacional && ehComercial ? "SIM" : (ehComercial || ehHabitacional) ? "NÃO" : null,
+      "calculado", "há uso habitacional e econômico ao mesmo tempo?");
+  if (uds.areaMaxima) {
+    set("grandePorte", /sem limite/i.test(uds.areaMaxima) ? "NÃO" : null, "calculado",
+        `porte admitido no Uso do Solo: ${uds.areaMaxima}`);
+  }
+
+  // ── fração ideal: só se aplica por unidade territorial, e uma exclui as outras
+  if (/ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
+    np("aosEApaIntegranteDaArau", "unidade territorial é AAB");
+    np("chacarasVerificarNomeDoBairroNa", "unidade territorial é AAB, não chácara");
+    np("chacarasVerificarNomeDoBairroNa2", "unidade territorial é AAB, não chácara");
+    if (!/quitinete/i.test(rq.tipoUso ?? "")) np("quitineteEmAab130", "não há quitinete no projeto");
+  }
+
+  // ── vaga de ambulância: só para CNAE de atividade específica (saúde)
+  if (uds.cnaes?.length) {
+    const saude = uds.cnaes.some((c: any) => /^86|sa[úu]de|hospital|cl[íi]nic/i.test(c.codigo + " " + c.denominacao));
+    if (!saude) np("vagaAmbulanciaPCnaeAtivEspec", "nenhum CNAE de atividade específica de saúde");
+  }
+
+  /* ── APROVEITAMENTO — fórmula pura sobre área e pavimentos.
+   * O índice é área construída ÷ área do lote. "Até XXº pav." só difere do total
+   * quando há pavimento acima do limite de altura; em edificação térrea os dois
+   * coincidem, e dizer isso é mais honesto que repetir o número sem explicar. */
+  if (pr.areaTotalConstrucao && pr.areaTerreno) {
+    const ia = pr.areaTotalConstrucao / pr.areaTerreno;
+    set("areaTotalMax75x", fmt(pr.areaTerreno * 7.5), "calculado",
+        `${fmt(pr.areaTerreno)} m² × 7,5 (máximo do coeficiente)`);
+    set("indiceDeAproveitamentoDoProjetoTotal", fmt(ia), "calculado",
+        `${fmt(pr.areaTotalConstrucao)} ÷ ${fmt(pr.areaTerreno)}`);
+    if (pav === 1) {
+      set("areaAteXxPav", fmt(pr.areaTotalConstrucao), "calculado",
+          "edificação térrea: a área até o último pavimento é a área total");
+      set("indiceDeAproveitamentoDoProjetoAte", fmt(ia), "calculado",
+          "edificação térrea: o índice até o último pavimento é o índice total");
+      np("aproveitamentoExigidoAreaDeFruicao",
+         "área de fruição só é exigida com aproveitamento acima do básico");
+    }
+  }
 
   return C;
 }

@@ -4,6 +4,8 @@ import { lerPastaSlot5, type ArquivoEntrada, type Conhecido } from "@/lib/lerPas
 import { buscarPorHash, registrarLeitura } from "@/lib/mhd";
 import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { mapaDeRodadas } from "@/lib/rodadas";
+import { camposDeDocumentosEmitidos, houveMudancaDeAnalista } from "@/lib/lipDocumentosEmitidos";
+import { buscarVia } from "@/lib/cadastroImobiliario";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -169,15 +171,64 @@ export async function POST(req: NextRequest) {
       dados: dados ? { revisao: dados.revisao ?? null } : undefined,
     }));
 
+    /* ── CAMPOS QUE NÃO SAEM DOS PDFs ────────────────────────────────────────────
+     * Três fontes que a leitura da pasta não alcança porque não estão em documento nenhum:
+     * o registro de documentos emitidos, o Cadastro de Logradouros e o próprio cadastro do
+     * processo. Nenhuma delas usa IA. Rodam depois da leitura e completam os campos. */
+    const campos = { ...resultado.campos };
+    const problemasExtra: string[] = [];
+
+    // 1) número e data de despacho, laudo e parecer — o URBIS emite e numera
+    if (processoCodigo) {
+      const emitidos = await camposDeDocumentosEmitidos(processoCodigo);
+      if (emitidos.erro) problemasExtra.push(`documentos emitidos: ${emitidos.erro}`);
+      for (const [chave, v] of Object.entries(emitidos.campos)) {
+        campos[chave] = { valor: v.valor, origem: "lido", fonte: `registro de documentos — ${v.fonte}` };
+      }
+      const mudanca = await houveMudancaDeAnalista(processoCodigo);
+      if (mudanca) campos.houveMudancaDeAnalista = { valor: mudanca.valor, origem: "calculado", fonte: mudanca.fonte };
+
+      campos.processo = { valor: processoCodigo, origem: "lido", fonte: "cadastro do processo no URBIS" };
+    }
+
+    /* 2) largura de via e de calçada — Cadastro de Logradouros (20.524 vias).
+     * A hierarquia do cadastro vem junto: quando ela diverge da classificação do Uso do Solo,
+     * muda porte, vagas e recuo, e essa divergência tem que aparecer para o analista em vez de
+     * ser decidida em silêncio por um dos dois lados. */
+    const bairro = campos.bairro?.valor, via = campos.logradouro?.valor;
+    if (bairro && via) {
+      const v = await buscarVia(bairro, via);
+      if (v) {
+        if (v.larguraVia != null) {
+          campos.larguraDaVia1 = { valor: String(v.larguraVia).replace(".", ","), origem: "lido",
+            fonte: `Cadastro de Logradouros — ${v.nome.trim()}, ${v.bairro}` };
+        }
+        if (v.larguraCalcada != null) {
+          campos.larguraDoPasseio1 = { valor: String(v.larguraCalcada).replace(".", ","), origem: "lido",
+            fonte: `Cadastro de Logradouros — ${v.nome.trim()}, ${v.bairro}` };
+        }
+        const doUds = campos.tipoDeVia1?.valor;
+        if (v.hierarquia && doUds && !v.hierarquia.toUpperCase().includes(doUds.toUpperCase())) {
+          resultado.conferencias.push({
+            nome: "Hierarquia da via bate entre Uso do Solo e Cadastro Imobiliário?",
+            estado: "ALERTA",
+            detalhe: `Uso do Solo diz "${doUds}" e o Cadastro de Logradouros diz "${v.hierarquia}". ` +
+                     `A hierarquia muda porte, vagas e recuo — qual prevalece é decisão do analista.`,
+          });
+        }
+      }
+    }
+
     // `extratos` fica no servidor: e a estrutura completa com coordenadas, centenas de KB que a
     // tela nao usa. Ele ja foi gravado no MHD acima.
-    const { extratos: _extratos, ...semExtratos } = resultado;
+    const { extratos: _extratos, campos: _campos, ...semExtratos } = resultado;
 
     return NextResponse.json({
       ok: true,
       ...semExtratos,
+      campos,
       catalogo,
-      mhd,
+      mhd: { ...mhd, problemas: [...mhd.problemas, ...problemasExtra], gravou: mhd.gravou && !problemasExtra.length },
       rodadas: [...new Set(entradas.map((e) => e.rodada))].sort((a, b) => a - b),
       // como as subpastas foram ordenadas, e se a ordem precisa da confirmação do analista
       pastas,
