@@ -88,6 +88,34 @@ const pendenteVisao = (
   testes: T_RASTREIO,
 });
 
+/**
+ * Campo que a VISÃO LOCALIZADA já lê — o Grupo C implementado, campo a campo.
+ *
+ * Não é mais PENDENTE_VISAO: existe leitor, ele roda, e a matriz tem que dizer isso. A declaração
+ * é AUTOMATICO porque o mecanismo se resolve sozinho; o resultado é que sai `INFERIDO`, e essa
+ * distinção é do RESULTADO, não da declaração — mesma razão pela qual `AGUARDANDO_FATO` deixou de
+ * ser declaração em 28/07.
+ *
+ * `preenchidoPor: "rota"` porque a visão roda em `/api/lip/ler-pasta`, não em `preencherLip` —
+ * `lerPastaSlot5` é puro e sem banco, e é isso que mantém a trava 13 rápida e determinística.
+ * Com visão desligada ou indisponível, o campo cai em NAO_ENCONTRADO pelo `fecharResultados`.
+ */
+const porVisao = (chave: string, receita: string, onde: string): CampoRastreado => ({
+  chave, declaracao: "AUTOMATICO", implementado: true,
+  metodos: ["VISAO_LOCALIZADA"], fontePrincipal: "PRANCHA",
+  regras: [
+    { regra: "MARCAR_SEM_DADO", descricao: "modelo sem certeza se abstém — FONTE_ILEGIVEL, nunca número plausível" },
+  ],
+  ondeProcura: [`recorte "${receita}" na prancha`, onde],
+  regraSemDado: "visão desligada, sem orçamento ou indisponível resulta NAO_ENCONTRADO; ilegível resulta FONTE_ILEGIVEL",
+  aplicabilidade: onde,
+  responsavel: `lib/visao/receitas.ts:${receita}`,
+  preenchidoPor: "rota", usaIA: true, versao: 2, alteradoEm: "2026-07-29",
+  testes: [...T_RASTREIO, "scripts/testar_visao.mts"],
+  observacao: "v2 em 29/07/2026: era PENDENTE_VISAO/não implementado; passou a ser lido pela receita de visão. "
+    + "Valor INFERIDO exige confirmação do analista antes de valer no laudo — alimenta a LC 364/2023, que decide deferimento.",
+});
+
 const SIM_NAO = ["SIM", "NÃO"];
 
 export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
@@ -456,8 +484,11 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   podeSerNP("aproveitamentoExigidoAreaDeFruicao", "OUTROS_CAMPOS", "área de fruição só é exigida com aproveitamento acima do básico", { depende: ["indiceDeAproveitamentoDoProjetoTotal"] }),
 
   // ═══════════════ VAGAS ═══════════════
-  ...["totalASerDescontadoNoCalculo", "areaOcupadaPelaAtividade", "vagasPcdExigido",
-      "vagasIdosoExigido", "totalDeVagasExigidasParaEssas", "totalDeVagasAtendidasParaAtividade",
+  // os três que a receita `prancha.calculo_de_vagas` já lê, num recorte só
+  ...["vagasPcdExigido", "vagasIdosoExigido", "totalDeVagasExigidasParaEssas"].map((k) =>
+    porVisao(k, "prancha.calculo_de_vagas", "quadro CÁLCULO DE VAGAS, colado como imagem na prancha")),
+  // o resto do mesmo quadro ainda não tem receita — a regra de negócio de cada um precisa do analista
+  ...["totalASerDescontadoNoCalculo", "areaOcupadaPelaAtividade", "totalDeVagasAtendidasParaAtividade",
       "vagasPcdAtendidas", "vagasIdosoAtendidas", "atendeAcessoCirculacaoVagasManobrasLc",
   ].map((k) => pendenteVisao(k, "PRANCHA", "tabela de vagas colada como imagem na prancha", ["areaOcupadaPelaAtividade"])),
   podeSerNP("vagaAmbulanciaPCnaeAtivEspec", "USO_DO_SOLO", "nenhum CNAE de atividade específica de saúde", { depende: ["cnae"] }),

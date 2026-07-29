@@ -491,23 +491,23 @@
     "versao": 2,
     "hash": "feb462f0cdc470fe"
   },
+  "LIP:slot_05:vagasPcdExigido": {
+    "versao": 2,
+    "hash": "0e95c0a2ee96aed6"
+  },
+  "LIP:slot_05:vagasIdosoExigido": {
+    "versao": 2,
+    "hash": "0e95c0a2ee96aed6"
+  },
+  "LIP:slot_05:totalDeVagasExigidasParaEssas": {
+    "versao": 2,
+    "hash": "0e95c0a2ee96aed6"
+  },
   "LIP:slot_05:totalASerDescontadoNoCalculo": {
     "versao": 1,
     "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:areaOcupadaPelaAtividade": {
-    "versao": 1,
-    "hash": "7b5c5db6cb9ce48a"
-  },
-  "LIP:slot_05:vagasPcdExigido": {
-    "versao": 1,
-    "hash": "7b5c5db6cb9ce48a"
-  },
-  "LIP:slot_05:vagasIdosoExigido": {
-    "versao": 1,
-    "hash": "7b5c5db6cb9ce48a"
-  },
-  "LIP:slot_05:totalDeVagasExigidasParaEssas": {
     "versao": 1,
     "hash": "7b5c5db6cb9ce48a"
   },

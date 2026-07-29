@@ -17,7 +17,8 @@ import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import type { ResultadoCampo } from "@/lib/lerPastaSlot5";
 import { RECEITAS, hashReceita, hashRegiao } from "./receitas";
 import { recortar } from "./rasterizar";
-import type { Interpretacao, MotivoPulo, Receita } from "./tipos";
+import { interpretarResposta } from "./interpretar";
+import { abstevesseTudo, type Interpretacao, type LeituraCampo, type MotivoPulo, type Receita } from "./tipos";
 
 export type EntradaVisao = { hash: string; papeis: string[]; buffer: Uint8Array };
 
@@ -89,9 +90,11 @@ async function doCache(hashDoc: string, r: Receita): Promise<Interpretacao | nul
   if (error || !data) return null;
   const d = data as any;
   return {
-    abstencao: d.abstencao, motivo: d.bruto ? undefined : "abstenção registrada",
-    valores: d.valores ?? {}, confianca: d.confianca, bruto: d.bruto ?? "",
-    custoIA: 0, msRecorte: 0, msModelo: 0, reaproveitada: true, interpretacaoId: d.id,
+    // `valores` guarda o mapa porCampo inteiro — inclusive quais campos falharam e por quê,
+    // para que o reaproveitamento reproduza a abstenção individual, não só os acertos
+    porCampo: (d.valores ?? {}) as Record<string, LeituraCampo>,
+    bruto: d.bruto ?? "", custoIA: 0, msRecorte: 0, msModelo: 0,
+    reaproveitada: true, interpretacaoId: d.id,
   };
 }
 
@@ -126,27 +129,6 @@ async function chamarModelo(png: Uint8Array, r: Receita): Promise<{ texto: strin
   const custo = (u.promptTokenCount ?? 0) * USD_POR_TOKEN_ENTRADA
     + (u.candidatesTokenCount ?? 0) * USD_POR_TOKEN_SAIDA;
   return { texto, custo, ms: performance.now() - t0 };
-}
-
-/** Resposta do modelo → valores. Qualquer coisa fora do contrato é tratada como abstenção. */
-function interpretarResposta(texto: string, r: Receita): { abstencao: boolean; motivo?: string; valores: Record<string, string>; confianca: number | null } {
-  let json: any;
-  try {
-    json = JSON.parse(texto.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim());
-  } catch {
-    return { abstencao: true, motivo: "resposta não é JSON utilizável", valores: {}, confianca: null };
-  }
-  if (json?.abstencao === true) {
-    return { abstencao: true, motivo: String(json.motivo ?? "o modelo se absteve"), valores: {}, confianca: null };
-  }
-  const valores: Record<string, string> = {};
-  for (const chave of r.chaves) if (json?.[chave] != null) valores[chave] = String(json[chave]);
-
-  const v = r.validar(valores);
-  if (!v.ok) return { abstencao: true, motivo: `resposta inválida: ${v.motivo}`, valores: {}, confianca: null };
-
-  const c = Number(json?.confianca);
-  return { abstencao: false, valores, confianca: Number.isFinite(c) ? c : null };
 }
 
 export async function executarVisao(args: {
@@ -185,25 +167,34 @@ export async function executarVisao(args: {
 
           const recorte = await recortar(doc.buffer, receita.regiao);
           const { texto, custo, ms } = await chamarModelo(recorte.png, receita);
-          const lido = interpretarResposta(texto, receita);
+          const porCampo = interpretarResposta(texto, receita);
 
           interpretacao = {
-            ...lido, bruto: texto, custoIA: custo,
+            porCampo, bruto: texto, custoIA: custo,
             msRecorte: recorte.ms, msModelo: ms, reaproveitada: false,
           };
           out.chamadas++;
           out.custoTotal += custo;
 
-          // grava para reuso ANTES de decidir o campo: interpretação é do conteúdo, não do processo
-          const { data: gravada } = await supabase.from("mhd_interpretacoes_visao").insert({
+          // grava para reuso ANTES de decidir os campos: a interpretação é do CONTEÚDO, não do
+          // processo — o mesmo recorte do mesmo PDF vale em qualquer processo que traga o arquivo
+          const confiancas = Object.values(porCampo)
+            .filter((c): c is Extract<LeituraCampo, { ok: true }> => c.ok)
+            .map((c) => c.confianca).filter((c): c is number => c != null);
+          const { data: gravada, error: erroGravar } = await supabase.from("mhd_interpretacoes_visao").insert({
             hash_documento: doc.hash, pagina: receita.regiao.pagina,
             regiao: { ...recorte.pontos, dpi: recorte.dpiEfetivo, px: [recorte.larguraPx, recorte.alturaPx] },
             regiao_hash: hashRegiao(receita), receita_versao: receita.versao,
             receita_hash: hashReceita(receita), modelo: receita.modelo,
-            abstencao: lido.abstencao, valores: lido.valores, confianca: lido.confianca,
+            abstencao: abstevesseTudo(interpretacao),
+            valores: porCampo,
+            // confiança do recorte = a MENOR entre os campos lidos: um quadro vale o seu elo mais fraco
+            confianca: confiancas.length ? Math.min(...confiancas) : null,
             bruto: texto.slice(0, 4000), custo_ia: custo,
             ms_recorte: Math.round(recorte.ms), ms_modelo: Math.round(ms),
           }).select("id").single();
+          // falha ao gravar não invalida a leitura: só significa que a próxima não reaproveita
+          if (erroGravar) out.pulos.push({ receita: receita.id, motivo: "FALHA", detalhe: `cache não gravado: ${erroGravar.message}` });
           interpretacao.interpretacaoId = (gravada as any)?.id;
         } else {
           out.reaproveitadas++;
@@ -213,9 +204,13 @@ export async function executarVisao(args: {
         continue;
       }
 
-      // ── abstenção é resposta legítima, e vira FONTE_ILEGIVEL, nunca um número inventado
-      if (interpretacao.abstencao) {
-        for (const chave of receita.chaves) {
+      /* Um resultado POR CAMPO, saindo de UMA interpretação compartilhada.
+       * Parte do quadro pode ter sido lida e parte não — abstenção é individual. */
+      for (const chave of receita.chaves) {
+        const leitura = interpretacao.porCampo[chave];
+        if (!leitura) continue;
+
+        if (!leitura.ok) {
           out.campos[chave] = {
             resultado: "FONTE_ILEGIVEL",
             fonte: `visão localizada — ${receita.id}`,
@@ -224,28 +219,26 @@ export async function executarVisao(args: {
               procurou: [`recorte ${receita.id} (${receita.estrategia})`],
               temCamadaTexto: false,
               motivoIlegivel: "CONTEUDO_NAO_INTERPRETAVEL",
-              motivo: interpretacao.motivo ?? "o modelo não conseguiu ler a região com confiança",
+              motivo: leitura.motivo,
             },
           };
+          continue;
         }
-        continue;
-      }
 
-      for (const chave of receita.chaves) {
-        const valor = interpretacao.valores[chave];
-        if (valor == null) continue;
         out.campos[chave] = {
           // INFERIDO, jamais ENCONTRADO: não foi lido, foi deduzido — ver tipos.ts da matriz
           resultado: "INFERIDO",
-          valor,
+          valor: leitura.valor,
           fonte: `visão localizada (${receita.modelo}) — ${receita.id} v${receita.versao}`,
           evidencia: `recorte pág. ${receita.regiao.pagina + 1}, região [${receita.regiao.x0}, ${receita.regiao.y0}, ${receita.regiao.x1}, ${receita.regiao.y1}]`
-            + (interpretacao.confianca != null ? ` · confiança ${interpretacao.confianca}` : "")
+            + (leitura.confianca != null ? ` · confiança ${leitura.confianca}` : "")
             + (interpretacao.reaproveitada ? " · reaproveitado do conteúdo já interpretado" : ""),
         };
         out.meta[chave] = {
-          confianca: interpretacao.confianca,
-          custoIA: interpretacao.custoIA,
+          confianca: leitura.confianca,
+          // o custo é do RECORTE, não do campo: atribuí-lo inteiro a cada um dos três triplicaria
+          // o total. Fica no primeiro e zero nos demais.
+          custoIA: out.meta[receita.chaves[0]] ? 0 : interpretacao.custoIA,
           interpretacaoId: interpretacao.interpretacaoId,
         };
       }

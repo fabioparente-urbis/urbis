@@ -43,9 +43,15 @@ export type Estrategia =
 
 export type Receita = {
   id: string;
-  /** sobe quando QUALQUER coisa que mude o comportamento muda — inclusive o validador */
+  /** sobe quando QUALQUER coisa que mude o comportamento muda — inclusive os validadores */
   versao: number;
-  /** chaves do LIP que esta receita responde. Um recorte pode responder mais de uma. */
+  /**
+   * Chaves do LIP que esta receita responde, TODAS numa chamada só.
+   *
+   * O recorte é a unidade de custo, não o campo: a tabela "CÁLCULO DE VAGAS" responde três campos
+   * de uma vez, e pedir cada um numa chamada separada pagaria três vezes pela mesma imagem, com o
+   * risco extra de os três virem de leituras inconsistentes entre si.
+   */
   chaves: string[];
   estrategia: Estrategia;
   /** papel do documento no catálogo da leitura: "projeto", "certidao_matricula"… */
@@ -53,16 +59,26 @@ export type Receita = {
   regiao: Regiao;
   prompt: string;
   modelo: string;
-  /** o que faz uma resposta ser aceitável. Resposta fora disto é tratada como ilegível. */
-  validar: (valores: Record<string, string>) => { ok: boolean; motivo?: string };
+  /** o que torna o valor de CADA campo aceitável. Valor fora disto é tratado como ilegível. */
+  validadores: Record<string, (valor: string) => { ok: boolean; motivo?: string }>;
+  /**
+   * Coerência ENTRE os campos do mesmo recorte, quando existe relação conhecida.
+   *
+   * É a defesa mais forte contra alucinação que um recorte agrupado oferece: o modelo pode errar um
+   * número plausível, mas dificilmente erra três de forma internamente consistente. Leitura
+   * incoerente derruba o recorte inteiro — não dá para saber QUAL dos três está errado.
+   */
+  coerencia?: (valores: Record<string, string>) => { ok: boolean; motivo?: string };
 };
 
+/** O que o modelo respondeu sobre UM campo. Abstenção é por campo, não pelo recorte todo. */
+export type LeituraCampo =
+  | { ok: true; valor: string; confianca: number | null }
+  | { ok: false; motivo: string };
+
 export type Interpretacao = {
-  /** o modelo declarou que não consegue ler. NUNCA um valor inventado no lugar. */
-  abstencao: boolean;
-  motivo?: string;
-  valores: Record<string, string>;
-  confianca: number | null;
+  /** uma entrada por chave da receita. Parte pode ter sido lida e parte não. */
+  porCampo: Record<string, LeituraCampo>;
   bruto: string;
   custoIA: number;
   msRecorte: number;
@@ -71,6 +87,10 @@ export type Interpretacao = {
   reaproveitada: boolean;
   interpretacaoId?: string;
 };
+
+/** true quando NENHUM campo do recorte foi lido — é o que a coluna `abstencao` guarda. */
+export const abstevesseTudo = (i: Interpretacao) =>
+  Object.values(i.porCampo).every((c) => !c.ok);
 
 /** Por que a visão não rodou. Nenhum destes pode derrubar a leitura da pasta. */
 export type MotivoPulo =

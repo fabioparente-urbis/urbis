@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import { recortar } from "../lib/visao/rasterizar";
 import { RECEITAS, hashReceita, hashRegiao, receitaDaChave } from "../lib/visao/receitas";
+import { interpretarResposta } from "../lib/visao/interpretar";
 import { matriz } from "../lib/rastreabilidade";
 import { fecharResultados } from "../lib/rastreabilidade/fechar";
 import type { ResultadoCampo } from "../lib/lerPastaSlot5";
@@ -28,21 +29,22 @@ const secao = (n: string) => console.log(`\n── ${n}`);
 
 const receita = receitaDaChave("vagasPcdExigido")!;
 
-/* A função que decide o resultado a partir da resposta do modelo é a mesma de produção, mas está
- * dentro de `executarVisao`, que fala com o banco. Aqui se testa o CONTRATO: dada uma resposta,
- * qual resultado sai. Reproduzir o mapeamento seria testar uma cópia; então o que se dubla é só a
- * resposta do modelo, e o mapeamento é exercitado pelas mesmas regras da receita. */
-function mapear(resposta: string): ResultadoCampo {
-  let json: any;
-  try { json = JSON.parse(resposta.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim()); }
-  catch { return ilegivel("resposta não é JSON utilizável"); }
-  if (json?.abstencao === true) return ilegivel(String(json.motivo ?? "o modelo se absteve"));
-  const valores: Record<string, string> = {};
-  for (const c of receita.chaves) if (json?.[c] != null) valores[c] = String(json[c]);
-  const v = receita.validar(valores);
-  if (!v.ok) return ilegivel(`resposta inválida: ${v.motivo}`);
-  return { resultado: "INFERIDO", valor: valores.vagasPcdExigido, fonte: "visão localizada" };
-}
+/* Usa a `interpretarResposta` DE PRODUÇÃO — o que se dubla é só a resposta do modelo. Reproduzir o
+ * mapeamento aqui testaria uma cópia, e cópia diverge do original exatamente quando importa. */
+const leu = (resposta: string, chave = "vagasPcdExigido") => interpretarResposta(resposta, receita)[chave];
+const valorDe = (resposta: string, chave = "vagasPcdExigido") => {
+  const c = leu(resposta, chave);
+  return c?.ok ? c.valor : null;
+};
+const abstevesse = (resposta: string, chave = "vagasPcdExigido") => leu(resposta, chave)?.ok === false;
+
+const RESPOSTA_BOA = JSON.stringify({
+  campos: {
+    totalDeVagasExigidasParaEssas: { valor: "5", confianca: 0.95 },
+    vagasPcdExigido: { valor: "1", confianca: 0.95 },
+    vagasIdosoExigido: { valor: "2", confianca: 0.9 },
+  },
+});
 const ilegivel = (motivo: string): ResultadoCampo => ({
   resultado: "FONTE_ILEGIVEL", fonte: "visão localizada",
   tentativa: { procurou: [receita.id], motivo, motivoIlegivel: "CONTEUDO_NAO_INTERPRETAVEL" },
@@ -63,9 +65,12 @@ if (!fs.existsSync(`${AMOSTRA}/PROJETO.pdf`)) {
     `${Math.max(r.larguraPx, r.alturaPx)} vs alvo ${receita.regiao.alvoPx}`);
   console.log(`         medido: recorte ${r.ms.toFixed(0)}ms · ${(r.png.length / 1024).toFixed(0)}KB · ${r.dpiEfetivo}dpi`);
 
-  const feliz = mapear('{"abstencao": false, "vagasPcdExigido": "1", "confianca": 0.95}');
-  t("resposta boa vira INFERIDO (jamais ENCONTRADO)", feliz.resultado === "INFERIDO", JSON.stringify(feliz));
-  t("valor bate com o gabarito conferido (1)", feliz.valor === "1");
+  t("os 3 campos do quadro saem de UMA resposta só",
+    valorDe(RESPOSTA_BOA, "vagasPcdExigido") === "1"
+    && valorDe(RESPOSTA_BOA, "vagasIdosoExigido") === "2"
+    && valorDe(RESPOSTA_BOA, "totalDeVagasExigidasParaEssas") === "5",
+    "todos conferidos no gabarito");
+  t("a receita declara os 3 campos", receita.chaves.length === 3, receita.chaves.join(", "));
 
   if (comModelo) {
     secao("1b · chamada REAL ao modelo (custa dinheiro)");
@@ -85,24 +90,54 @@ if (!fs.existsSync(`${AMOSTRA}/PROJETO.pdf`)) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-secao("2-4 · abstenção, resposta inválida e resposta corrompida → FONTE_ILEGIVEL");
+secao("2-4 · abstenção, resposta inválida e resposta corrompida");
 {
-  const absteve = mapear('{"abstencao": true, "motivo": "a tabela não está neste recorte"}');
-  t("2. abstenção explícita vira FONTE_ILEGIVEL", absteve.resultado === "FONTE_ILEGIVEL");
+  const absteveTudo = interpretarResposta('{"abstencao": true, "motivo": "a tabela não está neste recorte"}', receita);
+  t("2. abstenção global derruba os 3 campos", receita.chaves.every((c) => absteveTudo[c].ok === false));
   t("   e preserva o motivo dado pelo modelo",
-    (absteve.tentativa?.motivo ?? "").includes("não está neste recorte"), absteve.tentativa?.motivo);
-  t("   e NUNCA devolve valor", absteve.valor === undefined);
+    (absteveTudo.vagasPcdExigido as any).motivo.includes("não está neste recorte"));
 
-  t("3. valor fora da faixa plausível é recusado",
-    mapear('{"vagasPcdExigido": "0"}').resultado === "FONTE_ILEGIVEL");
-  t("3b. decimal da coluna errada é recusado",
-    mapear('{"vagasPcdExigido": "0,08129556"}').resultado === "FONTE_ILEGIVEL");
-  t("3c. texto no lugar de número é recusado",
-    mapear('{"vagasPcdExigido": "uma vaga"}').resultado === "FONTE_ILEGIVEL");
+  // ── ABSTENÇÃO INDIVIDUAL: uma linha ilegível não derruba as outras do mesmo quadro
+  const parcial = interpretarResposta(JSON.stringify({
+    campos: {
+      totalDeVagasExigidasParaEssas: { valor: "5", confianca: 0.9 },
+      vagasPcdExigido: { valor: "1", confianca: 0.9 },
+      vagasIdosoExigido: { abstencao: true, motivo: "linha cortada no recorte" },
+    },
+  }), receita);
+  t("2b. abstenção INDIVIDUAL preserva os campos legíveis",
+    parcial.vagasPcdExigido.ok === true && parcial.totalDeVagasExigidasParaEssas.ok === true);
+  t("2c. e marca só o campo ilegível", parcial.vagasIdosoExigido.ok === false,
+    "é o que separa 'parte do quadro ilegível' de 'quadro inútil'");
 
-  t("4. resposta corrompida vira FONTE_ILEGIVEL, não exceção",
-    mapear("desculpe, não consigo ajudar com isso").resultado === "FONTE_ILEGIVEL");
-  t("4b. resposta vazia idem", mapear("").resultado === "FONTE_ILEGIVEL");
+  t("3. valor fora da faixa plausível é recusado", abstevesse('{"campos":{"vagasPcdExigido":{"valor":"0"}}}'));
+  t("3b. decimal da coluna errada é recusado", abstevesse('{"campos":{"vagasPcdExigido":{"valor":"0,08129556"}}}'));
+  t("3c. texto no lugar de número é recusado", abstevesse('{"campos":{"vagasPcdExigido":{"valor":"uma vaga"}}}'));
+  t("3d. campo ausente da resposta é recusado", abstevesse('{"campos":{"vagasIdosoExigido":{"valor":"2"}}}'));
+
+  t("4. resposta corrompida vira abstenção, não exceção", abstevesse("desculpe, não consigo ajudar"));
+  t("4b. resposta vazia idem", abstevesse(""));
+  t("4c. objeto achatado ainda é aceito (modelo às vezes responde assim)",
+    valorDe('{"campos":{"vagasPcdExigido":"1","vagasIdosoExigido":"2","totalDeVagasExigidasParaEssas":"5"}}') === "1");
+}
+
+secao("2e · coerência entre campos do mesmo recorte");
+{
+  const incoerente = interpretarResposta(JSON.stringify({
+    campos: {
+      totalDeVagasExigidasParaEssas: { valor: "2" },
+      vagasPcdExigido: { valor: "3" },
+      vagasIdosoExigido: { valor: "4" },
+    },
+  }), receita);
+  t("leitura internamente incoerente derruba o RECORTE inteiro",
+    receita.chaves.every((c) => incoerente[c].ok === false),
+    "3 PCD + 4 idoso não cabem em 2 vagas — não dá para saber qual está errado");
+  t("e o motivo explica a incoerência",
+    (incoerente.vagasPcdExigido as any).motivo.includes("incoerente"));
+
+  const coerente = interpretarResposta(RESPOSTA_BOA, receita);
+  t("leitura coerente passa (1 + 2 <= 5)", receita.chaves.every((c) => coerente[c].ok === true));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,9 +166,10 @@ secao("6 · chave de reuso: muda receita ou modelo → outra interpretação");
   t("geometria diferente muda o hash", h1 !== h4);
   t("mesma receita dá o mesmo hash (reuso funciona)", h1 === hashReceita(receita));
   t("região tem identidade estável", hashRegiao(receita) === hashRegiao(receita));
-  t("prosa não entra: `validar` não altera hash",
-    h1 === hashReceita({ ...receita, validar: () => ({ ok: true }) }),
-    "por isso `versao` DEVE subir quando o validador mudar");
+  t("validadores não entram no hash (função não serializa estável)",
+    h1 === hashReceita({ ...receita, validadores: {} }),
+    "por isso `versao` DEVE subir quando um validador mudar de comportamento");
+  t("versão diferente muda o hash", h1 !== hashReceita({ ...receita, versao: 99 }));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,9 +190,15 @@ secao("7 · o fechamento em 136 sobrevive à visão");
   t("o campo de visão fica INFERIDO e não é sobrescrito por fecharResultados",
     comObs.vagasPcdExigido?.resultado === "INFERIDO");
 
+  /* Com visão desligada/sem orçamento/indisponível, o campo cai para NAO_ENCONTRADO — e não mais
+   * para NAO_IMPLEMENTADO, como no Sprint 1. A diferença é a matriz dizendo a verdade: o leitor
+   * EXISTE agora (`implementado: true`), então alegar "não implementado" seria mentira. Os outros
+   * 11 campos do Grupo C, esses sim ainda sem receita, seguem em NAO_IMPLEMENTADO. */
   const semVisao = fecharResultados(campos, {});
-  t("com visão DESLIGADA, o campo cai para NAO_IMPLEMENTADO (estado já previsto)",
-    semVisao.vagasPcdExigido?.resultado === "NAO_IMPLEMENTADO");
+  t("com visão DESLIGADA, campo implementado cai para NAO_ENCONTRADO (não mente sobre estar implementado)",
+    semVisao.vagasPcdExigido?.resultado === "NAO_ENCONTRADO", semVisao.vagasPcdExigido?.resultado);
+  t("e campo do Grupo C ainda sem receita continua NAO_IMPLEMENTADO",
+    semVisao.vagasPcdAtendidas?.resultado === "NAO_IMPLEMENTADO", semVisao.vagasPcdAtendidas?.resultado);
   t("e o total continua fechando em 136",
     Object.keys(semVisao).filter((k) => chavesMatriz.has(k)).length + 1 === 136,
     "135 do fechamento + observacoes, que só nasce no aceite");
