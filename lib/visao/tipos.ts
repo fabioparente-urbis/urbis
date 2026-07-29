@@ -30,16 +30,21 @@ export type Regiao = {
   alvoPx: number;
 };
 
+/** Região concreta a recortar, já resolvida pelo localizador. */
+export type RegiaoAbsoluta = Regiao;
+
 export type Estrategia =
   /**
-   * Recorte por fração fixa da página. Depende do LAYOUT da prancha e quebra se o projetista
-   * diagramar diferente — por isso a receita exige que o modelo se abstenha quando não encontrar a
-   * tabela no recorte, em vez de tentar adivinhar a partir do que estiver ali.
+   * VARREDURA VISUAL: procura o quadro em TODAS as páginas do documento, em baixa resolução, e
+   * depois recorta só onde achou, em alta.
    *
-   * A alternativa (âncora de texto) não serve aqui: o conteúdo alvo é justamente o que NÃO está na
-   * camada de texto. Localizador visual é assunto de outro sprint.
+   * Substituiu a fração fixa de página, que descrevia a pasta de amostra e não a regra — um
+   * processo pode ter 1, 2, 5 ou 10 pranchas, e cada projetista diagrama onde quer. Mesmo
+   * sobreajuste que já foi corrigido em `via2` e em `unidComerciais`.
+   *
+   * Âncora de texto não serve aqui: o alvo é justamente o conteúdo que NÃO está na camada de texto.
    */
-  | "FRACAO_DA_PAGINA";
+  | "VARREDURA_VISUAL";
 
 export type Receita = {
   id: string;
@@ -56,7 +61,22 @@ export type Receita = {
   estrategia: Estrategia;
   /** papel do documento no catálogo da leitura: "projeto", "certidao_matricula"… */
   papel: string;
-  regiao: Regiao;
+  /**
+   * COMO achar o quadro — nunca ONDE ele está.
+   *
+   * A receita descreve o alvo em linguagem natural e deixa a posição para o localizador. Fixar
+   * página ou fração seria descrever um processo específico, não a regra.
+   */
+  localizacao: {
+    /** o que procurar, como um humano descreveria a um estagiário */
+    alvo: string;
+    /** resolução da varredura: o quadro precisa ser VISÍVEL como bloco, não legível */
+    varreduraPx: number;
+    /** resolução do recorte final: aqui o texto precisa ser legível */
+    alvoPx: number;
+    /** folga somada à caixa devolvida pelo modelo — ele acerta a região e erra a borda */
+    margem: number;
+  };
   prompt: string;
   modelo: string;
   /** o que torna o valor de CADA campo aceitável. Valor fora disto é tratado como ilegível. */

@@ -16,7 +16,8 @@
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import type { ResultadoCampo } from "@/lib/lerPastaSlot5";
 import { RECEITAS, hashReceita, hashRegiao } from "./receitas";
-import { recortar } from "./rasterizar";
+import { recortar, contarPaginas } from "./rasterizar";
+import { localizar } from "./localizar";
 import { interpretarResposta } from "./interpretar";
 import { abstevesseTudo, type Interpretacao, type LeituraCampo, type MotivoPulo, type Receita } from "./tipos";
 
@@ -80,13 +81,18 @@ async function dentroDoOrcamento(processoCodigo: string, usuarioId: string | nul
   return { ok: true, detalhe: "" };
 }
 
-/** Interpretação já feita para este conteúdo+região+receita+modelo, em QUALQUER processo. */
+/**
+ * Interpretação já feita para este conteúdo+receita+modelo, em QUALQUER processo.
+ *
+ * A região NÃO entra na busca porque ela é RESULTADO da localização, não entrada: descobri-la
+ * custaria a varredura que o cache existe para evitar. A pergunta certa é "o que já concluímos
+ * sobre este documento com esta receita?" — a região fica guardada como parte da resposta.
+ */
 async function doCache(hashDoc: string, r: Receita): Promise<Interpretacao | null> {
   const { data, error } = await supabase
     .from("mhd_interpretacoes_visao").select("*")
-    .eq("hash_documento", hashDoc).eq("pagina", r.regiao.pagina)
-    .eq("regiao_hash", hashRegiao(r)).eq("receita_hash", hashReceita(r))
-    .eq("modelo", r.modelo).maybeSingle();
+    .eq("hash_documento", hashDoc).eq("receita_hash", hashReceita(r)).eq("modelo", r.modelo)
+    .order("criado_em", { ascending: false }).limit(1).maybeSingle();
   if (error || !data) return null;
   const d = data as any;
   return {
@@ -183,12 +189,34 @@ export async function executarVisao(args: {
           const orcamento = await dentroDoOrcamento(args.processoCodigo, args.usuarioId ?? null);
           if (!orcamento.ok) { pular(receita, "ORCAMENTO", orcamento.detalhe); continue; }
 
-          const recorte = await recortar(doc.buffer, receita.regiao);
+          /* LOCALIZAR antes de recortar: a receita diz O QUE procurar, nunca ONDE. Varre as
+           * páginas do documento — podem ser 1 ou 10 — e só então recorta em alta resolução. */
+          const paginas = await contarPaginas(doc.buffer);
+          const achado = await localizar(doc.buffer, paginas, receita,
+            (png, prompt) => chamarModelo(png, { ...receita, prompt }));
+          out.chamadas += achado?.chamadas ?? paginas;
+          out.custoTotal += achado?.custo ?? 0;
+          if (!achado) {
+            pular(receita, "FALHA", `"${receita.localizacao.alvo.slice(0, 60)}…" não encontrado em nenhuma das ${paginas} página(s)`);
+            for (const chave of receita.chaves) {
+              out.campos[chave] = {
+                resultado: "NAO_ENCONTRADO", fonte: `visão localizada — ${receita.id}`,
+                tentativa: {
+                  documento: receita.papel, hash: doc.hash,
+                  procurou: [`varredura visual em ${paginas} página(s): ${receita.localizacao.alvo}`],
+                  motivo: "o quadro não foi localizado em nenhuma página do documento",
+                },
+              };
+            }
+            continue;
+          }
+
+          const recorte = await recortar(doc.buffer, achado.regiao);
           const { texto, custo, ms } = await chamarModelo(recorte.png, receita);
           const porCampo = interpretarResposta(texto, receita);
 
           interpretacao = {
-            porCampo, bruto: texto, custoIA: custo,
+            porCampo, bruto: texto, custoIA: custo + achado.custo,
             msRecorte: recorte.ms, msModelo: ms, reaproveitada: false,
           };
           out.chamadas++;
@@ -200,9 +228,9 @@ export async function executarVisao(args: {
             .filter((c): c is Extract<LeituraCampo, { ok: true }> => c.ok)
             .map((c) => c.confianca).filter((c): c is number => c != null);
           const { data: gravada, error: erroGravar } = await supabase.from("mhd_interpretacoes_visao").insert({
-            hash_documento: doc.hash, pagina: receita.regiao.pagina,
+            hash_documento: doc.hash, pagina: achado.regiao.pagina,
             regiao: { ...recorte.pontos, dpi: recorte.dpiEfetivo, px: [recorte.larguraPx, recorte.alturaPx] },
-            regiao_hash: hashRegiao(receita), receita_versao: receita.versao,
+            regiao_hash: hashRegiao(achado.regiao), receita_versao: receita.versao,
             receita_hash: hashReceita(receita), modelo: receita.modelo,
             abstencao: abstevesseTudo(interpretacao),
             valores: porCampo,
@@ -233,7 +261,7 @@ export async function executarVisao(args: {
             resultado: "FONTE_ILEGIVEL",
             fonte: `visão localizada — ${receita.id}`,
             tentativa: {
-              documento: receita.papel, hash: doc.hash, pagina: receita.regiao.pagina,
+              documento: receita.papel, hash: doc.hash,
               procurou: [`recorte ${receita.id} (${receita.estrategia})`],
               temCamadaTexto: false,
               motivoIlegivel: "CONTEUDO_NAO_INTERPRETAVEL",
@@ -248,7 +276,7 @@ export async function executarVisao(args: {
           resultado: "INFERIDO",
           valor: leitura.valor,
           fonte: `visão localizada (${receita.modelo}) — ${receita.id} v${receita.versao}`,
-          evidencia: `recorte pág. ${receita.regiao.pagina + 1}, região [${receita.regiao.x0}, ${receita.regiao.y0}, ${receita.regiao.x1}, ${receita.regiao.y1}]`
+          evidencia: `recorte localizado por varredura visual — ${receita.id} v${receita.versao}`
             + (leitura.confianca != null ? ` · confiança ${leitura.confianca}` : "")
             + (interpretacao.reaproveitada ? " · reaproveitado do conteúdo já interpretado" : ""),
         };

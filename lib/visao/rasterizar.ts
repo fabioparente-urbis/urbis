@@ -22,6 +22,13 @@ export type Recorte = {
   ms: number;
 };
 
+/** Quantas páginas o documento tem. A receita não pode presumir — pode ser 1 prancha ou 10. */
+export async function contarPaginas(pdf: Uint8Array): Promise<number> {
+  const mupdf: any = await import("mupdf");
+  const doc = mupdf.Document.openDocument(pdf, "application/pdf");
+  try { return doc.countPages(); } finally { doc.destroy?.(); }
+}
+
 export async function recortar(pdf: Uint8Array, regiao: Regiao): Promise<Recorte> {
   const t0 = performance.now();
   // import dinâmico: o mupdf é ESM assíncrono (WASM) e não pode ser exigido no topo de um módulo

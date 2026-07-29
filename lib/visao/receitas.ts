@@ -29,17 +29,22 @@ const inteiroEntre = (min: number, max: number, oQueE: string) => (bruto: string
 };
 
 /**
- * Geometria conferida em 29/07/2026 contra a prancha da amostra: a tabela "CÁLCULO DE VAGAS" ocupa
- * ~[0.735–0.841] x [0.470–0.616] da página. A margem existe porque a diagramação varia entre
- * projetistas — e quando ela variar demais, o modelo se abstém em vez de ler a tabela errada.
+ * A receita descreve o quadro; NÃO diz em que página nem em que canto ele está. Um processo pode
+ * ter 1, 2, 5 ou 10 pranchas, e cada projetista diagrama onde quer — a amostra 44556 serve para
+ * desenvolver, não para definir onde a informação mora.
  */
 const CALCULO_DE_VAGAS: Receita = {
   id: "prancha.calculo_de_vagas",
   versao: 2, // v2 em 29/07/2026: passou de 1 campo para os 3 do mesmo quadro, com abstenção por campo
   chaves: ["vagasPcdExigido", "vagasIdosoExigido", "totalDeVagasExigidasParaEssas"],
-  estrategia: "FRACAO_DA_PAGINA",
+  estrategia: "VARREDURA_VISUAL",
   papel: "projeto",
-  regiao: { pagina: 0, x0: 0.72, y0: 0.45, x1: 0.86, y1: 0.64, alvoPx: 1600 },
+  localizacao: {
+    alvo: "um quadro/tabela com o título \"CÁLCULO DE VAGAS\", contendo linhas de ambientes com "
+      + "áreas em m², uma linha destacada com o total de vagas de estacionamento, e uma seção "
+      + "\"VAGAS ESPECÍFICAS\" com as linhas VAGA P.C.D e VAGA IDOSO",
+    varreduraPx: 1600, alvoPx: 1600, margem: 0.02,
+  },
   modelo: GEMINI_MODEL,
   prompt: [
     "Você está lendo um RECORTE de uma prancha de projeto arquitetônico brasileira.",
@@ -90,19 +95,18 @@ const CALCULO_DE_VAGAS: Receita = {
   },
 };
 
-/**
- * Quadro "Cálculo do Índice de Controle de Captação de Água Pluvial", à direita do de vagas na
- * mesma faixa da prancha. Geometria conferida em 29/07/2026: ~[0.864–0.965] x [0.470–0.614].
- *
- * Recorte independente do de vagas — não se sobrepõem, e por isso podem ser buscados em paralelo.
- */
+/** Quadro do ICCAP. Recorte independente do de vagas — podem ser buscados em paralelo. */
 const ICCAP: Receita = {
   id: "prancha.iccap",
   versao: 1,
   chaves: ["areaImpermeabilizada"],
-  estrategia: "FRACAO_DA_PAGINA",
+  estrategia: "VARREDURA_VISUAL",
   papel: "projeto",
-  regiao: { pagina: 0, x0: 0.85, y0: 0.45, x1: 0.99, y1: 0.58, alvoPx: 1400 },
+  localizacao: {
+    alvo: "um quadro com o título \"Cálculo do Índice de Controle de Captação de Água Pluvial\", "
+      + "contendo as linhas ÁREA DO TERRENO e ÁREA IMPERMEABILIZADA DO TERRENO",
+    varreduraPx: 1600, alvoPx: 1400, margem: 0.02,
+  },
   modelo: GEMINI_MODEL,
   prompt: [
     "Você está lendo um RECORTE de uma prancha de projeto arquitetônico brasileira.",
@@ -149,7 +153,7 @@ export const receitaDaChave = (chave: string) => RECEITAS.find((r) => r.chaves.i
 export function hashReceita(r: Receita): string {
   const funcional = {
     id: r.id, versao: r.versao, chaves: [...r.chaves].sort(),
-    estrategia: r.estrategia, papel: r.papel, regiao: r.regiao,
+    estrategia: r.estrategia, papel: r.papel, localizacao: r.localizacao,
     prompt: r.prompt, modelo: r.modelo,
   };
   const s = JSON.stringify(funcional);
@@ -161,8 +165,14 @@ export function hashReceita(r: Receita): string {
   return h1.toString(16).padStart(8, "0") + h2.toString(16).padStart(8, "0");
 }
 
-/** Identidade estável da região, para caber no índice único do banco. */
-export function hashRegiao(r: Receita): string {
-  const g = r.regiao;
-  return `p${g.pagina}:${g.x0}:${g.y0}:${g.x1}:${g.y1}:${g.alvoPx}`;
+/**
+ * Identidade da região EFETIVAMENTE recortada, para o índice único do banco.
+ *
+ * Vem do que o localizador achou, não da receita — duas execuções sobre o mesmo documento podem
+ * cair em caixas ligeiramente diferentes, e arredondar a 3 casas é o que faz o cache funcionar sem
+ * fingir que uma diferença de meio pixel é outra região.
+ */
+export function hashRegiao(g: { pagina: number; x0: number; y0: number; x1: number; y1: number }): string {
+  const r = (n: number) => n.toFixed(3);
+  return `p${g.pagina}:${r(g.x0)}:${r(g.y0)}:${r(g.x1)}:${r(g.y1)}`;
 }

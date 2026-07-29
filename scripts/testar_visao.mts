@@ -56,13 +56,14 @@ if (!fs.existsSync(`${AMOSTRA}/PROJETO.pdf`)) {
   console.log("  (pulado — amostra não encontrada)");
 } else {
   const pdf = new Uint8Array(fs.readFileSync(`${AMOSTRA}/PROJETO.pdf`));
-  const r = await recortar(pdf, receita.regiao);
+  // a receita não fixa mais região: aqui se recorta uma faixa qualquer só para exercitar o mupdf
+  const r = await recortar(pdf, { pagina: 0, x0: 0.7, y0: 0.4, x1: 0.9, y1: 0.65, alvoPx: receita.localizacao.alvoPx });
   t("recorta a região da tabela de vagas", r.png.length > 5000 && r.larguraPx > 500,
     `${r.larguraPx}x${r.alturaPx}px, ${(r.png.length / 1024).toFixed(0)}KB, ${r.ms.toFixed(0)}ms, ${r.dpiEfetivo}dpi`);
   t("PNG de verdade (assinatura no cabeçalho)", r.png[1] === 0x50 && r.png[2] === 0x4e && r.png[3] === 0x47);
   t("lado maior respeita o alvo em pixels da receita",
-    Math.abs(Math.max(r.larguraPx, r.alturaPx) - receita.regiao.alvoPx) <= 2,
-    `${Math.max(r.larguraPx, r.alturaPx)} vs alvo ${receita.regiao.alvoPx}`);
+    Math.abs(Math.max(r.larguraPx, r.alturaPx) - receita.localizacao.alvoPx) <= 2,
+    `${Math.max(r.larguraPx, r.alturaPx)} vs alvo ${receita.localizacao.alvoPx}`);
   console.log(`         medido: recorte ${r.ms.toFixed(0)}ms · ${(r.png.length / 1024).toFixed(0)}KB · ${r.dpiEfetivo}dpi`);
 
   t("os 3 campos do quadro saem de UMA resposta só",
@@ -148,7 +149,7 @@ secao("5 · página inexistente na receita não derruba, vira erro tratável");
   if (!pdf) { console.log("  (pulado)"); }
   else {
     let erro = "";
-    try { await recortar(pdf, { ...receita.regiao, pagina: 99 }); } catch (e: any) { erro = e.message; }
+    try { await recortar(pdf, { pagina: 99, x0: 0, y0: 0, x1: 1, y1: 1, alvoPx: 800 }); } catch (e: any) { erro = e.message; }
     t("recorte de página inexistente lança erro claro (capturado por executarVisao)",
       erro.includes("não existe"), erro);
   }
@@ -160,12 +161,15 @@ secao("6 · chave de reuso: muda receita ou modelo → outra interpretação");
   const h1 = hashReceita(receita);
   const h2 = hashReceita({ ...receita, prompt: receita.prompt + " " });
   const h3 = hashReceita({ ...receita, modelo: "outro-modelo" });
-  const h4 = hashReceita({ ...receita, regiao: { ...receita.regiao, x0: 0.71 } });
+  const h4 = hashReceita({ ...receita, localizacao: { ...receita.localizacao, alvo: "outro quadro" } });
   t("prompt diferente muda o hash", h1 !== h2);
   t("modelo diferente muda o hash", h1 !== h3, "trocar de modelo é mudança funcional");
-  t("geometria diferente muda o hash", h1 !== h4);
+  t("alvo de localização diferente muda o hash", h1 !== h4);
   t("mesma receita dá o mesmo hash (reuso funciona)", h1 === hashReceita(receita));
-  t("região tem identidade estável", hashRegiao(receita) === hashRegiao(receita));
+  const reg = { pagina: 1, x0: 0.7001, y0: 0.4, x1: 0.9, y1: 0.65 };
+  t("região arredonda a 3 casas (meio pixel não é outra região)",
+    hashRegiao(reg) === hashRegiao({ ...reg, x0: 0.70009 }));
+  t("região de outra página é outra região", hashRegiao(reg) !== hashRegiao({ ...reg, pagina: 2 }));
   t("validadores não entram no hash (função não serializa estável)",
     h1 === hashReceita({ ...receita, validadores: {} }),
     "por isso `versao` DEVE subir quando um validador mudar de comportamento");
