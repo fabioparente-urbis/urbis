@@ -5,6 +5,9 @@
  *
  * Lê do código, via `/api/admin/rastreabilidade` — nunca de cópia no banco. Por isso não tem como
  * mostrar algo diferente do que o sistema faz: mudou a regra no código, mudou aqui.
+ *
+ * Sem processo informado, mostra só a DECLARAÇÃO (a regra, sempre igual). Com um processo, junta o
+ * RESULTADO daquela execução — gravado no MHD por /api/lip/aceitar-pasta.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -14,14 +17,32 @@ type Linha = any;
 
 const CORES: Record<string, string> = {
   AUTOMATICO: "#16A34A", CALCULADO: "#2563EB", NAO_APLICAVEL: "#64748B",
-  AGUARDANDO_FATO: "#EA580C", DOCUMENTO_AUSENTE: "#EA580C", MANUAL: "#7C3AED",
+  DOCUMENTO_AUSENTE: "#EA580C", MANUAL: "#7C3AED",
   PENDENTE_VISAO: "#DC2626", BLOQUEADO: "#DC2626",
 };
 const rotuloStatus: Record<string, string> = {
   AUTOMATICO: "Automático", CALCULADO: "Calculado", NAO_APLICAVEL: "Não aplicável",
-  AGUARDANDO_FATO: "Aguardando fato", DOCUMENTO_AUSENTE: "Documento ausente",
+  DOCUMENTO_AUSENTE: "Documento ausente",
   MANUAL: "Manual", PENDENTE_VISAO: "Pendente de visão", BLOQUEADO: "Bloqueado",
 };
+
+const CORES_RESULTADO: Record<string, string> = {
+  ENCONTRADO: "#16A34A", CALCULADO: "#2563EB", NAO_APLICAVEL: "#64748B",
+  NAO_ENCONTRADO: "#DC2626", FONTE_ILEGIVEL: "#DC2626", DOCUMENTO_AUSENTE: "#EA580C",
+  AGUARDANDO_FATO: "#EA580C", MANUAL: "#7C3AED", BLOQUEADO: "#B91C1C", NAO_IMPLEMENTADO: "#B91C1C",
+  SEM_RESULTADO: "#94A3B8",
+};
+const rotuloResultado: Record<string, string> = {
+  ENCONTRADO: "Encontrado", CALCULADO: "Calculado", NAO_APLICAVEL: "Não aplicável",
+  NAO_ENCONTRADO: "Não encontrado", FONTE_ILEGIVEL: "Fonte ilegível", DOCUMENTO_AUSENTE: "Documento ausente",
+  AGUARDANDO_FATO: "Aguardando fato", MANUAL: "Manual", BLOQUEADO: "Bloqueado", NAO_IMPLEMENTADO: "Não implementado",
+  SEM_RESULTADO: "Sem resultado",
+};
+
+/** os 5 resultados que o relatório de lacunas cobre — ver etapa 4 do fechamento dos 136 */
+const RESULTADOS_LACUNA = new Set([
+  "NAO_ENCONTRADO", "FONTE_ILEGIVEL", "DOCUMENTO_AUSENTE", "BLOQUEADO", "NAO_IMPLEMENTADO",
+]);
 
 export default function Rastreabilidade() {
   const [dados, setDados] = useState<any>(null);
@@ -34,20 +55,25 @@ export default function Rastreabilidade() {
   const [fFonte, setFFonte] = useState("");
   const [fIA, setFIA] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
+  const [processoBusca, setProcessoBusca] = useState("");
+  const [processoAtivo, setProcessoAtivo] = useState("");
+  const [soLacunas, setSoLacunas] = useState(false);
 
   useEffect(() => {
     setDados(null); setErro("");
-    fetch(`/api/admin/rastreabilidade?modulo=${modulo}&slot=slot_05`, { credentials: "include" })
+    const qs = new URLSearchParams({ modulo, slot: "slot_05" });
+    if (processoAtivo) qs.set("processo", processoAtivo);
+    fetch(`/api/admin/rastreabilidade?${qs}`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => (d.ok ? setDados(d) : setErro(d.erro)))
       .catch((e) => setErro(String(e)));
-  }, [modulo]);
+  }, [modulo, processoAtivo]);
 
   const linhas: Linha[] = dados?.linhas ?? [];
   const opcoes = useMemo(() => ({
     secoes: [...new Set(linhas.map((l) => l.secao))],
     metodos: [...new Set(linhas.flatMap((l) => l.metodos))].sort(),
-    status: [...new Set(linhas.map((l) => l.status))].sort(),
+    status: [...new Set(linhas.map((l) => l.declaracao))].sort(),
     fontes: [...new Set(linhas.map((l) => l.fontePrincipal))].sort(),
   }), [linhas]);
 
@@ -56,14 +82,19 @@ export default function Rastreabilidade() {
     if (q && !`${l.id} ${l.nome} ${l.secao} ${l.responsavel} ${l.aplicabilidade ?? ""}`.toLowerCase().includes(q)) return false;
     if (fSecao && l.secao !== fSecao) return false;
     if (fMetodo && !l.metodos.includes(fMetodo)) return false;
-    if (fStatus && l.status !== fStatus) return false;
+    if (fStatus && l.declaracao !== fStatus) return false;
     if (fFonte && l.fontePrincipal !== fFonte) return false;
     if (fIA === "sim" && !l.usaIA) return false;
     if (fIA === "nao" && l.usaIA) return false;
+    if (soLacunas && !RESULTADOS_LACUNA.has(l.resultado?.resultado)) return false;
     return true;
   });
 
   const sel = "bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs text-[var(--text-primary)]";
+  const temExecucao = !!dados?.processo;
+  const colunas = temExecucao
+    ? "grid-cols-[1fr_110px_170px_150px_130px_45px_55px]"
+    : "grid-cols-[1fr_130px_180px_150px_50px_60px_90px]";
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -75,6 +106,35 @@ export default function Rastreabilidade() {
         Especificação oficial de como o URBIS decide cada campo. Lida direto do código — não é cópia,
         não pode divergir do que o sistema faz.
       </p>
+
+      <div className="flex items-center gap-2 mb-4">
+        <input value={processoBusca} onChange={(e) => setProcessoBusca(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && setProcessoAtivo(processoBusca.trim())}
+          placeholder="código do processo — ver RESULTADO de uma execução"
+          className={`${sel} min-w-[280px]`} />
+        <button onClick={() => setProcessoAtivo(processoBusca.trim())}
+          className="px-3 py-1 rounded text-xs font-semibold bg-[var(--primary)] text-white">
+          ver execução
+        </button>
+        {!!processoAtivo && (
+          <button onClick={() => { setProcessoBusca(""); setProcessoAtivo(""); setSoLacunas(false); }}
+            className="text-xs text-[var(--text-muted)] underline">limpar processo</button>
+        )}
+        {temExecucao && (
+          <button onClick={() => setSoLacunas((v) => !v)}
+            className={`px-3 py-1 rounded text-xs font-semibold border ${soLacunas
+              ? "bg-[#DC2626] text-white border-[#DC2626]" : "border-[var(--border-strong)] text-[var(--text-secondary)]"}`}>
+            {soLacunas ? "vendo só lacunas" : "ver relatório de lacunas"}
+          </button>
+        )}
+      </div>
+
+      {!!processoAtivo && dados?.resultadosIndisponiveis && (
+        <p className="text-xs text-[#DC2626] mb-3">
+          ⚠ o registro de resultados não está instalado — rode a migration
+          {" "}<code>2026_07_29_mhd_resultados_campo.sql</code>.
+        </p>
+      )}
 
       {erro && <p className="text-sm text-[#DC2626]">{erro}</p>}
       {!dados && !erro && <p className="text-sm text-[var(--text-muted)]">carregando…</p>}
@@ -135,9 +195,9 @@ export default function Rastreabilidade() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-3 text-xs">
+              <div className="flex flex-wrap gap-2 mb-1 text-xs">
                 <span className="text-[var(--text-muted)]">
-                  {filtradas.length} de {dados.totais.campos} · {dados.totais.implementados} implementados ·
+                  Declaração — {filtradas.length} de {dados.totais.campos} · {dados.totais.implementados} implementados ·
                   {" "}{dados.totais.usamIA} usam IA
                 </span>
                 {Object.entries(dados.totais.porStatus).map(([s, n]: any) => (
@@ -149,6 +209,22 @@ export default function Rastreabilidade() {
                 ))}
               </div>
 
+              {temExecucao && dados.totais.porResultado && (
+                <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                  <span className="text-[var(--text-muted)]">Resultado — processo {dados.processo}</span>
+                  {Object.entries(dados.totais.porResultado).map(([s, n]: any) => (
+                    <button key={s} onClick={() => setSoLacunas(RESULTADOS_LACUNA.has(s) ? soLacunas : false)}
+                      className="px-2 py-0.5 rounded-full border"
+                      style={{ borderColor: CORES_RESULTADO[s], color: CORES_RESULTADO[s] }}>
+                      {rotuloResultado[s] ?? s}: {n}
+                    </button>
+                  ))}
+                  <span className="text-[var(--text-muted)]">
+                    · soma: {(Object.values(dados.totais.porResultado) as number[]).reduce((a, b) => a + b, 0)}
+                  </span>
+                </div>
+              )}
+
               {!!dados.semRastro?.length && (
                 <p className="text-xs text-[#DC2626] mb-2">
                   ⚠ {dados.semRastro.length} campo(s) do LIP sem rastreabilidade: {dados.semRastro.join(", ")}
@@ -156,25 +232,34 @@ export default function Rastreabilidade() {
               )}
 
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
-                <div className="grid grid-cols-[1fr_130px_180px_150px_50px_60px_90px] gap-2 px-3 py-2 bg-[var(--bg-secondary)] text-[10px] font-bold uppercase text-[var(--text-muted)]">
-                  <span>Campo</span><span>Status</span><span>Método</span><span>Fonte</span>
-                  <span>IA?</span><span>Versão</span><span>Alterado</span>
+                <div className={`grid ${colunas} gap-2 px-3 py-2 bg-[var(--bg-secondary)] text-[10px] font-bold uppercase text-[var(--text-muted)]`}>
+                  <span>Campo</span><span>Declaração</span>
+                  {temExecucao ? <span>Resultado</span> : null}
+                  <span>Método</span><span>Fonte</span>
+                  <span>IA?</span><span>Versão</span>
+                  {!temExecucao && <span>Alterado</span>}
                 </div>
                 {filtradas.map((l) => (
                   <div key={l.id} className="border-t border-[var(--border)]">
                     <button onClick={() => setAberto(aberto === l.id ? null : l.id)}
-                      className="w-full grid grid-cols-[1fr_130px_180px_150px_50px_60px_90px] gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--bg-secondary)]">
+                      className={`w-full grid ${colunas} gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--bg-secondary)]`}>
                       <span className="text-[var(--text-primary)] truncate" title={l.nome}>
                         {l.nome} <span className="text-[var(--text-muted)]">· {l.id}</span>
                       </span>
-                      <span style={{ color: CORES[l.status] }}>{rotuloStatus[l.status] ?? l.status}</span>
+                      <span style={{ color: CORES[l.declaracao] }}>{rotuloStatus[l.declaracao] ?? l.declaracao}</span>
+                      {temExecucao && (
+                        <span style={{ color: CORES_RESULTADO[l.resultado?.resultado ?? "SEM_RESULTADO"] }} className="truncate"
+                          title={l.resultado?.valor ?? l.resultado?.tentativa?.motivo ?? ""}>
+                          {rotuloResultado[l.resultado?.resultado ?? "SEM_RESULTADO"]}
+                        </span>
+                      )}
                       <span className="text-[var(--text-secondary)] truncate" title={l.metodos.join(" → ")}>
                         {l.metodos.join(" → ")}
                       </span>
                       <span className="text-[var(--text-secondary)] truncate">{l.fontePrincipal}</span>
                       <span className={l.usaIA ? "text-[#DC2626]" : "text-[var(--text-muted)]"}>{l.usaIA ? "sim" : "—"}</span>
                       <span className="text-[var(--text-secondary)]">v{l.versao}</span>
-                      <span className="text-[var(--text-muted)]">{l.alteradoEm}</span>
+                      {!temExecucao && <span className="text-[var(--text-muted)]">{l.alteradoEm}</span>}
                     </button>
 
                     {aberto === l.id && (
@@ -206,6 +291,37 @@ export default function Rastreabilidade() {
                         <Campo t="Testes">{l.testes.join(" · ")}</Campo>
                         <Campo t="Versão / hash da regra">v{l.versao} · <code>{l.hash}</code></Campo>
                         {l.observacao && <Campo t="Observação">{l.observacao}</Campo>}
+
+                        {temExecucao && l.resultado && (
+                          <div className="mt-2 pt-2 border-t border-[var(--border)]">
+                            <p className="text-[10px] uppercase font-bold" style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
+                              Resultado da execução — {dados.processo}
+                            </p>
+                            <Campo t="Resultado">
+                              <span style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
+                                {rotuloResultado[l.resultado.resultado] ?? l.resultado.resultado}
+                              </span>
+                            </Campo>
+                            {l.resultado.valor && <Campo t="Valor">{l.resultado.valor}</Campo>}
+                            {l.resultado.fonte && <Campo t="Fonte">{l.resultado.fonte}</Campo>}
+                            {l.resultado.evidencia && <Campo t="Evidência (NP)">{l.resultado.evidencia}</Campo>}
+                            {l.resultado.tentativa && (
+                              <Campo t="Tentativa do leitor">
+                                {l.resultado.tentativa.motivo}
+                                {!!l.resultado.tentativa.procurou?.length && (
+                                  <> — procurou: {l.resultado.tentativa.procurou.join(", ")}</>
+                                )}
+                                {l.resultado.tentativa.documento && <> · documento: {l.resultado.tentativa.documento}</>}
+                                {l.resultado.tentativa.temCamadaTexto === false && <> · sem camada de texto</>}
+                              </Campo>
+                            )}
+                            {l.resultado.valorManual && (
+                              <Campo t="Complementado manualmente">
+                                {l.resultado.valorManual} — {l.resultado.complementadoEm}
+                              </Campo>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

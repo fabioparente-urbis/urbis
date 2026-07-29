@@ -19,6 +19,7 @@ import {
 } from "../lib/rastreabilidade";
 import type { CampoRastreado, ItemRastreado } from "../lib/rastreabilidade";
 import { lerPastaSlot5, type ArquivoEntrada } from "../lib/lerPastaSlot5";
+import { fecharResultados } from "../lib/rastreabilidade/fechar";
 
 const LOCK = path.join(process.cwd(), "lib/rastreabilidade/versoes.lock.json");
 const atualizarLock = process.argv.includes("--atualizar-lock");
@@ -163,6 +164,43 @@ if (!fs.existsSync(AMOSTRA)) {
     fantasmaNaoDeclarado.join(", "));
 
   console.log(`\n  cobertura real: ${preenchidos.size} de ${noBanco.size} campos preenchidos na amostra`);
+
+  secao("14 · a trava dos 136: nenhum campo termina uma execução sem resultado");
+  const chavesMatriz = new Set(campos.map((c) => c.chave));
+  const fechados = fecharResultados(campos, r.campos);
+  // chaves fantasma (ex.: `certidao`) não são da matriz — contam à parte, não nos 136
+  const fechadosNaMatriz = Object.keys(fechados).filter((k) => chavesMatriz.has(k));
+  t("14a. tudo que não é preenchido pela tela recebeu resultado (135 de 136 — falta só `observacoes`)",
+    fechadosNaMatriz.length === campos.length - 1,
+    `${fechadosNaMatriz.length} de ${campos.length - 1}`);
+
+  // `observacoes` só nasce no aceite (preenchidoPor "tela") — simula o que a rota
+  // /api/lip/aceitar-pasta faz, para conferir que a execução completa fecha em 136.
+  const comObservacoes = { ...fechados, observacoes: { resultado: "CALCULADO" as const, valor: "log da leitura", fonte: "aceite" } };
+  const comObsNaMatriz = Object.keys(comObservacoes).filter((k) => chavesMatriz.has(k));
+  t("14b. a execução completa (com o aceite) fecha exatamente em 136", comObsNaMatriz.length === 136,
+    `${comObsNaMatriz.length}`);
+
+  const semDeclaracao = Object.keys(comObservacoes).filter((k) => !chavesMatriz.has(k) && !fantasmas.has(k));
+  const naoResultaram = [...chavesMatriz].filter((k) => !(k in comObservacoes));
+  t("14c. toda chave de resultado existe na matriz (fora as fantasmas já declaradas)", semDeclaracao.length === 0, semDeclaracao.join(", "));
+  t("14d. toda chave da matriz recebeu resultado", naoResultaram.length === 0, naoResultaram.join(", "));
+
+  const bloqueadosSemDependencia = Object.entries(comObservacoes)
+    .filter(([, v]: any) => v.resultado === "BLOQUEADO" && !v.tentativa?.motivo?.trim());
+  t("14e. todo BLOQUEADO informa a dependência", bloqueadosSemDependencia.length === 0,
+    bloqueadosSemDependencia.map(([k]) => k).join(", "));
+
+  const naoImplementadoIndevido = Object.entries(comObservacoes)
+    .filter(([k, v]: any) => v.resultado === "NAO_IMPLEMENTADO" && porChave.get(k)?.implementado !== false);
+  t("14f. NAO_IMPLEMENTADO só aparece em campo declarado implementado=false", naoImplementadoIndevido.length === 0,
+    naoImplementadoIndevido.map(([k]) => k).join(", "));
+
+  const distribuicao = Object.entries(comObservacoes).filter(([k]) => chavesMatriz.has(k))
+    .reduce((acc: Record<string, number>, [, v]: any) => {
+    acc[v.resultado] = (acc[v.resultado] ?? 0) + 1; return acc;
+  }, {});
+  console.log(`\n  distribuição dos 136 resultados: ${Object.entries(distribuicao).map(([k, n]) => `${k}=${n}`).join(" · ")}`);
 }
 
 secao("MAC · estrutura pronta, conteúdo vazio");

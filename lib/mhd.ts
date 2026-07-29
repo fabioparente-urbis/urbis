@@ -433,3 +433,75 @@ export async function registrarLeitura(args: {
     };
   }
 }
+
+// ─────────────────────────── resultado por campo ───────────────────────────
+
+export type ResultadoParaMHD = {
+  chave: string;
+  resultado: string;
+  valor?: string;
+  fonte?: string;
+  tentativa?: unknown;
+  evidencia?: string;
+  /** versão e hash do campo NA MATRIZ no momento desta execução — reproduz a regra que decidiu */
+  versao: number;
+  hash: string;
+};
+
+export type ResumoResultados = {
+  ativa: boolean;
+  gravou: boolean;
+  problemas: string[];
+  gravados: number;
+};
+
+/**
+ * Grava o RESULTADO de cada campo de uma execução. NUNCA lança — mesmo padrão de
+ * `registrarLeitura`.
+ *
+ * Faz upsert só das colunas automáticas (`resultado`, `valor`, `fonte`, `tentativa`, `evidencia`,
+ * `versao`, `hash`, `atualizado_em`). As colunas de complementação manual (`valor_manual`,
+ * `autor_manual_id`, `complementado_em`) NUNCA entram neste payload — é isso que impede uma nova
+ * leitura de apagar o que o analista já corrigiu, e impede a correção do analista de apagar o que
+ * o leitor concluiu sozinho.
+ */
+export async function registrarResultados(args: {
+  processoCodigo: string;
+  modulo?: "LIP" | "MAC";
+  slot?: string;
+  resultados: ResultadoParaMHD[];
+}): Promise<ResumoResultados> {
+  const { processoCodigo, modulo = "LIP", slot = "slot_05", resultados } = args;
+  const base: ResumoResultados = { ativa: false, gravou: false, problemas: [], gravados: 0 };
+
+  try {
+    const { error: probe } = await supabase.from("mhd_resultados_campo").select("id").limit(1);
+    if (probe) {
+      return {
+        ...base,
+        problemas: ["O registro de resultados por campo não está instalado — rode a migration 2026_07_29_mhd_resultados_campo.sql."],
+      };
+    }
+
+    const agora = new Date().toISOString();
+    const linhas = resultados.map((r) => ({
+      processo_codigo: processoCodigo, modulo, slot, chave: r.chave,
+      resultado: r.resultado, valor: r.valor ?? null, fonte: r.fonte ?? null,
+      tentativa: r.tentativa ?? null, evidencia: r.evidencia ?? null,
+      versao: r.versao, hash: r.hash, atualizado_em: agora,
+    }));
+
+    const { error } = await supabase
+      .from("mhd_resultados_campo")
+      .upsert(linhas, { onConflict: "processo_codigo,modulo,slot,chave" });
+    if (error) return { ...base, ativa: true, problemas: [error.message] };
+
+    return { ativa: true, gravou: true, problemas: [], gravados: linhas.length };
+  } catch (err: any) {
+    console.error("[MHD] falha ao registrar resultados:", err);
+    return {
+      ...base, ativa: true, gravou: false,
+      problemas: [`falha inesperada ao registrar resultados: ${err?.message ?? err}`],
+    };
+  }
+}

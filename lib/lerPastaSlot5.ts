@@ -721,7 +721,7 @@ function vigentes(catalogo: ItemCatalogo[]) {
 
 const TOL = 0.02; // tolerância de arredondamento, em m² / m³
 
-function preencherLip(vig: Record<string, ItemCatalogo>) {
+export function preencherLip(vig: Record<string, ItemCatalogo>) {
   const C: Record<string, ResultadoCampo> = {};
 
   /**

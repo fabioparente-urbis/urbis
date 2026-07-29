@@ -656,6 +656,15 @@ export default function ProcessoClient() {
       novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + linhas : linhas, origem: "urbis", fonte: "LIP" };
       corrigirSeiFisico(novo, idUrl);
       autoSalvar(novo);
+
+      /* Persiste o RESULTADO dos 136 campos no MHD — à parte de `processos.dados`, que só guarda
+       * valor. Fire-and-forget: a rastreabilidade não pode travar o aceite. */
+      fetch("/api/lip/aceitar-pasta", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processoCodigo: idUrl, campos: p.campos, observacoes: linhas }),
+      }).catch((e) => console.warn("[aceitar-pasta] resultado não persistido:", e));
+
       return novo;
     });
     mostrarToast(`✅ ${Object.keys(p.campos).length} campos aceitos`, "sucesso");

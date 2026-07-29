@@ -6,6 +6,9 @@ import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { mapaDeRodadas } from "@/lib/rodadas";
 import { camposDeDocumentosEmitidos, houveMudancaDeAnalista } from "@/lib/lipDocumentosEmitidos";
 import { buscarVia } from "@/lib/cadastroImobiliario";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { matriz } from "@/lib/rastreabilidade";
+import { fecharResultados } from "@/lib/rastreabilidade/fechar";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -219,6 +222,26 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 3) obsDocumentos — valor padrão do assunto (lip_campos.valor_padrao). Nunca vem de
+    // documento algum; sem isto o campo nunca recebia resultado nenhum.
+    if (assuntoId) {
+      const { data: abas } = await supabaseAdmin.from("lip_abas").select("id").eq("assunto_id", assuntoId);
+      const abaIds = (abas ?? []).map((a: any) => a.id);
+      if (abaIds.length) {
+        const { data: campoObs } = await supabaseAdmin
+          .from("lip_campos").select("valor_padrao").eq("chave", "obsDocumentos").in("aba_id", abaIds).maybeSingle();
+        if (campoObs?.valor_padrao) {
+          campos.obsDocumentos = { valor: campoObs.valor_padrao, resultado: "ENCONTRADO" as const, fonte: "valor padrão do assunto" };
+        }
+      }
+    }
+
+    /* Fecha todo campo declarado que leitor e rota não tocaram — NAO_ENCONTRADO/AGUARDANDO_FATO/
+     * DOCUMENTO_AUSENTE/BLOQUEADO/MANUAL/NAO_IMPLEMENTADO conforme a própria declaração da matriz.
+     * `observacoes` (preenchidoPor "tela") fica de fora: só nasce no aceite. */
+    const m = matriz("LIP", "slot_05");
+    const camposFechados = m?.campos ? fecharResultados(m.campos, campos) : campos;
+
     // `extratos` fica no servidor: e a estrutura completa com coordenadas, centenas de KB que a
     // tela nao usa. Ele ja foi gravado no MHD acima.
     const { extratos: _extratos, campos: _campos, ...semExtratos } = resultado;
@@ -226,7 +249,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       ...semExtratos,
-      campos,
+      campos: camposFechados,
       catalogo,
       mhd: { ...mhd, problemas: [...mhd.problemas, ...problemasExtra], gravou: mhd.gravou && !problemasExtra.length },
       rodadas: [...new Set(entradas.map((e) => e.rodada))].sort((a, b) => a - b),
