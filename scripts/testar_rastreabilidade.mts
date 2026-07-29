@@ -223,10 +223,11 @@ if (!fs.existsSync(AMOSTRA)) {
   console.log(`\n  distribuição dos 136 resultados: ${Object.entries(distribuicao).map(([k, n]) => `${k}=${n}`).join(" · ")}`);
 }
 
-secao("MAC · estrutura pronta, conteúdo vazio");
+secao("MAC · itens cadastrados");
 const mac = matriz("MAC", "slot_05")!;
 t("estrutura do MAC existe", !!mac.itens, "");
-console.log(`  ${mac.itens!.length} itens cadastrados — vazio de propósito; ver lib/rastreabilidade/macSlot5.ts`);
+t("nenhum código de item do MAC duplicado", new Set(mac.itens!.map((i) => i.codigo)).size === mac.itens!.length, "");
+console.log(`  ${mac.itens!.length} itens cadastrados — ver lib/rastreabilidade/macSlot5.ts`);
 
 if (atualizarLock) {
   fs.writeFileSync(LOCK, JSON.stringify(lockNovo, null, 2) + "\n");
