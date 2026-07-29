@@ -1,546 +1,546 @@
 {
   "LIP:slot_05:logradouro": {
     "versao": 1,
-    "hash": "1c363d7929f68d61"
+    "hash": "88f467fac851c38a"
   },
   "LIP:slot_05:quadra": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:lote": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:bairro": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:iptu": {
     "versao": 1,
-    "hash": "3a786ad60a261ee6"
+    "hash": "ed0eff8b1d7a5fb1"
   },
   "LIP:slot_05:proprietario": {
     "versao": 1,
-    "hash": "329a804763812983"
+    "hash": "a84ffc9ccd665d40"
   },
   "LIP:slot_05:nome_responsavel_arq": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:cau": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:nome_responsavel_eng": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:crea": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:coordenadas": {
     "versao": 2,
-    "hash": "f4994d36647f8522"
+    "hash": "ac91624ba89fa345"
   },
   "LIP:slot_05:quantasFrentes": {
     "versao": 1,
-    "hash": "ebc5254ad63ea7c0"
+    "hash": "d585e49dcdc0fc6d"
   },
   "LIP:slot_05:esquina": {
     "versao": 1,
-    "hash": "f6d784853accbbdf"
+    "hash": "5c7c77a408b3d4a2"
   },
   "LIP:slot_05:processo": {
     "versao": 1,
-    "hash": "5b79a12bf3a9a429"
+    "hash": "bc5b653411694b36"
   },
   "LIP:slot_05:processoFisico": {
     "versao": 1,
-    "hash": "148ce420c50deeac"
+    "hash": "97a2cd67fb3e5019"
   },
   "LIP:slot_05:licencaPrevia": {
     "versao": 1,
-    "hash": "7d36882680d7c382"
+    "hash": "12d5926d71800073"
   },
   "LIP:slot_05:cheadvN": {
     "versao": 1,
-    "hash": "a9eb826d945ab255"
+    "hash": "6660061a499d5eee"
   },
   "LIP:slot_05:dataPagtoTaxaInicial": {
     "versao": 1,
-    "hash": "b0d14e60f35a5a7c"
+    "hash": "facca4413a47be7f"
   },
   "LIP:slot_05:via2": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:tipoDeVia2": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:larguraDaVia2": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:larguraDoPasseio2": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:via3": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:tipoDeVia3": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:larguraDaVia3": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:larguraDoPasseio3": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:via4": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:tipoDeVia4": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "a4587085ee337bb7"
   },
   "LIP:slot_05:larguraDaVia4": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:larguraDoPasseio4": {
-    "versao": 1,
-    "hash": "904439f39eac8e17"
+    "versao": 2,
+    "hash": "70ca1ef371cea841"
   },
   "LIP:slot_05:numeroDeDespachoDa1Analise": {
-    "versao": 1,
-    "hash": "280d8feac53fcb76"
+    "versao": 2,
+    "hash": "d1b88be59d6b6b69"
   },
   "LIP:slot_05:dataDa1Analise": {
-    "versao": 1,
-    "hash": "280d8feac53fcb76"
+    "versao": 2,
+    "hash": "d1b88be59d6b6b69"
   },
   "LIP:slot_05:numeroDeDespachoDa2Analise": {
-    "versao": 1,
-    "hash": "e13bd26795908741"
+    "versao": 2,
+    "hash": "c3b15c3c6dbc2734"
   },
   "LIP:slot_05:dataDa2Analise": {
-    "versao": 1,
-    "hash": "e13bd26795908741"
+    "versao": 2,
+    "hash": "c3b15c3c6dbc2734"
   },
   "LIP:slot_05:numeroDeDespachoDa3Analise": {
-    "versao": 1,
-    "hash": "79288edc65e1430c"
+    "versao": 2,
+    "hash": "a3b8fa473e0ce2ff"
   },
   "LIP:slot_05:dataDa3Analise": {
-    "versao": 1,
-    "hash": "79288edc65e1430c"
+    "versao": 2,
+    "hash": "a3b8fa473e0ce2ff"
   },
   "LIP:slot_05:numeroDeDespachoDa4Analise": {
-    "versao": 1,
-    "hash": "53617a593631fed7"
+    "versao": 2,
+    "hash": "58f888de0e5d9eca"
   },
   "LIP:slot_05:dataDa4Analise": {
-    "versao": 1,
-    "hash": "53617a593631fed7"
+    "versao": 2,
+    "hash": "58f888de0e5d9eca"
   },
   "LIP:slot_05:numeroDeDespachoDa5Analise": {
-    "versao": 1,
-    "hash": "a923bbfe0682baa2"
+    "versao": 2,
+    "hash": "a09e97b9deae5a95"
   },
   "LIP:slot_05:dataDa5Analise": {
-    "versao": 1,
-    "hash": "a923bbfe0682baa2"
+    "versao": 2,
+    "hash": "a09e97b9deae5a95"
   },
   "LIP:slot_05:numeroDoLaudo5": {
-    "versao": 1,
-    "hash": "3c4ae131f9fb5ce3"
+    "versao": 2,
+    "hash": "57e7fd2cda2ba0bc"
   },
   "LIP:slot_05:dataDoLaudo5": {
-    "versao": 1,
-    "hash": "3c4ae131f9fb5ce3"
+    "versao": 2,
+    "hash": "57e7fd2cda2ba0bc"
   },
   "LIP:slot_05:numeroDoParecerDeIndeferimento": {
-    "versao": 1,
-    "hash": "d6035ef2a4937c5a"
+    "versao": 2,
+    "hash": "f9c85411fca6aaf5"
   },
   "LIP:slot_05:dataDoParecerDeIndeferimento": {
-    "versao": 1,
-    "hash": "d6035ef2a4937c5a"
+    "versao": 2,
+    "hash": "f9c85411fca6aaf5"
   },
   "LIP:slot_05:numeroDoParecerDeArquivamento": {
-    "versao": 1,
-    "hash": "9ee52ccdfeea31dd"
+    "versao": 2,
+    "hash": "d9669f78d86cca6e"
   },
   "LIP:slot_05:dataDoParecerDeArquivamento": {
-    "versao": 1,
-    "hash": "9ee52ccdfeea31dd"
+    "versao": 2,
+    "hash": "d9669f78d86cca6e"
   },
   "LIP:slot_05:houveMudancaDeAnalista": {
-    "versao": 1,
-    "hash": "8369de28ef23118a"
+    "versao": 2,
+    "hash": "81f3b66bb58da661"
   },
   "LIP:slot_05:tipoProcessoLip": {
     "versao": 1,
-    "hash": "ba91f08cb2e061fa"
+    "hash": "65dd3ff196d1d6cd"
   },
   "LIP:slot_05:comercio": {
     "versao": 1,
-    "hash": "d497053ce8676ea2"
+    "hash": "35d9103d9430ae89"
   },
   "LIP:slot_05:tipoUso": {
     "versao": 1,
-    "hash": "329a804763812983"
+    "hash": "a84ffc9ccd665d40"
   },
   "LIP:slot_05:atividadeEconomica": {
     "versao": 1,
-    "hash": "be86fe9084f0424c"
+    "hash": "b012d9116435881f"
   },
   "LIP:slot_05:habitacional": {
     "versao": 1,
-    "hash": "5d08250a98934aa4"
+    "hash": "7733c7fb343a21d7"
   },
   "LIP:slot_05:misto": {
     "versao": 1,
-    "hash": "87486b57b4c497f9"
+    "hash": "2ac2164a02e19178"
   },
   "LIP:slot_05:grandePorte": {
     "versao": 1,
-    "hash": "8138ff194a38a9d7"
+    "hash": "fdf60d5025a91e42"
   },
   "LIP:slot_05:habSeriada": {
-    "versao": 1,
-    "hash": "ccf1f0a0b319f532"
+    "versao": 2,
+    "hash": "f603f2996982a003"
   },
   "LIP:slot_05:habColetiva": {
-    "versao": 1,
-    "hash": "ccf1f0a0b319f532"
+    "versao": 2,
+    "hash": "f603f2996982a003"
   },
   "LIP:slot_05:quitinete": {
-    "versao": 1,
-    "hash": "ccf1f0a0b319f532"
+    "versao": 2,
+    "hash": "f603f2996982a003"
   },
   "LIP:slot_05:institucional": {
-    "versao": 1,
-    "hash": "ccf1f0a0b319f532"
+    "versao": 2,
+    "hash": "f603f2996982a003"
   },
   "LIP:slot_05:dimensoesDoLoteNaCertidao": {
     "versao": 1,
-    "hash": "6387e9d8c15b7244"
+    "hash": "66149f7f8c505f99"
   },
   "LIP:slot_05:dimensoesDoLoteNoProjeto": {
     "versao": 1,
-    "hash": "f300121247bb015e"
+    "hash": "76d10edd4e5be66b"
   },
   "LIP:slot_05:dimensoesDoLoteConferemComA": {
     "versao": 1,
-    "hash": "61993d0dea417951"
+    "hash": "2fdc61124268005a"
   },
   "LIP:slot_05:dimensoesDoLoteConferemComRememb": {
-    "versao": 1,
-    "hash": "f505c2c7eb785651"
+    "versao": 2,
+    "hash": "dde70974fe877ef6"
   },
   "LIP:slot_05:usoDoSoloN": {
     "versao": 1,
-    "hash": "d59da88812366f7a"
+    "hash": "2a3786ff391841fb"
   },
   "LIP:slot_05:unidadeTerritorialDoUsoDoSolo": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:tipoDeVia1": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:cnae": {
     "versao": 1,
-    "hash": "f69aee78e241296c"
+    "hash": "dc16c49981dc35cb"
   },
   "LIP:slot_05:alertasDoUsoDoSolo": {
     "versao": 1,
-    "hash": "3b102d206d15cf64"
+    "hash": "b0739f5d70ac489b"
   },
   "LIP:slot_05:usoDoSoloEParaAprovacao": {
     "versao": 1,
-    "hash": "013d50e265caeca6"
+    "hash": "0cf954d721acc9fd"
   },
   "LIP:slot_05:anexouCertidaoDeCorredorViario": {
     "versao": 1,
-    "hash": "bbfb046809b064de"
+    "hash": "48d78cc32303a89f"
   },
   "LIP:slot_05:atendeOPorteAdmitido": {
     "versao": 1,
-    "hash": "930cbddc927237f6"
+    "hash": "54d6409daf833fed"
   },
   "LIP:slot_05:oEnderecoEstaCorretoNoUso": {
     "versao": 2,
-    "hash": "714f0869870cf2e9"
+    "hash": "4caa78eeb202d126"
   },
   "LIP:slot_05:larguraDaVia1": {
     "versao": 1,
-    "hash": "6cef7d1eafb63798"
+    "hash": "44e288d12c3123f5"
   },
   "LIP:slot_05:larguraDoPasseio1": {
     "versao": 1,
-    "hash": "6cef7d1eafb63798"
+    "hash": "44e288d12c3123f5"
   },
   "LIP:slot_05:numeroDeArtProjeto": {
     "versao": 1,
-    "hash": "d95d995638610104"
+    "hash": "9639558171e4ce49"
   },
   "LIP:slot_05:numeroDeArtExecucao": {
     "versao": 1,
-    "hash": "d95d995638610104"
+    "hash": "9639558171e4ce49"
   },
   "LIP:slot_05:numeroDeArtCaixa": {
     "versao": 1,
-    "hash": "d95d995638610104"
+    "hash": "9639558171e4ce49"
   },
   "LIP:slot_05:anexouArtRrtProjeto": {
     "versao": 1,
-    "hash": "c7549de84b2bc9b8"
+    "hash": "add864d59822cb2b"
   },
   "LIP:slot_05:anexouArtRrtExecucao": {
     "versao": 1,
-    "hash": "66f683747d622908"
+    "hash": "023749dbbeb26e5d"
   },
   "LIP:slot_05:anexouArtRrtCaixa": {
     "versao": 1,
-    "hash": "0693844d2a3e68fd"
+    "hash": "0374569640598baa"
   },
   "LIP:slot_05:areaNaArtDeProjeto": {
     "versao": 1,
-    "hash": "130000851d3f5b0b"
+    "hash": "9580a4f2448e9fd8"
   },
   "LIP:slot_05:areaNaArtDeExecucao": {
     "versao": 1,
-    "hash": "130000851d3f5b0b"
+    "hash": "9580a4f2448e9fd8"
   },
   "LIP:slot_05:volumeNaArtDeCaixa": {
     "versao": 1,
-    "hash": "130000851d3f5b0b"
+    "hash": "9580a4f2448e9fd8"
   },
   "LIP:slot_05:artDeProjetoAtendeAAcessibilidade": {
     "versao": 1,
-    "hash": "5d46346b125e6795"
+    "hash": "529bdc0a2506ef94"
   },
   "LIP:slot_05:aArtDeExecucaoAtendeA": {
-    "versao": 1,
-    "hash": "e724ace46bc15740"
+    "versao": 2,
+    "hash": "39d185feed1d1fd0"
   },
   "LIP:slot_05:aAreaNaArtDeProjeto": {
     "versao": 2,
-    "hash": "c62bf22970024dfd"
+    "hash": "e00e4380b388ab6c"
   },
   "LIP:slot_05:aAreaNaArtDeExecucao": {
     "versao": 2,
-    "hash": "51241d51af32984d"
+    "hash": "586421f8497822e4"
   },
   "LIP:slot_05:volumeConfereComOProjeto": {
     "versao": 2,
-    "hash": "4a5b0cf8c8d2c74a"
+    "hash": "96d882db44b9c8c3"
   },
   "LIP:slot_05:trafegoElevadores": {
-    "versao": 1,
-    "hash": "2dc7d73b91cd7d39"
+    "versao": 2,
+    "hash": "b9054fab9547d365"
   },
   "LIP:slot_05:tDC": {
-    "versao": 1,
-    "hash": "af928dbc63c17e70"
+    "versao": 2,
+    "hash": "bfefd1290779162b"
   },
   "LIP:slot_05:demolicao": {
-    "versao": 1,
-    "hash": "8f7f76007c795816"
+    "versao": 2,
+    "hash": "aeaab5b927043b1d"
   },
   "LIP:slot_05:smmPCorredoresDoArtigo116": {
-    "versao": 1,
-    "hash": "d5ae5ee5144a58cb"
+    "versao": 2,
+    "hash": "6bb92a233e55e653"
   },
   "LIP:slot_05:docEmitidoPeloComandoDaAeronautica": {
-    "versao": 1,
-    "hash": "7927383f5ac95991"
+    "versao": 2,
+    "hash": "67671861a950e06d"
   },
   "LIP:slot_05:certidaoDeAcessib": {
-    "versao": 1,
-    "hash": "aff7ee83bc9bec15"
+    "versao": 2,
+    "hash": "653f12197d609bf1"
   },
   "LIP:slot_05:obsDocumentos": {
     "versao": 1,
-    "hash": "b3a3f5abce1d14c5"
+    "hash": "61d6732a9dd35758"
   },
   "LIP:slot_05:outorgaOnerosa": {
     "versao": 1,
-    "hash": "09f0b6148991424e"
+    "hash": "7b876e3793131fe7"
   },
   "LIP:slot_05:pav": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:areaTerreno": {
     "versao": 1,
-    "hash": "8992d4e27bb6a4ea"
+    "hash": "348877c97c84d7fb"
   },
   "LIP:slot_05:areaTotal": {
     "versao": 1,
-    "hash": "c28c15c26b4e00dc"
+    "hash": "7317994fc73f62cb"
   },
   "LIP:slot_05:unidComerciais": {
     "versao": 1,
-    "hash": "1f634929895266cf"
+    "hash": "76df3278d394b5b6"
   },
   "LIP:slot_05:unidHabitacionais": {
     "versao": 1,
-    "hash": "1f634929895266cf"
+    "hash": "76df3278d394b5b6"
   },
   "LIP:slot_05:areaTotalPrivativa": {
     "versao": 1,
-    "hash": "9388f6c321a75a7d"
+    "hash": "87465bf6fb62acfc"
   },
   "LIP:slot_05:alturaDaEdificacao": {
     "versao": 1,
-    "hash": "08845c13fad1ca0d"
+    "hash": "c515ce424f431534"
   },
   "LIP:slot_05:acessoVertical": {
-    "versao": 1,
-    "hash": "b9cf6b020b503e68"
+    "versao": 2,
+    "hash": "9f74280412ea373a"
   },
   "LIP:slot_05:art163BaiaDeDesaceleracaoAa": {
-    "versao": 1,
-    "hash": "a5dc0c5f421c379b"
+    "versao": 2,
+    "hash": "3292377156f01f9b"
   },
   "LIP:slot_05:aabEApac190": {
     "versao": 1,
-    "hash": "85699f54ec39df0c"
+    "hash": "a35b5361ba7f70ef"
   },
   "LIP:slot_05:aosEApaIntegranteDaArau": {
-    "versao": 1,
-    "hash": "2bbab8cebbfba830"
+    "versao": 2,
+    "hash": "94d0aae2d1d32d92"
   },
   "LIP:slot_05:chacarasVerificarNomeDoBairroNa": {
-    "versao": 1,
-    "hash": "9e272815f0b3ab9d"
+    "versao": 2,
+    "hash": "bba259cfdb00eb11"
   },
   "LIP:slot_05:chacarasVerificarNomeDoBairroNa2": {
-    "versao": 1,
-    "hash": "9e272815f0b3ab9d"
+    "versao": 2,
+    "hash": "bba259cfdb00eb11"
   },
   "LIP:slot_05:quitineteEmAab130": {
-    "versao": 1,
-    "hash": "c1021284678a163c"
+    "versao": 2,
+    "hash": "5c0d17c8acef08de"
   },
   "LIP:slot_05:opcao1TotalExigidoAreaTerreno": {
     "versao": 1,
-    "hash": "2c3cd008df8d4238"
+    "hash": "4f67b2a7eeaec17d"
   },
   "LIP:slot_05:opcao2TotalExigidoAreaTerreno": {
     "versao": 1,
-    "hash": "ef67c2a2152199a4"
+    "hash": "73dff249a51e4ea1"
   },
   "LIP:slot_05:opcao2TotalExigidoAreaTerreno2": {
     "versao": 1,
-    "hash": "c0ea6d389674fad2"
+    "hash": "b17b1a2344b25683"
   },
   "LIP:slot_05:opcao3TotalExigidoAreaTerreno": {
     "versao": 1,
-    "hash": "4621673a1cba1b64"
+    "hash": "3fad0a3d397979e1"
   },
   "LIP:slot_05:areaPermeavelProjetada": {
     "versao": 1,
-    "hash": "c28c15c26b4e00dc"
+    "hash": "7317994fc73f62cb"
   },
   "LIP:slot_05:volumeDaCaixaDeRecarga": {
     "versao": 1,
-    "hash": "c28c15c26b4e00dc"
+    "hash": "7317994fc73f62cb"
   },
   "LIP:slot_05:nDeCaixasDeCaptacao": {
     "versao": 1,
-    "hash": "443adcb2a2a6354a"
+    "hash": "507d438129b6cdfb"
   },
   "LIP:slot_05:areaImpermeabilizada": {
     "versao": 1,
-    "hash": "2eb6dca31ca6c20b"
+    "hash": "7c5cca1eb5f804ea"
   },
   "LIP:slot_05:volumeExigidoDaCaixa": {
-    "versao": 1,
-    "hash": "f3218c553e964e97"
+    "versao": 2,
+    "hash": "7333d63854bd3b5e"
   },
   "LIP:slot_05:areaTotalMax75x": {
     "versao": 1,
-    "hash": "9a6bfa6abd684bea"
+    "hash": "a3074093f20d8255"
   },
   "LIP:slot_05:indiceDeAproveitamentoDoProjetoTotal": {
     "versao": 1,
-    "hash": "98261996e81a7298"
+    "hash": "d956232d7e6e2cf5"
   },
   "LIP:slot_05:areaAteXxPav": {
     "versao": 1,
-    "hash": "90e250dfbd3457f1"
+    "hash": "3c65363ca603fe12"
   },
   "LIP:slot_05:indiceDeAproveitamentoDoProjetoAte": {
     "versao": 1,
-    "hash": "ab5670242a3d6d96"
+    "hash": "6e564ec3b018a1df"
   },
   "LIP:slot_05:aproveitamentoExigidoAreaDeFruicao": {
-    "versao": 1,
-    "hash": "8f8ac409a68951fb"
+    "versao": 2,
+    "hash": "feb462f0cdc470fe"
   },
   "LIP:slot_05:totalASerDescontadoNoCalculo": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:areaOcupadaPelaAtividade": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:vagasPcdExigido": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:vagasIdosoExigido": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:totalDeVagasExigidasParaEssas": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:totalDeVagasAtendidasParaAtividade": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:vagasPcdAtendidas": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:vagasIdosoAtendidas": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:atendeAcessoCirculacaoVagasManobrasLc": {
     "versao": 1,
-    "hash": "85040901bb57aa05"
+    "hash": "7b5c5db6cb9ce48a"
   },
   "LIP:slot_05:vagaAmbulanciaPCnaeAtivEspec": {
-    "versao": 1,
-    "hash": "e0b4420c8291e350"
+    "versao": 2,
+    "hash": "783ef7a03650d5ba"
   },
   "LIP:slot_05:atendeDecreto9451PUsoHab": {
-    "versao": 1,
-    "hash": "e149d9f5f2bf8351"
+    "versao": 2,
+    "hash": "9c30b540059cdc20"
   },
   "LIP:slot_05:atendeAcessibilidade": {
     "versao": 1,
-    "hash": "53338f5a1187bad8"
+    "hash": "daa61b1307df0d8b"
   },
   "LIP:slot_05:observacoes": {
     "versao": 1,
-    "hash": "6e640893b2874963"
+    "hash": "a89a9c2e12cd8486"
   }
 }

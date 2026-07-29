@@ -21,7 +21,7 @@ const T_RASTREIO = ["scripts/testar_rastreabilidade.mts"];
 const doDoc = (
   chave: string, fontePrincipal: Fonte, metodos: Metodo[], extra: Partial<CampoRastreado> = {},
 ): CampoRastreado => ({
-  chave, status: "AUTOMATICO", implementado: true, metodos, fontePrincipal,
+  chave, declaracao: "AUTOMATICO", implementado: true, metodos, fontePrincipal,
   regras: [], responsavel: LEITOR, preenchidoPor: "leitor", usaIA: false, versao: 1, alteradoEm: HOJE,
   testes: [...T_LEITURA, ...T_RASTREIO], ...extra,
 });
@@ -30,18 +30,31 @@ const doDoc = (
 const derivado = (
   chave: string, formula: string, regras: AplicacaoRegra[], extra: Partial<CampoRastreado> = {},
 ): CampoRastreado => ({
-  chave, status: "CALCULADO", implementado: true, metodos: ["CALCULO"],
+  chave, declaracao: "CALCULADO", implementado: true, metodos: ["CALCULO"],
   fontePrincipal: "OUTROS_CAMPOS", regras, formula, responsavel: LEITOR, preenchidoPor: "leitor", usaIA: false,
   versao: 1, alteradoEm: HOJE, testes: [...T_LEITURA, ...T_RASTREIO], ...extra,
 });
 
-/** Campo que fecha em NÃO APLICÁVEL — resposta, não omissão. */
-const np = (chave: string, regraNP: string, depende?: string[]): CampoRastreado => ({
-  chave, status: "NAO_APLICAVEL", implementado: true, metodos: ["REGRA_DERIVADA", "NAO_APLICAVEL"],
-  fontePrincipal: "OUTROS_CAMPOS", depende,
+/**
+ * Campo AUTOMÁTICO que PODE resultar em NP.
+ *
+ * A declaração é AUTOMATICO — o campo se preenche do documento quando o dado existe. `regraNP` diz
+ * o que o faz virar NP naquele processo. A versão anterior declarava estes campos como
+ * NAO_APLICAVEL, o que descrevia a pasta de amostra e não a regra: num lote de esquina, `via2` se
+ * aplica e é preenchida normalmente.
+ *
+ * NP exige PROVA POSITIVA — leu, aplicou a regra, concluiu. Ausência de valor é NAO_ENCONTRADO.
+ */
+const podeSerNP = (
+  chave: string, fontePrincipal: Fonte, regraNP: string, extra: Partial<CampoRastreado> = {},
+): CampoRastreado => ({
+  chave, declaracao: "AUTOMATICO", implementado: true,
+  metodos: ["REGRA_DERIVADA"], fontePrincipal,
   regras: [{ regra: "MARCAR_NP", descricao: regraNP }],
-  regraNP, valoresPossiveis: ["NP"], responsavel: LEITOR, preenchidoPor: "leitor", usaIA: false,
-  versao: 1, alteradoEm: HOJE, testes: [...T_LEITURA, ...T_RASTREIO],
+  regraNP, responsavel: LEITOR, preenchidoPor: "leitor", usaIA: false,
+  versao: 2, alteradoEm: HOJE, testes: [...T_LEITURA, ...T_RASTREIO],
+  observacao: "v2 em 28/07/2026: era declarado NAO_APLICAVEL, o que sobreajustava a matriz à amostra",
+  ...extra,
 });
 
 /**
@@ -51,22 +64,23 @@ const np = (chave: string, regraNP: string, depende?: string[]): CampoRastreado 
  * existir. Preenche-se sozinho — inclusive retroativamente — quando o fato acontecer.
  */
 const aguardandoFato = (chave: string, fatoNecessario: string, fonteDoc: string): CampoRastreado => ({
-  chave, status: "AGUARDANDO_FATO", implementado: true,
-  metodos: ["BANCO_URBIS", "AGUARDANDO_FATO"],
+  chave, declaracao: "AUTOMATICO", implementado: true,
+  metodos: ["BANCO_URBIS"],
   fontePrincipal: "REGISTRO_DOCUMENTOS_EMITIDOS",
   regras: [
     { regra: "ORDEM_DE_EMISSAO", descricao: "a ordem de emissão dos despachos é a ordem das análises" },
     { regra: "MARCAR_AGUARDANDO_FATO", descricao: `sem ${fonteDoc} emitido, o campo fica aguardando o fato` },
   ],
   fatoNecessario, responsavel: "lib/lipDocumentosEmitidos.ts:camposDeDocumentosEmitidos",
-  preenchidoPor: "rota", usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
+  preenchidoPor: "rota", usaIA: false, versao: 2, alteradoEm: HOJE, testes: T_RASTREIO,
+  observacao: "v2 em 28/07/2026: a declaração passou de AGUARDANDO_FATO para AUTOMATICO — aguardar o fato é RESULTADO da execução, não característica do campo",
 });
 
 /** Depende de leitura de imagem — grupo C, ainda não implementado. */
 const pendenteVisao = (
   chave: string, fontePrincipal: Fonte, onde: string, depende?: string[],
 ): CampoRastreado => ({
-  chave, status: "PENDENTE_VISAO", implementado: false,
+  chave, declaracao: "PENDENTE_VISAO", implementado: false,
   metodos: ["VISAO_LOCALIZADA"], fontePrincipal, depende,
   regras: [{ regra: "MARCAR_SEM_DADO", descricao: "sem a leitura da imagem, fica sem dado — nunca estimado" }],
   regraSemDado: onde, aplicabilidade: onde,
@@ -119,7 +133,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     observacao: "processos.numero_projeto está null no banco; usa-se o código do processo",
   }),
   {
-    chave: "processoFisico", status: "MANUAL", implementado: false,
+    chave: "processoFisico", declaracao: "MANUAL", implementado: false,
     metodos: ["BANCO_URBIS", "ANALISTA"], fontePrincipal: "CADASTRO_PROCESSO",
     regras: [{ regra: "MARCAR_SEM_DADO", descricao: "processos.numero_os está null; sem fonte automática hoje" }],
     regraSemDado: "processos.numero_os está null em todos os processos",
@@ -127,21 +141,21 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     testes: T_RASTREIO,
   },
   {
-    chave: "licencaPrevia", status: "DOCUMENTO_AUSENTE", implementado: false,
+    chave: "licencaPrevia", declaracao: "DOCUMENTO_AUSENTE", implementado: false,
     metodos: ["DOCUMENTO_AUSENTE"], fontePrincipal: "SEM_FONTE",
     regras: [{ regra: "MARCAR_SEM_DADO", descricao: "não há documento de licença prévia na pasta do processo" }],
     regraSemDado: "documento não integra os 10 obrigatórios do SEI",
     responsavel: "—", usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO, preenchidoPor: "nao_preenchido",
   },
   {
-    chave: "cheadvN", status: "DOCUMENTO_AUSENTE", implementado: false,
+    chave: "cheadvN", declaracao: "DOCUMENTO_AUSENTE", implementado: false,
     metodos: ["DOCUMENTO_AUSENTE"], fontePrincipal: "SEM_FONTE",
     regras: [{ regra: "MARCAR_SEM_DADO", descricao: "o despacho da CHEADV não vem na pasta: ela aprova antes de chegar ao analista" }],
     regraSemDado: "fora do escopo documental do analista",
     responsavel: "—", usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO, preenchidoPor: "nao_preenchido",
   },
   {
-    chave: "dataPagtoTaxaInicial", status: "DOCUMENTO_AUSENTE", implementado: false,
+    chave: "dataPagtoTaxaInicial", declaracao: "DOCUMENTO_AUSENTE", implementado: false,
     metodos: ["DOCUMENTO_AUSENTE"], fontePrincipal: "SEM_FONTE",
     regras: [{ regra: "MARCAR_SEM_DADO", descricao: "comprovante de taxa ausente na pasta" }],
     regraSemDado: "comprovante não integra os 10 obrigatórios",
@@ -150,10 +164,10 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
 
   // 2ª a 4ª via — o Uso do Solo traz uma via só
   ...[2, 3, 4].flatMap((n) => [
-    np(`via${n}`, "o Uso do Solo lista uma via apenas", ["quantasFrentes"]),
-    np(`tipoDeVia${n}`, "o Uso do Solo lista uma via apenas", ["quantasFrentes"]),
-    np(`larguraDaVia${n}`, "o Uso do Solo lista uma via apenas", ["quantasFrentes"]),
-    np(`larguraDoPasseio${n}`, "o Uso do Solo lista uma via apenas", ["quantasFrentes"]),
+    podeSerNP(`via${n}`, "USO_DO_SOLO", "o Uso do Solo lista uma via apenas", { depende: ["quantasFrentes"] }),
+    podeSerNP(`tipoDeVia${n}`, "USO_DO_SOLO", "o Uso do Solo lista uma via apenas", { depende: ["quantasFrentes"] }),
+    podeSerNP(`larguraDaVia${n}`, "CADASTRO_LOGRADOUROS", "o Uso do Solo lista uma via apenas", { depende: ["quantasFrentes"] }),
+    podeSerNP(`larguraDoPasseio${n}`, "CADASTRO_LOGRADOUROS", "o Uso do Solo lista uma via apenas", { depende: ["quantasFrentes"] }),
   ]),
 
   // ═══════════════ DOCUMENTOS EMITIDOS PELO URBIS ═══════════════
@@ -170,22 +184,23 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   aguardandoFato("numeroDoParecerDeArquivamento", "parecer de arquivamento ainda não emitido", "parecer de arquivamento"),
   aguardandoFato("dataDoParecerDeArquivamento", "parecer de arquivamento ainda não emitido", "parecer de arquivamento"),
   {
-    chave: "houveMudancaDeAnalista", status: "AGUARDANDO_FATO", implementado: true,
+    chave: "houveMudancaDeAnalista", declaracao: "AUTOMATICO", implementado: true,
     // derivação DENTRO de uma fonte só (quantos usuários distintos emitiram), não confronto
     // entre fontes — por isso REGRA_DERIVADA e não COMPARACAO
-    metodos: ["BANCO_URBIS", "REGRA_DERIVADA", "AGUARDANDO_FATO"],
+    metodos: ["BANCO_URBIS", "REGRA_DERIVADA"],
     fontePrincipal: "REGISTRO_DOCUMENTOS_EMITIDOS",
     regras: [{ regra: "DERIVAR_DE_CAMPO", descricao: "conta usuários distintos que emitiram documento neste processo" }],
     formula: "distinct(usuario_id) > 1",
     fatoNecessario: "nenhum documento emitido ainda — sem emissão não há como saber quem analisou",
     valoresPossiveis: SIM_NAO,
     responsavel: "lib/lipDocumentosEmitidos.ts:houveMudancaDeAnalista", preenchidoPor: "rota",
-    usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
+    usaIA: false, versao: 2, alteradoEm: HOJE, testes: T_RASTREIO,
+    observacao: "v2 em 28/07/2026: declaração AGUARDANDO_FATO → AUTOMATICO",
   },
 
   // ═══════════════ TIPO DE PROCESSO E USO ═══════════════
   {
-    chave: "tipoProcessoLip", status: "AUTOMATICO", implementado: true,
+    chave: "tipoProcessoLip", declaracao: "AUTOMATICO", implementado: true,
     metodos: ["VALOR_PADRAO"], fontePrincipal: "ASSUNTO",
     regras: [], valoresPossiveis: ["APROVAÇÃO DE PROJETO"],
     responsavel: LEITOR, usaIA: false, versao: 1, alteradoEm: HOJE, testes: [...T_LEITURA, ...T_RASTREIO], preenchidoPor: "leitor",
@@ -206,13 +221,13 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     { depende: ["atendeOPorteAdmitido"], fontePrincipal: "USO_DO_SOLO", valoresPossiveis: SIM_NAO }),
 
   ...["habSeriada", "habColetiva", "quitinete", "institucional"].map((k) =>
-    np(k, "uso comercial: a tipologia habitacional/institucional não se aplica", ["comercio", "atividadeEconomica"])),
+    podeSerNP(k, "REQUERIMENTO", "uso comercial: a tipologia habitacional/institucional não se aplica", { depende: ["comercio", "atividadeEconomica"] })),
 
   // ═══════════════ LOTE ═══════════════
   pendenteVisao("dimensoesDoLoteNaCertidao", "CERTIDAO", "o corpo da matrícula é imagem em todas as páginas"),
   pendenteVisao("dimensoesDoLoteNoProjeto", "PRANCHA", "cotas da planta de situação — desenho cotado, não tabela"),
   {
-    chave: "dimensoesDoLoteConferemComA", status: "BLOQUEADO", implementado: false,
+    chave: "dimensoesDoLoteConferemComA", declaracao: "BLOQUEADO", implementado: false,
     metodos: ["COMPARACAO"], fontePrincipal: "OUTROS_CAMPOS",
     fontesComparadas: ["CERTIDAO", "PRANCHA"],
     depende: ["dimensoesDoLoteNaCertidao", "dimensoesDoLoteNoProjeto"],
@@ -225,7 +240,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     valoresPossiveis: SIM_NAO, responsavel: "(a implementar — depende do grupo C)", preenchidoPor: "nao_preenchido",
     usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
   },
-  np("dimensoesDoLoteConferemComRememb", "não há remembramento, remanejamento ou desmembramento na pasta"),
+  podeSerNP("dimensoesDoLoteConferemComRememb", "OUTROS_CAMPOS", "não há remembramento, remanejamento ou desmembramento na pasta"),
 
   // ═══════════════ USO DO SOLO ═══════════════
   doDoc("usoDoSoloN", "USO_DO_SOLO", ["TEXTO_DOCUMENTO", "REGEX"]),
@@ -235,7 +250,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   }),
   doDoc("cnae", "USO_DO_SOLO", ["TEXTO_DOCUMENTO", "DADO_ESTRUTURADO"]),
   doDoc("alertasDoUsoDoSolo", "USO_DO_SOLO", ["DADO_ESTRUTURADO", "REGRA_DERIVADA"], {
-    status: "CALCULADO",
+    declaracao: "CALCULADO",
     regras: [{ regra: "DERIVAR_DE_CAMPO", descricao: "junta corredor viário, embargo e embarque/desembarque num alerta só" }],
   }),
   derivado("usoDoSoloEParaAprovacao", "Tipo de Uso do Solo == 'APROVAÇÃO DE PROJETO'",
@@ -301,7 +316,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     aplicabilidade: "seção 'Declaração de Acessibilidade' do formulário do CAU",
     valoresPossiveis: SIM_NAO,
   }),
-  np("aArtDeExecucaoAtendeA", "a ART de execução do CREA não traz declaração de acessibilidade"),
+  podeSerNP("aArtDeExecucaoAtendeA", "ART", "a ART de execução do CREA não traz declaração de acessibilidade"),
 
   // as três conferências: a aritmética já existia, o campo é que não recebia
   ...([
@@ -321,19 +336,19 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
       })),
 
   // ═══════════════ DOCUMENTOS ═══════════════
-  np("trafegoElevadores", "edificação térrea: não há tráfego de elevador a analisar", ["pav"]),
-  np("tDC", "nenhum documento de Transferência do Direito de Construir na pasta"),
-  np("demolicao", "nenhum documento de demolição na pasta"),
-  np("smmPCorredoresDoArtigo116", "o Uso do Solo não indica corredor viário", ["alertasDoUsoDoSolo"]),
-  np("docEmitidoPeloComandoDaAeronautica", "o Uso do Solo alerta quando é área aeroportuária, e não alertou", ["alertasDoUsoDoSolo"]),
-  np("certidaoDeAcessib", "certidão de acessibilidade não regulamentada"),
+  podeSerNP("trafegoElevadores", "PRANCHA", "edificação térrea: não há tráfego de elevador a analisar", { depende: ["pav"] }),
+  podeSerNP("tDC", "OUTROS_CAMPOS", "nenhum documento de Transferência do Direito de Construir na pasta"),
+  podeSerNP("demolicao", "OUTROS_CAMPOS", "nenhum documento de demolição na pasta"),
+  podeSerNP("smmPCorredoresDoArtigo116", "USO_DO_SOLO", "o Uso do Solo não indica corredor viário", { depende: ["alertasDoUsoDoSolo"] }),
+  podeSerNP("docEmitidoPeloComandoDaAeronautica", "USO_DO_SOLO", "o Uso do Solo alerta quando é área aeroportuária, e não alertou", { depende: ["alertasDoUsoDoSolo"] }),
+  podeSerNP("certidaoDeAcessib", "ASSUNTO", "certidão de acessibilidade não regulamentada"),
   {
-    chave: "obsDocumentos", status: "AUTOMATICO", implementado: true,
+    chave: "obsDocumentos", declaracao: "AUTOMATICO", implementado: true,
     metodos: ["VALOR_PADRAO"], fontePrincipal: "ASSUNTO", regras: [],
     responsavel: "lip_campos.valor_padrao", usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO, preenchidoPor: "valor_padrao",
   },
   {
-    chave: "outorgaOnerosa", status: "BLOQUEADO", implementado: false,
+    chave: "outorgaOnerosa", declaracao: "BLOQUEADO", implementado: false,
     metodos: ["CALCULO"], fontePrincipal: "OUTROS_CAMPOS",
     depende: ["alturaDaEdificacao", "areaTotal", "areaTerreno"],
     regras: [
@@ -361,17 +376,17 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   pendenteVisao("unidHabitacionais", "PRANCHA", "o modelo da IN 007/2024 pede 'Nº DE UNIDADES' no carimbo; a prancha da amostra não traz"),
   pendenteVisao("areaTotalPrivativa", "PRANCHA", "quadro de áreas detalhado, colado como imagem"),
   pendenteVisao("alturaDaEdificacao", "PRANCHA", "cotada nos cortes — desenho, não tabela"),
-  np("acessoVertical", "edificação térrea: não há acesso vertical previsto", ["pav"]),
-  np("art163BaiaDeDesaceleracaoAa", "o Art. 163 só alcança via expressa e acesso direto proibido; a via é coletora", ["tipoDeVia1"]),
+  podeSerNP("acessoVertical", "PRANCHA", "edificação térrea: não há acesso vertical previsto", { depende: ["pav"] }),
+  podeSerNP("art163BaiaDeDesaceleracaoAa", "USO_DO_SOLO", "o Art. 163 só alcança via expressa e acesso direto proibido; a via é coletora", { depende: ["tipoDeVia1"] }),
 
   // ═══════════════ FRAÇÃO IDEAL ═══════════════
   derivado("aabEApac190", "unidade territorial é AAB/APAC e a fração declarada é 1/90",
     [{ regra: "COMPARAR_FONTES", descricao: "fração ideal declarada no UDS × unidade territorial" }],
     { depende: ["unidadeTerritorialDoUsoDoSolo"], fontePrincipal: "USO_DO_SOLO", valoresPossiveis: SIM_NAO }),
-  np("aosEApaIntegranteDaArau", "unidade territorial é AAB, não AOS/APA", ["unidadeTerritorialDoUsoDoSolo"]),
-  np("chacarasVerificarNomeDoBairroNa", "unidade territorial é AAB, não chácara", ["unidadeTerritorialDoUsoDoSolo"]),
-  np("chacarasVerificarNomeDoBairroNa2", "unidade territorial é AAB, não chácara", ["unidadeTerritorialDoUsoDoSolo"]),
-  np("quitineteEmAab130", "não há quitinete no projeto", ["quitinete"]),
+  podeSerNP("aosEApaIntegranteDaArau", "USO_DO_SOLO", "unidade territorial é AAB, não AOS/APA", { depende: ["unidadeTerritorialDoUsoDoSolo"] }),
+  podeSerNP("chacarasVerificarNomeDoBairroNa", "USO_DO_SOLO", "unidade territorial é AAB, não chácara", { depende: ["unidadeTerritorialDoUsoDoSolo"] }),
+  podeSerNP("chacarasVerificarNomeDoBairroNa2", "USO_DO_SOLO", "unidade territorial é AAB, não chácara", { depende: ["unidadeTerritorialDoUsoDoSolo"] }),
+  podeSerNP("quitineteEmAab130", "USO_DO_SOLO", "não há quitinete no projeto", { depende: ["quitinete"] }),
 
   // ═══════════════ ÁREA PERMEÁVEL ═══════════════
   ...([
@@ -395,7 +410,18 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   }),
   doDoc("nDeCaixasDeCaptacao", "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"]),
   pendenteVisao("areaImpermeabilizada", "PRANCHA", "memorial do ICCAP, colado como imagem"),
-  pendenteVisao("volumeExigidoDaCaixa", "PRANCHA", "o carimbo omite o ICCAP EXIGIDO que a IN 007/2024 obriga"),
+  /* O leitor TENTA ler do carimbo: a IN 007/2024 obriga a linha "ICCAP: EXIGIDO ... / ATENDIDO ...".
+   * Quando o projetista omite o EXIGIDO — como na amostra — o resultado é NAO_ENCONTRADO, e isso é
+   * pendência de carimbo, não limitação do leitor. Declarar PENDENTE_VISAO escondia esse fato.
+   * A trava 13b pegou: a matriz dizia que ninguém preenchia, e o leitor preenchia. */
+  doDoc("volumeExigidoDaCaixa", "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"], {
+    versao: 2,
+    ondeProcura: ["rótulo ICCAP + 'EXIGIDO'", "linha 'EXIGIDO ... m³' no carimbo"],
+    aplicabilidade: "carimbo, linha ICCAP — o modelo oficial pede EXIGIDO e ATENDIDO",
+    regraSemDado: "quando o carimbo omite o EXIGIDO, resulta NAO_ENCONTRADO — pendência contra a IN 007/2024",
+    responsavel: "lib/lerPastaSlot5.ts:lerPrancha",
+    observacao: "v2 em 28/07/2026: era PENDENTE_VISAO, mas o leitor já tenta ler do carimbo",
+  }),
 
   // ═══════════════ APROVEITAMENTO ═══════════════
   derivado("areaTotalMax75x", "areaTerreno × 7,5",
@@ -410,19 +436,19 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   derivado("indiceDeAproveitamentoDoProjetoAte", "em edificação térrea, iguala o índice total",
     [{ regra: "DERIVAR_DE_CAMPO", descricao: "sem pavimento acima do limite, o índice até o último é o total" }],
     { depende: ["indiceDeAproveitamentoDoProjetoTotal", "pav"] }),
-  np("aproveitamentoExigidoAreaDeFruicao", "área de fruição só é exigida com aproveitamento acima do básico", ["indiceDeAproveitamentoDoProjetoTotal"]),
+  podeSerNP("aproveitamentoExigidoAreaDeFruicao", "OUTROS_CAMPOS", "área de fruição só é exigida com aproveitamento acima do básico", { depende: ["indiceDeAproveitamentoDoProjetoTotal"] }),
 
   // ═══════════════ VAGAS ═══════════════
   ...["totalASerDescontadoNoCalculo", "areaOcupadaPelaAtividade", "vagasPcdExigido",
       "vagasIdosoExigido", "totalDeVagasExigidasParaEssas", "totalDeVagasAtendidasParaAtividade",
       "vagasPcdAtendidas", "vagasIdosoAtendidas", "atendeAcessoCirculacaoVagasManobrasLc",
   ].map((k) => pendenteVisao(k, "PRANCHA", "tabela de vagas colada como imagem na prancha", ["areaOcupadaPelaAtividade"])),
-  np("vagaAmbulanciaPCnaeAtivEspec", "nenhum CNAE de atividade específica de saúde", ["cnae"]),
+  podeSerNP("vagaAmbulanciaPCnaeAtivEspec", "USO_DO_SOLO", "nenhum CNAE de atividade específica de saúde", { depende: ["cnae"] }),
 
   // ═══════════════ PENDÊNCIAS NO LAUDO E OBS ═══════════════
-  np("atendeDecreto9451PUsoHab", "o Decreto 9.451 só alcança uso habitacional", ["habitacional"]),
+  podeSerNP("atendeDecreto9451PUsoHab", "OUTROS_CAMPOS", "o Decreto 9.451 só alcança uso habitacional", { depende: ["habitacional"] }),
   {
-    chave: "atendeAcessibilidade", status: "MANUAL", implementado: true,
+    chave: "atendeAcessibilidade", declaracao: "MANUAL", implementado: true,
     metodos: ["ANALISTA"], fontePrincipal: "ANALISTA",
     regras: [{ regra: "MARCAR_SEM_DADO", descricao: "julgamento do analista; o item 48 do MAC é escopo congelado e não pode ser expandido" }],
     aplicabilidade: "sempre — e nunca deve consumir token",
@@ -430,7 +456,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
   },
   {
-    chave: "observacoes", status: "AUTOMATICO", implementado: true,
+    chave: "observacoes", declaracao: "AUTOMATICO", implementado: true,
     metodos: ["REGRA_DERIVADA"], fontePrincipal: "OUTROS_CAMPOS",
     regras: [{ regra: "DERIVAR_DE_CAMPO", descricao: "recebe o log da leitura no momento do aceite em bloco" }],
     responsavel: "app/processo/ProcessoClient.tsx:aceitarPropostaPasta", preenchidoPor: "tela",

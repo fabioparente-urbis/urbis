@@ -37,8 +37,8 @@ console.log("\n── OBRIGATÓRIOS ──");
 for (const o of r.obrigatorios) if (!o.presente) console.log(`  ✘ ${o.nome}`);
 console.log("\n── CAMPOS DO LIP ──");
 const porOrigem: Record<string, string[]> = {};
-for (const [k, v] of Object.entries(r.campos)) (porOrigem[v.origem] ||= []).push(`${k.padEnd(36)} ${String(v.valor).padEnd(28)} ← ${v.fonte}`);
-for (const o of ["lido","calculado","padrao","nao_aplicavel","aguardando_fato"]) { console.log(` ${o.toUpperCase()} (${(porOrigem[o]||[]).length})`); (porOrigem[o]||[]).forEach(l=>console.log("   "+l)); }
+for (const [k, v] of Object.entries(r.campos)) (porOrigem[(v as any).resultado] ||= []).push(`${k.padEnd(36)} ${String(v.valor).padEnd(28)} ← ${v.fonte}`);
+for (const o of ["ENCONTRADO","CALCULADO","NAO_APLICAVEL","NAO_ENCONTRADO","FONTE_ILEGIVEL","AGUARDANDO_FATO","DOCUMENTO_AUSENTE","BLOQUEADO","NAO_IMPLEMENTADO","MANUAL"]) { console.log(` ${o.toUpperCase()} (${(porOrigem[o]||[]).length})`); (porOrigem[o]||[]).forEach(l=>console.log("   "+l)); }
 console.log(`\n  TOTAL: ${Object.keys(r.campos).length} de 136 campos`);
 console.log("\n── CONFERÊNCIAS ──");
 const ic: any = { "CONFERE":"✔", "NÃO CONFERE":"✘", "ALERTA":"⚠", "SEM DADO":"?", "INFORMATIVO":"i" };

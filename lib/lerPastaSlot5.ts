@@ -68,19 +68,50 @@ export type Conferencia = {
 };
 
 /**
- * `origem` diz COMO o valor chegou. `nao_aplicavel` é resposta legítima e frequente: metade do LIP
- * do slot 5 trata de uso habitacional, e a amostra é comercial térrea. Campo que fecha em NP está
- * respondido, não esquecido.
+ * O que aconteceu com um campo NAQUELE processo.
+ *
+ * `resultado` é execução, não declaração — a matriz (lib/rastreabilidade) diz o que o campo PODE
+ * ser; isto diz o que ele FOI. Nenhum campo termina ausente: a soma dos resultados fecha em 136.
+ *
+ * NAO_ENCONTRADO ≠ NAO_APLICAVEL ≠ FONTE_ILEGIVEL:
+ *   NAO_APLICAVEL   leu, aplicou regra, concluiu que não se aplica — exige `evidencia`
+ *   NAO_ENCONTRADO  procurou onde devia, o texto existe, o dado não estava lá — exige `tentativa`
+ *   FONTE_ILEGIVEL  o documento não oferece conteúdo utilizável — exige `tentativa.motivoIlegivel`
+ * A distinção existe porque a correção é diferente: extrator, regra ou OCR.
  */
-export type CampoLido = {
-  valor: string;
-  origem: "lido" | "calculado" | "padrao" | "nao_aplicavel" | "aguardando_fato";
+export type ResultadoCampo = {
+  resultado: ResultadoExec;
+  valor?: string;
   fonte: string;
+  /** o que foi lido e permitiu concluir NP. Obrigatório em NAO_APLICAVEL. */
+  evidencia?: string;
+  /** onde procurou e por que não achou. Obrigatório em NAO_ENCONTRADO e FONTE_ILEGIVEL. */
+  tentativa?: TentativaLeitura;
 };
+
+export type ResultadoExec =
+  | "ENCONTRADO" | "CALCULADO" | "NAO_APLICAVEL" | "NAO_ENCONTRADO" | "FONTE_ILEGIVEL"
+  | "DOCUMENTO_AUSENTE" | "AGUARDANDO_FATO" | "MANUAL" | "BLOQUEADO" | "NAO_IMPLEMENTADO";
+
+export type TentativaLeitura = {
+  documento?: string;
+  hash?: string;
+  pagina?: number | string;
+  procurou: string[];
+  temCamadaTexto?: boolean;
+  charsTexto?: number;
+  motivoIlegivel?:
+    | "SEM_CAMADA_TEXTO" | "RESOLUCAO_INSUFICIENTE" | "TEXTO_CORROMPIDO"
+    | "PARCIALMENTE_ILEGIVEL" | "CONTEUDO_NAO_INTERPRETAVEL";
+  motivo: string;
+};
+
+/** compatibilidade: a tela ainda usa `origem` para colorir */
+export type CampoLido = ResultadoCampo & { origem?: string };
 
 export type ResultadoLeitura = {
   catalogo: ItemCatalogo[];
-  campos: Record<string, CampoLido>;
+  campos: Record<string, ResultadoCampo>;
   conferencias: Conferencia[];
   obrigatorios: { papel: string; nome: string; presente: boolean }[];
   duplicidades: { mesmaRodada: string[][]; entreRodadas: string[][] };
@@ -691,10 +722,72 @@ function vigentes(catalogo: ItemCatalogo[]) {
 const TOL = 0.02; // tolerância de arredondamento, em m² / m³
 
 function preencherLip(vig: Record<string, ItemCatalogo>) {
-  const C: Record<string, CampoLido> = {};
-  const set = (chave: string, valor: any, origem: CampoLido["origem"], fonte: string) => {
-    if (valor == null || valor === "" || valor === "—") return;
-    C[chave] = { valor: String(valor), origem, fonte };
+  const C: Record<string, ResultadoCampo> = {};
+
+  /**
+   * O `set` NUNCA sai calado.
+   *
+   * A versão anterior fazia `if (valor == null) return`, e o campo simplesmente não existia no
+   * resultado: nem NP, nem erro, nem aviso — sumia. Isso quebrava, em silêncio, a própria regra de
+   * "nenhum campo termina vazio sem justificativa", e escondia justamente o caso mais frequente na
+   * prática: o projetista montou o PDF de outro jeito e o rótulo não estava onde se procurou.
+   *
+   * Agora, sem valor, grava-se NAO_ENCONTRADO com ONDE se procurou — que é o insumo para evoluir
+   * o leitor em vez de descobrir a falha por acaso, meses depois.
+   */
+  const set = (
+    chave: string, valor: any, resultado: ResultadoExec, fonte: string,
+    procurou?: string[], doc?: ItemCatalogo,
+  ) => {
+    if (valor != null && valor !== "" && valor !== "—") {
+      C[chave] = { valor: String(valor), resultado, fonte };
+      return;
+    }
+    // sem valor: o motivo depende de o documento existir e ser legível
+    if (!doc) {
+      C[chave] = {
+        resultado: "NAO_ENCONTRADO", fonte,
+        tentativa: { procurou: procurou ?? [fonte], motivo: "documento de origem não está no catálogo" },
+      };
+      return;
+    }
+    if (!doc.temCamadaTexto) {
+      C[chave] = {
+        resultado: "FONTE_ILEGIVEL", fonte,
+        tentativa: {
+          documento: doc.nome, hash: doc.hash, procurou: procurou ?? [fonte],
+          temCamadaTexto: false, charsTexto: doc.charsTexto,
+          motivoIlegivel: "SEM_CAMADA_TEXTO",
+          motivo: `${doc.nome} não tem camada de texto (${doc.paginas} página(s) digitalizadas)`,
+        },
+      };
+      return;
+    }
+    C[chave] = {
+      resultado: "NAO_ENCONTRADO", fonte,
+      tentativa: {
+        documento: doc.nome, hash: doc.hash, procurou: procurou ?? [fonte],
+        temCamadaTexto: true, charsTexto: doc.charsTexto,
+        motivo: `o padrão não localizou o dado em ${doc.nome}, que tem texto legível`,
+      },
+    };
+  };
+
+  /** valor lido de documento */
+  const lido = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo, procurou?: string[]) =>
+    set(chave, valor, "ENCONTRADO", fonte, procurou, doc);
+  /** resultado de conta ou derivação */
+  const calc = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo, procurou?: string[]) =>
+    set(chave, valor, "CALCULADO", fonte, procurou, doc);
+
+  /**
+   * NÃO APLICÁVEL exige PROVA POSITIVA: só se produz NP quando alguma informação foi lida, uma
+   * regra declarada foi aplicada, e a regra concluiu que o campo não se aplica. Ausência de valor
+   * nunca gera NP — isso é NAO_ENCONTRADO, e confundir os dois esconde falha de leitura atrás de
+   * uma resposta que parece decidida.
+   */
+  const np = (chave: string, regra: string, evidencia: string) => {
+    C[chave] = { valor: "NP", resultado: "NAO_APLICAVEL", fonte: regra, evidencia };
   };
 
   const uds = vig.uso_solo?.dados ?? {};
@@ -706,53 +799,50 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
   const aCx = vig.art_caixa?.dados ?? {};
 
   // identificação
-  set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "lido", "Uso do Solo (Nome da Via)");
-  set("quadra", uds.quadra, "lido", "Uso do Solo");
-  set("lote", uds.lote, "lido", "Uso do Solo");
-  set("bairro", uds.bairro, "lido", "Uso do Solo");
-  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "lido", "Uso do Solo");
-  set("proprietario", rq.interessado, "lido", "Requerimento");
-  set("nome_responsavel_arq", pr.arquiteto, "lido", "carimbo da prancha");
-  set("cau", pr.cau, "lido", "carimbo da prancha");
-  set("nome_responsavel_eng", pr.engenheiro, "lido", "carimbo da prancha");
-  set("crea", pr.crea, "lido", "carimbo da prancha");
-  set("quantasFrentes", uds.via ? 1 : null, "calculado", "1 via no Uso do Solo");
-  set("esquina", uds.via ? "NÃO" : null, "calculado", "1 frente");
+  set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "ENCONTRADO", "Uso do Solo (Nome da Via)");
+  set("quadra", uds.quadra, "ENCONTRADO", "Uso do Solo");
+  set("lote", uds.lote, "ENCONTRADO", "Uso do Solo");
+  set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo");
+  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo");
+  set("proprietario", rq.interessado, "ENCONTRADO", "Requerimento");
+  set("nome_responsavel_arq", pr.arquiteto, "ENCONTRADO", "carimbo da prancha");
+  set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha");
+  set("nome_responsavel_eng", pr.engenheiro, "ENCONTRADO", "carimbo da prancha");
+  set("crea", pr.crea, "ENCONTRADO", "carimbo da prancha");
+  set("quantasFrentes", uds.via ? 1 : null, "CALCULADO", "1 via no Uso do Solo");
+  set("esquina", uds.via ? "NÃO" : null, "CALCULADO", "1 frente");
 
   // uso do solo
-  set("usoDoSoloN", uds.numero, "lido", "Uso do Solo");
-  set("unidadeTerritorialDoUsoDoSolo", uds.unidadeTerritorial, "lido", "Uso do Solo");
-  set("usoDoSoloEParaAprovacao", uds.tipo ? (uds.tipo === "APROVAÇÃO DE PROJETO" ? "SIM" : "NÃO") : null,
-      "calculado", "Tipo de Uso do Solo");
-  set("tipoDeVia1", uds.classificacaoVia, "lido", "Uso do Solo");
-  set("anexouCertidaoDeCorredorViario", uds.via ? (uds.corredorViario ? "SIM" : "NÃO") : null,
-      "calculado", "campo Corredor Viário do UDS");
-  set("atendeOPorteAdmitido", /sem limite/i.test(uds.areaMaxima ?? "") ? "SIM" : null, "calculado", uds.areaMaxima ?? "");
-  set("cnae", uds.cnaes?.length ? uds.cnaes.map((c: any) => c.codigo).join(" / ") : null, "lido", "Uso do Solo");
+  set("usoDoSoloN", uds.numero, "ENCONTRADO", "Uso do Solo");
+  set("unidadeTerritorialDoUsoDoSolo", uds.unidadeTerritorial, "ENCONTRADO", "Uso do Solo");
+  set("usoDoSoloEParaAprovacao", uds.tipo ? (uds.tipo === "APROVAÇÃO DE PROJETO" ? "SIM" : "NÃO") : null, "CALCULADO", "Tipo de Uso do Solo");
+  set("tipoDeVia1", uds.classificacaoVia, "ENCONTRADO", "Uso do Solo");
+  set("anexouCertidaoDeCorredorViario", uds.via ? (uds.corredorViario ? "SIM" : "NÃO") : null, "CALCULADO", "campo Corredor Viário do UDS");
+  set("atendeOPorteAdmitido", /sem limite/i.test(uds.areaMaxima ?? "") ? "SIM" : null, "CALCULADO", uds.areaMaxima ?? "");
+  set("cnae", uds.cnaes?.length ? uds.cnaes.map((c: any) => c.codigo).join(" / ") : null, "ENCONTRADO", "Uso do Solo");
 
   // ART
-  set("numeroDeArtProjeto", aProj.numero, "lido", "ART de projeto");
-  set("numeroDeArtExecucao", aExec.numero, "lido", "ART de execução");
-  set("numeroDeArtCaixa", aCx.numero, "lido",
+  set("numeroDeArtProjeto", aProj.numero, "ENCONTRADO", "ART de projeto");
+  set("numeroDeArtExecucao", aExec.numero, "ENCONTRADO", "ART de execução");
+  set("numeroDeArtCaixa", aCx.numero, "ENCONTRADO",
       vig.art_caixa?.caixaDedicada ? "ART dedicada à caixa de recarga"
       : vig.art_caixa?.caixaRepetida ? `repetido da ${vig.art_caixa.caixaRepetida} — a caixa não tem ART própria`
       : "ART de caixa");
-  set("anexouArtRrtProjeto", vig.art_projeto ? "SIM" : "NÃO", "calculado", "catálogo");
-  set("anexouArtRrtExecucao", vig.art_execucao ? "SIM" : "NÃO", "calculado", "catálogo");
-  set("anexouArtRrtCaixa", vig.art_caixa ? "SIM" : "NÃO", "calculado", "catálogo");
-  set("artDeProjetoAtendeAAcessibilidade", aProj.declaracaoAcessibilidade ? "SIM" : null,
-      "lido", "declaração de acessibilidade na ART de projeto");
-  set("aArtDeExecucaoAtendeA", aExec.declaracaoAcessibilidade ? "SIM" : null, "lido", "ART de execução");
+  set("anexouArtRrtProjeto", vig.art_projeto ? "SIM" : "NÃO", "CALCULADO", "catálogo");
+  set("anexouArtRrtExecucao", vig.art_execucao ? "SIM" : "NÃO", "CALCULADO", "catálogo");
+  set("anexouArtRrtCaixa", vig.art_caixa ? "SIM" : "NÃO", "CALCULADO", "catálogo");
+  set("artDeProjetoAtendeAAcessibilidade", aProj.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "declaração de acessibilidade na ART de projeto");
+  set("aArtDeExecucaoAtendeA", aExec.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "ART de execução");
 
   // dados do projeto
-  set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "lido", "carimbo da prancha");
-  set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "lido", "carimbo da prancha");
-  set("pav", pr.pavimentos, "lido", "carimbo da prancha");
-  set("certidao", ct.matricula, "lido", "Certidão de Matrícula");
+  set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "ENCONTRADO", "carimbo da prancha");
+  set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "ENCONTRADO", "carimbo da prancha");
+  set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha");
+  set("certidao", ct.matricula, "ENCONTRADO", "Certidão de Matrícula");
 
   // caixa de recarga — lido para CONFRONTAR, nunca para valer por si
-  set("nDeCaixasDeCaptacao", pr.numeroCaixas, "lido", "carimbo da prancha");
-  set("volumeDaCaixaDeRecarga", pr.volumeCaixa != null ? fmt(pr.volumeCaixa) : null, "lido",
+  set("nDeCaixasDeCaptacao", pr.numeroCaixas, "ENCONTRADO", "carimbo da prancha");
+  set("volumeDaCaixaDeRecarga", pr.volumeCaixa != null ? fmt(pr.volumeCaixa) : null, "ENCONTRADO",
       "carimbo da prancha (a conferir por cálculo)");
 
   /**
@@ -765,16 +855,16 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
     const v = d.atividades?.find((x: Atividade) => re.test(x.unidade))?.quantidade;
     return v ?? null;
   };
-  set("areaNaArtDeProjeto", qtd(aProj, /QUADRAD/i), "lido", "quadro de atividade técnica da ART de projeto");
-  set("areaNaArtDeExecucao", qtd(aExec, /QUADRAD/i), "lido", "quadro de atividade técnica da ART de execução");
-  set("volumeNaArtDeCaixa", qtd(aCx, /C[ÚU]BIC/i), "lido", "quadro de atividade técnica da ART de caixa");
-  set("areaPermeavelProjetada", pr.permeavel != null ? fmt(pr.permeavel) : null, "lido",
+  set("areaNaArtDeProjeto", qtd(aProj, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de projeto");
+  set("areaNaArtDeExecucao", qtd(aExec, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de execução");
+  set("volumeNaArtDeCaixa", qtd(aCx, /C[ÚU]BIC/i), "ENCONTRADO", "quadro de atividade técnica da ART de caixa");
+  set("areaPermeavelProjetada", pr.permeavel != null ? fmt(pr.permeavel) : null, "ENCONTRADO",
       "cobertura vegetal permeável no carimbo");
-  set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "lido",
+  set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "ENCONTRADO",
       "ICCAP EXIGIDO no carimbo (IN 007/2024)");
   // área impermeabilizada: quando o carimbo traz o EXIGIDO, ela é dedutível do parâmetro do UDS
   if (pr.iccapExigido != null && uds.iccapDivisor) {
-    set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "calculado",
+    set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "CALCULADO",
         `${fmt(pr.iccapExigido)} m³ × ${uds.iccapDivisor} m²/m³ (parâmetro do Uso do Solo)`);
   }
   // alertas do Uso do Solo: o que o próprio documento sinaliza e muda a análise
@@ -783,27 +873,26 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
     if (uds.corredorViario) alertas.push(`corredor viário: ${uds.corredorViario}`);
     if (uds.embargo && /SIM/i.test(uds.embargo)) alertas.push("imóvel COM EMBARGO");
     if (uds.embarqueDesembarque && /SIM/i.test(uds.embarqueDesembarque)) alertas.push("exige embarque/desembarque");
-    set("alertasDoUsoDoSolo", alertas.length ? alertas.join(" · ") : (uds.numero ? "nenhum alerta no documento" : null),
-        "calculado", "Uso do Solo");
+    set("alertasDoUsoDoSolo", alertas.length ? alertas.join(" · ") : (uds.numero ? "nenhum alerta no documento" : null), "CALCULADO", "Uso do Solo");
   }
 
   // fração ideal
   if (/90,00m²/.test(uds.fracaoIdeal ?? "") && /ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
-    set("aabEApac190", "SIM", "calculado", uds.fracaoIdeal);
+    set("aabEApac190", "SIM", "CALCULADO", uds.fracaoIdeal);
   }
 
   // área permeável exigida — fórmula sobre o parâmetro do UDS
   if (pr.areaTerreno && uds.paisagisticoMin) {
-    set("opcao1TotalExigidoAreaTerreno", fmt((pr.areaTerreno * uds.paisagisticoMin) / 100), "calculado",
+    set("opcao1TotalExigidoAreaTerreno", fmt((pr.areaTerreno * uds.paisagisticoMin) / 100), "CALCULADO",
         `${fmt(pr.areaTerreno)} m² × ${uds.paisagisticoMin}%`);
-    set("opcao2TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.10), "calculado", `${fmt(pr.areaTerreno)} m² × 10%`);
-    set("opcao2TotalExigidoAreaTerreno2", fmt(pr.areaTerreno * 0.05), "calculado", `${fmt(pr.areaTerreno)} m² × 5%`);
-    set("opcao3TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.25), "calculado", `${fmt(pr.areaTerreno)} m² × 25%`);
+    set("opcao2TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.10), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 10%`);
+    set("opcao2TotalExigidoAreaTerreno2", fmt(pr.areaTerreno * 0.05), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 5%`);
+    set("opcao3TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.25), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 25%`);
   }
 
-  set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "padrao", "valor padrão do assunto");
-  set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "lido", "Requerimento");
-  set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "calculado", "CNAEs no Uso do Solo");
+  set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "ENCONTRADO", "valor padrão do assunto");
+  set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "ENCONTRADO", "Requerimento");
+  set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "CALCULADO", "CNAEs no Uso do Solo");
 
   /* ══════════════════════════════════════════════════════════════════════════════
    * GRUPO A — sem IA. Regra sobre dado já lido, ou resultado de conferência que já
@@ -815,63 +904,61 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
    * não havia nada a preencher. Fechá-los em NP com o motivo à vista é o que faz o
    * LIP virar retrato do processo em vez de formulário meio preenchido.
    * ══════════════════════════════════════════════════════════════════════════════ */
-  const np = (chave: string, motivo: string) => set(chave, "NP", "nao_aplicavel", motivo);
 
   // ── 2ª a 4ª via: só existem quando o imóvel tem mais de uma frente
   const umaVia = !!uds.via && !uds.via2;
   if (umaVia) {
     for (const n of [2, 3, 4]) {
-      np(`via${n}`, "o Uso do Solo traz uma via só");
-      np(`tipoDeVia${n}`, "o Uso do Solo traz uma via só");
-      np(`larguraDaVia${n}`, "o Uso do Solo traz uma via só");
-      np(`larguraDoPasseio${n}`, "o Uso do Solo traz uma via só");
+      np(`via${n}`, "o Uso do Solo traz uma via só", `quantasFrentes = ${C.quantasFrentes?.valor ?? "1"}, lido do Uso do Solo`);
+      np(`tipoDeVia${n}`, "o Uso do Solo traz uma via só", `quantasFrentes = ${C.quantasFrentes?.valor ?? "1"}, lido do Uso do Solo`);
+      np(`larguraDaVia${n}`, "o Uso do Solo traz uma via só", `quantasFrentes = ${C.quantasFrentes?.valor ?? "1"}, lido do Uso do Solo`);
+      np(`larguraDoPasseio${n}`, "o Uso do Solo traz uma via só", `quantasFrentes = ${C.quantasFrentes?.valor ?? "1"}, lido do Uso do Solo`);
     }
   }
 
   // ── tipo de uso: derivado do que o requerimento marca e do que o UDS lista
   const ehComercial = /comercial/i.test(rq.tipoUso ?? "") || (uds.cnaes?.length ?? 0) > 0;
   const ehHabitacional = /residencial|habitacional/i.test(rq.tipoUso ?? "");
-  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "lido", "Requerimento");
+  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "ENCONTRADO", "Requerimento");
 
   if (ehComercial && !ehHabitacional) {
-    np("habSeriada", "uso comercial");
-    np("habColetiva", "uso comercial");
-    np("quitinete", "uso comercial");
-    np("institucional", "uso comercial");
-    np("atendeDecreto9451PUsoHab", "o Decreto 9.451 só alcança uso habitacional");
+    np("habSeriada", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
+    np("habColetiva", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
+    np("quitinete", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
+    np("institucional", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
+    np("atendeDecreto9451PUsoHab", "o Decreto 9.451 só alcança uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── térreo: não há acesso vertical nem tráfego de elevador para analisar
   const pav = num(pr.pavimentos);
   if (pav === 1) {
-    np("trafegoElevadores", "edificação térrea");
-    np("acessoVertical", "edificação térrea");
+    np("trafegoElevadores", "edificação térrea", "regra aplicada sobre dado já lido nesta leitura");
+    np("acessoVertical", "edificação térrea", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── documentos: presença no catálogo, ou alerta do próprio Uso do Solo
   if (vig.uso_solo) {
-    np("docEmitidoPeloComandoDaAeronautica",
-       "o Uso do Solo alerta quando é área aeroportuária, e não alertou");
-    if (!uds.corredorViario) np("smmPCorredoresDoArtigo116", "sem corredor viário no Uso do Solo");
+    np("docEmitidoPeloComandoDaAeronautica", "o Uso do Solo alerta quando é área aeroportuária, e não alertou", "regra aplicada sobre dado já lido nesta leitura");
+    if (!uds.corredorViario) np("smmPCorredoresDoArtigo116", "sem corredor viário no Uso do Solo", "regra aplicada sobre dado já lido nesta leitura");
     // Art. 163 só alcança via expressa e acesso direto proibido
     if (uds.classificacaoVia && !/EXPRESSA|MARGINAL/i.test(uds.classificacaoVia)) {
-      np("art163BaiaDeDesaceleracaoAa", `via ${uds.classificacaoVia.toLowerCase()}`);
+      np("art163BaiaDeDesaceleracaoAa", `via ${uds.classificacaoVia.toLowerCase()}`, "regra aplicada sobre dado já lido nesta leitura");
     }
   }
   if (vig.projeto) {
-    np("tDC", "nenhum documento de T.D.C. na pasta");
-    np("demolicao", "nenhum documento de demolição na pasta");
-    np("certidaoDeAcessib", "certidão de acessibilidade não regulamentada");
-    np("dimensoesDoLoteConferemComRememb", "sem remembramento, remanejamento ou desmembramento na pasta");
+    np("tDC", "nenhum documento de T.D.C. na pasta", "regra aplicada sobre dado já lido nesta leitura");
+    np("demolicao", "nenhum documento de demolição na pasta", "regra aplicada sobre dado já lido nesta leitura");
+    np("certidaoDeAcessib", "certidão de acessibilidade não regulamentada", "regra aplicada sobre dado já lido nesta leitura");
+    np("dimensoesDoLoteConferemComRememb", "sem remembramento, remanejamento ou desmembramento na pasta", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── a ART de execução do CREA não traz declaração de acessibilidade
   if (vig.art_execucao && !aExec.declaracaoAcessibilidade) {
-    np("aArtDeExecucaoAtendeA", "a ART de execução não traz declaração de acessibilidade");
+    np("aArtDeExecucaoAtendeA", "a ART de execução não traz declaração de acessibilidade", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── coordenadas: estão na ART, e o campo era digitado à mão
-  set("coordenadas", aExec.coordenadas ?? aProj.coordenadas ?? aCx.coordenadas, "lido",
+  set("coordenadas", aExec.coordenadas ?? aProj.coordenadas ?? aCx.coordenadas, "ENCONTRADO",
       "campo Coordenadas Geográficas da ART");
 
   /* ── endereço: comparar quadra e lote SEPARADAMENTE, e normalizados.
@@ -911,7 +998,7 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
       }
     }
     if (comparou) {
-      set("oEnderecoEstaCorretoNoUso", divergentes.length ? "NÃO" : "SIM", "calculado",
+      set("oEnderecoEstaCorretoNoUso", divergentes.length ? "NÃO" : "SIM", "CALCULADO",
           divergentes.length
             ? `Uso do Solo diz quadra ${uds.quadra} lote ${uds.lote}; diverge em ${divergentes.join(" · ")}`
             : `quadra ${uds.quadra} e lote ${uds.lote} batem no carimbo e no requerimento`);
@@ -927,11 +1014,11 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
   const qtdArt = (d: any, re: RegExp) =>
     num(d.atividades?.find((x: Atividade) => re.test(x.unidade))?.quantidade);
 
-  set("aAreaNaArtDeProjeto", confere(qtdArt(aProj, /QUADRAD/i), pr.areaTotalConstrucao), "calculado",
+  set("aAreaNaArtDeProjeto", confere(qtdArt(aProj, /QUADRAD/i), pr.areaTotalConstrucao), "CALCULADO",
       "área da ART de projeto × área do carimbo");
-  set("aAreaNaArtDeExecucao", confere(qtdArt(aExec, /QUADRAD/i), pr.areaTotalConstrucao), "calculado",
+  set("aAreaNaArtDeExecucao", confere(qtdArt(aExec, /QUADRAD/i), pr.areaTotalConstrucao), "CALCULADO",
       "área da ART de execução × área do carimbo");
-  set("volumeConfereComOProjeto", confere(qtdArt(aCx, /C[ÚU]BIC/i), pr.volumeCaixa), "calculado",
+  set("volumeConfereComOProjeto", confere(qtdArt(aCx, /C[ÚU]BIC/i), pr.volumeCaixa), "CALCULADO",
       "volume da ART de caixa × volume do carimbo");
 
   /* ══════════════════════════════════════════════════════════════════════════════
@@ -939,27 +1026,26 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
    * ══════════════════════════════════════════════════════════════════════════════ */
 
   // ── classificação de uso e porte
-  set("habitacional", ehHabitacional ? "SIM" : ehComercial ? "NÃO" : null, "calculado",
+  set("habitacional", ehHabitacional ? "SIM" : ehComercial ? "NÃO" : null, "CALCULADO",
       "derivado do tipo de uso do requerimento e dos CNAEs do Uso do Solo");
-  set("misto", ehHabitacional && ehComercial ? "SIM" : (ehComercial || ehHabitacional) ? "NÃO" : null,
-      "calculado", "há uso habitacional e econômico ao mesmo tempo?");
+  set("misto", ehHabitacional && ehComercial ? "SIM" : (ehComercial || ehHabitacional) ? "NÃO" : null, "CALCULADO", "há uso habitacional e econômico ao mesmo tempo?");
   if (uds.areaMaxima) {
-    set("grandePorte", /sem limite/i.test(uds.areaMaxima) ? "NÃO" : null, "calculado",
+    set("grandePorte", /sem limite/i.test(uds.areaMaxima) ? "NÃO" : null, "CALCULADO",
         `porte admitido no Uso do Solo: ${uds.areaMaxima}`);
   }
 
   // ── fração ideal: só se aplica por unidade territorial, e uma exclui as outras
   if (/ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
-    np("aosEApaIntegranteDaArau", "unidade territorial é AAB");
-    np("chacarasVerificarNomeDoBairroNa", "unidade territorial é AAB, não chácara");
-    np("chacarasVerificarNomeDoBairroNa2", "unidade territorial é AAB, não chácara");
-    if (!/quitinete/i.test(rq.tipoUso ?? "")) np("quitineteEmAab130", "não há quitinete no projeto");
+    np("aosEApaIntegranteDaArau", "unidade territorial é AAB", "regra aplicada sobre dado já lido nesta leitura");
+    np("chacarasVerificarNomeDoBairroNa", "unidade territorial é AAB, não chácara", "regra aplicada sobre dado já lido nesta leitura");
+    np("chacarasVerificarNomeDoBairroNa2", "unidade territorial é AAB, não chácara", "regra aplicada sobre dado já lido nesta leitura");
+    if (!/quitinete/i.test(rq.tipoUso ?? "")) np("quitineteEmAab130", "não há quitinete no projeto", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── vaga de ambulância: só para CNAE de atividade específica (saúde)
   if (uds.cnaes?.length) {
     const saude = uds.cnaes.some((c: any) => /^86|sa[úu]de|hospital|cl[íi]nic/i.test(c.codigo + " " + c.denominacao));
-    if (!saude) np("vagaAmbulanciaPCnaeAtivEspec", "nenhum CNAE de atividade específica de saúde");
+    if (!saude) np("vagaAmbulanciaPCnaeAtivEspec", "nenhum CNAE de atividade específica de saúde", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   /* ── APROVEITAMENTO — fórmula pura sobre área e pavimentos.
@@ -968,17 +1054,16 @@ function preencherLip(vig: Record<string, ItemCatalogo>) {
    * coincidem, e dizer isso é mais honesto que repetir o número sem explicar. */
   if (pr.areaTotalConstrucao && pr.areaTerreno) {
     const ia = pr.areaTotalConstrucao / pr.areaTerreno;
-    set("areaTotalMax75x", fmt(pr.areaTerreno * 7.5), "calculado",
+    set("areaTotalMax75x", fmt(pr.areaTerreno * 7.5), "CALCULADO",
         `${fmt(pr.areaTerreno)} m² × 7,5 (máximo do coeficiente)`);
-    set("indiceDeAproveitamentoDoProjetoTotal", fmt(ia), "calculado",
+    set("indiceDeAproveitamentoDoProjetoTotal", fmt(ia), "CALCULADO",
         `${fmt(pr.areaTotalConstrucao)} ÷ ${fmt(pr.areaTerreno)}`);
     if (pav === 1) {
-      set("areaAteXxPav", fmt(pr.areaTotalConstrucao), "calculado",
+      set("areaAteXxPav", fmt(pr.areaTotalConstrucao), "CALCULADO",
           "edificação térrea: a área até o último pavimento é a área total");
-      set("indiceDeAproveitamentoDoProjetoAte", fmt(ia), "calculado",
+      set("indiceDeAproveitamentoDoProjetoAte", fmt(ia), "CALCULADO",
           "edificação térrea: o índice até o último pavimento é o índice total");
-      np("aproveitamentoExigidoAreaDeFruicao",
-         "área de fruição só é exigida com aproveitamento acima do básico");
+      np("aproveitamentoExigidoAreaDeFruicao", "área de fruição só é exigida com aproveitamento acima do básico", "regra aplicada sobre dado já lido nesta leitura");
     }
   }
 

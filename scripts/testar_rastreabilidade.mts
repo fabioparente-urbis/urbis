@@ -69,10 +69,10 @@ t("3. não há campo fantasma não documentado", naoDeclarados.length === 0,
   `declarados como fantasma mas existem no banco: ${naoDeclarados.join(", ")}`);
 
 secao("6-11 · qualidade de cada declaração");
-const semStatus = campos.filter((c) => !c.status);
-t("6. todo campo tem status", semStatus.length === 0, semStatus.map((c) => c.chave).join(", "));
+const semStatus = campos.filter((c) => !c.declaracao);
+t("6. todo campo tem declaração", semStatus.length === 0, semStatus.map((c) => c.chave).join(", "));
 
-const npSemMotivo = campos.filter((c) => c.status === "NAO_APLICAVEL" && !c.regraNP?.trim());
+const npSemMotivo = campos.filter((c) => c.regraNP != null && !c.regraNP?.trim());
 t("7. todo NP tem justificativa", npSemMotivo.length === 0, npSemMotivo.map((c) => c.chave).join(", "));
 
 const calcSemFormula = campos.filter(
@@ -84,11 +84,11 @@ const cmpIncompleta = campos.filter(
 t("9. toda comparação tem fontes e regra", cmpIncompleta.length === 0, cmpIncompleta.map((c) => c.chave).join(", "));
 
 const autoSemOrigem = campos.filter(
-  (c) => (c.status === "AUTOMATICO" || c.status === "CALCULADO") && (!c.fontePrincipal || c.fontePrincipal === "SEM_FONTE"));
+  (c) => (c.declaracao === "AUTOMATICO" || c.declaracao === "CALCULADO") && (!c.fontePrincipal || c.fontePrincipal === "SEM_FONTE"));
 t("10. todo campo automático tem origem", autoSemOrigem.length === 0, autoSemOrigem.map((c) => c.chave).join(", "));
 
-const fatoSemDescricao = campos.filter((c) => c.status === "AGUARDANDO_FATO" && !c.fatoNecessario?.trim());
-t("11. todo AGUARDANDO_FATO descreve o fato", fatoSemDescricao.length === 0, fatoSemDescricao.map((c) => c.chave).join(", "));
+const fatoSemDescricao = campos.filter((c) => c.fatoNecessario != null && !c.fatoNecessario.trim());
+t("11. todo fato necessário está descrito", fatoSemDescricao.length === 0, fatoSemDescricao.map((c) => c.chave).join(", "));
 
 // exigências que decorrem do próprio contrato
 const semResponsavel = campos.filter((c) => !c.responsavel?.trim());
@@ -136,7 +136,7 @@ if (!fs.existsSync(AMOSTRA)) {
   const prometeuNaoCumpriu = campos.filter(
     (c) => c.implementado && c.preenchidoPor === "leitor" && !preenchidos.has(c.chave));
   t("13a. tudo que a matriz diz que o LEITOR preenche foi preenchido", prometeuNaoCumpriu.length === 0,
-    prometeuNaoCumpriu.map((c) => `${c.chave} (${c.status})`).join(", "));
+    prometeuNaoCumpriu.map((c) => `${c.chave} (${c.declaracao})`).join(", "));
 
   const preencheuSemDeclarar = [...preenchidos].filter((k) => {
     const c = porChave.get(k);
@@ -145,11 +145,17 @@ if (!fs.existsSync(AMOSTRA)) {
   t("13b. nada foi preenchido pelo leitor sem estar declarado como tal", preencheuSemDeclarar.length === 0,
     preencheuSemDeclarar.join(", "));
 
-  // NP declarado tem que sair como NP de verdade
-  const npErrado = campos.filter((c) => c.status === "NAO_APLICAVEL" && preenchidos.has(c.chave)
-    && r.campos[c.chave].origem !== "nao_aplicavel");
-  t("13c. campo declarado NP saiu como não-aplicável", npErrado.length === 0,
-    npErrado.map((c) => `${c.chave} saiu como ${r.campos[c.chave].origem}`).join(", "));
+  /* NP exige PROVA POSITIVA: leu, aplicou regra, concluiu. Ausência de valor é NAO_ENCONTRADO. */
+  const npSemEvidencia = Object.entries(r.campos)
+    .filter(([, v]: any) => v.resultado === "NAO_APLICAVEL" && !v.evidencia?.trim());
+  t("13c. todo NP produzido traz evidência positiva", npSemEvidencia.length === 0,
+    npSemEvidencia.map(([k]) => k).join(", "));
+
+  const semTentativa = Object.entries(r.campos)
+    .filter(([, v]: any) => (v.resultado === "NAO_ENCONTRADO" || v.resultado === "FONTE_ILEGIVEL")
+      && !v.tentativa?.procurou?.length);
+  t("13e. todo NAO_ENCONTRADO/FONTE_ILEGIVEL diz onde procurou", semTentativa.length === 0,
+    semTentativa.map(([k]) => k).join(", "));
 
   const fantasmaReal = Object.keys(r.campos).filter((k) => !noBanco.has(k));
   const fantasmaNaoDeclarado = fantasmaReal.filter((k) => !fantasmas.has(k));

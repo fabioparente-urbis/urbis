@@ -45,7 +45,8 @@ export const idDoRegistro = (r: { chave?: string; codigo?: string }) => r.chave 
 // usa `import type` na origem: nomear explicitamente evita o erro em tempo de execução.
 export { assinaturaFuncional, hashFuncional } from "./tipos";
 export type {
-  Metodo, Regra, Fonte, Status, AplicacaoRegra, CampoRastreado, ItemRastreado, Matriz,
+  Metodo, Regra, Fonte, Declaracao, Resultado, Tentativa, MotivoIlegivel,
+  AplicacaoRegra, CampoRastreado, ItemRastreado, Matriz,
 } from "./tipos";
 export { CAMPOS_LIP_SLOT5, CHAVES_FANTASMA_LIP_SLOT5 } from "./lipSlot5";
 export { ITENS_MAC_SLOT5, GRUPOS_MAC_SLOT5 } from "./macSlot5";

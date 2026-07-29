@@ -183,12 +183,12 @@ export async function POST(req: NextRequest) {
       const emitidos = await camposDeDocumentosEmitidos(processoCodigo);
       if (emitidos.erro) problemasExtra.push(`documentos emitidos: ${emitidos.erro}`);
       for (const [chave, v] of Object.entries(emitidos.campos)) {
-        campos[chave] = { valor: v.valor, origem: "lido", fonte: `registro de documentos — ${v.fonte}` };
+        campos[chave] = { valor: v.valor, resultado: "ENCONTRADO" as const, fonte: `registro de documentos — ${v.fonte}` };
       }
       const mudanca = await houveMudancaDeAnalista(processoCodigo);
-      if (mudanca) campos.houveMudancaDeAnalista = { valor: mudanca.valor, origem: "calculado", fonte: mudanca.fonte };
+      if (mudanca) campos.houveMudancaDeAnalista = { valor: mudanca.valor, resultado: "CALCULADO" as const, fonte: mudanca.fonte };
 
-      campos.processo = { valor: processoCodigo, origem: "lido", fonte: "cadastro do processo no URBIS" };
+      campos.processo = { valor: processoCodigo, resultado: "ENCONTRADO" as const, fonte: "cadastro do processo no URBIS" };
     }
 
     /* 2) largura de via e de calçada — Cadastro de Logradouros (20.524 vias).
@@ -200,11 +200,11 @@ export async function POST(req: NextRequest) {
       const v = await buscarVia(bairro, via);
       if (v) {
         if (v.larguraVia != null) {
-          campos.larguraDaVia1 = { valor: String(v.larguraVia).replace(".", ","), origem: "lido",
+          campos.larguraDaVia1 = { valor: String(v.larguraVia).replace(".", ","), resultado: "ENCONTRADO" as const,
             fonte: `Cadastro de Logradouros — ${v.nome.trim()}, ${v.bairro}` };
         }
         if (v.larguraCalcada != null) {
-          campos.larguraDoPasseio1 = { valor: String(v.larguraCalcada).replace(".", ","), origem: "lido",
+          campos.larguraDoPasseio1 = { valor: String(v.larguraCalcada).replace(".", ","), resultado: "ENCONTRADO" as const,
             fonte: `Cadastro de Logradouros — ${v.nome.trim()}, ${v.bairro}` };
         }
         const doUds = campos.tipoDeVia1?.valor;

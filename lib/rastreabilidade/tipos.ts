@@ -85,16 +85,68 @@ export type Fonte =
   | "CADASTRO_LOGRADOUROS" | "REGISTRO_DOCUMENTOS_EMITIDOS" | "CADASTRO_PROCESSO"
   | "OUTROS_CAMPOS" | "ASSUNTO" | "ANALISTA" | "SEM_FONTE";
 
-/** Em que estado o campo termina o processamento. Nunca "vazio". */
-export type Status =
-  | "AUTOMATICO"        // preenchido a partir de documento ou banco
-  | "CALCULADO"         // resultado de cálculo ou comparação
-  | "NAO_APLICAVEL"     // respondido: não se aplica a este processo
-  | "AGUARDANDO_FATO"   // mecanismo pronto, fato inexistente
+/**
+ * DECLARAÇÃO — o que o campo PODE ser. Vale para qualquer processo.
+ *
+ * Não confundir com o que aconteceu num processo específico: `via2` é AUTOMATICO e vira NP quando
+ * o Uso do Solo lista uma via só. Declarar `via2` como NAO_APLICAVEL seria descrever a pasta de
+ * amostra, não a regra — e num lote de esquina a declaração estaria errada.
+ */
+export type Declaracao =
+  | "AUTOMATICO"        // lido de documento ou consultado no banco
+  | "CALCULADO"         // aritmética ou derivação sobre outros campos
+  | "MANUAL"            // só o analista decide; nunca deve consumir token
+  | "PENDENTE_VISAO"    // vai precisar de leitura de imagem; ainda não implementado
+  | "BLOQUEADO"         // depende de campo que ainda não é resolvível
+  | "DOCUMENTO_AUSENTE"; // a fonte não integra a pasta deste assunto, estruturalmente
+
+/**
+ * RESULTADO — o que aconteceu NAQUELE processo. Vive no MHD, nunca na matriz.
+ *
+ * Todo campo termina com um destes. Nenhum desaparece: a soma dos resultados fecha em 136.
+ */
+export type Resultado =
+  | "ENCONTRADO"        // o valor estava lá e foi lido
+  | "CALCULADO"         // veio de conta ou derivação
+  | "NAO_APLICAVEL"     // leu, aplicou regra, e a regra concluiu que não se aplica
+  | "NAO_ENCONTRADO"    // procurou onde devia, o texto existe, o dado não estava lá
+  | "FONTE_ILEGIVEL"    // o documento não oferece conteúdo utilizável com confiança
   | "DOCUMENTO_AUSENTE" // a fonte não veio na pasta
-  | "MANUAL"            // do analista, por decisão
-  | "PENDENTE_VISAO"    // depende de leitura de imagem, ainda não implementada
-  | "BLOQUEADO";        // depende de outro campo ainda não resolvido
+  | "AGUARDANDO_FATO"   // o mecanismo rodou; o fato ainda não ocorreu
+  | "MANUAL"            // preenchido pelo analista
+  | "BLOQUEADO"         // uma dependência impediu efetivamente o resultado
+  | "NAO_IMPLEMENTADO"; // o leitor ainda não tem mecanismo para este campo
+
+/**
+ * Por que NAO_ENCONTRADO e FONTE_ILEGIVEL não podem ser o mesmo estado:
+ *   NAO_ENCONTRADO  → o texto está lá e o padrão não achou. Conserta-se o EXTRATOR.
+ *   FONTE_ILEGIVEL  → não há conteúdo utilizável. Precisa de OCR, de visão, ou de outro arquivo.
+ * Juntar os dois faria o relatório de evolução apontar para o componente errado.
+ */
+export type MotivoIlegivel =
+  | "SEM_CAMADA_TEXTO"      // PDF digitalizado, zero caractere
+  | "RESOLUCAO_INSUFICIENTE"
+  | "TEXTO_CORROMPIDO"
+  | "PARCIALMENTE_ILEGIVEL"
+  | "CONTEUDO_NAO_INTERPRETAVEL";
+
+/**
+ * O que o leitor tentou. Só é registrado quando o resultado é NAO_ENCONTRADO ou FONTE_ILEGIVEL —
+ * é o insumo para evoluir o leitor, e por isso precisa bastar para reproduzir a tentativa.
+ */
+export type Tentativa = {
+  documento?: string;
+  versaoDocumento?: number;
+  hash?: string;
+  pagina?: number | string;
+  regiao?: string;
+  /** rótulos, padrões ou estratégias tentadas, na ordem */
+  procurou: string[];
+  temCamadaTexto?: boolean;
+  charsTexto?: number;
+  motivoIlegivel?: MotivoIlegivel;
+  motivo: string;
+};
 
 export type AplicacaoRegra = {
   regra: Regra;
@@ -114,7 +166,8 @@ export type AplicacaoRegra = {
 export type CampoRastreado = {
   /** identificador técnico — a mesma chave de `lip_campos.chave` */
   chave: string;
-  status: Status;
+  /** o que o campo PODE ser. Nunca o que ele foi num processo. */
+  declaracao: Declaracao;
   implementado: boolean;
   /** valores que o campo pode assumir, quando é fechado */
   valoresPossiveis?: string[];
@@ -128,8 +181,19 @@ export type CampoRastreado = {
   regras: AplicacaoRegra[];
   /** quando o campo se aplica. Prosa. */
   aplicabilidade?: string;
-  /** o que faz o campo virar NP. Obrigatório quando status = NAO_APLICAVEL. */
+  /**
+   * O que faz o campo virar NP. Exige PROVA POSITIVA: NP só pode ser produzido quando alguma
+   * informação relevante foi lida, uma regra declarada foi aplicada, e a regra concluiu que o campo
+   * não se aplica. Ausência de valor NUNCA gera NP — isso é NAO_ENCONTRADO.
+   */
   regraNP?: string;
+  /**
+   * Onde o leitor procura: rótulos, padrões e estratégias, na ordem em que tenta.
+   *
+   * Completa o "como reproduzir o resultado" do contrato, e é o que permite ao relatório de
+   * NAO_ENCONTRADO dizer onde se procurou em vez de só dizer que não achou.
+   */
+  ondeProcura?: string[];
   /** o que faz o campo ficar sem dado */
   regraSemDado?: string;
   /** a conta ou o confronto, escrito. Obrigatório para CALCULO e COMPARACAO. */
@@ -148,7 +212,7 @@ export type CampoRastreado = {
   versao: number;
   alteradoEm: string;
   testes: string[];
-  /** o fato que falta. Obrigatório quando status = AGUARDANDO_FATO. */
+  /** o fato que falta, quando o campo depende de documento que o URBIS ainda vai emitir */
   fatoNecessario?: string;
   /** anotação livre — nunca entra no hash */
   observacao?: string;
@@ -196,7 +260,7 @@ export type Matriz = {
  */
 export function assinaturaFuncional(c: CampoRastreado | ItemRastreado): string {
   const funcional = {
-    status: c.status,
+    declaracao: c.declaracao,
     implementado: c.implementado,
     metodos: c.metodos,
     fontePrincipal: c.fontePrincipal,
@@ -205,6 +269,7 @@ export function assinaturaFuncional(c: CampoRastreado | ItemRastreado): string {
     regras: c.regras.map((r) => ({ regra: r.regra, parametros: r.parametros ?? {} })),
     formula: c.formula ?? "",
     regraNP: c.regraNP ?? "",
+    ondeProcura: c.ondeProcura ?? [],
     regraSemDado: c.regraSemDado ?? "",
     fatoNecessario: c.fatoNecessario ?? "",
     valoresPossiveis: [...(c.valoresPossiveis ?? [])].sort(),
