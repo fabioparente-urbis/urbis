@@ -44,3 +44,6 @@ public/templates/~$*
 
 # Dumps de backfill — contem dados de processos, nao versionar
 backups/
+
+# Amostras de processos reais (PDFs) — dados pessoais, nao versionar
+amostras/
