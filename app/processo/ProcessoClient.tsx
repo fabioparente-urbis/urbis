@@ -477,7 +477,11 @@ export default function ProcessoClient() {
   }
 
   function confirmar(chave: string) {
-    if (d[chave]?.origem === "padrao") {
+    /* `inferido` entra aqui junto com `padrao` porque o gesto é o mesmo — o analista olhou e
+     * assumiu o valor — mas o motivo é oposto: em `padrao` falta valor; em `inferido` o valor
+     * existe e NÃO foi lido, foi deduzido por modelo. Enquanto não passar por aqui, não vale
+     * no laudo (ver `camposInferidosPendentes`). */
+    if (d[chave]?.origem === "padrao" || d[chave]?.origem === "inferido") {
       setD((prev) => {
         const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
         autoSalvar(novo);
@@ -679,7 +683,7 @@ export default function ProcessoClient() {
       fetch("/api/lip/aceitar-pasta", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ processoCodigo: idUrl, campos: p.campos, observacoes: linhas }),
+        body: JSON.stringify({ processoCodigo: idUrl, campos: p.campos, observacoes: linhas, visaoMeta: p.visao?.meta ?? {} }),
       }).catch((e) => console.warn("[aceitar-pasta] resultado não persistido:", e));
 
       return novo;
@@ -1130,6 +1134,12 @@ export default function ProcessoClient() {
   }
 
   const totalPadrao = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
+  /* Valor deduzido por modelo que o analista ainda não assumiu. Enquanto estiver nesta lista, o
+   * valor está no formulário mas NÃO vale no laudo — quem fundamenta alvará é o analista, não o
+   * modelo. Confirmar (Enter no campo) converte para `manual` e tira daqui. */
+  const camposInferidosPendentes = Object.entries(d)
+    .filter(([, c]) => c.origem === "inferido" && c.valor.trim() !== "")
+    .map(([k]) => k);
 
   function renderCampo(campo: CampoDB) {
     const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
@@ -1966,6 +1976,15 @@ export default function ProcessoClient() {
       )}
 
       {carregando && <div className="bg-yellow-900 border border-yellow-500 text-yellow-300 px-4 py-2 rounded mb-4 text-sm">⏳ Carregando dados do processo...</div>}
+      {camposInferidosPendentes.length > 0 && (
+        <div className="mb-4 bg-violet-950 border border-violet-500 text-violet-200 px-4 py-2 rounded text-sm">
+          🔍 <strong>{camposInferidosPendentes.length} campo(s) deduzido(s) por visão computacional</strong> —
+          o valor foi <em>inferido de uma imagem</em>, não lido de texto. Confira contra a prancha e pressione{" "}
+          <strong>Enter</strong> no campo para assumi-lo. Enquanto não confirmar, não vale no laudo.
+          <div className="text-xs text-violet-300 mt-1">{camposInferidosPendentes.join(" · ")}</div>
+        </div>
+      )}
+
       {totalPadrao > 0 && (
         <div className="mb-4">
           <div

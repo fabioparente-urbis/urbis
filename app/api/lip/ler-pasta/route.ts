@@ -9,6 +9,7 @@ import { buscarVia } from "@/lib/cadastroImobiliario";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { matriz } from "@/lib/rastreabilidade";
 import { fecharResultados } from "@/lib/rastreabilidade/fechar";
+import { executarVisao } from "@/lib/visao";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -236,6 +237,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    /* 4) VISÃO LOCALIZADA — os campos que só existem como imagem na prancha.
+     *
+     * Roda AQUI, e não dentro de `lerPastaSlot5`, pelo mesmo motivo que o Cadastro de Logradouros
+     * e o registro de documentos emitidos rodam aqui: `lerPastaSlot5` é puro e sem banco, e é isso
+     * que mantém a suíte de governança rápida e determinística.
+     *
+     * NUNCA derruba a leitura: toda falha vira `pulos[]` e o campo cai para o estado que
+     * `fecharResultados` daria de qualquer jeito. */
+    const paraVisao = resultado.catalogo
+      .filter((it) => !it.soPresenca)
+      .map((it) => ({
+        hash: it.hash,
+        papeis: it.papeis,
+        buffer: entradas.find((e) => e.hash === it.hash)?.buffer ?? new Uint8Array(),
+      }))
+      .filter((it) => it.buffer.length > 0);
+
+    const visao = await executarVisao({
+      entradas: paraVisao,
+      processoCodigo: processoCodigo || "sem-processo",
+      usuarioId: usuario?.id ?? null,
+      jaResolvidos: campos,
+    });
+    Object.assign(campos, visao.campos);
+
     /* Fecha todo campo declarado que leitor e rota não tocaram — NAO_ENCONTRADO/AGUARDANDO_FATO/
      * DOCUMENTO_AUSENTE/BLOQUEADO/MANUAL/NAO_IMPLEMENTADO conforme a própria declaração da matriz.
      * `observacoes` (preenchidoPor "tela") fica de fora: só nasce no aceite. */
@@ -252,6 +278,12 @@ export async function POST(req: NextRequest) {
       campos: camposFechados,
       catalogo,
       mhd: { ...mhd, problemas: [...mhd.problemas, ...problemasExtra], gravou: mhd.gravou && !problemasExtra.length },
+      // medição e procedência da visão: o analista precisa ver o que custou e o que foi pulado
+      visao: {
+        chamadas: visao.chamadas, reaproveitadas: visao.reaproveitadas,
+        custoUSD: Number(visao.custoTotal.toFixed(6)), ms: Math.round(visao.msTotal),
+        pulos: visao.pulos, meta: visao.meta,
+      },
       rodadas: [...new Set(entradas.map((e) => e.rodada))].sort((a, b) => a - b),
       // como as subpastas foram ordenadas, e se a ordem precisa da confirmação do analista
       pastas,

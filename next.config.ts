@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
   // execução (`pdf.worker.mjs`) e, dentro do bundle, esse caminho não existe — a leitura da pasta
   // do slot 5 falhava com "Setting up fake worker failed". Fora do bundle, o Node resolve pelo
   // node_modules normalmente.
-  serverExternalPackages: ["pdfjs-dist"],
+  // `mupdf` está aqui pela mesma razão: é WASM e carrega `mupdf-wasm.wasm` em tempo de execução.
+  // Empacotado, o arquivo não existe no caminho que ele procura. Fora do bundle, o Node resolve
+  // pelo node_modules. (WASM, e não binário nativo, é o que torna a rasterização viável na Vercel.)
+  serverExternalPackages: ["pdfjs-dist", "mupdf"],
   experimental: {
     serverActions: {
       bodySizeLimit: "200mb",

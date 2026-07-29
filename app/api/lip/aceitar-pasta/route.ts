@@ -47,12 +47,20 @@ export async function POST(req: NextRequest) {
     }
     const fechados = fecharResultados(m.campos, comObservacoes);
 
+    /* meta da visão: confiança, custo e a interpretação reaproveitável que produziu o valor.
+     * Vem do cliente porque é a mesma proposta que ele acabou de receber de `/api/lip/ler-pasta` —
+     * e só é usada em campo cujo resultado é INFERIDO, então não há como forjar procedência de um
+     * campo determinístico por aqui. */
+    const metaVisao = (body.visaoMeta ?? {}) as Record<string, { confianca?: number; custoIA?: number; interpretacaoId?: string }>;
+
     const porChave = new Map(m.campos.map((c) => [c.chave, c]));
     const resultados = Object.entries(fechados).map(([chave, r]) => {
       const c = porChave.get(chave);
+      const mv = r.resultado === "INFERIDO" ? metaVisao[chave] : undefined;
       return {
         chave, resultado: r.resultado, valor: r.valor, fonte: r.fonte,
         tentativa: r.tentativa, evidencia: r.evidencia,
+        confianca: mv?.confianca, custoIA: mv?.custoIA, interpretacaoId: mv?.interpretacaoId,
         versao: c?.versao ?? 0, hash: c ? hashFuncional(c) : "",
       };
     });

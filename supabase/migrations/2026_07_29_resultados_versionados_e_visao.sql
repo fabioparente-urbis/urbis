@@ -108,8 +108,26 @@ comment on column mhd_interpretacoes_visao.abstencao is
 -- do documento. Imagem só é persistida no aceite, quando deixa de ser processamento
 -- e vira prova de decisão administrativa (ver D2).
 
+
+-- 3) INTERRUPTOR OPERACIONAL DA VISÃO ─────────────────────────────────────────
+-- SÓ DESLIGA. Não altera regra nenhuma — a regra (receita de percepção) vive em
+-- `lib/visao/receitas.ts`, versionada no git e revisável em code review.
+--
+-- Existe porque regra em código exige deploy, e há um caso em que deploy é lento
+-- demais: o provedor muda o comportamento do modelo e a leitura passa a errar em
+-- produção. Desligar faz o campo cair para NAO_IMPLEMENTADO, que é estado já
+-- previsto e já coberto por teste. Editar prompt sem revisão, não.
+--
+-- Ausente ou NULL = ligada. Só `false` explícito desliga.
+alter table urbis_config
+  add column if not exists visao_ligada boolean not null default true;
+
+comment on column urbis_config.visao_ligada is
+  'Interruptor operacional da visão localizada. false desliga a leitura por modelo; os campos caem para NAO_IMPLEMENTADO. Nunca altera regra — receitas vivem em lib/visao/receitas.ts.';
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- REVERSÃO:
+--   alter table urbis_config drop column if exists visao_ligada;
 --   drop table if exists mhd_interpretacoes_visao;
 --   drop index if exists uq_mhd_resultados_vigente;
 --   drop index if exists uq_mhd_resultados_execucao;
