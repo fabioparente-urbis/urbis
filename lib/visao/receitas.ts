@@ -90,7 +90,52 @@ const CALCULO_DE_VAGAS: Receita = {
   },
 };
 
-export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS];
+/**
+ * Quadro "Cálculo do Índice de Controle de Captação de Água Pluvial", à direita do de vagas na
+ * mesma faixa da prancha. Geometria conferida em 29/07/2026: ~[0.864–0.965] x [0.470–0.614].
+ *
+ * Recorte independente do de vagas — não se sobrepõem, e por isso podem ser buscados em paralelo.
+ */
+const ICCAP: Receita = {
+  id: "prancha.iccap",
+  versao: 1,
+  chaves: ["areaImpermeabilizada"],
+  estrategia: "FRACAO_DA_PAGINA",
+  papel: "projeto",
+  regiao: { pagina: 0, x0: 0.85, y0: 0.45, x1: 0.99, y1: 0.58, alvoPx: 1400 },
+  modelo: GEMINI_MODEL,
+  prompt: [
+    "Você está lendo um RECORTE de uma prancha de projeto arquitetônico brasileira.",
+    "",
+    "Procure o quadro \"Cálculo do Índice de Controle de Captação de Água Pluvial\"",
+    "e devolva o valor da linha \"ÁREA IMPERMEABILIZADA DO TERRENO\", em m².",
+    "",
+    "ATENÇÃO — não confunda com a linha \"ÁREA DO TERRENO\", que vem logo acima e é MAIOR.",
+    "A área impermeabilizada é sempre menor ou igual à área do terreno.",
+    "Devolva o número como aparece no documento, com vírgula decimal (ex.: \"464,45\").",
+    "",
+    "Se o quadro não estiver visível neste recorte, ou a linha estiver ilegível, ABSTENHA-SE.",
+    "Responder um número plausível que você não leu com clareza é PIOR do que se abster.",
+    "",
+    "Responda SOMENTE com JSON, sem cercas de código:",
+    '{"campos": {"areaImpermeabilizada": {"valor": "464,45", "confianca": 0.95}}}',
+    "ou",
+    '{"campos": {"areaImpermeabilizada": {"abstencao": true, "motivo": "quadro não está no recorte"}}}',
+  ].join("\n"),
+  validadores: {
+    areaImpermeabilizada: (bruto) => {
+      const v = (bruto ?? "").trim();
+      if (!v) return { ok: false, motivo: "campo ausente na resposta" };
+      if (!/^\d{1,6}(,\d{1,2})?$/.test(v)) return { ok: false, motivo: `"${v}" não é uma área em m² com vírgula decimal` };
+      const n = Number(v.replace(",", "."));
+      // lote urbano: abaixo de 1m² é leitura errada, acima de 100.000m² não é lote, é gleba
+      if (n < 1 || n > 100_000) return { ok: false, motivo: `${n} m² está fora da faixa plausível de área de lote` };
+      return { ok: true };
+    },
+  },
+};
+
+export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS, ICCAP];
 
 export const receitaDaChave = (chave: string) => RECEITAS.find((r) => r.chaves.includes(chave));
 

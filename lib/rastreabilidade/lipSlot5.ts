@@ -454,7 +454,7 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     observacao: "o carimbo da amostra declara só o atendido, o que é pendência contra a IN 007/2024",
   }),
   doDoc("nDeCaixasDeCaptacao", "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"]),
-  pendenteVisao("areaImpermeabilizada", "PRANCHA", "memorial do ICCAP, colado como imagem"),
+  porVisao("areaImpermeabilizada", "prancha.iccap", "linha ÁREA IMPERMEABILIZADA DO TERRENO no quadro do ICCAP, colado como imagem"),
   /* O leitor TENTA ler do carimbo: a IN 007/2024 obriga a linha "ICCAP: EXIGIDO ... / ATENDIDO ...".
    * Quando o projetista omite o EXIGIDO — como na amostra — o resultado é NAO_ENCONTRADO, e isso é
    * pendência de carimbo, não limitação do leitor. Declarar PENDENTE_VISAO escondia esse fato.
