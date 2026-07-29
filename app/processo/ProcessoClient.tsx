@@ -6,7 +6,15 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
 
-type Origem = "original" | "urbis" | "manual" | "padrao";
+/**
+ * De onde veio o valor que está no formulário.
+ *
+ * `inferido` existe para separar o que foi LIDO do que foi DEDUZIDO POR MODELO. Sem essa distinção
+ * um número produzido por visão computacional chega ao analista idêntico a um lido do carimbo, e
+ * ele assina o laudo sem ter como saber a diferença — num documento que fundamenta alvará e, via
+ * `outorgaOnerosa`, cobrança ao requerente. Valor inferido nunca deve parecer valor lido.
+ */
+type Origem = "original" | "urbis" | "manual" | "padrao" | "inferido";
 type Campo = { valor: string; origem: Origem; fonte?: string };
 type EventoHistorico = {
   id: string;
@@ -42,12 +50,16 @@ function base(valor = ""): Campo { return { valor, origem: "original" }; }
 function padrao(valor: string): Campo { return { valor, origem: "padrao" }; }
 function cor(origem: Origem) {
   if (origem === "urbis") return "text-[#2563EB]";
+  if (origem === "inferido") return "text-[#7C3AED]";
   if (origem === "manual") return "text-[#475569]";
   if (origem === "padrao") return "text-[#EA580C]";
   return "text-[#000000]";
 }
 function borderCor(origem: Origem, valor: string) {
   if (origem === "padrao" && valor.trim() === "") return "border-orange-400 border-2";
+  // inferido por modelo pede conferência ativa, como o padrão — mas por motivo oposto:
+  // não é que falte valor, é que o valor não foi lido, foi deduzido.
+  if (origem === "inferido") return "border-violet-400 border-2";
   return "border-gray-300";
 }
 
@@ -638,7 +650,12 @@ export default function ProcessoClient() {
       const novo = { ...prev };
       for (const [chave, item] of Object.entries(p.campos as Record<string, any>)) {
         if (!item?.valor) continue;
-        novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+        // valor deduzido por modelo nunca entra no formulário indistinguível de valor lido
+        novo[chave] = {
+          valor: item.valor,
+          origem: (item.resultado === "INFERIDO" ? "inferido" : "urbis") as Origem,
+          fonte: item.fonte,
+        };
       }
       // o log da leitura vai para a aba OBS, como já acontece na leitura por arquivo
       const linhas = [
@@ -805,7 +822,7 @@ export default function ProcessoClient() {
         Object.keys(mesclado).forEach((chave) => {
           const item = mesclado[chave];
           if (!item?.valor) return;
-
+          // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
           novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
         });
         corrigirSeiFisico(novo, idUrl);
@@ -942,7 +959,7 @@ export default function ProcessoClient() {
       const s4Data = await s4Res.json();
       setProgresso(95);
       // 4. Salvar campos mesclados + OBS
-      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual");
+      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido");
       const modoFinal = lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir";
       const agora = new Date().toLocaleTimeString("pt-BR");
       const nomeArquivos = vcpArquivos.map((a: File) => a.name).join(", ");
@@ -977,6 +994,7 @@ export default function ProcessoClient() {
           Object.keys(mesclado).forEach((chave) => {
             const item = mesclado[chave];
             if (!item?.valor) return;
+            // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
             novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
           });
           corrigirSeiFisico(novo, idUrl);
@@ -1247,6 +1265,7 @@ export default function ProcessoClient() {
   const legenda = [
     { cor: "bg-[var(--text-primary)]", label: "Original (documento)" },
     { cor: "bg-[#2563EB]", label: "Urbis (automático)" },
+    { cor: "bg-[#7C3AED]", label: "Inferido por visão (conferir!)" },
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
     { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
   ];

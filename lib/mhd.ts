@@ -446,6 +446,11 @@ export type ResultadoParaMHD = {
   /** versão e hash do campo NA MATRIZ no momento desta execução — reproduz a regra que decidiu */
   versao: number;
   hash: string;
+  /** só para resultado INFERIDO: o quanto o modelo se diz seguro, e o que aquilo custou */
+  confianca?: number;
+  custoIA?: number;
+  /** aponta para a interpretação reaproveitável em `mhd_interpretacoes_visao` */
+  interpretacaoId?: string;
 };
 
 export type ResumoResultados = {
@@ -459,44 +464,65 @@ export type ResumoResultados = {
  * Grava o RESULTADO de cada campo de uma execução. NUNCA lança — mesmo padrão de
  * `registrarLeitura`.
  *
- * Faz upsert só das colunas automáticas (`resultado`, `valor`, `fonte`, `tentativa`, `evidencia`,
- * `versao`, `hash`, `atualizado_em`). As colunas de complementação manual (`valor_manual`,
- * `autor_manual_id`, `complementado_em`) NUNCA entram neste payload — é isso que impede uma nova
- * leitura de apagar o que o analista já corrigiu, e impede a correção do analista de apagar o que
- * o leitor concluiu sozinho.
+ * VERSIONA, não sobrescreve. Cada execução vira um conjunto novo de linhas com o mesmo
+ * `execucao_id`, e as anteriores passam a `vigente = false` — o mesmo padrão de `mhd_versoes`,
+ * que nunca apaga versão de documento.
+ *
+ * A versão anterior fazia upsert e destruía a execução passada. Para extrator determinístico isso
+ * quase não se notava; para visão seria perda real: some o valor que fundamentou o laudo no dia em
+ * que ele saiu, e some a divergência entre execuções, que é o indicador mais forte de que o campo
+ * não é confiável.
+ *
+ * As colunas de complementação manual (`valor_manual`, `autor_manual_id`, `complementado_em`) não
+ * entram neste payload: uma nova leitura nunca apaga o que o analista corrigiu.
  */
 export async function registrarResultados(args: {
   processoCodigo: string;
   modulo?: "LIP" | "MAC";
   slot?: string;
   resultados: ResultadoParaMHD[];
-}): Promise<ResumoResultados> {
+}): Promise<ResumoResultados & { execucaoId?: string }> {
   const { processoCodigo, modulo = "LIP", slot = "slot_05", resultados } = args;
   const base: ResumoResultados = { ativa: false, gravou: false, problemas: [], gravados: 0 };
 
   try {
-    const { error: probe } = await supabase.from("mhd_resultados_campo").select("id").limit(1);
+    const { error: probe } = await supabase.from("mhd_resultados_campo").select("id,vigente").limit(1);
     if (probe) {
       return {
         ...base,
-        problemas: ["O registro de resultados por campo não está instalado — rode a migration 2026_07_29_mhd_resultados_campo.sql."],
+        problemas: [
+          "O registro de resultados por campo não está instalado ou está desatualizado — rode as migrations " +
+          "2026_07_29_mhd_resultados_campo.sql e 2026_07_29_resultados_versionados_e_visao.sql.",
+        ],
       };
     }
 
+    const execucaoId = crypto.randomUUID();
     const agora = new Date().toISOString();
+
+    /* Aposenta a execução anterior ANTES de inserir a nova: o índice único parcial
+     * (um vigente por campo) recusaria a inserção enquanto a antiga ainda estivesse vigente. */
+    const { error: erroAposentar } = await supabase
+      .from("mhd_resultados_campo")
+      .update({ vigente: false })
+      .eq("processo_codigo", processoCodigo).eq("modulo", modulo).eq("slot", slot)
+      .eq("vigente", true);
+    if (erroAposentar) return { ...base, ativa: true, problemas: [erroAposentar.message] };
+
     const linhas = resultados.map((r) => ({
       processo_codigo: processoCodigo, modulo, slot, chave: r.chave,
+      execucao_id: execucaoId, vigente: true,
       resultado: r.resultado, valor: r.valor ?? null, fonte: r.fonte ?? null,
       tentativa: r.tentativa ?? null, evidencia: r.evidencia ?? null,
+      confianca: r.confianca ?? null, custo_ia: r.custoIA ?? null,
+      interpretacao_id: r.interpretacaoId ?? null,
       versao: r.versao, hash: r.hash, atualizado_em: agora,
     }));
 
-    const { error } = await supabase
-      .from("mhd_resultados_campo")
-      .upsert(linhas, { onConflict: "processo_codigo,modulo,slot,chave" });
+    const { error } = await supabase.from("mhd_resultados_campo").insert(linhas);
     if (error) return { ...base, ativa: true, problemas: [error.message] };
 
-    return { ativa: true, gravou: true, problemas: [], gravados: linhas.length };
+    return { ativa: true, gravou: true, problemas: [], gravados: linhas.length, execucaoId };
   } catch (err: any) {
     console.error("[MHD] falha ao registrar resultados:", err);
     return {

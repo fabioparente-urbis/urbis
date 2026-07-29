@@ -372,8 +372,25 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     aplicabilidade: "carimbo, 'ÁREA TOTAL DA CONSTRUÇÃO'",
     responsavel: "lib/lerPastaSlot5.ts:lerPrancha",
   }),
-  pendenteVisao("unidComerciais", "PRANCHA", "o modelo da IN 007/2024 pede 'Nº DE UNIDADES' no carimbo; a prancha da amostra não traz"),
-  pendenteVisao("unidHabitacionais", "PRANCHA", "o modelo da IN 007/2024 pede 'Nº DE UNIDADES' no carimbo; a prancha da amostra não traz"),
+  /* Nº DE UNIDADES é campo do CARIMBO pela IN 007/2024, não desenho.
+   *
+   * Estavam declarados PENDENTE_VISAO, o que dizia "falta implementar visão" quando o problema é
+   * outro: o carimbo desta prancha simplesmente não traz o rótulo. Verificado em 29/07/2026 contra
+   * a camada de texto da amostra — `Nº DE UNIDADES` não aparece, enquanto os demais rótulos do
+   * carimbo aparecem. Visão nenhuma resolve rótulo que não foi escrito.
+   *
+   * Mesma correção já aplicada a `volumeExigidoDaCaixa`: quando o projetista omite um campo que a
+   * norma exige, o resultado é NAO_ENCONTRADO e a pendência é do carimbo, não do leitor. Declarar
+   * PENDENTE_VISAO escondia uma exigência descumprida atrás de uma limitação nossa. */
+  ...["unidComerciais", "unidHabitacionais"].map((k) =>
+    doDoc(k, "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"], {
+      versao: 2,
+      ondeProcura: ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"],
+      aplicabilidade: "carimbo, 'Nº DE UNIDADES' (IN 007/2024)",
+      regraSemDado: "quando o carimbo omite o rótulo, resulta NAO_ENCONTRADO — pendência contra a IN 007/2024, não limitação do leitor",
+      responsavel: "lib/lerPastaSlot5.ts:lerPrancha",
+      observacao: "v2 em 29/07/2026: era PENDENTE_VISAO. Verificado na camada de texto da amostra que o rótulo não existe no carimbo — é omissão do projetista, não conteúdo rasterizado.",
+    })),
   pendenteVisao("areaTotalPrivativa", "PRANCHA", "quadro de áreas detalhado, colado como imagem"),
   pendenteVisao("alturaDaEdificacao", "PRANCHA", "cotada nos cortes — desenho, não tabela"),
   podeSerNP("acessoVertical", "PRANCHA", "edificação térrea: não há acesso vertical previsto", { depende: ["pav"] }),

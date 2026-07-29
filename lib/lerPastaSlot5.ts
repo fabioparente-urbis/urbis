@@ -91,7 +91,8 @@ export type ResultadoCampo = {
 
 export type ResultadoExec =
   | "ENCONTRADO" | "CALCULADO" | "NAO_APLICAVEL" | "NAO_ENCONTRADO" | "FONTE_ILEGIVEL"
-  | "DOCUMENTO_AUSENTE" | "AGUARDANDO_FATO" | "MANUAL" | "BLOQUEADO" | "NAO_IMPLEMENTADO";
+  | "DOCUMENTO_AUSENTE" | "AGUARDANDO_FATO" | "MANUAL" | "BLOQUEADO" | "NAO_IMPLEMENTADO"
+  | "INFERIDO";
 
 export type TentativaLeitura = {
   documento?: string;
@@ -426,6 +427,16 @@ function lerPrancha(doc: DocTexto) {
   const eng = t.match(/ENG\.?\s*CIVIL\s*([A-ZÀ-Ú\s]+?)\s*CREA:\s*(\S+)/i);
   d.engenheiro = eng?.[1]?.trim() || null;
   d.crea = eng?.[2] || null;
+
+  /* Nº DE UNIDADES — o carimbo da IN 007/2024 exige, e o desta amostra não traz.
+   * Procura-se do mesmo jeito que os demais rótulos do carimbo: se o projetista escreveu, lê; se
+   * omitiu, o campo fecha em NAO_ENCONTRADO e a pendência aparece como descumprimento da norma.
+   * Não é conteúdo rasterizado — verificado na camada de texto em 29/07/2026. */
+  const unidades = valorPerto(doc, "Nº DE UNIDADES", /^\d{1,4}$/)
+    ?? ((t.match(/N[ºO°.]?\s*DE\s*UNIDADES[^\d]{0,20}(\d{1,4})/i) || [])[1] || null);
+  d.unidComerciais = /COMERCIAL|ESCRIT[ÓO]RIO|LOJA/i.test(t) ? unidades : null;
+  d.unidHabitacionais = /HABITACIONAL|RESIDENCIAL|APARTAMENTO/i.test(t) ? unidades : null;
+  if (!unidades) d.carimboFaltando.push("Nº DE UNIDADES (a IN 007/2024 exige no carimbo)");
   return d;
 }
 
@@ -869,6 +880,10 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("unidComerciais", pr.unidComerciais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
+      ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"], vig.projeto ?? null);
+  set("unidHabitacionais", pr.unidHabitacionais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
+      ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"], vig.projeto ?? null);
   set("certidao", ct.matricula, "ENCONTRADO", "Certidão de Matrícula", undefined, vig.certidao_matricula ?? null);
 
   // caixa de recarga — lido para CONFRONTAR, nunca para valer por si
@@ -931,7 +946,7 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
 
   /* ══════════════════════════════════════════════════════════════════════════════
    * GRUPO A — sem IA. Regra sobre dado já lido, ou resultado de conferência que já
-   * rodou. Ver lib/lipMapa.ts para o inventário completo dos 136 campos.
+   * rodou. Ver lib/rastreabilidade/lipSlot5.ts para o inventário completo dos 136 campos.
    *
    * "NÃO APLICÁVEL" É RESPOSTA, NÃO OMISSÃO. Metade do LIP do slot 5 trata de uso
    * habitacional, de 2ª a 4ª via e de documentos que este processo não tem. Deixar

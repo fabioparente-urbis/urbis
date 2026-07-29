@@ -1,0 +1,57 @@
+{
+  "processo": "44556",
+  "pasta": "~/Desktop/SLOT 5",
+  "assunto": "slot_05",
+  "conferidoEm": "2026-07-29",
+  "conferidoPor": "leitura visual do documento renderizado (carimbo e quadros da prancha)",
+  "observacao": [
+    "GABARITO — o que o documento REALMENTE diz, conferido por humano, independente do que o leitor extrai.",
+    "É contra isto que a acurácia é medida. Nunca preencher copiando a saída do leitor: isso mede",
+    "concordância do sistema consigo mesmo, não correção.",
+    "",
+    "O VALOR ESPERADO É O DA FONTE DECLARADA NA MATRIZ, não o de qualquer documento que traga o dado.",
+    "Aprendido na primeira execução: `bairro` foi preenchido com 'JARDIM GOIÁS' (carimbo da prancha) e",
+    "acusou erro, mas a matriz declara `fontePrincipal: USO_DO_SOLO`, e o Uso do Solo diz 'JD GOIAS'.",
+    "O leitor estava certo e o gabarito errado. Por isso cada campo abaixo registra a `fonte` conferida.",
+    "",
+    "DADO PESSOAL NÃO ENTRA AQUI. O carimbo traz nome do proprietário, CNPJ e registros profissionais",
+    "de pessoas reais; o .gitignore já exclui `amostras/` pelo mesmo motivo. Os campos de identificação",
+    "ficam com `conferido: false` e nota — medir extração de nome próprio não vale expor o nome.",
+    "",
+    "`conferido: false` significa NÃO MEDIDO, nunca 'errado'. O harness ignora esses campos na conta."
+  ],
+  "campos": {
+    "areaTerreno": { "esperado": "572,00", "conferido": true, "nota": "carimbo: ÁREA DO TERRENO ORIGINAL: A= 572,00m²" },
+    "areaTotal": { "esperado": "365,83", "conferido": true, "nota": "carimbo: ÁREA TOTAL DA CONSTRUÇÃO A= 365,83m²" },
+    "pav": { "esperado": "01", "conferido": true, "nota": "carimbo: 01 PAVIMENTO _ TÉRREO" },
+    "areaPermeavelProjetada": { "esperado": "78,48", "conferido": true, "nota": "carimbo: cobertura vegetal permeável A= 78,48m² _ 13,72%" },
+    "volumeDaCaixaDeRecarga": { "esperado": "2,32", "conferido": true, "nota": "carimbo: ICCAP V = 2,32m³ (só o ATENDIDO; o EXIGIDO não consta)" },
+    "nDeCaixasDeCaptacao": { "esperado": "01", "conferido": true, "nota": "carimbo: Número de caixas: 01 Caixa" },
+    "volumeExigidoDaCaixa": { "esperado": null, "conferido": true, "nota": "AUSENTE do carimbo. A IN 007/2024 exige EXIGIDO e ATENDIDO; o projetista só declarou o atendido. Resultado correto é NAO_ENCONTRADO." },
+    "unidComerciais": { "esperado": null, "conferido": true, "nota": "AUSENTE do carimbo — rótulo 'Nº DE UNIDADES' não existe nesta prancha. Resultado correto é NAO_ENCONTRADO." },
+    "unidHabitacionais": { "esperado": null, "conferido": true, "nota": "AUSENTE do carimbo, e o uso é comercial. Resultado correto é NAO_ENCONTRADO." },
+
+    "usoDoSoloN": { "esperado": "UDS2025057694", "conferido": true, "fonte": "Uso do Solo", "nota": "o documento imprime o número com o prefixo UDS. O carimbo da prancha traz só '2025057694' — a fonte declarada é o Uso do Solo." },
+    "iptu": { "esperado": null, "conferido": false, "fonte": "Uso do Solo", "nota": "carimbo traz ITU 203.090.0354.0003; confirmar contra o Uso do Solo e definir a normalização esperada (só dígitos) antes de medir" },
+    "quadra": { "esperado": "A18", "conferido": true, "fonte": "Uso do Solo", "nota": "Uso do Solo: 'Quadra A18'. O carimbo diz 'QUADRA 18 A' — mesma quadra, ordem invertida; a matriz já trata essa inversão em `oEnderecoEstaCorretoNoUso`." },
+    "lote": { "esperado": "06", "conferido": true, "fonte": "Uso do Solo", "nota": "Uso do Solo e carimbo concordam" },
+    "bairro": { "esperado": "JD GOIAS", "conferido": true, "fonte": "Uso do Solo", "nota": "o Uso do Solo abrevia. O carimbo escreve 'JARDIM GOIÁS' por extenso — a fonte declarada é o Uso do Solo." },
+    "logradouro": { "esperado": "R 2", "conferido": true, "fonte": "Uso do Solo", "nota": "Uso do Solo: 'Nome da Via: R 2'. O carimbo escreve 'RUA 2'." },
+    "cnae": { "esperado": "432150000 / 731900200", "conferido": true, "fonte": "Uso do Solo", "nota": "o Uso do Solo lista os códigos SEM formatação (verificado: '432150000 Instalação e manutenção elétrica'). O carimbo formata como 43.21-5-00 e 73.19-0-02. Ordem segue a listagem do documento." },
+
+    "proprietario": { "esperado": null, "conferido": false, "nota": "REDIGIDO — pessoa jurídica real. Não versionar dado pessoal; medir este campo não justifica a exposição." },
+    "nome_responsavel_arq": { "esperado": null, "conferido": false, "nota": "REDIGIDO — profissional real identificável." },
+    "nome_responsavel_eng": { "esperado": null, "conferido": false, "nota": "REDIGIDO — profissional real identificável." },
+    "cau": { "esperado": null, "conferido": false, "nota": "REDIGIDO — registro profissional." },
+    "crea": { "esperado": null, "conferido": false, "nota": "REDIGIDO — registro profissional." },
+
+    "totalDeVagasExigidasParaEssas": { "esperado": "5", "conferido": true, "nota": "VISÃO — quadro rasterizado: 'TOTAL DE 05 VAGAS DE ESTACIONAMENTO'" },
+    "vagasPcdExigido": { "esperado": "1", "conferido": true, "nota": "VISÃO — quadro rasterizado: VAGA P.C.D., Nº DE VAGAS = 1" },
+    "vagasIdosoExigido": { "esperado": "2", "conferido": true, "nota": "VISÃO — quadro rasterizado: VAGA IDOSO, Nº DE VAGAS = 2" },
+    "areaOcupadaPelaAtividade": { "esperado": null, "conferido": false, "nota": "VISÃO — o quadro traz 'ÁREA REAL A SER CONSIDERADA PARA O CÁLCULO DE VAGAS 365,83' e 'ÁREA DOS AMBIENTES SEPARADOS 311,55'. Confirmar com o analista qual das duas é este campo antes de medir." },
+    "totalASerDescontadoNoCalculo": { "esperado": null, "conferido": false, "nota": "VISÃO — provável diferença entre área construída e área dos ambientes separados; confirmar regra com o analista." },
+    "areaTotalPrivativa": { "esperado": null, "conferido": false, "nota": "VISÃO — não localizado no recorte inspecionado; conferir na prancha 02/02." },
+    "alturaDaEdificacao": { "esperado": null, "conferido": false, "nota": "VISÃO/DESENHO — cotas visíveis nos cortes (3,20 / 4,06 / 2,47 / 3,37 no corte BB), mas a altura térreo→laje de cobertura precisa ser confirmada pelo analista." },
+    "areaImpermeabilizada": { "esperado": null, "conferido": false, "nota": "VISÃO — dedutível da nota do quadro de caixas (1,0m³ para cada 200,00m² impermeabilizada, V=2,32m³ → ~464m²), mas é derivação, não leitura. Confirmar." }
+  }
+}

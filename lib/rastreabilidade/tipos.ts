@@ -108,6 +108,7 @@ export type Declaracao =
 export type Resultado =
   | "ENCONTRADO"        // o valor estava lá e foi lido
   | "CALCULADO"         // veio de conta ou derivação
+  | "INFERIDO"          // deduzido por modelo a partir de imagem — NÃO é leitura, ver abaixo
   | "NAO_APLICAVEL"     // leu, aplicou regra, e a regra concluiu que não se aplica
   | "NAO_ENCONTRADO"    // procurou onde devia, o texto existe, o dado não estava lá
   | "FONTE_ILEGIVEL"    // o documento não oferece conteúdo utilizável com confiança
@@ -116,6 +117,20 @@ export type Resultado =
   | "MANUAL"            // preenchido pelo analista
   | "BLOQUEADO"         // uma dependência impediu efetivamente o resultado
   | "NAO_IMPLEMENTADO"; // o leitor ainda não tem mecanismo para este campo
+
+/**
+ * Por que INFERIDO não é ENCONTRADO com um metadado de origem:
+ *
+ * ENCONTRADO é reprodutível — o mesmo padrão sobre o mesmo texto dá o mesmo valor, sempre. INFERIDO
+ * não é: o mesmo recorte, no mesmo modelo, pode devolver valores diferentes, e o modelo é ativo de
+ * terceiro que muda sem aviso. Tratar os dois como um só apaga essa diferença exatamente onde ela
+ * importa — na tela em que o analista assina o laudo que fundamenta o alvará, e em `outorgaOnerosa`,
+ * que vira cobrança ao requerente.
+ *
+ * Regra: campo INFERIDO exige confiança registrada, e confirmação do analista quando alimenta
+ * decisão de efeito jurídico ou financeiro. Na dúvida, o modelo deve ABSTER-SE (FONTE_ILEGIVEL)
+ * em vez de devolver número plausível.
+ */
 
 /**
  * Por que NAO_ENCONTRADO e FONTE_ILEGIVEL não podem ser o mesmo estado:
