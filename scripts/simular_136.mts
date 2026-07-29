@@ -43,18 +43,25 @@ secao("1 · rótulo alterado — o padrão não acha o dado num documento legív
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-secao("2 · documento sem camada de texto → FONTE_ILEGIVEL");
+secao("2 · documento sem camada de texto → FONTE_ILEGIVEL (e distinção de DOCUMENTO_AUSENTE)");
 {
-  /* ACHADO: nenhuma chamada de `set()` em `preencherLip` passa o parâmetro `doc` — só os
-   * wrappers `lido`/`calc` (nunca usados) o repassam. Por isso o ramo FONTE_ILEGIVEL de `set()`
-   * é hoje inatingível pelo pipeline real: sem documento algum na entrada, "quadra" cai em
-   * NAO_ENCONTRADO com "documento de origem não está no catálogo", mesmo quando o Uso do Solo
-   * está na pasta e só não tem camada de texto. Fora do escopo desta etapa consertar (exigiria
-   * mexer em ~10 chamadas de `set()`); reportado ao usuário como achado separado. */
+  // 2a. o documento está na pasta, mas sem camada de texto (PDF escaneado)
   const vig = { uso_solo: doc({ papeis: ["uso_solo"], temCamadaTexto: false, dados: {} }) };
   const r = preencherLip(vig as any);
-  t("hoje (achado): sem `doc` ligado, quadra cai em NAO_ENCONTRADO mesmo com Uso do Solo ilegível na pasta",
-    r.quadra?.resultado === "NAO_ENCONTRADO", JSON.stringify(r.quadra));
+  t("quadra vira FONTE_ILEGIVEL quando o Uso do Solo está na pasta mas sem camada de texto",
+    r.quadra?.resultado === "FONTE_ILEGIVEL", JSON.stringify(r.quadra));
+  t("motivo cita a ausência de camada de texto", r.quadra?.tentativa?.motivoIlegivel === "SEM_CAMADA_TEXTO");
+
+  // 2b. o mesmo documento simplesmente não veio na pasta — resultado tem que ser OUTRO
+  const semDoc = preencherLip({} as any);
+  t("quadra vira DOCUMENTO_AUSENTE quando o Uso do Solo nem está na pasta (distinto de FONTE_ILEGIVEL)",
+    semDoc.quadra?.resultado === "DOCUMENTO_AUSENTE", JSON.stringify(semDoc.quadra));
+
+  // 2c. o documento está na pasta, tem texto, e o padrão simplesmente não achou — NAO_ENCONTRADO
+  const legivel = { uso_solo: doc({ papeis: ["uso_solo"], temCamadaTexto: true, dados: {} }) };
+  const rLeg = preencherLip(legivel as any);
+  t("quadra vira NAO_ENCONTRADO quando o Uso do Solo está na pasta, tem texto, e o padrão não achou",
+    rLeg.quadra?.resultado === "NAO_ENCONTRADO", JSON.stringify(rLeg.quadra));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +120,13 @@ secao("5 · total final da execução — exatamente 136");
   t("total fecha em 136", naMatriz.length === 136, `${naMatriz.length} de 136`);
   t("nenhum campo da matriz falta", faltando.length === 0, faltando.join(", "));
   t("nenhuma chave estranha à matriz (fora as fantasmas declaradas)", sobrando.length === 0, sobrando.join(", "));
+
+  // `observacoes` é declarada AUTOMATICO mas o resultado é sempre CALCULADO (log montado no
+  // aceite, não texto extraído de documento) — a única divergência declaração×resultado esperada.
+  // Ver a observação em lipSlot5.ts e o teste 14g de testar_rastreabilidade.mts.
+  const observacoesCampo = campos.find((c) => c.chave === "observacoes")!;
+  t("observacoes: declarada AUTOMATICO, resulta CALCULADO — intencional",
+    observacoesCampo.declaracao === "AUTOMATICO" && completo.observacoes.resultado === "CALCULADO");
 
   const distribuicao = Object.entries(completo).filter(([k]) => chavesMatriz.has(k))
     .reduce((acc: Record<string, number>, [, v]: any) => {

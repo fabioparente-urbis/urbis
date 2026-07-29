@@ -461,6 +461,11 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     regras: [{ regra: "DERIVAR_DE_CAMPO", descricao: "recebe o log da leitura no momento do aceite em bloco" }],
     responsavel: "app/processo/ProcessoClient.tsx:aceitarPropostaPasta", preenchidoPor: "tela",
     usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
+    observacao: "declaração ≠ resultado, de propósito: a DECLARAÇÃO é AUTOMATICO (o mecanismo roda sozinho, sem "
+      + "intervenção do analista); o RESULTADO sai sempre CALCULADO, nunca ENCONTRADO — o valor é um log MONTADO "
+      + "no aceite (app/api/lip/aceitar-pasta/route.ts), não um trecho extraído verbatim de documento. É a mesma "
+      + "distinção método×regra que separa TEXTO_DOCUMENTO de REGRA_DERIVADA. Protegido pelo teste 14g "
+      + "(scripts/testar_rastreabilidade.mts) — se isso mudar sem essa observação acompanhar, é regressão, não evolução.",
   },
 ];
 

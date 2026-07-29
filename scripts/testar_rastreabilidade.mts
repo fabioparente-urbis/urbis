@@ -196,6 +196,26 @@ if (!fs.existsSync(AMOSTRA)) {
   t("14f. NAO_IMPLEMENTADO só aparece em campo declarado implementado=false", naoImplementadoIndevido.length === 0,
     naoImplementadoIndevido.map(([k]) => k).join(", "));
 
+  /* 14g. `observacoes` é a ÚNICA divergência declaração×resultado esperada nesta matriz: declarada
+   * AUTOMATICO, mas o resultado é sempre CALCULADO (log montado no aceite, não texto extraído de
+   * documento) — ver a observação em lipSlot5.ts. Qualquer OUTRA divergência é bug, não intenção. */
+  const divergencias = Object.entries(comObservacoes).filter(([k, v]: any) => {
+    const c = porChave.get(k);
+    if (!c) return false;
+    // resultados "fechados" pela síntese (fecharResultados) legitimamente não repetem a declaração
+    // (ex.: BLOQUEADO/DOCUMENTO_AUSENTE/MANUAL/NAO_IMPLEMENTADO/AGUARDANDO_FATO) — só concerne
+    // ENCONTRADO × CALCULADO, que são as duas leituras de um campo AUTOMATICO/CALCULADO.
+    if (!["ENCONTRADO", "CALCULADO"].includes(v.resultado)) return false;
+    if (c.declaracao === "CALCULADO" && v.resultado === "CALCULADO") return false;
+    if (c.declaracao === "AUTOMATICO" && v.resultado === "ENCONTRADO") return false;
+    return true;
+  });
+  const esperadas = new Set(["observacoes"]);
+  const inesperadas = divergencias.filter(([k]) => !esperadas.has(k));
+  t("14g. observacoes é AUTOMATICO→CALCULADO de propósito; nenhuma outra divergência declaração×resultado",
+    inesperadas.length === 0, inesperadas.map(([k, v]: any) => `${k} (declara ${porChave.get(k)?.declaracao}, resultou ${v.resultado})`).join(", "));
+  t("14h. observacoes de fato resultou CALCULADO nesta execução", comObservacoes.observacoes?.resultado === "CALCULADO");
+
   const distribuicao = Object.entries(comObservacoes).filter(([k]) => chavesMatriz.has(k))
     .reduce((acc: Record<string, number>, [, v]: any) => {
     acc[v.resultado] = (acc[v.resultado] ?? 0) + 1; return acc;

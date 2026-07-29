@@ -732,33 +732,55 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
    * "nenhum campo termina vazio sem justificativa", e escondia justamente o caso mais frequente na
    * prática: o projetista montou o PDF de outro jeito e o rótulo não estava onde se procurou.
    *
-   * Agora, sem valor, grava-se NAO_ENCONTRADO com ONDE se procurou — que é o insumo para evoluir
-   * o leitor em vez de descobrir a falha por acaso, meses depois.
+   * `doc` tem TRÊS estados, não dois — é o que separa os três resultados corretamente:
+   *   OMITIDO (undefined) → o campo não tem UM documento responsável (é calculado, derivado ou
+   *     constante). Sem valor, é NAO_ENCONTRADO — não há "fonte" para julgar ausente ou ilegível.
+   *   `null`, ou array em que nenhum entrou no catálogo → a fonte É de um documento único (ou de
+   *     uma cadeia de fontes alternativas), e NENHUMA delas veio na pasta → DOCUMENTO_AUSENTE.
+   *   `ItemCatalogo` (ou array com pelo menos um item) → a fonte existe. Sem camada de texto em
+   *     NENHUMA delas → FONTE_ILEGIVEL. Com texto em pelo menos uma e mesmo assim sem valor →
+   *     NAO_ENCONTRADO (a fonte era utilizável; o padrão que falhou).
+   *
+   * Achado em produção (29/07/2026): nenhuma chamada real passava `doc` — o parâmetro só existia
+   * nos wrappers `lido`/`calc`, nunca usados. Por isso FONTE_ILEGIVEL nunca saía do papel, e um
+   * documento ausente da pasta virava "documento de origem não está no catálogo" sob NAO_ENCONTRADO
+   * em vez de DOCUMENTO_AUSENTE — a distinção existe porque a correção é diferente: DOCUMENTO_AUSENTE
+   * pede o documento na pasta; FONTE_ILEGIVEL pede OCR/visão; NAO_ENCONTRADO conserta o extrator.
    */
   const set = (
     chave: string, valor: any, resultado: ResultadoExec, fonte: string,
-    procurou?: string[], doc?: ItemCatalogo,
+    procurou?: string[], doc?: ItemCatalogo | (ItemCatalogo | undefined | null)[] | null,
   ) => {
     if (valor != null && valor !== "" && valor !== "—") {
       C[chave] = { valor: String(valor), resultado, fonte };
       return;
     }
-    // sem valor: o motivo depende de o documento existir e ser legível
-    if (!doc) {
+    // campo sem fonte documental única (calculado, derivado ou constante): sem doc para julgar
+    if (doc === undefined) {
       C[chave] = {
         resultado: "NAO_ENCONTRADO", fonte,
-        tentativa: { procurou: procurou ?? [fonte], motivo: "documento de origem não está no catálogo" },
+        tentativa: { procurou: procurou ?? [fonte], motivo: "não foi possível localizar ou calcular o dado" },
       };
       return;
     }
-    if (!doc.temCamadaTexto) {
+    const candidatos = (Array.isArray(doc) ? doc : [doc]).filter((d): d is ItemCatalogo => !!d);
+    if (candidatos.length === 0) {
+      C[chave] = {
+        resultado: "DOCUMENTO_AUSENTE", fonte,
+        tentativa: { procurou: procurou ?? [fonte], motivo: "o documento de origem não veio na pasta deste processo" },
+      };
+      return;
+    }
+    const legivel = candidatos.find((d) => d.temCamadaTexto);
+    if (!legivel) {
+      const d = candidatos[0];
       C[chave] = {
         resultado: "FONTE_ILEGIVEL", fonte,
         tentativa: {
-          documento: doc.nome, hash: doc.hash, procurou: procurou ?? [fonte],
-          temCamadaTexto: false, charsTexto: doc.charsTexto,
+          documento: d.nome, hash: d.hash, procurou: procurou ?? [fonte],
+          temCamadaTexto: false, charsTexto: d.charsTexto,
           motivoIlegivel: "SEM_CAMADA_TEXTO",
-          motivo: `${doc.nome} não tem camada de texto (${doc.paginas} página(s) digitalizadas)`,
+          motivo: `${d.nome} não tem camada de texto (${d.paginas} página(s) digitalizadas)`,
         },
       };
       return;
@@ -766,18 +788,18 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     C[chave] = {
       resultado: "NAO_ENCONTRADO", fonte,
       tentativa: {
-        documento: doc.nome, hash: doc.hash, procurou: procurou ?? [fonte],
-        temCamadaTexto: true, charsTexto: doc.charsTexto,
-        motivo: `o padrão não localizou o dado em ${doc.nome}, que tem texto legível`,
+        documento: legivel.nome, hash: legivel.hash, procurou: procurou ?? [fonte],
+        temCamadaTexto: true, charsTexto: legivel.charsTexto,
+        motivo: `o padrão não localizou o dado em ${legivel.nome}, que tem texto legível`,
       },
     };
   };
 
   /** valor lido de documento */
-  const lido = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo, procurou?: string[]) =>
+  const lido = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo | (ItemCatalogo | undefined | null)[] | null, procurou?: string[]) =>
     set(chave, valor, "ENCONTRADO", fonte, procurou, doc);
   /** resultado de conta ou derivação */
-  const calc = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo, procurou?: string[]) =>
+  const calc = (chave: string, valor: any, fonte: string, doc?: ItemCatalogo | (ItemCatalogo | undefined | null)[] | null, procurou?: string[]) =>
     set(chave, valor, "CALCULADO", fonte, procurou, doc);
 
   /**
@@ -799,51 +821,60 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   const aCx = vig.art_caixa?.dados ?? {};
 
   // identificação
-  set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "ENCONTRADO", "Uso do Solo (Nome da Via)");
-  set("quadra", uds.quadra, "ENCONTRADO", "Uso do Solo");
-  set("lote", uds.lote, "ENCONTRADO", "Uso do Solo");
-  set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo");
-  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo");
-  set("proprietario", rq.interessado, "ENCONTRADO", "Requerimento");
-  set("nome_responsavel_arq", pr.arquiteto, "ENCONTRADO", "carimbo da prancha");
-  set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha");
-  set("nome_responsavel_eng", pr.engenheiro, "ENCONTRADO", "carimbo da prancha");
-  set("crea", pr.crea, "ENCONTRADO", "carimbo da prancha");
-  set("quantasFrentes", uds.via ? 1 : null, "CALCULADO", "1 via no Uso do Solo");
-  set("esquina", uds.via ? "NÃO" : null, "CALCULADO", "1 frente");
+  set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "ENCONTRADO", "Uso do Solo (Nome da Via)",
+      undefined, [vig.uso_solo, vig.projeto]);
+  set("quadra", uds.quadra, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("lote", uds.lote, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo",
+      undefined, [vig.uso_solo, vig.projeto, vig.requerimento]);
+  set("proprietario", rq.interessado, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
+  set("nome_responsavel_arq", pr.arquiteto, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("nome_responsavel_eng", pr.engenheiro, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("crea", pr.crea, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("quantasFrentes", uds.via ? 1 : null, "CALCULADO", "1 via no Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("esquina", uds.via ? "NÃO" : null, "CALCULADO", "1 frente", undefined, vig.uso_solo ?? null);
 
   // uso do solo
-  set("usoDoSoloN", uds.numero, "ENCONTRADO", "Uso do Solo");
-  set("unidadeTerritorialDoUsoDoSolo", uds.unidadeTerritorial, "ENCONTRADO", "Uso do Solo");
-  set("usoDoSoloEParaAprovacao", uds.tipo ? (uds.tipo === "APROVAÇÃO DE PROJETO" ? "SIM" : "NÃO") : null, "CALCULADO", "Tipo de Uso do Solo");
-  set("tipoDeVia1", uds.classificacaoVia, "ENCONTRADO", "Uso do Solo");
-  set("anexouCertidaoDeCorredorViario", uds.via ? (uds.corredorViario ? "SIM" : "NÃO") : null, "CALCULADO", "campo Corredor Viário do UDS");
-  set("atendeOPorteAdmitido", /sem limite/i.test(uds.areaMaxima ?? "") ? "SIM" : null, "CALCULADO", uds.areaMaxima ?? "");
-  set("cnae", uds.cnaes?.length ? uds.cnaes.map((c: any) => c.codigo).join(" / ") : null, "ENCONTRADO", "Uso do Solo");
+  set("usoDoSoloN", uds.numero, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("unidadeTerritorialDoUsoDoSolo", uds.unidadeTerritorial, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("usoDoSoloEParaAprovacao", uds.tipo ? (uds.tipo === "APROVAÇÃO DE PROJETO" ? "SIM" : "NÃO") : null, "CALCULADO", "Tipo de Uso do Solo",
+      undefined, vig.uso_solo ?? null);
+  set("tipoDeVia1", uds.classificacaoVia, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  set("anexouCertidaoDeCorredorViario", uds.via ? (uds.corredorViario ? "SIM" : "NÃO") : null, "CALCULADO", "campo Corredor Viário do UDS",
+      undefined, vig.uso_solo ?? null);
+  set("atendeOPorteAdmitido", /sem limite/i.test(uds.areaMaxima ?? "") ? "SIM" : null, "CALCULADO", uds.areaMaxima ?? "",
+      undefined, vig.uso_solo ?? null);
+  set("cnae", uds.cnaes?.length ? uds.cnaes.map((c: any) => c.codigo).join(" / ") : null, "ENCONTRADO", "Uso do Solo",
+      undefined, vig.uso_solo ?? null);
 
   // ART
-  set("numeroDeArtProjeto", aProj.numero, "ENCONTRADO", "ART de projeto");
-  set("numeroDeArtExecucao", aExec.numero, "ENCONTRADO", "ART de execução");
+  set("numeroDeArtProjeto", aProj.numero, "ENCONTRADO", "ART de projeto", undefined, vig.art_projeto ?? null);
+  set("numeroDeArtExecucao", aExec.numero, "ENCONTRADO", "ART de execução", undefined, vig.art_execucao ?? null);
   set("numeroDeArtCaixa", aCx.numero, "ENCONTRADO",
       vig.art_caixa?.caixaDedicada ? "ART dedicada à caixa de recarga"
       : vig.art_caixa?.caixaRepetida ? `repetido da ${vig.art_caixa.caixaRepetida} — a caixa não tem ART própria`
-      : "ART de caixa");
+      : "ART de caixa",
+      undefined, vig.art_caixa ?? null);
   set("anexouArtRrtProjeto", vig.art_projeto ? "SIM" : "NÃO", "CALCULADO", "catálogo");
   set("anexouArtRrtExecucao", vig.art_execucao ? "SIM" : "NÃO", "CALCULADO", "catálogo");
   set("anexouArtRrtCaixa", vig.art_caixa ? "SIM" : "NÃO", "CALCULADO", "catálogo");
-  set("artDeProjetoAtendeAAcessibilidade", aProj.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "declaração de acessibilidade na ART de projeto");
-  set("aArtDeExecucaoAtendeA", aExec.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "ART de execução");
+  set("artDeProjetoAtendeAAcessibilidade", aProj.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "declaração de acessibilidade na ART de projeto",
+      undefined, vig.art_projeto ?? null);
+  set("aArtDeExecucaoAtendeA", aExec.declaracaoAcessibilidade ? "SIM" : null, "ENCONTRADO", "ART de execução",
+      undefined, vig.art_execucao ?? null);
 
   // dados do projeto
-  set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "ENCONTRADO", "carimbo da prancha");
-  set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "ENCONTRADO", "carimbo da prancha");
-  set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha");
-  set("certidao", ct.matricula, "ENCONTRADO", "Certidão de Matrícula");
+  set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  set("certidao", ct.matricula, "ENCONTRADO", "Certidão de Matrícula", undefined, vig.certidao_matricula ?? null);
 
   // caixa de recarga — lido para CONFRONTAR, nunca para valer por si
-  set("nDeCaixasDeCaptacao", pr.numeroCaixas, "ENCONTRADO", "carimbo da prancha");
+  set("nDeCaixasDeCaptacao", pr.numeroCaixas, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("volumeDaCaixaDeRecarga", pr.volumeCaixa != null ? fmt(pr.volumeCaixa) : null, "ENCONTRADO",
-      "carimbo da prancha (a conferir por cálculo)");
+      "carimbo da prancha (a conferir por cálculo)", undefined, vig.projeto ?? null);
 
   /**
    * PRIMITIVOS — os fatos que produzem o veredito, criados no LIP em 27/07/2026.
@@ -855,13 +886,16 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     const v = d.atividades?.find((x: Atividade) => re.test(x.unidade))?.quantidade;
     return v ?? null;
   };
-  set("areaNaArtDeProjeto", qtd(aProj, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de projeto");
-  set("areaNaArtDeExecucao", qtd(aExec, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de execução");
-  set("volumeNaArtDeCaixa", qtd(aCx, /C[ÚU]BIC/i), "ENCONTRADO", "quadro de atividade técnica da ART de caixa");
+  set("areaNaArtDeProjeto", qtd(aProj, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de projeto",
+      undefined, vig.art_projeto ?? null);
+  set("areaNaArtDeExecucao", qtd(aExec, /QUADRAD/i), "ENCONTRADO", "quadro de atividade técnica da ART de execução",
+      undefined, vig.art_execucao ?? null);
+  set("volumeNaArtDeCaixa", qtd(aCx, /C[ÚU]BIC/i), "ENCONTRADO", "quadro de atividade técnica da ART de caixa",
+      undefined, vig.art_caixa ?? null);
   set("areaPermeavelProjetada", pr.permeavel != null ? fmt(pr.permeavel) : null, "ENCONTRADO",
-      "cobertura vegetal permeável no carimbo");
+      "cobertura vegetal permeável no carimbo", undefined, vig.projeto ?? null);
   set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "ENCONTRADO",
-      "ICCAP EXIGIDO no carimbo (IN 007/2024)");
+      "ICCAP EXIGIDO no carimbo (IN 007/2024)", undefined, vig.projeto ?? null);
   // área impermeabilizada: quando o carimbo traz o EXIGIDO, ela é dedutível do parâmetro do UDS
   if (pr.iccapExigido != null && uds.iccapDivisor) {
     set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "CALCULADO",
@@ -873,7 +907,8 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     if (uds.corredorViario) alertas.push(`corredor viário: ${uds.corredorViario}`);
     if (uds.embargo && /SIM/i.test(uds.embargo)) alertas.push("imóvel COM EMBARGO");
     if (uds.embarqueDesembarque && /SIM/i.test(uds.embarqueDesembarque)) alertas.push("exige embarque/desembarque");
-    set("alertasDoUsoDoSolo", alertas.length ? alertas.join(" · ") : (uds.numero ? "nenhum alerta no documento" : null), "CALCULADO", "Uso do Solo");
+    set("alertasDoUsoDoSolo", alertas.length ? alertas.join(" · ") : (uds.numero ? "nenhum alerta no documento" : null), "CALCULADO", "Uso do Solo",
+        undefined, vig.uso_solo ?? null);
   }
 
   // fração ideal
@@ -891,8 +926,8 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   }
 
   set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "ENCONTRADO", "valor padrão do assunto");
-  set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "ENCONTRADO", "Requerimento");
-  set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "CALCULADO", "CNAEs no Uso do Solo");
+  set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
+  set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "CALCULADO", "CNAEs no Uso do Solo", undefined, vig.uso_solo ?? null);
 
   /* ══════════════════════════════════════════════════════════════════════════════
    * GRUPO A — sem IA. Regra sobre dado já lido, ou resultado de conferência que já
@@ -919,7 +954,7 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   // ── tipo de uso: derivado do que o requerimento marca e do que o UDS lista
   const ehComercial = /comercial/i.test(rq.tipoUso ?? "") || (uds.cnaes?.length ?? 0) > 0;
   const ehHabitacional = /residencial|habitacional/i.test(rq.tipoUso ?? "");
-  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "ENCONTRADO", "Requerimento");
+  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
 
   if (ehComercial && !ehHabitacional) {
     np("habSeriada", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
@@ -959,7 +994,7 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
 
   // ── coordenadas: estão na ART, e o campo era digitado à mão
   set("coordenadas", aExec.coordenadas ?? aProj.coordenadas ?? aCx.coordenadas, "ENCONTRADO",
-      "campo Coordenadas Geográficas da ART");
+      "campo Coordenadas Geográficas da ART", undefined, [vig.art_execucao, vig.art_projeto, vig.art_caixa]);
 
   /* ── endereço: comparar quadra e lote SEPARADAMENTE, e normalizados.
    *
