@@ -98,37 +98,55 @@ async function doCache(hashDoc: string, r: Receita): Promise<Interpretacao | nul
   };
 }
 
+/**
+ * Sobrecarga do provedor NÃO é falha de leitura — é fila.
+ *
+ * Medido em 29/07/2026: o Gemini devolveu 503 "experiencing high demand" numa execução real, e sem
+ * retentativa isso derrubava a visão inteira de uma pasta. A rota `s3` já tratava esse caso desde
+ * antes; aqui faltava. Só se retenta o que é transitório: 503, 429 e 5xx. Resposta 400 (prompt ou
+ * imagem inválidos) é erro nosso e não melhora tentando de novo.
+ */
+const TENTATIVAS = 3;
+const transitorio = (status: number, corpo: string) =>
+  status === 503 || status === 429 || status >= 500
+  || /overloaded|high demand|unavailable/i.test(corpo);
+
 async function chamarModelo(png: Uint8Array, r: Receita): Promise<{ texto: string; custo: number; ms: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
   const t0 = performance.now();
+  const corpo = JSON.stringify({
+    contents: [{
+      role: "user",
+      parts: [
+        { inline_data: { mime_type: "image/png", data: Buffer.from(png).toString("base64") } },
+        { text: r.prompt },
+      ],
+    }],
+    // temperatura zero: não se quer criatividade lendo número de vaga de estacionamento
+    generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" },
+  });
 
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${r.modelo}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          role: "user",
-          parts: [
-            { inline_data: { mime_type: "image/png", data: Buffer.from(png).toString("base64") } },
-            { text: r.prompt },
-          ],
-        }],
-        // temperatura zero: não se quer criatividade lendo número de vaga de estacionamento
-        generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" },
-      }),
-    },
-  );
-  if (!res.ok) throw new Error(`modelo respondeu ${res.status}: ${(await res.text()).slice(0, 200)}`);
-
-  const data = await res.json();
-  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-  const u = data.usageMetadata ?? {};
-  const custo = (u.promptTokenCount ?? 0) * USD_POR_TOKEN_ENTRADA
-    + (u.candidatesTokenCount ?? 0) * USD_POR_TOKEN_SAIDA;
-  return { texto, custo, ms: performance.now() - t0 };
+  let ultimoErro = "";
+  for (let tentativa = 1; tentativa <= TENTATIVAS; tentativa++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${r.modelo}:generateContent?key=${apiKey}`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: corpo },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+      const u = data.usageMetadata ?? {};
+      const custo = (u.promptTokenCount ?? 0) * USD_POR_TOKEN_ENTRADA
+        + (u.candidatesTokenCount ?? 0) * USD_POR_TOKEN_SAIDA;
+      return { texto, custo, ms: performance.now() - t0 };
+    }
+    const texto = (await res.text()).slice(0, 300);
+    ultimoErro = `modelo respondeu ${res.status}: ${texto}`;
+    if (!transitorio(res.status, texto) || tentativa === TENTATIVAS) break;
+    await new Promise((r) => setTimeout(r, tentativa * 1500)); // 1,5s, depois 3s
+  }
+  throw new Error(ultimoErro);
 }
 
 export async function executarVisao(args: {
