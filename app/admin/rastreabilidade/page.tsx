@@ -1,20 +1,11 @@
 "use client";
 
-/**
- * Tela da MATRIZ DE RASTREABILIDADE.
- *
- * Lê do código, via `/api/admin/rastreabilidade` — nunca de cópia no banco. Por isso não tem como
- * mostrar algo diferente do que o sistema faz: mudou a regra no código, mudou aqui.
- *
- * Sem processo informado, mostra só a DECLARAÇÃO (a regra, sempre igual). Com um processo, junta o
- * RESULTADO daquela execução — gravado no MHD por /api/lip/aceitar-pasta.
- */
-
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 type Linha = any;
 
+// ── LIP: cores de declaração ──────────────────────────────────────────────────
 const CORES: Record<string, string> = {
   AUTOMATICO: "#16A34A", CALCULADO: "#2563EB", NAO_APLICAVEL: "#64748B",
   DOCUMENTO_AUSENTE: "#EA580C", MANUAL: "#7C3AED",
@@ -25,7 +16,6 @@ const rotuloStatus: Record<string, string> = {
   DOCUMENTO_AUSENTE: "Documento ausente",
   MANUAL: "Manual", PENDENTE_VISAO: "Pendente de visão", BLOQUEADO: "Bloqueado",
 };
-
 const CORES_RESULTADO: Record<string, string> = {
   ENCONTRADO: "#16A34A", CALCULADO: "#2563EB", NAO_APLICAVEL: "#64748B",
   NAO_ENCONTRADO: "#DC2626", FONTE_ILEGIVEL: "#DC2626", DOCUMENTO_AUSENTE: "#EA580C",
@@ -35,16 +25,35 @@ const CORES_RESULTADO: Record<string, string> = {
 const rotuloResultado: Record<string, string> = {
   ENCONTRADO: "Encontrado", CALCULADO: "Calculado", NAO_APLICAVEL: "Não aplicável",
   NAO_ENCONTRADO: "Não encontrado", FONTE_ILEGIVEL: "Fonte ilegível", DOCUMENTO_AUSENTE: "Documento ausente",
-  AGUARDANDO_FATO: "Aguardando fato", MANUAL: "Manual", BLOQUEADO: "Bloqueado", NAO_IMPLEMENTADO: "Não implementado",
-  SEM_RESULTADO: "Sem resultado",
+  AGUARDANDO_FATO: "Aguardando fato", MANUAL: "Manual", BLOQUEADO: "Bloqueado",
+  NAO_IMPLEMENTADO: "Não implementado", SEM_RESULTADO: "Sem resultado",
 };
 
-/** os 5 resultados que o relatório de lacunas cobre — ver etapa 4 do fechamento dos 136 */
+// ── MAC: cores e rótulos de classificação ─────────────────────────────────────
+const CORES_CLASSIF_BIP: Record<string, string> = {
+  VINCULADO_BIP: "#16A34A", SEM_FUNDAMENTO_BIP: "#EA580C",
+  REVISAO_MANUAL: "#DC2626", NAO_ANALISADO: "#94A3B8",
+};
+const CORES_CLASSIF_LIP: Record<string, string> = {
+  AUTOMATIZAVEL: "#16A34A", PARCIALMENTE_AUTOMATIZAVEL: "#2563EB",
+  MANUAL_COM_EVIDENCIA_LIP: "#7C3AED", MANUAL_SEM_DADO_LIP: "#64748B",
+  REVISAO_MANUAL: "#DC2626", NAO_ANALISADO: "#94A3B8",
+};
+const ROT_CLASSIF_BIP: Record<string, string> = {
+  VINCULADO_BIP: "Com BIP", SEM_FUNDAMENTO_BIP: "Sem BIP",
+  REVISAO_MANUAL: "Revisão BIP", NAO_ANALISADO: "N/A",
+};
+const ROT_CLASSIF_LIP: Record<string, string> = {
+  AUTOMATIZAVEL: "Automático", PARCIALMENTE_AUTOMATIZAVEL: "Parcial",
+  MANUAL_COM_EVIDENCIA_LIP: "Com evidência", MANUAL_SEM_DADO_LIP: "Sem dado LIP",
+  REVISAO_MANUAL: "Revisão LIP", NAO_ANALISADO: "N/A",
+};
 const RESULTADOS_LACUNA = new Set([
   "NAO_ENCONTRADO", "FONTE_ILEGIVEL", "DOCUMENTO_AUSENTE", "BLOQUEADO", "NAO_IMPLEMENTADO",
 ]);
 
 export default function Rastreabilidade() {
+  const router = useRouter();
   const [dados, setDados] = useState<any>(null);
   const [erro, setErro] = useState("");
   const [modulo, setModulo] = useState<"LIP" | "MAC">("LIP");
@@ -54,10 +63,20 @@ export default function Rastreabilidade() {
   const [fStatus, setFStatus] = useState("");
   const [fFonte, setFFonte] = useState("");
   const [fIA, setFIA] = useState("");
+  const [fClassifLip, setFClassifLip] = useState("");
+  const [fClassifBip, setFClassifBip] = useState("");
+  const [fTemVinculoLip, setFTemVinculoLip] = useState("");
+  const [fTemVinculoBip, setFTemVinculoBip] = useState("");
   const [aberto, setAberto] = useState<string | null>(null);
   const [processoBusca, setProcessoBusca] = useState("");
   const [processoAtivo, setProcessoAtivo] = useState("");
   const [soLacunas, setSoLacunas] = useState(false);
+
+  function trocarModulo(m: "LIP" | "MAC") {
+    setModulo(m); setAberto(null);
+    setBusca(""); setFSecao(""); setFMetodo(""); setFStatus(""); setFFonte(""); setFIA("");
+    setFClassifLip(""); setFClassifBip(""); setFTemVinculoLip(""); setFTemVinculoBip("");
+  }
 
   useEffect(() => {
     setDados(null); setErro("");
@@ -71,35 +90,50 @@ export default function Rastreabilidade() {
 
   const linhas: Linha[] = dados?.linhas ?? [];
   const opcoes = useMemo(() => ({
-    secoes: [...new Set(linhas.map((l) => l.secao))],
+    secoes: [...new Set(linhas.map((l) => l.secao))].sort(),
     metodos: [...new Set(linhas.flatMap((l) => l.metodos))].sort(),
     status: [...new Set(linhas.map((l) => l.declaracao))].sort(),
     fontes: [...new Set(linhas.map((l) => l.fontePrincipal))].sort(),
+    classifBip: [...new Set(linhas.map((l: any) => l.classificacao_bip).filter(Boolean))].sort(),
+    classifLip: [...new Set(linhas.map((l: any) => l.classificacao_lip).filter(Boolean))].sort(),
   }), [linhas]);
 
   const filtradas = linhas.filter((l) => {
     const q = busca.trim().toLowerCase();
-    if (q && !`${l.id} ${l.nome} ${l.secao} ${l.responsavel} ${l.aplicabilidade ?? ""}`.toLowerCase().includes(q)) return false;
+    if (q && !`${l.id} ${l.nome} ${l.secao} ${l.responsavel ?? ""} ${l.aplicabilidade ?? ""}`.toLowerCase().includes(q)) return false;
     if (fSecao && l.secao !== fSecao) return false;
     if (fMetodo && !l.metodos.includes(fMetodo)) return false;
     if (fStatus && l.declaracao !== fStatus) return false;
     if (fFonte && l.fontePrincipal !== fFonte) return false;
     if (fIA === "sim" && !l.usaIA) return false;
     if (fIA === "nao" && l.usaIA) return false;
+    if (fClassifLip && l.classificacao_lip !== fClassifLip) return false;
+    if (fClassifBip && l.classificacao_bip !== fClassifBip) return false;
+    if (fTemVinculoLip === "sim" && !(l.lipVinculos?.length)) return false;
+    if (fTemVinculoLip === "nao" && !!(l.lipVinculos?.length)) return false;
+    if (fTemVinculoBip === "sim" && !(l.bipVinculos?.length)) return false;
+    if (fTemVinculoBip === "nao" && !!(l.bipVinculos?.length)) return false;
     if (soLacunas && !RESULTADOS_LACUNA.has(l.resultado?.resultado)) return false;
     return true;
   });
 
   const sel = "bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs text-[var(--text-primary)]";
   const temExecucao = !!dados?.processo;
-  const colunas = temExecucao
-    ? "grid-cols-[1fr_110px_170px_150px_130px_45px_55px]"
-    : "grid-cols-[1fr_130px_180px_150px_50px_60px_90px]";
+  const colunas = modulo === "MAC"
+    ? "grid-cols-[1fr_160px_130px_130px_50px_50px]"
+    : temExecucao
+      ? "grid-cols-[1fr_110px_170px_150px_130px_45px_55px]"
+      : "grid-cols-[1fr_130px_180px_150px_50px_60px_90px]";
+  const temFiltro = busca || fSecao || fStatus || fMetodo || fFonte || fIA
+    || fClassifLip || fClassifBip || fTemVinculoLip || fTemVinculoBip;
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
       <div className="flex items-center gap-3 flex-wrap mb-1">
-        <Link href="/admin" className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]">← Admin</Link>
+        <button onClick={() => router.push("/")}
+          className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+          ← HOME
+        </button>
         <h1 className="text-xl font-bold text-[var(--text-primary)]">🔍 Rastreabilidade — Slot 5</h1>
       </div>
       <p className="text-xs text-[var(--text-muted)] mb-4">
@@ -123,7 +157,8 @@ export default function Rastreabilidade() {
         {temExecucao && (
           <button onClick={() => setSoLacunas((v) => !v)}
             className={`px-3 py-1 rounded text-xs font-semibold border ${soLacunas
-              ? "bg-[#DC2626] text-white border-[#DC2626]" : "border-[var(--border-strong)] text-[var(--text-secondary)]"}`}>
+              ? "bg-[#DC2626] text-white border-[#DC2626]"
+              : "border-[var(--border-strong)] text-[var(--text-secondary)]"}`}>
             {soLacunas ? "vendo só lacunas" : "ver relatório de lacunas"}
           </button>
         )}
@@ -131,8 +166,8 @@ export default function Rastreabilidade() {
 
       {!!processoAtivo && dados?.resultadosIndisponiveis && (
         <p className="text-xs text-[#DC2626] mb-3">
-          ⚠ o registro de resultados não está instalado — rode a migration
-          {" "}<code>2026_07_29_mhd_resultados_campo.sql</code>.
+          ⚠ o registro de resultados não está instalado — rode a migration{" "}
+          <code>2026_07_29_mhd_resultados_campo.sql</code>.
         </p>
       )}
 
@@ -141,9 +176,10 @@ export default function Rastreabilidade() {
 
       {dados && (
         <>
+          {/* Abas de módulo */}
           <div className="flex gap-2 mb-3">
             {dados.matrizes.map((m: any) => (
-              <button key={m.modulo} onClick={() => setModulo(m.modulo)}
+              <button key={m.modulo} onClick={() => trocarModulo(m.modulo)}
                 className={`px-3 py-1.5 rounded text-sm font-semibold ${modulo === m.modulo
                   ? "bg-[var(--primary)] text-white"
                   : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
@@ -152,62 +188,115 @@ export default function Rastreabilidade() {
             ))}
           </div>
 
-          {modulo === "MAC" && !linhas.length && (
-            <div className="border border-[var(--border-strong)] rounded-lg p-4 mb-4">
-              <p className="text-sm font-bold text-[var(--text-primary)]">Estrutura pronta, conteúdo vazio</p>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">
-                Os 561 itens não foram cadastrados de propósito. Tipos, testes, filtros e esta tela já
-                existem e são os mesmos do LIP — quando o MAC entrar, é alimentar a estrutura, não
-                projetá-la. Ver <code>lib/rastreabilidade/macSlot5.ts</code>.
-              </p>
-            </div>
-          )}
-
           {!!linhas.length && (
             <>
-              <div className="flex flex-wrap gap-2 items-center mb-3">
-                <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="buscar campo, nome, arquivo…"
+              {/* Filtros */}
+              <div className="flex flex-wrap gap-2 items-center mb-2">
+                <input value={busca} onChange={(e) => setBusca(e.target.value)}
+                  placeholder={modulo === "MAC" ? "buscar texto do item, grupo, ID…" : "buscar campo, nome, arquivo…"}
                   className={`${sel} min-w-[240px] flex-1`} />
                 <select value={fSecao} onChange={(e) => setFSecao(e.target.value)} className={sel}>
-                  <option value="">todas as seções</option>
-                  {opcoes.secoes.map((s) => <option key={s} value={s}>{s}</option>)}
+                  <option value="">{modulo === "MAC" ? "todos os grupos" : "todas as seções"}</option>
+                  {opcoes.secoes.map((s: any) => <option key={s} value={s}>{s}</option>)}
                 </select>
-                <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={sel}>
-                  <option value="">todos os status</option>
-                  {opcoes.status.map((s) => <option key={s} value={s}>{rotuloStatus[s] ?? s}</option>)}
-                </select>
-                <select value={fMetodo} onChange={(e) => setFMetodo(e.target.value)} className={sel}>
-                  <option value="">todos os métodos</option>
-                  {opcoes.metodos.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select value={fFonte} onChange={(e) => setFFonte(e.target.value)} className={sel}>
-                  <option value="">todas as fontes</option>
-                  {opcoes.fontes.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-                <select value={fIA} onChange={(e) => setFIA(e.target.value)} className={sel}>
-                  <option value="">IA: tanto faz</option>
-                  <option value="sim">usa IA</option>
-                  <option value="nao">sem IA</option>
-                </select>
-                {(busca || fSecao || fStatus || fMetodo || fFonte || fIA) && (
-                  <button onClick={() => { setBusca(""); setFSecao(""); setFStatus(""); setFMetodo(""); setFFonte(""); setFIA(""); }}
-                    className="text-xs text-[var(--text-muted)] underline">limpar</button>
+                {modulo === "LIP" && (
+                  <>
+                    <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} className={sel}>
+                      <option value="">todos os status</option>
+                      {opcoes.status.map((s: any) => <option key={s} value={s}>{rotuloStatus[s] ?? s}</option>)}
+                    </select>
+                    <select value={fMetodo} onChange={(e) => setFMetodo(e.target.value)} className={sel}>
+                      <option value="">todos os métodos</option>
+                      {opcoes.metodos.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={fFonte} onChange={(e) => setFFonte(e.target.value)} className={sel}>
+                      <option value="">todas as fontes</option>
+                      {opcoes.fontes.map((s: any) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={fIA} onChange={(e) => setFIA(e.target.value)} className={sel}>
+                      <option value="">IA: tanto faz</option>
+                      <option value="sim">usa IA</option>
+                      <option value="nao">sem IA</option>
+                    </select>
+                  </>
+                )}
+                {modulo === "MAC" && (
+                  <>
+                    <select value={fClassifLip} onChange={(e) => setFClassifLip(e.target.value)} className={sel}>
+                      <option value="">class. LIP: todas</option>
+                      {opcoes.classifLip.map((s: any) => <option key={s} value={s}>{ROT_CLASSIF_LIP[s] ?? s}</option>)}
+                    </select>
+                    <select value={fClassifBip} onChange={(e) => setFClassifBip(e.target.value)} className={sel}>
+                      <option value="">class. BIP: todas</option>
+                      {opcoes.classifBip.map((s: any) => <option key={s} value={s}>{ROT_CLASSIF_BIP[s] ?? s}</option>)}
+                    </select>
+                    <select value={fTemVinculoLip} onChange={(e) => setFTemVinculoLip(e.target.value)} className={sel}>
+                      <option value="">vínculo LIP: tanto faz</option>
+                      <option value="sim">com vínculo LIP</option>
+                      <option value="nao">sem vínculo LIP</option>
+                    </select>
+                    <select value={fTemVinculoBip} onChange={(e) => setFTemVinculoBip(e.target.value)} className={sel}>
+                      <option value="">vínculo BIP: tanto faz</option>
+                      <option value="sim">com vínculo BIP</option>
+                      <option value="nao">sem vínculo BIP</option>
+                    </select>
+                  </>
+                )}
+                {temFiltro && (
+                  <button onClick={() => {
+                    setBusca(""); setFSecao(""); setFStatus(""); setFMetodo(""); setFFonte(""); setFIA("");
+                    setFClassifLip(""); setFClassifBip(""); setFTemVinculoLip(""); setFTemVinculoBip("");
+                  }} className="text-xs text-[var(--text-muted)] underline">limpar</button>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-1 text-xs">
-                <span className="text-[var(--text-muted)]">
-                  Declaração — {filtradas.length} de {dados.totais.campos} · {dados.totais.implementados} implementados ·
-                  {" "}{dados.totais.usamIA} usam IA
-                </span>
-                {Object.entries(dados.totais.porStatus).map(([s, n]: any) => (
-                  <button key={s} onClick={() => setFStatus(fStatus === s ? "" : s)}
-                    className="px-2 py-0.5 rounded-full border"
-                    style={{ borderColor: CORES[s], color: CORES[s] }}>
-                    {rotuloStatus[s] ?? s}: {n}
-                  </button>
-                ))}
-              </div>
+              {/* Totais LIP */}
+              {modulo === "LIP" && (
+                <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                  <span className="text-[var(--text-muted)]">
+                    Declaração — {filtradas.length} de {dados.totais.campos} · {dados.totais.implementados} implementados ·{" "}
+                    {dados.totais.usamIA} usam IA
+                  </span>
+                  {Object.entries(dados.totais.porStatus).map(([s, n]: any) => (
+                    <button key={s} onClick={() => setFStatus(fStatus === s ? "" : s)}
+                      className="px-2 py-0.5 rounded-full border"
+                      style={{ borderColor: CORES[s], color: CORES[s] }}>
+                      {rotuloStatus[s] ?? s}: {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Totais MAC */}
+              {modulo === "MAC" && (
+                <>
+                  <div className="flex flex-wrap gap-2 mb-1 text-xs">
+                    <span className="text-[var(--text-muted)]">
+                      Classificação LIP — {filtradas.length} de {dados.totais.campos} itens ·{" "}
+                      {dados.totais.itensComVinculoLip} com vínculo · {dados.totais.totalVinculosLip} vínculos total
+                    </span>
+                    {dados.totais.porClassifLip && Object.entries(dados.totais.porClassifLip).map(([s, n]: any) => (
+                      <button key={s} onClick={() => setFClassifLip(fClassifLip === s ? "" : s)}
+                        className="px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: CORES_CLASSIF_LIP[s] ?? "#64748B", color: CORES_CLASSIF_LIP[s] ?? "#64748B" }}>
+                        {ROT_CLASSIF_LIP[s] ?? s}: {n}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                    <span className="text-[var(--text-muted)]">
+                      Classificação BIP — {dados.totais.itensComVinculoBip} com vínculo · {dados.totais.totalVinculosBip} vínculos total
+                    </span>
+                    {dados.totais.porClassifBip && Object.entries(dados.totais.porClassifBip).map(([s, n]: any) => (
+                      <button key={s} onClick={() => setFClassifBip(fClassifBip === s ? "" : s)}
+                        className="px-2 py-0.5 rounded-full border"
+                        style={{ borderColor: CORES_CLASSIF_BIP[s] ?? "#64748B", color: CORES_CLASSIF_BIP[s] ?? "#64748B" }}>
+                        {ROT_CLASSIF_BIP[s] ?? s}: {n}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
 
               {temExecucao && dados.totais.porResultado && (
                 <div className="flex flex-wrap gap-2 mb-3 text-xs">
@@ -231,49 +320,116 @@ export default function Rastreabilidade() {
                 </p>
               )}
 
+              {/* Tabela */}
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <div className={`grid ${colunas} gap-2 px-3 py-2 bg-[var(--bg-secondary)] text-[10px] font-bold uppercase text-[var(--text-muted)]`}>
-                  <span>Campo</span><span>Declaração</span>
-                  {temExecucao ? <span>Resultado</span> : null}
-                  <span>Método</span><span>Fonte</span>
-                  <span>IA?</span><span>Versão</span>
-                  {!temExecucao && <span>Alterado</span>}
+                  {modulo === "MAC" ? (
+                    <>
+                      <span>Texto do Item</span>
+                      <span>Grupo</span>
+                      <span>Class. LIP</span>
+                      <span>Class. BIP</span>
+                      <span title="vínculos LIP"># LIP</span>
+                      <span title="vínculos BIP"># BIP</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Campo</span>
+                      <span>Declaração</span>
+                      {temExecucao ? <span>Resultado</span> : null}
+                      <span>Método</span>
+                      <span>Fonte</span>
+                      <span>IA?</span>
+                      <span>Versão</span>
+                      {!temExecucao && <span>Alterado</span>}
+                    </>
+                  )}
                 </div>
+
                 {filtradas.map((l) => (
                   <div key={l.id} className="border-t border-[var(--border)]">
                     <button onClick={() => setAberto(aberto === l.id ? null : l.id)}
                       className={`w-full grid ${colunas} gap-2 px-3 py-2 text-left text-xs hover:bg-[var(--bg-secondary)]`}>
-                      <span className="text-[var(--text-primary)] truncate" title={l.nome}>
-                        {l.nome} <span className="text-[var(--text-muted)]">· {l.id}</span>
-                      </span>
-                      <span style={{ color: CORES[l.declaracao] }}>{rotuloStatus[l.declaracao] ?? l.declaracao}</span>
-                      {temExecucao && (
-                        <span style={{ color: CORES_RESULTADO[l.resultado?.resultado ?? "SEM_RESULTADO"] }} className="truncate"
-                          title={l.resultado?.valor ?? l.resultado?.tentativa?.motivo ?? ""}>
-                          {rotuloResultado[l.resultado?.resultado ?? "SEM_RESULTADO"]}
-                        </span>
+                      {modulo === "MAC" ? (
+                        <>
+                          <span className="text-[var(--text-primary)] truncate" title={l.nome}>{l.nome}</span>
+                          <span className="text-[var(--text-secondary)] truncate text-[10px]" title={l.secao}>{l.secao}</span>
+                          <span className="text-[10px] truncate"
+                            style={{ color: CORES_CLASSIF_LIP[l.classificacao_lip ?? "NAO_ANALISADO"] ?? "#94A3B8" }}>
+                            {ROT_CLASSIF_LIP[l.classificacao_lip ?? "NAO_ANALISADO"] ?? l.classificacao_lip ?? "—"}
+                          </span>
+                          <span className="text-[10px] truncate"
+                            style={{ color: CORES_CLASSIF_BIP[l.classificacao_bip ?? "NAO_ANALISADO"] ?? "#94A3B8" }}>
+                            {ROT_CLASSIF_BIP[l.classificacao_bip ?? "NAO_ANALISADO"] ?? l.classificacao_bip ?? "—"}
+                          </span>
+                          <span className="text-[var(--text-secondary)] text-center">{l.lipVinculos?.length ?? 0}</span>
+                          <span className="text-[var(--text-secondary)] text-center">{l.bipVinculos?.length ?? 0}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[var(--text-primary)] truncate" title={l.nome}>
+                            {l.nome} <span className="text-[var(--text-muted)]">· {l.id}</span>
+                          </span>
+                          <span style={{ color: CORES[l.declaracao] }}>{rotuloStatus[l.declaracao] ?? l.declaracao}</span>
+                          {temExecucao && (
+                            <span style={{ color: CORES_RESULTADO[l.resultado?.resultado ?? "SEM_RESULTADO"] }}
+                              className="truncate"
+                              title={l.resultado?.valor ?? l.resultado?.tentativa?.motivo ?? ""}>
+                              {rotuloResultado[l.resultado?.resultado ?? "SEM_RESULTADO"]}
+                            </span>
+                          )}
+                          <span className="text-[var(--text-secondary)] truncate" title={l.metodos.join(" → ")}>
+                            {l.metodos.join(" → ")}
+                          </span>
+                          <span className="text-[var(--text-secondary)] truncate">{l.fontePrincipal}</span>
+                          <span className={l.usaIA ? "text-[#DC2626]" : "text-[var(--text-muted)]"}>{l.usaIA ? "sim" : "—"}</span>
+                          <span className="text-[var(--text-secondary)]">v{l.versao}</span>
+                          {!temExecucao && <span className="text-[var(--text-muted)]">{l.alteradoEm}</span>}
+                        </>
                       )}
-                      <span className="text-[var(--text-secondary)] truncate" title={l.metodos.join(" → ")}>
-                        {l.metodos.join(" → ")}
-                      </span>
-                      <span className="text-[var(--text-secondary)] truncate">{l.fontePrincipal}</span>
-                      <span className={l.usaIA ? "text-[#DC2626]" : "text-[var(--text-muted)]"}>{l.usaIA ? "sim" : "—"}</span>
-                      <span className="text-[var(--text-secondary)]">v{l.versao}</span>
-                      {!temExecucao && <span className="text-[var(--text-muted)]">{l.alteradoEm}</span>}
                     </button>
 
                     {aberto === l.id && (
                       <div className="px-4 py-3 bg-[var(--bg-secondary)] text-xs space-y-2">
-                        <Campo t="Seção">{l.secao}</Campo>
-                        <Campo t="Implementado">{l.implementado ? "sim" : "não"} · preenchido por <b>{l.preenchidoPor}</b></Campo>
-                        {l.valoresPossiveis?.length && <Campo t="Valores possíveis">{l.valoresPossiveis.join(" · ")}</Campo>}
+
+                        {/* Identificação MAC */}
+                        {modulo === "MAC" && (
+                          <>
+                            <Campo t="ID / código"><code className="text-[10px]">{l.id}</code></Campo>
+                            <Campo t="Ordem">{l.ordem ?? "—"}</Campo>
+                            <Campo t="Grupo">{l.secao}</Campo>
+                            <Campo t="Texto completo"><span className="whitespace-pre-wrap">{l.nome}</span></Campo>
+                            {l.ativo === false && (
+                              <Campo t="Status"><span className="text-[#DC2626]">⚠ Inativo</span></Campo>
+                            )}
+                            {l.fundamento_legal && <Campo t="Fundamento legal">{l.fundamento_legal}</Campo>}
+                            {l.nota_analista && <Campo t="Nota do analista">{l.nota_analista}</Campo>}
+                            {l.versao_compatibilizacao && (
+                              <Campo t="Versão de compatibilização">{l.versao_compatibilizacao}</Campo>
+                            )}
+                          </>
+                        )}
+
+                        {/* Seção/implementado — LIP */}
+                        {modulo === "LIP" && (
+                          <>
+                            <Campo t="Seção">{l.secao}</Campo>
+                            <Campo t="Implementado">{l.implementado ? "sim" : "não"} · preenchido por <b>{l.preenchidoPor}</b></Campo>
+                          </>
+                        )}
+
+                        {l.valoresPossiveis?.length > 0 && (
+                          <Campo t="Valores possíveis">{l.valoresPossiveis.join(" · ")}</Campo>
+                        )}
                         <Campo t="Métodos (ordem de execução)">{l.metodos.join("  →  ")}</Campo>
                         <Campo t="Fonte principal">{l.fontePrincipal}</Campo>
-                        {l.fontesComparadas?.length && <Campo t="Fontes comparadas">{l.fontesComparadas.join(" · ")}</Campo>}
-                        {l.depende?.length && <Campo t="Depende de">{l.depende.join(" · ")}</Campo>}
+                        {l.fontesComparadas?.length > 0 && (
+                          <Campo t="Fontes comparadas">{l.fontesComparadas.join(" · ")}</Campo>
+                        )}
+                        {l.depende?.length > 0 && <Campo t="Depende de">{l.depende.join(" · ")}</Campo>}
                         <div>
                           <p className="text-[10px] uppercase text-[var(--text-muted)] font-bold">Regras</p>
-                          {l.regras.length
+                          {l.regras?.length > 0
                             ? l.regras.map((r: any, i: number) => (
                               <p key={i} className="text-[var(--text-secondary)]">
                                 <b>{r.regra}</b> — {r.descricao}
@@ -288,13 +444,87 @@ export default function Rastreabilidade() {
                         {l.regraSemDado && <Campo t="Regra de sem dado">{l.regraSemDado}</Campo>}
                         {l.fatoNecessario && <Campo t="Fato necessário">{l.fatoNecessario}</Campo>}
                         <Campo t="Executado por"><code>{l.responsavel}</code></Campo>
-                        <Campo t="Testes">{l.testes.join(" · ")}</Campo>
+                        {l.testes?.length > 0 && <Campo t="Testes">{l.testes.join(" · ")}</Campo>}
                         <Campo t="Versão / hash da regra">v{l.versao} · <code>{l.hash}</code></Campo>
                         {l.observacao && <Campo t="Observação">{l.observacao}</Campo>}
 
+                        {/* Integração LIP — só MAC */}
+                        {modulo === "MAC" && (
+                          <div className="pt-2 border-t border-[var(--border)]">
+                            <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1">
+                              Integração LIP
+                              {l.classificacao_lip && (
+                                <span className="ml-2 font-normal normal-case"
+                                  style={{ color: CORES_CLASSIF_LIP[l.classificacao_lip] ?? "#64748B" }}>
+                                  {ROT_CLASSIF_LIP[l.classificacao_lip] ?? l.classificacao_lip}
+                                </span>
+                              )}
+                            </p>
+                            {l.lipVinculos?.length > 0 ? (
+                              l.lipVinculos.map((v: any, i: number) => (
+                                <div key={i} className="ml-2 border-l-2 border-[var(--border)] pl-2 mb-2">
+                                  <p className="text-[var(--text-primary)] font-mono text-[10px] font-medium">
+                                    {v.lip_chave}{v.obrigatorio ? " *" : ""}
+                                    {v.lip_declaracao && (
+                                      <span className="ml-2 font-sans font-normal"
+                                        style={{ color: CORES[v.lip_declaracao] }}>
+                                        ({rotuloStatus[v.lip_declaracao] ?? v.lip_declaracao}
+                                        {v.lip_implementado === false ? " — não implementado" : ""})
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[var(--text-muted)] text-[10px]">
+                                    papel: <b>{v.papel}</b> · confiança: <b>{v.confianca}</b>
+                                    {v.obrigatorio && " · obrigatório"}
+                                  </p>
+                                  <p className="text-[var(--text-secondary)]">{v.justificativa}</p>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[var(--text-muted)] ml-2">Sem vínculo LIP identificado</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Integração BIP — só MAC */}
+                        {modulo === "MAC" && (
+                          <div className="pt-2 border-t border-[var(--border)]">
+                            <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1">
+                              Integração BIP
+                              {l.classificacao_bip && (
+                                <span className="ml-2 font-normal normal-case"
+                                  style={{ color: CORES_CLASSIF_BIP[l.classificacao_bip] ?? "#64748B" }}>
+                                  {ROT_CLASSIF_BIP[l.classificacao_bip] ?? l.classificacao_bip}
+                                </span>
+                              )}
+                            </p>
+                            {l.bipVinculos?.length > 0 ? (
+                              l.bipVinculos.map((v: any, i: number) => (
+                                <div key={i} className="ml-2 border-l-2 border-[var(--border)] pl-2 mb-1">
+                                  <p className="text-[var(--text-primary)] font-mono text-[10px]">
+                                    {v.referencia ?? v.fragmentoId}
+                                    <span className="ml-2 font-sans font-normal text-[var(--text-muted)]">
+                                      [{v.confianca}]
+                                    </span>
+                                  </p>
+                                  <p className="text-[var(--text-secondary)]">
+                                    {v.documentoSigla
+                                      ? <><b>{v.documentoSigla}</b> — {v.documentoTitulo}</>
+                                      : (v.documentoTitulo ?? "documento não encontrado")}
+                                  </p>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-[var(--text-muted)] ml-2">Sem vínculo BIP identificado</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Resultado da execução — LIP com processo */}
                         {temExecucao && l.resultado && (
                           <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                            <p className="text-[10px] uppercase font-bold" style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
+                            <p className="text-[10px] uppercase font-bold"
+                              style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
                               Resultado da execução — {dados.processo}
                             </p>
                             <Campo t="Resultado">
@@ -328,6 +558,10 @@ export default function Rastreabilidade() {
                 ))}
               </div>
             </>
+          )}
+
+          {!linhas.length && dados && (
+            <p className="text-sm text-[var(--text-muted)]">Nenhum registro encontrado.</p>
           )}
         </>
       )}

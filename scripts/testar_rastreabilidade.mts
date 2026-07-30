@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import {
-  MATRIZES, CHAVES_FANTASMA, registros, idDoRegistro, hashFuncional, matriz,
+  MATRIZES, CHAVES_FANTASMA, registros, idDoRegistro, hashFuncional, matriz, CAMPOS_LIP_SLOT5,
 } from "../lib/rastreabilidade";
 import type { CampoRastreado, ItemRastreado } from "../lib/rastreabilidade";
 import { lerPastaSlot5, type ArquivoEntrada } from "../lib/lerPastaSlot5";
@@ -226,8 +226,67 @@ if (!fs.existsSync(AMOSTRA)) {
 secao("MAC · itens cadastrados");
 const mac = matriz("MAC", "slot_05")!;
 t("estrutura do MAC existe", !!mac.itens, "");
+t("MAC · 768 itens na matriz estática", mac.itens!.length === 768, `encontrados: ${mac.itens!.length}`);
 t("nenhum código de item do MAC duplicado", new Set(mac.itens!.map((i) => i.codigo)).size === mac.itens!.length, "");
 console.log(`  ${mac.itens!.length} itens cadastrados — ver lib/rastreabilidade/macSlot5.ts`);
+
+{
+  // Validações de banco: garantem que as tabelas mac_* não divergiram da matriz estática.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.log("  [banco] NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY não definidos — pulando testes de banco MAC");
+  } else {
+    const h = { apikey: key, Authorization: `Bearer ${key}` };
+    const api = (path: string) => fetch(`${url}/rest/v1/${path}`, { headers: h }).then((r) => r.json());
+
+    // contagens
+    // descobrir o modelo_id do slot 5 via assunto_id (evita hardcoding)
+    const macModelos = await api(`mac_checklist_modelos?select=id&assunto_id=eq.${mac.assuntoId}`) as any[];
+    const macModeloId = macModelos[0]?.id ?? "";
+    if (!macModeloId) { console.log("  [banco] modelo MAC slot5 não encontrado — pulando testes de banco"); }
+    else {
+    const macItens   = await api(`mac_checklist_itens?select=id,classificacao_bip,classificacao_lip&modelo_id=eq.${macModeloId}&limit=1000`) as any[];
+    const macBipVraw = await api("mac_bip_vinculos?select=mac_item_id&limit=2000") as any[];
+    const macLipVraw = await api("mac_lip_vinculos?select=mac_item_id,lip_chave&limit=2000") as any[];
+
+    t("MAC · 768 itens em mac_checklist_itens", macItens.length === 768, `encontrados: ${macItens.length}`);
+    t("MAC · 887 vínculos em mac_bip_vinculos", macBipVraw.length === 887, `encontrados: ${macBipVraw.length}`);
+    t("MAC · 160 vínculos em mac_lip_vinculos", macLipVraw.length === 160, `encontrados: ${macLipVraw.length}`);
+
+    // classificações BIP
+    const classifBip = macItens.reduce((acc: Record<string, number>, i: any) => {
+      const k = i.classificacao_bip ?? "NAO_ANALISADO"; acc[k] = (acc[k] ?? 0) + 1; return acc;
+    }, {});
+    t("MAC · 655 VINCULADO_BIP",    classifBip["VINCULADO_BIP"] === 655,    `${classifBip["VINCULADO_BIP"]}`);
+    t("MAC · 91 SEM_FUNDAMENTO_BIP", classifBip["SEM_FUNDAMENTO_BIP"] === 91, `${classifBip["SEM_FUNDAMENTO_BIP"]}`);
+    t("MAC · 22 REVISAO_MANUAL BIP", classifBip["REVISAO_MANUAL"] === 22,    `${classifBip["REVISAO_MANUAL"]}`);
+
+    // classificações LIP
+    const classifLip = macItens.reduce((acc: Record<string, number>, i: any) => {
+      const k = i.classificacao_lip ?? "NAO_ANALISADO"; acc[k] = (acc[k] ?? 0) + 1; return acc;
+    }, {});
+    t("MAC · 42 PARCIALMENTE_AUTOMATIZAVEL",  classifLip["PARCIALMENTE_AUTOMATIZAVEL"]  === 42,  `${classifLip["PARCIALMENTE_AUTOMATIZAVEL"]}`);
+    t("MAC · 45 MANUAL_COM_EVIDENCIA_LIP",    classifLip["MANUAL_COM_EVIDENCIA_LIP"]    === 45,  `${classifLip["MANUAL_COM_EVIDENCIA_LIP"]}`);
+    t("MAC · 658 MANUAL_SEM_DADO_LIP",        classifLip["MANUAL_SEM_DADO_LIP"]         === 658, `${classifLip["MANUAL_SEM_DADO_LIP"]}`);
+    t("MAC · 23 REVISAO_MANUAL LIP",          classifLip["REVISAO_MANUAL"]              === 23,  `${classifLip["REVISAO_MANUAL"]}`);
+    t("MAC · soma classificações LIP = 768",
+      Object.values(classifLip).reduce((a: number, b: any) => a + b, 0) === 768,
+      `soma: ${Object.values(classifLip).reduce((a: number, b: any) => a + b, 0)}`);
+
+    // chaves LIP em mac_lip_vinculos existem na matriz estática
+    const chavesLipValidas = new Set(CAMPOS_LIP_SLOT5.map((c) => c.chave));
+    const chavesInvalidas = [...new Set(macLipVraw.map((v: any) => v.lip_chave))]
+      .filter((k: string) => !chavesLipValidas.has(k));
+    t("MAC · nenhuma lip_chave em mac_lip_vinculos aponta para chave LIP inexistente",
+      chavesInvalidas.length === 0, chavesInvalidas.join(", "));
+
+    // itens com vínculo LIP
+    const itensComLip = new Set(macLipVraw.map((v: any) => v.mac_item_id)).size;
+    t("MAC · 111 itens distintos com vínculo LIP", itensComLip === 111, `${itensComLip}`);
+    } // fecha else (macModeloId encontrado)
+  } // fecha else (variáveis de ambiente presentes)
+}
 
 if (atualizarLock) {
   fs.writeFileSync(LOCK, JSON.stringify(lockNovo, null, 2) + "\n");

@@ -1,19 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { usuarioDaRequisicao } from "@/lib/autorizacao";
-import { MATRIZES, matriz, hashFuncional, registros, idDoRegistro } from "@/lib/rastreabilidade";
+import {
+  MATRIZES, matriz, hashFuncional, registros, idDoRegistro, CAMPOS_LIP_SLOT5,
+} from "@/lib/rastreabilidade";
 
 /**
  * GET /api/admin/rastreabilidade?modulo=LIP&slot=slot_05&processo=CODIGO
  *
  * A matriz vem DO CÓDIGO, nunca de cópia no banco — é isso que impede a tela de divergir da
- * especificação. Do banco vêm só nome exibido e seção, que pertencem a `lip_campos`/`lip_abas`:
- * duplicá-los na matriz criaria uma segunda verdade que envelhece quando o rótulo muda no admin.
- *
- * `processo` é opcional: sem ele, a tela mostra só a DECLARAÇÃO (a regra, sempre igual). Com ele,
- * junta o RESULTADO daquela execução — gravado em `mhd_resultados_campo` por
- * `/api/lip/aceitar-pasta` — por chave. É por isso que os dois nunca podem divergir: um vem do
- * código, o outro vem do que aconteceu de fato, e a tela só junta os dois pela mesma chave.
+ * especificação. Do banco vêm só nome exibido e seção (para LIP) e texto/classificações/vínculos
+ * (para MAC).
  */
 
 export const runtime = "nodejs";
@@ -43,7 +40,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // rótulo e seção: do banco, casados pela chave
+    // rótulo e seção: do banco, casados pela chave (LIP only)
     const rotulos: Record<string, { nome: string; secao: string; ordem: number; ordemAba: number }> = {};
     if (modulo === "LIP") {
       const { data: abas } = await supabaseAdmin
@@ -61,16 +58,69 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // MAC: enriquecer com texto, classificações e vínculos BIP+LIP
+    const macDados: Record<string, any> = {};
+    const macBipVinculos: Record<string, any[]> = {};
+    const macLipVinculos: Record<string, any[]> = {};
+    const macDocsPorId: Record<string, any> = {};
+
+    if (modulo === "MAC") {
+      const [{ data: macItens }, { data: bipV }, { data: lipV }] = await Promise.all([
+        supabaseAdmin.from("mac_checklist_itens")
+          .select("id, texto, ordem, ativo, classificacao_bip, classificacao_lip, fundamento_legal, nota_analista, versao_compatibilizacao")
+          .limit(1000),
+        supabaseAdmin.from("mac_bip_vinculos")
+          .select("mac_item_id, bip_fragmento_id, confianca, bdi_lei_fragmentos(referencia, documento_id)")
+          .limit(2000),
+        supabaseAdmin.from("mac_lip_vinculos")
+          .select("mac_item_id, lip_chave, papel, obrigatorio, confianca, justificativa")
+          .limit(2000),
+      ]);
+
+      for (const item of macItens ?? []) macDados[(item as any).id] = item;
+
+      for (const v of bipV ?? []) {
+        const key = (v as any).mac_item_id;
+        if (!macBipVinculos[key]) macBipVinculos[key] = [];
+        macBipVinculos[key].push(v);
+      }
+
+      const docIds = [
+        ...new Set(
+          (bipV ?? [])
+            .map((v: any) => (v.bdi_lei_fragmentos as any)?.documento_id)
+            .filter(Boolean),
+        ),
+      ];
+      if (docIds.length) {
+        const { data: docs } = await supabaseAdmin
+          .from("bdi_documentos_lei").select("id, titulo, sigla").in("id", docIds);
+        for (const d of docs ?? []) macDocsPorId[(d as any).id] = d;
+      }
+
+      for (const v of lipV ?? []) {
+        const key = (v as any).mac_item_id;
+        if (!macLipVinculos[key]) macLipVinculos[key] = [];
+        macLipVinculos[key].push(v);
+      }
+    }
+
+    const lipCamposPorChave = modulo === "MAC"
+      ? new Map(CAMPOS_LIP_SLOT5.map((c) => [c.chave, c]))
+      : new Map<string, any>();
+
     const linhas = registros(m).map((r: any) => {
       const id = idDoRegistro(r);
       const rot = rotulos[id];
       const execucao = resultadosPorChave[id];
+      const macItem = macDados[id] ?? null;
+
       return {
         ...r,
         id,
-        nome: rot?.nome ?? id,
-        secao: rot?.secao ?? "(sem seção)",
-        ordem: rot?.ordem ?? 0,
+        nome: modulo === "MAC" ? (macItem?.texto ?? id) : (rot?.nome ?? id),
+        secao: modulo === "MAC" ? ((r as any).grupo ?? "(sem grupo)") : (rot?.secao ?? "(sem seção)"),
+        ordem: modulo === "MAC" ? (macItem?.ordem ?? 0) : (rot?.ordem ?? 0),
         ordemAba: rot?.ordemAba ?? 99,
         hash: hashFuncional(r),
         resultado: execucao ? {
@@ -79,10 +129,44 @@ export async function GET(req: NextRequest) {
           valorManual: execucao.valor_manual, autorManualId: execucao.autor_manual_id,
           complementadoEm: execucao.complementado_em, atualizadoEm: execucao.atualizado_em,
         } : null,
+        // Campos MAC (undefined para LIP — o spread de r não inclui estes)
+        ativo: macItem?.ativo,
+        classificacao_bip: macItem?.classificacao_bip,
+        classificacao_lip: macItem?.classificacao_lip,
+        fundamento_legal: macItem?.fundamento_legal,
+        nota_analista: macItem?.nota_analista,
+        versao_compatibilizacao: macItem?.versao_compatibilizacao,
+        bipVinculos: modulo === "MAC"
+          ? (macBipVinculos[id] ?? []).map((v: any) => {
+            const frag = (v.bdi_lei_fragmentos as any) ?? {};
+            const doc = macDocsPorId[frag.documento_id] ?? {};
+            return {
+              fragmentoId: v.bip_fragmento_id,
+              referencia: frag.referencia,
+              documentoId: frag.documento_id,
+              documentoTitulo: doc.titulo,
+              documentoSigla: doc.sigla,
+              confianca: v.confianca,
+            };
+          })
+          : undefined,
+        lipVinculos: modulo === "MAC"
+          ? (macLipVinculos[id] ?? []).map((v: any) => {
+            const campo = lipCamposPorChave.get(v.lip_chave);
+            return {
+              lip_chave: v.lip_chave,
+              papel: v.papel,
+              obrigatorio: v.obrigatorio,
+              confianca: v.confianca,
+              justificativa: v.justificativa,
+              lip_declaracao: campo?.declaracao,
+              lip_implementado: campo?.implementado,
+            };
+          })
+          : undefined,
       };
     }).sort((a: any, b: any) => a.ordemAba - b.ordemAba || a.ordem - b.ordem);
 
-    // campos do LIP que a matriz não cobre — não deveria haver, e o teste garante
     const semRastro = modulo === "LIP"
       ? Object.keys(rotulos).filter((k) => !linhas.some((l: any) => l.id === k))
       : [];
@@ -104,6 +188,20 @@ export async function GET(req: NextRequest) {
           const k = l.resultado?.resultado ?? "SEM_RESULTADO";
           acc[k] = (acc[k] ?? 0) + 1; return acc;
         }, {}) : null,
+        ...(modulo === "MAC" && {
+          porClassifBip: linhas.reduce((acc: Record<string, number>, l: any) => {
+            const k = l.classificacao_bip ?? "NAO_ANALISADO";
+            acc[k] = (acc[k] ?? 0) + 1; return acc;
+          }, {}),
+          porClassifLip: linhas.reduce((acc: Record<string, number>, l: any) => {
+            const k = l.classificacao_lip ?? "NAO_ANALISADO";
+            acc[k] = (acc[k] ?? 0) + 1; return acc;
+          }, {}),
+          totalVinculosBip: linhas.reduce((acc: number, l: any) => acc + (l.bipVinculos?.length ?? 0), 0),
+          totalVinculosLip: linhas.reduce((acc: number, l: any) => acc + (l.lipVinculos?.length ?? 0), 0),
+          itensComVinculoBip: linhas.filter((l: any) => (l.bipVinculos?.length ?? 0) > 0).length,
+          itensComVinculoLip: linhas.filter((l: any) => (l.lipVinculos?.length ?? 0) > 0).length,
+        }),
       },
     });
   } catch (e: any) {

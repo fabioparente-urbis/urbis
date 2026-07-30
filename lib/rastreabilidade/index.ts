@@ -26,7 +26,7 @@ export const MATRIZES: Matriz[] = [
     slot: "slot_05",
     nome: "Aprovação de Projeto",
     assuntoId: ASSUNTO_SLOT5,
-    itens: ITENS_MAC_SLOT5, // vazio de propósito — ver macSlot5.ts
+    itens: ITENS_MAC_SLOT5,
   },
 ];
 

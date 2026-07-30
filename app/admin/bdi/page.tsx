@@ -172,6 +172,7 @@ export default function BDIPage() {
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", background: urbiAtivo ? "#22c55e" : "#ef4444", boxShadow: `0 0 6px ${urbiAtivo ? "#22c55e" : "#ef4444"}` }} />
           <span style={{ color: "#ffffff44", fontSize: 11 }}>URBI {urbiAtivo ? "ATIVO" : "INATIVO"}</span>
+          <button onClick={() => router.push("/admin/rastreabilidade")} style={S.btn("#ffffff44")}>🔍 Rastreabilidade</button>
           <button onClick={() => router.push("/")} style={S.btn("#ffffff66")}>← HOME</button>
         </div>
       </div>
