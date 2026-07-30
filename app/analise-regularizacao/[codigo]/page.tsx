@@ -612,6 +612,15 @@ export default function MacPage() {
             historico_analises: historicoAnalises,
           }),
         });
+        // Mantém o cache analises[] em sincronia — sem isso, ao clicar em outra
+        // análise e voltar, selecionarAnalise() carregava dados antigos do cache
+        // e o despacho saía com obs/checklist desatualizados.
+        if (!skipStateUpdate) {
+          setAnalises(prev => prev.map(a => a.id === analiseAtual.id
+            ? { ...a, itens, fontes, aceites, observacoes, observacoes_por_aba: observacoesPorAba, numero_revisao: numeroRevisao, historico_analises: historicoAnalises }
+            : a
+          ));
+        }
       }
       setStatusSalvo("salvo");
       setTimeout(() => setStatusSalvo(""), 2500);
@@ -782,6 +791,11 @@ export default function MacPage() {
   async function gerarDespacho() {
     setGerandoDespacho(true);
     setModalDespacho(false);
+    // Captura antes de qualquer await — o estado React pode mudar entre
+    // awaits (ex: salvarSilencioso cria a análise e faz setAnaliseAtual),
+    // mas a closure capturada aqui reflete o render em que o clique ocorreu.
+    const capturedAnaliseId = analiseAtual?.id ?? null;
+    const capturedNumeroAnalise = analiseAtual?.numero_analise ?? null;
     // Garante que itens e observações atuais estejam persistidos antes do
     // docx — é isto que faz a reemissão sair com o checklist e as
     // observações COMO ESTÃO AGORA (a rota relê `analises_mac.itens`).
@@ -804,12 +818,12 @@ export default function MacPage() {
           naoConformes: naoConformesIds,
           observacoes,
           observacoesPorAba,
-          analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({
+          analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (capturedNumeroAnalise ?? 1)).map((a) => ({
             numero: a.numero_analise,
             data: dataDaAnalise(a),
             ultima: a.numero_analise === 5,
           })),
-          analiseId: analiseAtual?.id,
+          analiseId: capturedAnaliseId,
           assunto_id: assuntoId,
           numero_revisao: numeroRevisao,
           data: dataEmissao,
@@ -827,7 +841,7 @@ export default function MacPage() {
           processo_codigo: codigo,
           tipo_despacho: (tipoDespacho || "despacho").toLowerCase(),
           numero_despacho: numeroDespacho,
-          numero_analise: analiseAtual?.numero_analise ?? null,
+          numero_analise: capturedNumeroAnalise,
           numero_revisao: numeroRevisao,
           area_construida: parseAreaBR(dlFresh?.areaTotal?.valor),
           interessado: dlFresh?.proprietario?.valor ?? null,
@@ -859,7 +873,7 @@ export default function MacPage() {
         // Confirma a numeração de forma confiável: tenta até 3x em falha de
         // rede/5xx. 409 = servidor já avançou o número (re-emissão) → ok.
         // Se todas falharem, avisa o analista (não trava o fluxo).
-        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`;
+        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}${capturedAnaliseId ? `&analise_id=${encodeURIComponent(capturedAnaliseId)}&analise_numero=${capturedNumeroAnalise}` : ""}`;
         let _commitOk = false;
         for (let _t = 1; _t <= 3 && !_commitOk; _t++) {
           try {
@@ -896,7 +910,7 @@ export default function MacPage() {
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
         tipo: tipoDespacho,
-        numero_analise: analiseAtual?.numero_analise,
+        numero_analise: capturedNumeroAnalise ?? undefined,
         numero_despacho: numeroDespacho || undefined,
         data: dataEmissao,
       });

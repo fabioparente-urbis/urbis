@@ -252,6 +252,7 @@ export default function ProcessoClient() {
   const [novoProcesso, setNovoProcesso] = useState("");
   const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(tipoUrl);
   const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
+  const [analiseAtualLIP, setAnaliseAtualLIP] = useState<{ numero_analise: number; status: string; numero_despacho?: string; numero_parecer?: string } | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [progresso, setProgresso] = useState(0);
@@ -396,6 +397,19 @@ export default function ProcessoClient() {
     carregarProcesso();
     carregarHistorico();
   }, [idUrl, carregandoAbas, carregarProcesso]);
+  useEffect(() => {
+    if (!idUrl) return;
+    const rota = tipoUrl === "aceite_sei" ? "/api/analise-aceite-sei" : "/api/analise-regularizacao";
+    fetch(`${rota}?codigo=${encodeURIComponent(idUrl)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
+          const ultima = [...j.data].sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+          setAnaliseAtualLIP({ numero_analise: ultima.numero_analise, status: ultima.status, numero_despacho: ultima.numero_despacho, numero_parecer: ultima.numero_parecer });
+        }
+      })
+      .catch(() => {});
+  }, [idUrl, tipoUrl]);
   // Sincroniza inputs de via quando LIP carrega do banco
   useEffect(() => {
     if (d["bairro"]?.valor && !bairroBusca) setBairroBusca(d["bairro"].valor);
@@ -1844,6 +1858,21 @@ export default function ProcessoClient() {
             {d.proprietario?.valor && (
               <p className="text-[var(--text-muted)] text-sm mt-0.5">{d.proprietario.valor}</p>
             )}
+            {analiseAtualLIP && (() => {
+              const emitidos = [
+                analiseAtualLIP.numero_despacho ? `Despacho nº ${analiseAtualLIP.numero_despacho}` : null,
+                analiseAtualLIP.numero_parecer ? `Parecer nº ${analiseAtualLIP.numero_parecer}` : null,
+              ].filter(Boolean);
+              return emitidos.length > 0 ? (
+                <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+                  Análise {analiseAtualLIP.numero_analise} concluída — {emitidos.join(" e ")}
+                </p>
+              ) : (
+                <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
+                  Análise {analiseAtualLIP.numero_analise} em andamento
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
