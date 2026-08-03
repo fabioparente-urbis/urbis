@@ -122,7 +122,7 @@ export interface DadosLaudo {
   dataEmissao?: Date;                 // K65  → "Goiânia, DD de mês de AAAA"
 
   // ── Observações finais (área livre linhas 70-72) ───────────
-  observacoesFinais?: string;         // D70
+  observacoesFinais?: string;         // B70 (mescla B70:J70)
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -289,8 +289,11 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
   ws.getCell("K66").alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
 
   // ── OBSERVAÇÕES FINAIS ────────────────────────────────────
+  // Célula B70 é a âncora da mesclagem B70:J70 — escrever em D70 (célula
+  // "escrava" da mesclagem) deixava o valor fora do range visível/mesclado
+  // do Excel, produzindo a desconfiguração relatada na linha 70.
   if (dados.observacoesFinais) {
-    set(ws, "D70", dados.observacoesFinais);
+    set(ws, "B70", dados.observacoesFinais);
   }
 
   // ── Serializar e retornar ─────────────────────────────────

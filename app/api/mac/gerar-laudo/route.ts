@@ -72,6 +72,20 @@ ${membro.cau_crea}`;
     const d = p.dados || {};
     const v = (campo: string) => d[campo]?.valor ?? null;
 
+    // O textarea de "observações" acumula, além do texto do analista, blocos
+    // de log automático gerados a cada leitura P3 (delimitados por
+    // "━━━ LEITURA DO PROCESSO (MAC) ━━━"). Esse log é uso interno de tela —
+    // não deve ir para o documento oficial. Mantém só o texto do analista.
+    const stripLogAutomatico = (texto: string | null | undefined): string | undefined => {
+      if (!texto) return undefined;
+      const limpo = texto
+        .split(/\n{2,}(?=━━━ LEITURA DO PROCESSO \(MAC\) ━━━)/)
+        .filter((bloco) => !bloco.trimStart().startsWith("━━━ LEITURA DO PROCESSO (MAC) ━━━"))
+        .join("\n\n")
+        .trim();
+      return limpo || undefined;
+    };
+
     // ── Montar DadosLaudo ───────────────────────────────────
     const dados: DadosLaudo = {
       // Identificação
@@ -92,31 +106,31 @@ ${membro.cau_crea}`;
       levantamentoArquitetonico:  v("levantamento"),
       laudoTecnico:               v("laudo"),
       areaBemTombado:             v("tombado"),
-      certidaoRememDesm:          undefined,
-      areaAeroportuaria:          undefined,
+      certidaoRememDesm:          v("certidaoRememDesm"),
+      areaAeroportuaria:          v("vistoriaAreaAeroportuaria"),
       vistoriaFiscalFotografica:  v("vistoria"),
       embargo:                    v("embargo"),
       dataEmbargo:                v("dataEmb"),
       outorgaOnerosa:             v("onerosa"),
       despachoCheadvDoc:          v("despacho"),
-      imagemGoogleEarth:          undefined,
+      imagemGoogleEarth:          v("imagemGoogleEarth"),
 
       // Uso do Solo
       numUsoSolo:         v("usoSolo"),
       tipoUsoSolo:        v("tipoUso"),
       unidadeTerritorial: v("vistoriaUnidadeTerritorial"),
-      certCorredorViario: undefined,
+      certCorredorViario: v("certCorredorViario"),
       cnae1:              v("cnae1"),
-      descCnae1:          undefined,
+      descCnae1:          v("descCnae1"),
       cnae2:              v("cnae2"),
-      descCnae2:          undefined,
+      descCnae2:          v("descCnae2"),
       corredorViario:     v("corredor"),
       obsCorredorViario:  undefined,
 
       // Poço de Infiltração
       areaConstruida:         v("areaTotal"),
       pocoInfiltracao:        sn(v("caixa")),
-      indiceCaptacao:         undefined,
+      indiceCaptacao:         v("indiceCaptacao"),
       areaImpermeabilizada:   v("areaImpermeavel"),
       volumeCaixas:           v("volAt"),
       numCaixas:              v("caixas"),
@@ -128,7 +142,7 @@ ${membro.cau_crea}`;
       areaTotalConstrucao:    v("areaTotal"),
       numPavimentos:          v("pav"),
       numUnidades:            v("unid"),
-      areaAtividadeEconomica: undefined,
+      areaAtividadeEconomica: v("vistoriaAreaComercial"),
 
       // Da Análise — Checkboxes
       edificacaoEstruturalDef: sn(v("vistoriaEstruturaConcluida")),
@@ -148,8 +162,8 @@ ${membro.cau_crea}`;
       lancaAguasPluviais:          sn(v("vistoriaAguasPluviais")),
 
       // ANAC / Exército
-      flAnac:     mac?.itens?.flAnac ?? undefined,
-      flExercito: mac?.itens?.flExercito ?? undefined,
+      flAnac:     v("flAnac"),
+      flExercito: v("flExercito"),
 
       // Taxa de Regularização
       areaTotalRegularizar:   v("areaTotal"),
@@ -167,7 +181,7 @@ ${membro.cau_crea}`;
       nomeAnalista,
       dataEmissao:  new Date(),
 
-      observacoesFinais: mac?.observacoes ?? undefined,
+      observacoesFinais: stripLogAutomatico(mac?.observacoes),
     };
 
     const buffer = await gerarLaudo(dados);
