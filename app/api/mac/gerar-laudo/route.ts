@@ -113,7 +113,7 @@ ${membro.cau_crea}`;
       dataEmbargo:                v("dataEmb"),
       outorgaOnerosa:             v("onerosa"),
       despachoCheadvDoc:          v("despacho"),
-      imagemGoogleEarth:          v("imagemGoogleEarth"),
+      imagemGoogleEarth:          v("foto"),
 
       // Uso do Solo
       numUsoSolo:         v("usoSolo"),
