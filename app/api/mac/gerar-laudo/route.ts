@@ -161,8 +161,8 @@ ${membro.cau_crea}`;
       aberturaPortasNaDivisa:      sn(v("vistoriaEsquadriaDivisa")) === "SIM" ? "NAO" : "SIM",
       lancaAguasPluviais:          sn(v("vistoriaAguasPluviais")),
 
-      // ANAC / Exército
-      flAnac:     v("flAnac"),
+      // ANAC (na prática, COMAER — Comando da Aeronáutica) / Exército
+      flAnac:     v("comaer"),
       flExercito: v("flExercito"),
 
       // Taxa de Regularização
