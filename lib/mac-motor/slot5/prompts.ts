@@ -108,10 +108,18 @@ export const PROMPT_DIMENSOES_TERRENO: PromptSlot5 = {
  * do fato com o cálculo independente, nunca leu o rótulo. O ajuste é inteiramente na instrução ao
  * Gemini: reconhecer a expressão documental mesmo com rótulo errado, sem nunca inferir um número
  * que o documento não mostra escrito ou visivelmente derivável.
+ *
+ * v3 em 2026-08-03 (mesmo dia, reteste seguinte) — o prompt v2 corrigiu o rótulo, mas o reteste
+ * expôs duas falhas novas: (1) o Gemini respondeu `trecho` com uma FÓRMULA simbólica ("ÁREA
+ * IMPERMEABILIZADA (AI) = AT - ACVP"), sem nenhum número — o prompt já pedia "transcreva o texto
+ * exato", mas não deixava explícito que uma fórmula sem número ao lado NÃO conta como evidência (a
+ * regra determinística agora TRAVA isso via `evidenciaMemorialSuficiente()`, mas o prompt precisa
+ * parar de produzir esse caso, não só ser pego depois); (2) o Gemini leu o MESMO valor (1,78) para
+ * `volumeExigidoCarimbo` e `volumeProjetadoCarimbo` — confundiu as duas linhas do quadro ICCAP.
  */
 export const PROMPT_CAIXA_RECARGA: PromptSlot5 = {
   id: "slot5.caixaDeRecarga",
-  versao: 2,
+  versao: 3,
   modelo: GEMINI_MODEL,
   papeisEsperados: ["projeto"],
   texto: [
@@ -131,26 +139,39 @@ export const PROMPT_CAIXA_RECARGA: PromptSlot5 = {
     "   por conta própria a partir de dois números soltos sem relação visível entre si no quadro —",
     "   só reconheça o rótulo alternativo quando o documento deixar a conta ou a relação entre os",
     "   números claramente à mostra.",
+    "   IMPORTANTE: uma FÓRMULA simbólica sozinha (ex.: \"ÁREA IMPERMEABILIZADA (AI) = AT - ACVP\",",
+    "   com letras no lugar de números) NUNCA é evidência suficiente, mesmo que você saiba calcular o",
+    "   resultado de cabeça. Você só pode responder este fato se encontrar, escrita no documento, a",
+    "   LINHA COM O NÚMERO (o rótulo — usual ou alternativo — seguido do valor em m², como",
+    "   \"356,93 M²\"). Se só existir a fórmula com letras e você não achar a linha com o número real",
+    "   ao lado, isso é o MESMO que não ter encontrado o dado — abstenha-se.",
     "2. volumeExigidoCarimbo — linha ICCAP \"EXIGIDO\", em m³ (o carimbo pode omitir; se omitido, abstenha-se).",
-    "3. volumeProjetadoCarimbo — linha ICCAP \"ATENDIDO\" (ou equivalente: volume da caixa de recarga",
-    "   efetivamente projetada), em m³.",
+    "3. volumeProjetadoCarimbo — linha ICCAP \"ATENDIDO\" (ou equivalente: \"PROJETADO\", \"UTILIZADO\" —",
+    "   o volume da caixa de recarga efetivamente projetada/instalada), em m³.",
     "4. nDeCaixas — número de caixas de recarga/retenção indicado no carimbo ou na planta, se houver.",
     "",
     "ATENÇÃO — não confunda \"ÁREA IMPERMEABILIZADA\" (ou seu rótulo alternativo válido, ver acima)",
-    "com \"ÁREA DO TERRENO\" (maior, linha diferente). Não confunda \"EXIGIDO\" com \"ATENDIDO\" — são",
-    "linhas distintas do mesmo quadro.",
+    "com \"ÁREA DO TERRENO\" (maior, linha diferente). NÃO confunda \"EXIGIDO\" com \"ATENDIDO\"/",
+    "\"PROJETADO\"/\"UTILIZADO\" — são DUAS LINHAS DISTINTAS do mesmo quadro ICCAP, com rótulos",
+    "diferentes, mesmo lado a lado ou em colunas vizinhas. O volume ATENDIDO/PROJETADO normalmente é",
+    "maior ou igual ao EXIGIDO (a caixa instalada cobre o mínimo calculado) — se os dois números que",
+    "você está prestes a reportar forem EXATAMENTE IGUAIS, releia as duas linhas com atenção antes de",
+    "responder: é um sinal de que você pode ter copiado a mesma célula duas vezes. Só reporte os dois",
+    "iguais se, relendo, tiver certeza de que o documento realmente mostra o mesmo número nas duas",
+    "linhas — e cite em \"trecho\" o texto de CADA linha separadamente (rótulo + valor de cada uma).",
     "",
-    "Para o fato areaImpermeabilizadaMemorial, em \"trecho\" transcreva o texto exato do quadro,",
-    "incluindo o rótulo tal como está escrito (mesmo se parecer incorreto). Se você usou um rótulo",
-    "alternativo, registre em \"observacao\" qual foi o rótulo literal e por que reconheceu aquele",
-    "valor como a área impermeabilizada — por exemplo: \"rótulo do quadro diz 'ÁREA PERMEABILIZADA',",
-    "mas o mesmo quadro mostra ÁREA DO TERRENO 420,00 m² e COBERTURA VEGETAL PERMEÁVEL 63,07 m², e o",
-    "valor extraído bate com a subtração dos dois\".",
+    "Para o fato areaImpermeabilizadaMemorial, em \"trecho\" transcreva o texto exato da LINHA COM O",
+    "NÚMERO do quadro (rótulo + valor, nunca só a fórmula), tal como está escrito (mesmo se o rótulo",
+    "parecer incorreto). Se você usou um rótulo alternativo, registre em \"observacao\" qual foi o",
+    "rótulo literal e por que reconheceu aquele valor como a área impermeabilizada — por exemplo:",
+    "\"rótulo do quadro diz 'ÁREA PERMEABILIZADA', mas o mesmo quadro mostra ÁREA DO TERRENO 420,00 m²",
+    "e COBERTURA VEGETAL PERMEÁVEL 63,07 m², e o valor extraído bate com a subtração dos dois\".",
     "",
-    "Se não houver, em lugar nenhum do quadro ou do carimbo, uma linha, rótulo ou expressão que",
-    "sustente claramente o valor de areaImpermeabilizadaMemorial — nem sob o rótulo usual, nem sob",
-    "um rótulo alternativo com a conta visível — abstenha-se deste fato. Nunca infira ou calcule um",
-    "valor que o documento não mostra escrito ou derivável de números visivelmente relacionados.",
+    "Se não houver, em lugar nenhum do quadro ou do carimbo, uma linha, rótulo ou expressão com o",
+    "NÚMERO que sustente claramente o valor de areaImpermeabilizadaMemorial — nem sob o rótulo usual,",
+    "nem sob um rótulo alternativo com a conta visível — abstenha-se deste fato. Nunca infira ou",
+    "calcule um valor que o documento não mostra escrito ou derivável de números visivelmente",
+    "relacionados.",
     "",
     REGRAS_COMUNS,
   ].join("\n"),

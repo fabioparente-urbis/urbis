@@ -23,6 +23,7 @@ import {
 import { compararQuadroDeAreasComCarimbo } from "../lib/mac-motor/slot5/comparadorQuadroCarimbo";
 import { validarPdf, TAMANHO_MAXIMO_PDF_BYTES } from "../lib/mac-motor/slot5/validacaoDocumento";
 import { lerCampoLip } from "../lib/mac-motor/slot5/camposLip";
+import { parseNumeroBR } from "../lib/mac-motor/slot5/util";
 import { resolverProcessoSlot5, type UsuarioReq } from "../lib/mac-motor/slot5/autorizacao";
 import { executarPilotoSlot5 } from "../lib/mac-motor/slot5";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "../lib/mac-motor/slot5/constantes";
@@ -169,9 +170,14 @@ secao("8 · presença de Certidão de Limites não gera CONFORME sozinha (parâm
 
 secao("9 · cálculo da caixa de recarga (memorial + volume)");
 {
+  // "trecho" precisa conter o número e o rótulo usual — é o que a guarda de evidência
+  // (evidenciaMemorialSuficiente, v4) passa a exigir para decidir CONFORME/NAO_CONFORME.
+  const TRECHO_MEMORIAL_400 = "ÁREA IMPERMEABILIZADA 400,00 M²";
+  const TRECHO_MEMORIAL_350 = "ÁREA IMPERMEABILIZADA 350,00 M²";
+
   const conforme = decidirCaixaDeRecarga({
     areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(2.0),
-    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²" })],
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_400 })],
   });
   t("9a. memorial usa a fórmula certa (400 = 500-100) → CONFORME", conforme.memorial.resultado === "CONFORME");
   t("9b. volume projetado (2,00) atende o exigido (2,00) → CONFORME", conforme.volume.resultado === "CONFORME");
@@ -179,13 +185,13 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
 
   const memorialErrado = decidirCaixaDeRecarga({
     areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(2.0),
-    fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²" })],
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_350 })],
   });
   t("9d. memorial declara área impermeabilizada errada (350 ≠ 400) → NAO_CONFORME", memorialErrado.memorial.resultado === "NAO_CONFORME");
 
   const volumeInsuficiente = decidirCaixaDeRecarga({
     areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(1.0),
-    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²" })],
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_400 })],
   });
   t("9e. volume projetado (1,00) abaixo do exigido (2,00) → NAO_CONFORME", volumeInsuficiente.volume.resultado === "NAO_CONFORME");
 
@@ -223,7 +229,7 @@ secao("10 · volume usa área impermeável INDEPENDENTE, nunca o memorial diverg
 {
   const memorialSubestimado = decidirCaixaDeRecarga({
     areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(1.80),
-    fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²" })],
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 350,00 M²" })],
   });
   t("10a. memorial diverge (350≠400) → item MEMORIAL aponta NAO_CONFORME", memorialSubestimado.memorial.resultado === "NAO_CONFORME");
   t("10b. volume usa o exigido do cálculo INDEPENDENTE (400/200=2,00), não do memorial (350/200=1,75) — 1,80 não atende 2,00 → NAO_CONFORME", memorialSubestimado.volume.resultado === "NAO_CONFORME");
@@ -233,7 +239,7 @@ secao("11 · correção — resultado do VOLUME grava os campos LIP efetivamente
 {
   const resultado = decidirCaixaDeRecarga({
     areaTerreno: campoLip(500, "extraido"), areaPermeavelProjetada: campoLip(100, "extraido"), volumeDaCaixaDeRecarga: campoLip(2.0, "manual"),
-    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²" })],
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 400,00 M²" })],
   });
   const campos = resultado.volume.camposLip as Record<string, CampoLipCongelado>;
   t("11a. camposLip do item VOLUME não é mais {} — tem os 3 campos usados", Object.keys(campos).length === 3, JSON.stringify(campos));
@@ -278,9 +284,11 @@ secao("14 · versionamento/hash do prompt · validação de PDF · isolamento do
   const hCaixa = hashPrompt(PROMPT_CAIXA_RECARGA);
   t("14a2. hashPrompt de PROMPT_CAIXA_RECARGA também é determinístico", hCaixa === hashPrompt(PROMPT_CAIXA_RECARGA) && hCaixa.length > 0);
   t("14b2. mudar o texto de PROMPT_CAIXA_RECARGA muda o hash", hCaixa !== hashPrompt({ ...PROMPT_CAIXA_RECARGA, texto: PROMPT_CAIXA_RECARGA.texto + " " }));
-  t("14b3. PROMPT_CAIXA_RECARGA está na v2 (correção do rótulo ambíguo do ICCAP, 2026-08-03)", PROMPT_CAIXA_RECARGA.versao === 2);
+  t("14b3. PROMPT_CAIXA_RECARGA está na v3 (exige número documental no trecho + distingue EXIGIDO×ATENDIDO, 2026-08-03)", PROMPT_CAIXA_RECARGA.versao === 3);
   t("14b4. o texto do prompt instrui a aceitar rótulo alternativo só com expressão documental visível", /rótulo alternativo/i.test(PROMPT_CAIXA_RECARGA.texto) && /por conta própria/i.test(PROMPT_CAIXA_RECARGA.texto));
-  t("14b5. o texto do prompt mantém a instrução de abstenção quando não há suporte documental", /abstenha-se deste fato/i.test(PROMPT_CAIXA_RECARGA.texto) && /Nunca infira ou calcule um/i.test(PROMPT_CAIXA_RECARGA.texto));
+  t("14b5. o texto do prompt mantém a instrução de abstenção quando não há suporte documental", /abstenha-se deste fato/i.test(PROMPT_CAIXA_RECARGA.texto) && /Nunca infira ou\s+calcule um/i.test(PROMPT_CAIXA_RECARGA.texto));
+  t("14b6. o texto do prompt proíbe fórmula simbólica sem número como evidência", /FÓRMULA simbólica sozinha/i.test(PROMPT_CAIXA_RECARGA.texto) && /LINHA COM O\s+NÚMERO/i.test(PROMPT_CAIXA_RECARGA.texto));
+  t("14b7. o texto do prompt reforça a distinção EXIGIDO × ATENDIDO/PROJETADO com autoverificação", /NÃO confunda\s+"EXIGIDO"/i.test(PROMPT_CAIXA_RECARGA.texto) && /EXATAMENTE IGUAIS/i.test(PROMPT_CAIXA_RECARGA.texto));
 
   const pdfValido = new TextEncoder().encode("%PDF-1.4\n%conteúdo fictício de teste");
   t("14c. PDF com assinatura/MIME/tamanho corretos → válido", validarPdf({ bytes: pdfValido, mimeDeclarado: "application/pdf", nomeArquivo: "x.pdf", tamanhoBytes: pdfValido.byteLength }).ok === true);
@@ -393,6 +401,140 @@ secao("16 · integração — código de um processo de OUTRO slot não é encon
       console.log("  (16b pulado — nenhum processo real do Slot 5 no banco; não conta como falha)");
     }
   }
+}
+
+// ─────────────────────────── 17 · parser BR aceita unidade colada, rejeita lixo ───────────────────────────
+
+secao("17 · parseNumeroBR aceita unidade colada (m², m, m³) e continua rejeitando lixo");
+{
+  t("17a. \"420,00 m²\" → 420", parseNumeroBR("420,00 m²") === 420);
+  t("17b. \"15,00 m\" → 15", parseNumeroBR("15,00 m") === 15);
+  t("17c. \"1,90 m³\" → 1.9", parseNumeroBR("1,90 m³") === 1.9);
+  t("17d. \"356,93 M²\" (unidade maiúscula, sem espaço) → 356.93", parseNumeroBR("356,93M²") === 356.93);
+  t("17e. \"1.234,56 m²\" (milhar) → 1234.56", parseNumeroBR("1.234,56 m²") === 1234.56);
+  t("17f. número puro sem unidade continua funcionando (\"420,00\" → 420)", parseNumeroBR("420,00") === 420);
+  t("17g. número inteiro sem vírgula continua funcionando (\"15\" → 15)", parseNumeroBR("15") === 15);
+
+  t("17h. texto solto não vira número (\"aproximadamente 420,00 m²\") → null", parseNumeroBR("aproximadamente 420,00 m²") === null);
+  t("17i. lixo textual (\"não informado\") → null", parseNumeroBR("não informado") === null);
+  t("17j. vírgula ambígua/duplicada (\"12,34,56\") → null", parseNumeroBR("12,34,56") === null);
+  t("17k. unidade sem número (\"m²\") → null", parseNumeroBR("m²") === null);
+  t("17l. string vazia → null", parseNumeroBR("") === null);
+  t("17m. unidade não reconhecida não é removida, e o resto não é um número BR válido (\"420,00 kg\") → null", parseNumeroBR("420,00 kg") === null);
+}
+
+// ─────────────────────────── 18 · guarda de evidência do memorial (v4) ───────────────────────────
+
+secao("18 · memorial exige valor literal + rótulo/observação documental — nunca por fórmula genérica");
+{
+  const base = { areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9) };
+
+  // reprodução EXATA do caso real do reteste: trecho é uma fórmula simbólica, sem nenhum dígito.
+  const formulaSemNumero = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, {
+      unidade: "m²", documento: "projeto", trecho: "ÁREA IMPERMEABILIZADA (AI) = AT - ACVP", observacao: null,
+    })],
+  });
+  t("18a. trecho é só uma fórmula simbólica, sem nenhum número → PENDENTE, nunca CONFORME por dedução", formulaSemNumero.memorial.resultado === "PENDENTE" && formulaSemNumero.memorial.requerRevisao === true);
+
+  // trecho sem número nenhum (null) — mesmo com um valor "lido", sem trecho não há prova.
+  const semTrecho = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, { unidade: "m²", trecho: null, observacao: null })],
+  });
+  t("18b. sem trecho nenhum → PENDENTE", semTrecho.memorial.resultado === "PENDENTE" && semTrecho.memorial.requerRevisao === true);
+
+  // rótulo alternativo (não contém "IMPERMEABILIZAD") com número presente, mas SEM observação
+  // explicando a expressão documental — não é suficiente sozinho.
+  const rotuloAlternativoSemObservacao = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, {
+      unidade: "m²", trecho: "ÁREA PERMEABILIZADA 356,93 M²", observacao: null,
+    })],
+  });
+  t("18c. rótulo ambíguo com número, mas SEM observação explicando a expressão documental → PENDENTE", rotuloAlternativoSemObservacao.memorial.resultado === "PENDENTE" && rotuloAlternativoSemObservacao.memorial.requerRevisao === true);
+
+  // rótulo alternativo + número + observação explicando a expressão documental → evidência
+  // suficiente, decide normalmente (CONFORME, porque 420-63,07=356,93 bate).
+  const rotuloAlternativoComObservacao = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, {
+      unidade: "m²", trecho: "ÁREA PERMEABILIZADA 356,93 M²",
+      observacao: "rótulo do quadro diz 'ÁREA PERMEABILIZADA', mas o mesmo quadro mostra ÁREA DO TERRENO 420,00 m² e COBERTURA VEGETAL PERMEÁVEL 63,07 m², e o valor extraído bate com a subtração dos dois",
+    })],
+  });
+  t("18d. rótulo ambíguo + número no trecho + observação documental → evidência suficiente → CONFORME", rotuloAlternativoComObservacao.memorial.resultado === "CONFORME");
+
+  // rótulo usual ("ÁREA IMPERMEABILIZADA") com número — não precisa de observação, é o caso comum.
+  const rotuloUsualComNumero = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 356,93 M²", observacao: null })],
+  });
+  t("18e. rótulo usual + número no trecho, sem observação → evidência suficiente → CONFORME (rótulo usual não exige observação)", rotuloUsualComNumero.memorial.resultado === "CONFORME");
+
+  // número no trecho não bate com o valor declarado (ex.: trecho cita outro número) — evidência
+  // não corrobora o valor extraído, mesmo com rótulo usual presente.
+  const trechoComNumeroDiferente = decidirCaixaDeRecarga({
+    ...base,
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA DO TERRENO ADJACENTE 900,00 M²", observacao: null })],
+  });
+  t("18f. trecho tem número, mas não bate com o valor extraído → PENDENTE (trecho não corrobora o valor)", trechoComNumeroDiferente.memorial.resultado === "PENDENTE");
+}
+
+// ─────────────────────────── 19 · cruzamento LIP × Gemini do volume PROJETADO/ATENDIDO (v4) ───────────────────────────
+
+secao("19 · volume projetado: LIP × Gemini divergentes → REVISAO_MANUAL; fallback ao LIP é explícito");
+{
+  const base = { areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07) };
+  const trechoMemorialOk = { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 356,93 M²", observacao: null } as const;
+
+  // reprodução do caso real: LIP diz 1,90 (ATENDIDO real, ART), Gemini leu 1,78 (confundiu com o
+  // EXIGIDO) — a versão anterior da regra IGNORAVA o Gemini e ficava CONFORME "por acidente"; agora
+  // tem que travar em REVISAO_MANUAL, preservando os dois valores na justificativa/evidências.
+  const divergente = decidirCaixaDeRecarga({
+    ...base, volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [
+      fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, trechoMemorialOk),
+      fatoLido("volumeProjetadoCarimbo", "1,78", 0.9, { unidade: "m³", trecho: "VOLUME ATENDIDO (Va) 1,78 M³" }),
+    ],
+  });
+  t("19a. LIP 1,90 × Gemini 1,78 (divergem além da tolerância) → REVISAO_MANUAL, não CONFORME nem NAO_CONFORME silencioso", divergente.volume.resultado === "REVISAO_MANUAL" && divergente.volume.requerRevisao === true);
+  t("19b. justificativa preserva os DOIS valores (LIP e Gemini)", divergente.volume.justificativa.includes("1.90") && divergente.volume.justificativa.includes("1.78"));
+  t("19c. evidência do Gemini para volumeProjetadoCarimbo continua em fatosUsados (nada é descartado)", divergente.volume.fatosUsados.some((f) => !("abstencao" in f) && f.nome === "volumeProjetadoCarimbo" && f.valor === "1,78"));
+
+  // LIP e Gemini concordam (dentro da tolerância) → decide normalmente, mas a justificativa deixa
+  // registrado que houve confirmação documental.
+  const concordante = decidirCaixaDeRecarga({
+    ...base, volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [
+      fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, trechoMemorialOk),
+      fatoLido("volumeProjetadoCarimbo", "1,90", 0.95, { unidade: "m³", trecho: "VOLUME ATENDIDO (Va) 1,90 M³" }),
+    ],
+  });
+  t("19d. LIP 1,90 × Gemini 1,90 (concordam) → CONFORME normalmente", concordante.volume.resultado === "CONFORME");
+  t("19e. justificativa registra que houve confirmação documental do Gemini", /confirmado pela leitura documental do Gemini/i.test(concordante.volume.justificativa));
+
+  // Gemini ausente (não achou/absteve-se) × só o LIP → fallback permitido, mas TEM que constar
+  // explicitamente que não houve confirmação documental — nunca se apresenta como se o motor
+  // tivesse lido o carimbo.
+  const fallbackLip = decidirCaixaDeRecarga({
+    ...base, volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, trechoMemorialOk)], // sem volumeProjetadoCarimbo nenhum
+  });
+  t("19f. Gemini ausente × LIP 1,90 → decide com o LIP (fallback permitido)", fallbackLip.volume.resultado === "CONFORME");
+  t("19g. justificativa deixa EXPLÍCITO que não houve confirmação documental (fallback, não confirmação)", /NÃO confirmou documentalmente/i.test(fallbackLip.volume.justificativa));
+  t("19h. confiança do fallback puro nunca é ALTA, mesmo com o fato do memorial em confiança 1.0 — reflete que a leitura documental do CARIMBO não corroborou", fallbackLip.volume.confianca !== "ALTA");
+
+  // Gemini com abstenção explícita (não com fato ausente) × LIP — mesmo comportamento de fallback.
+  const geminiAbstidoExplicito = decidirCaixaDeRecarga({
+    ...base, volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [
+      fatoLido("areaImpermeabilizadaMemorial", "356,93", 1, trechoMemorialOk),
+      fatoAbstido("volumeProjetadoCarimbo", "linha ATENDIDO/PROJETADO não encontrada no carimbo"),
+    ],
+  });
+  t("19i. Gemini se abstém explicitamente (não é ausência silenciosa) × LIP → mesmo fallback explícito", geminiAbstidoExplicito.volume.resultado === "CONFORME" && /NÃO confirmou documentalmente/i.test(geminiAbstidoExplicito.volume.justificativa));
 }
 
 // ─────────────────────────── resultado ───────────────────────────

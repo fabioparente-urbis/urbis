@@ -4,9 +4,23 @@
 
 import type { Confianca, FatoExtraido, SaidaRegraItem } from "./tipos";
 
-/** "450,00" → 450; "1.234,5" → 1234.5. null se não for número BR reconhecível. */
+/** Unidade opcional colada ao final do valor — o Gemini às vezes devolve "420,00 m²" mesmo com o
+ *  prompt pedindo só o número. Âncora no fim da string ($) — não extrai número de dentro de texto
+ *  livre, só remove um sufixo de unidade reconhecido; qualquer outra coisa sobrando (texto solto,
+ *  vírgulas de mais, lixo) continua rejeitada pelo Number() logo abaixo. */
+const SUFIXO_UNIDADE = /\s*(m³|m²|m3|m2|m)$/i;
+
+/**
+ * "450,00" → 450; "1.234,5" → 1234.5; "420,00 m²" → 420; "15,00 m" → 15; "1,90 m³" → 1.9.
+ * null se não sobrar um número BR reconhecível depois de remover a unidade — texto solto, número
+ * ambíguo (vírgula/ponto demais) ou lixo continuam rejeitados, sem mudança de comportamento aí.
+ */
 export function parseNumeroBR(s: string): number | null {
-  const limpo = s.trim().replace(/\./g, "").replace(",", ".");
+  const semUnidade = s.trim().replace(SUFIXO_UNIDADE, "").trim();
+  // Number("") === 0 em JS (não NaN) — sem isto, "" e "m²" (que vira "" depois de tirar a unidade)
+  // passariam como zero em vez de serem rejeitados.
+  if (semUnidade === "") return null;
+  const limpo = semUnidade.replace(/\./g, "").replace(",", ".");
   const n = Number(limpo);
   return Number.isFinite(n) ? n : null;
 }
