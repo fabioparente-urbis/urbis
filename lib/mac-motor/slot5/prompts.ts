@@ -98,9 +98,20 @@ export const PROMPT_DIMENSOES_TERRENO: PromptSlot5 = {
   ].join("\n"),
 };
 
+/**
+ * v2 em 2026-08-03 — teste histórico do processo 44353 (TESTE-HIST-44353-AN3, pasta Análise 3)
+ * mostrou o Gemini se abstendo do fato areaImpermeabilizadaMemorial: ele procurava literalmente o
+ * rótulo "ÁREA IMPERMEABILIZADA DO TERRENO", e a prancha real trazia o mesmo valor (356,93 m²) sob
+ * o rótulo "ÁREA PERMEABILIZADA" — ambíguo/tecnicamente incorreto do desenhista, mas a conta do
+ * próprio quadro (ÁREA DO TERRENO 420,00 − COBERTURA VEGETAL PERMEÁVEL 63,07) bate exatamente com
+ * o número. A REGRA (decidirMemorial, regras/caixaDeRecarga.ts) NÃO muda — ela só compara o valor
+ * do fato com o cálculo independente, nunca leu o rótulo. O ajuste é inteiramente na instrução ao
+ * Gemini: reconhecer a expressão documental mesmo com rótulo errado, sem nunca inferir um número
+ * que o documento não mostra escrito ou visivelmente derivável.
+ */
 export const PROMPT_CAIXA_RECARGA: PromptSlot5 = {
   id: "slot5.caixaDeRecarga",
-  versao: 1,
+  versao: 2,
   modelo: GEMINI_MODEL,
   papeisEsperados: ["projeto"],
   texto: [
@@ -109,14 +120,37 @@ export const PROMPT_CAIXA_RECARGA: PromptSlot5 = {
     "",
     "Extraia até quatro fatos, cada um pela linha correspondente do quadro ICCAP ou do carimbo:",
     "",
-    "1. areaImpermeabilizadaMemorial — linha \"ÁREA IMPERMEABILIZADA DO TERRENO\", em m².",
+    "1. areaImpermeabilizadaMemorial — a área impermeabilizada do terreno usada no cálculo da caixa",
+    "   de recarga, em m². O rótulo mais comum é \"ÁREA IMPERMEABILIZADA\" ou \"ÁREA IMPERMEABILIZADA",
+    "   DO TERRENO\". Alguns desenhos usam um rótulo ambíguo ou tecnicamente incorreto para o MESMO",
+    "   valor (ex.: \"ÁREA PERMEABILIZADA\" designando, na verdade, a área NÃO permeável). Aceite um",
+    "   rótulo alternativo SOMENTE se o próprio quadro também mostrar, na mesma linha ou em linhas",
+    "   vizinhas, a expressão ou os dois números-fonte de onde o valor vem — normalmente \"ÁREA DO",
+    "   TERRENO\" e \"COBERTURA VEGETAL PERMEÁVEL\" (ou equivalente) — com o valor extraído batendo",
+    "   com (área do terreno − cobertura vegetal permeável). Você NUNCA deve fazer essa subtração",
+    "   por conta própria a partir de dois números soltos sem relação visível entre si no quadro —",
+    "   só reconheça o rótulo alternativo quando o documento deixar a conta ou a relação entre os",
+    "   números claramente à mostra.",
     "2. volumeExigidoCarimbo — linha ICCAP \"EXIGIDO\", em m³ (o carimbo pode omitir; se omitido, abstenha-se).",
     "3. volumeProjetadoCarimbo — linha ICCAP \"ATENDIDO\" (ou equivalente: volume da caixa de recarga",
     "   efetivamente projetada), em m³.",
     "4. nDeCaixas — número de caixas de recarga/retenção indicado no carimbo ou na planta, se houver.",
     "",
-    "ATENÇÃO — não confunda \"ÁREA IMPERMEABILIZADA DO TERRENO\" com \"ÁREA DO TERRENO\" (maior, linha",
-    "diferente). Não confunda \"EXIGIDO\" com \"ATENDIDO\" — são linhas distintas do mesmo quadro.",
+    "ATENÇÃO — não confunda \"ÁREA IMPERMEABILIZADA\" (ou seu rótulo alternativo válido, ver acima)",
+    "com \"ÁREA DO TERRENO\" (maior, linha diferente). Não confunda \"EXIGIDO\" com \"ATENDIDO\" — são",
+    "linhas distintas do mesmo quadro.",
+    "",
+    "Para o fato areaImpermeabilizadaMemorial, em \"trecho\" transcreva o texto exato do quadro,",
+    "incluindo o rótulo tal como está escrito (mesmo se parecer incorreto). Se você usou um rótulo",
+    "alternativo, registre em \"observacao\" qual foi o rótulo literal e por que reconheceu aquele",
+    "valor como a área impermeabilizada — por exemplo: \"rótulo do quadro diz 'ÁREA PERMEABILIZADA',",
+    "mas o mesmo quadro mostra ÁREA DO TERRENO 420,00 m² e COBERTURA VEGETAL PERMEÁVEL 63,07 m², e o",
+    "valor extraído bate com a subtração dos dois\".",
+    "",
+    "Se não houver, em lugar nenhum do quadro ou do carimbo, uma linha, rótulo ou expressão que",
+    "sustente claramente o valor de areaImpermeabilizadaMemorial — nem sob o rótulo usual, nem sob",
+    "um rótulo alternativo com a conta visível — abstenha-se deste fato. Nunca infira ou calcule um",
+    "valor que o documento não mostra escrito ou derivável de números visivelmente relacionados.",
     "",
     REGRAS_COMUNS,
   ].join("\n"),

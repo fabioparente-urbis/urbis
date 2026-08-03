@@ -15,7 +15,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { interpretarResposta, RespostaGeminiInvalidaError } from "../lib/mac-motor/slot5/gemini";
-import { hashPrompt, PROMPT_DIMENSOES_TERRENO } from "../lib/mac-motor/slot5/prompts";
+import { hashPrompt, PROMPT_DIMENSOES_TERRENO, PROMPT_CAIXA_RECARGA } from "../lib/mac-motor/slot5/prompts";
 import { decidirDimensoesTerreno, MAC_ITEM_DIMENSOES_TERRENO, TOLERANCIA_ARREDONDAMENTO } from "../lib/mac-motor/slot5/regras/dimensoesTerreno";
 import {
   decidirCaixaDeRecarga, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME,
@@ -191,6 +191,32 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
 
   const semDadosLip = decidirCaixaDeRecarga({ areaTerreno: CAMPO_VAZIO, areaPermeavelProjetada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO, fatos: [] });
   t("9f. sem nenhum dado do LIP nem do Gemini → INDETERMINADO/NAO_AVALIADO nos dois", semDadosLip.memorial.aplicabilidade === "INDETERMINADO" && semDadosLip.volume.aplicabilidade === "INDETERMINADO");
+
+  // 9g-9i — regressão do teste histórico TESTE-HIST-44353-AN3 (2026-08-03): o Gemini se abstinha
+  // porque procurava literalmente "ÁREA IMPERMEABILIZADA DO TERRENO", e a prancha real trazia o
+  // mesmo valor sob o rótulo "ÁREA PERMEABILIZADA". A REGRA aqui testada não mudou uma linha — ela
+  // só compara o VALOR do fato ao cálculo independente, nunca leu o rótulo. Estes testes travam o
+  // CONTRATO fato→regra: um fato com rótulo ambíguo mas expressão documental visível (registrada
+  // em trecho/observacao pelo prompt v2) tem que continuar decidindo igual a um fato "limpo"; e a
+  // ausência de qualquer suporte documental tem que continuar virando PENDENTE, nunca CONFORME.
+  const rotuloAmbiguoComExpressao = decidirCaixaDeRecarga({
+    areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 0.9, {
+      unidade: "m²",
+      documento: "projeto",
+      trecho: "ÁREA PERMEABILIZADA 356,93 M²",
+      observacao: "rótulo do quadro diz 'ÁREA PERMEABILIZADA', mas o mesmo quadro mostra ÁREA DO TERRENO 420,00 m² e COBERTURA VEGETAL PERMEÁVEL 63,07 m², e o valor extraído bate com a subtração dos dois",
+    })],
+  });
+  t("9g. reprodução do caso real (420−63,07=356,93): fato com rótulo ambíguo + expressão documental na observação → item MEMORIAL fecha CONFORME", rotuloAmbiguoComExpressao.memorial.resultado === "CONFORME");
+  t("9h. mesmo caso: item VOLUME também fecha CONFORME (1,90 projetado ≥ 1,78 exigido)", rotuloAmbiguoComExpressao.volume.resultado === "CONFORME");
+  t("9i. a regra não filtra nem descarta a evidência pelo rótulo — o trecho e a observação do fato chegam intactos em fatosUsados", rotuloAmbiguoComExpressao.memorial.fatosUsados.some((f) => !("abstencao" in f) && f.trecho === "ÁREA PERMEABILIZADA 356,93 M²" && (f as any).observacao?.includes("ÁREA PERMEABILIZADA")));
+
+  const semSuporteDocumental = decidirCaixaDeRecarga({
+    areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9),
+    fatos: [fatoAbstido("areaImpermeabilizadaMemorial", "nenhuma linha, rótulo ou expressão do quadro sustenta a área impermeabilizada — nem sob o rótulo usual, nem sob rótulo alternativo com conta visível")],
+  });
+  t("9j. sem trecho/expressão documental (abstenção explícita) → item MEMORIAL continua PENDENTE, requer revisão, nunca CONFORME por dedução", semSuporteDocumental.memorial.resultado === "PENDENTE" && semSuporteDocumental.memorial.requerRevisao === true);
 }
 
 secao("10 · volume usa área impermeável INDEPENDENTE, nunca o memorial divergente");
@@ -248,6 +274,13 @@ secao("14 · versionamento/hash do prompt · validação de PDF · isolamento do
   const h1 = hashPrompt(PROMPT_DIMENSOES_TERRENO);
   t("14a. hashPrompt é determinístico", h1 === hashPrompt(PROMPT_DIMENSOES_TERRENO) && h1.length > 0);
   t("14b. mudar o texto do prompt muda o hash", h1 !== hashPrompt({ ...PROMPT_DIMENSOES_TERRENO, texto: PROMPT_DIMENSOES_TERRENO.texto + " " }));
+
+  const hCaixa = hashPrompt(PROMPT_CAIXA_RECARGA);
+  t("14a2. hashPrompt de PROMPT_CAIXA_RECARGA também é determinístico", hCaixa === hashPrompt(PROMPT_CAIXA_RECARGA) && hCaixa.length > 0);
+  t("14b2. mudar o texto de PROMPT_CAIXA_RECARGA muda o hash", hCaixa !== hashPrompt({ ...PROMPT_CAIXA_RECARGA, texto: PROMPT_CAIXA_RECARGA.texto + " " }));
+  t("14b3. PROMPT_CAIXA_RECARGA está na v2 (correção do rótulo ambíguo do ICCAP, 2026-08-03)", PROMPT_CAIXA_RECARGA.versao === 2);
+  t("14b4. o texto do prompt instrui a aceitar rótulo alternativo só com expressão documental visível", /rótulo alternativo/i.test(PROMPT_CAIXA_RECARGA.texto) && /por conta própria/i.test(PROMPT_CAIXA_RECARGA.texto));
+  t("14b5. o texto do prompt mantém a instrução de abstenção quando não há suporte documental", /abstenha-se deste fato/i.test(PROMPT_CAIXA_RECARGA.texto) && /Nunca infira ou calcule um/i.test(PROMPT_CAIXA_RECARGA.texto));
 
   const pdfValido = new TextEncoder().encode("%PDF-1.4\n%conteúdo fictício de teste");
   t("14c. PDF com assinatura/MIME/tamanho corretos → válido", validarPdf({ bytes: pdfValido, mimeDeclarado: "application/pdf", nomeArquivo: "x.pdf", tamanhoBytes: pdfValido.byteLength }).ok === true);
