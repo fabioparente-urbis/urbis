@@ -531,3 +531,92 @@ export async function registrarResultados(args: {
     };
   }
 }
+
+// ─────────────────────────── complementação manual (fato/veredito assistido) ───────────────────────────
+
+export type ResumoComplementacao = { ativa: boolean; gravou: boolean; problemas: string[] };
+
+/**
+ * Grava a resposta do analista para UM campo — fato do LIP (inclusive complementar, fora dos 136
+ * campos oficiais) ou item do MAC — na MESMA linha vigente de `mhd_resultados_campo`, só nas
+ * colunas `valor_manual`/`autor_manual_id`/`complementado_em`. NUNCA toca `resultado`/`valor`/
+ * `fonte`/`tentativa`/`evidencia` — são o que a execução automática concluiu, e continuam intactos
+ * ao lado (mesmo padrão documentado na migration `2026_07_29_mhd_resultados_campo.sql`).
+ *
+ * Se não existir NENHUMA linha vigente para esta chave ainda (item nunca teve tentativa
+ * automática — comum nos itens `MANUAL_SEM_DADO_LIP` do MAC), cria uma com
+ * `resultado: "MANUAL"` e `valor: null` — o fato/veredito nasce só pela resposta humana.
+ *
+ * Corrigir uma resposta anterior SOBRESCREVE `valor_manual` (é uma coluna só, não lista) — mas
+ * nunca em silêncio: todo complemento grava um evento em `mhd_eventos` (append-only, nunca
+ * apagado) com o valor anterior e o novo, preservando a trilha mesmo sem versionar a coluna em si.
+ *
+ * NUNCA lança — mesmo padrão do resto do módulo.
+ */
+export async function complementarCampo(args: {
+  processoCodigo: string;
+  modulo: "LIP" | "MAC";
+  slot: string;
+  chave: string;
+  valorManual: string;
+  autorId: string;
+  assuntoId?: string | null;
+  /** usados SÓ quando nenhuma linha vigente existe ainda para esta chave (cria uma nova) */
+  versaoFallback: number;
+  hashFallback: string;
+}): Promise<ResumoComplementacao> {
+  const {
+    processoCodigo, modulo, slot, chave, valorManual, autorId,
+    assuntoId = null, versaoFallback, hashFallback,
+  } = args;
+  const base: ResumoComplementacao = { ativa: false, gravou: false, problemas: [] };
+
+  try {
+    const { data: atual, error: erroBusca } = await supabase
+      .from("mhd_resultados_campo").select("id, valor_manual")
+      .eq("processo_codigo", processoCodigo).eq("modulo", modulo).eq("slot", slot).eq("chave", chave)
+      .eq("vigente", true).maybeSingle();
+    if (erroBusca) {
+      return {
+        ...base,
+        problemas: [
+          "O registro de resultados por campo não está instalado ou está desatualizado — rode as migrations " +
+          `2026_07_29_mhd_resultados_campo.sql e 2026_07_29_resultados_versionados_e_visao.sql. Detalhe: ${erroBusca.message}`,
+        ],
+      };
+    }
+
+    const agora = new Date().toISOString();
+    const valorAnterior = (atual as any)?.valor_manual ?? null;
+
+    if ((atual as any)?.id) {
+      const { error } = await supabase.from("mhd_resultados_campo")
+        .update({ valor_manual: valorManual, autor_manual_id: autorId, complementado_em: agora, atualizado_em: agora })
+        .eq("id", (atual as any).id);
+      if (error) return { ativa: true, gravou: false, problemas: [error.message] };
+    } else {
+      const { error } = await supabase.from("mhd_resultados_campo").insert({
+        processo_codigo: processoCodigo, modulo, slot, chave,
+        execucao_id: crypto.randomUUID(), vigente: true,
+        resultado: "MANUAL", valor: null, fonte: null, tentativa: null, evidencia: null,
+        versao: versaoFallback, hash: hashFallback,
+        valor_manual: valorManual, autor_manual_id: autorId, complementado_em: agora, atualizado_em: agora,
+      });
+      if (error) return { ativa: true, gravou: false, problemas: [error.message] };
+    }
+
+    const errEvento = await registrarEvento({
+      processoCodigo, assuntoId, tipo: "fato_complementado", usuarioId: autorId,
+      titulo: `${modulo}/${chave} — resposta assistida registrada`,
+      detalhe: { modulo, slot, chave, valorAnterior, valorNovo: valorManual },
+    });
+
+    return { ativa: true, gravou: !errEvento, problemas: errEvento ? [`linha do tempo: ${errEvento}`] : [] };
+  } catch (err: any) {
+    console.error("[MHD] falha ao complementar campo:", err);
+    return {
+      ativa: true, gravou: false,
+      problemas: [`falha inesperada ao complementar campo: ${err?.message ?? err}`],
+    };
+  }
+}
