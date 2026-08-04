@@ -52,6 +52,23 @@ const RESULTADOS_LACUNA = new Set([
   "NAO_ENCONTRADO", "FONTE_ILEGIVEL", "DOCUMENTO_AUSENTE", "BLOQUEADO", "NAO_IMPLEMENTADO",
 ]);
 
+// ── MAC: as 4 posturas do plano de endereçamento — derivadas do `resultado`,
+//    NUNCA uma coluna nova (ver memória urbis-mac-slot5-plano-posturas). Tudo que
+//    não é RESOLVIDO/NAO_APLICAVEL/AGUARDANDO_FATO cai no catch-all VEREDITO_HUMANO.
+const POSTURA_DE_RESULTADO: Record<string, string> = {
+  ENCONTRADO: "RESOLVIDO", CALCULADO: "RESOLVIDO", INFERIDO: "RESOLVIDO",
+  NAO_APLICAVEL: "NAO_APLICAVEL",
+  AGUARDANDO_FATO: "DADO_NECESSARIO",
+};
+const posturaDe = (l: Linha): string => POSTURA_DE_RESULTADO[l.resultado?.resultado] ?? "VEREDITO_HUMANO";
+const CORES_POSTURA: Record<string, string> = {
+  RESOLVIDO: "#16A34A", NAO_APLICAVEL: "#64748B", DADO_NECESSARIO: "#EA580C", VEREDITO_HUMANO: "#7C3AED",
+};
+const ROT_POSTURA: Record<string, string> = {
+  RESOLVIDO: "Resolvido", NAO_APLICAVEL: "Não aplicável",
+  DADO_NECESSARIO: "Dado necessário", VEREDITO_HUMANO: "Veredito humano",
+};
+
 export default function Rastreabilidade() {
   const router = useRouter();
   const [dados, setDados] = useState<any>(null);
@@ -71,11 +88,28 @@ export default function Rastreabilidade() {
   const [processoBusca, setProcessoBusca] = useState("");
   const [processoAtivo, setProcessoAtivo] = useState("");
   const [soLacunas, setSoLacunas] = useState(false);
+  const [fPostura, setFPostura] = useState("");
 
   function trocarModulo(m: "LIP" | "MAC") {
     setModulo(m); setAberto(null);
     setBusca(""); setFSecao(""); setFMetodo(""); setFStatus(""); setFFonte(""); setFIA("");
-    setFClassifLip(""); setFClassifBip(""); setFTemVinculoLip(""); setFTemVinculoBip("");
+    setFClassifLip(""); setFClassifBip(""); setFTemVinculoLip(""); setFTemVinculoBip(""); setFPostura("");
+  }
+
+  function atualizarValorManual(id: string, valorManual: string) {
+    const agora = new Date().toISOString();
+    setDados((d: any) => !d ? d : {
+      ...d,
+      linhas: d.linhas.map((x: any) => x.id !== id ? x : {
+        ...x,
+        resultado: x.resultado
+          ? { ...x.resultado, valorManual, complementadoEm: agora }
+          : {
+            resultado: "MANUAL", valor: null, fonte: null, tentativa: null, evidencia: null,
+            valorManual, autorManualId: null, complementadoEm: agora, atualizadoEm: agora,
+          },
+      }),
+    });
   }
 
   useEffect(() => {
@@ -114,18 +148,27 @@ export default function Rastreabilidade() {
     if (fTemVinculoBip === "sim" && !(l.bipVinculos?.length)) return false;
     if (fTemVinculoBip === "nao" && !!(l.bipVinculos?.length)) return false;
     if (soLacunas && !RESULTADOS_LACUNA.has(l.resultado?.resultado)) return false;
+    if (modulo === "MAC" && fPostura && posturaDe(l) !== fPostura) return false;
     return true;
   });
 
   const sel = "bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs text-[var(--text-primary)]";
   const temExecucao = !!dados?.processo;
+  const macComPostura = modulo === "MAC" && temExecucao;
   const colunas = modulo === "MAC"
-    ? "grid-cols-[1fr_160px_130px_130px_50px_50px]"
+    ? macComPostura ? "grid-cols-[1fr_140px_110px_110px_40px_40px_150px]" : "grid-cols-[1fr_160px_130px_130px_50px_50px]"
     : temExecucao
       ? "grid-cols-[1fr_110px_170px_150px_130px_45px_55px]"
       : "grid-cols-[1fr_130px_180px_150px_50px_60px_90px]";
   const temFiltro = busca || fSecao || fStatus || fMetodo || fFonte || fIA
-    || fClassifLip || fClassifBip || fTemVinculoLip || fTemVinculoBip;
+    || fClassifLip || fClassifBip || fTemVinculoLip || fTemVinculoBip || fPostura;
+
+  const posturaCounts = useMemo(() => {
+    if (!macComPostura) return null;
+    const acc: Record<string, number> = {};
+    for (const l of linhas) { const p = posturaDe(l); acc[p] = (acc[p] ?? 0) + 1; }
+    return acc;
+  }, [linhas, macComPostura]);
 
   return (
     <div className="p-6 max-w-[1400px] mx-auto">
@@ -298,6 +341,23 @@ export default function Rastreabilidade() {
                 </>
               )}
 
+              {macComPostura && posturaCounts && (
+                <div className="flex flex-wrap gap-2 mb-3 text-xs">
+                  <span className="text-[var(--text-muted)]">
+                    Postura — endereçamento dos {linhas.length} itens · processo {dados.processo}
+                  </span>
+                  {Object.entries(posturaCounts).map(([s, n]: any) => (
+                    <button key={s} onClick={() => setFPostura(fPostura === s ? "" : s)}
+                      className="px-2 py-0.5 rounded-full border"
+                      style={fPostura === s
+                        ? { borderColor: CORES_POSTURA[s], color: "white", background: CORES_POSTURA[s] }
+                        : { borderColor: CORES_POSTURA[s], color: CORES_POSTURA[s] }}>
+                      {ROT_POSTURA[s] ?? s}: {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {temExecucao && dados.totais.porResultado && (
                 <div className="flex flex-wrap gap-2 mb-3 text-xs">
                   <span className="text-[var(--text-muted)]">Resultado — processo {dados.processo}</span>
@@ -331,6 +391,7 @@ export default function Rastreabilidade() {
                       <span>Class. BIP</span>
                       <span title="vínculos LIP"># LIP</span>
                       <span title="vínculos BIP"># BIP</span>
+                      {macComPostura && <span>Postura</span>}
                     </>
                   ) : (
                     <>
@@ -364,6 +425,13 @@ export default function Rastreabilidade() {
                           </span>
                           <span className="text-[var(--text-secondary)] text-center">{l.lipVinculos?.length ?? 0}</span>
                           <span className="text-[var(--text-secondary)] text-center">{l.bipVinculos?.length ?? 0}</span>
+                          {macComPostura && (
+                            <span className="text-[10px] truncate flex items-center gap-1"
+                              style={{ color: CORES_POSTURA[posturaDe(l)] }}>
+                              {ROT_POSTURA[posturaDe(l)]}
+                              {l.resultado?.valorManual && <span title="já respondido">✓</span>}
+                            </span>
+                          )}
                         </>
                       ) : (
                         <>
@@ -520,35 +588,54 @@ export default function Rastreabilidade() {
                           </div>
                         )}
 
-                        {/* Resultado da execução — LIP com processo */}
-                        {temExecucao && l.resultado && (
+                        {/* Resultado da execução */}
+                        {temExecucao && (
                           <div className="mt-2 pt-2 border-t border-[var(--border)]">
-                            <p className="text-[10px] uppercase font-bold"
-                              style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
-                              Resultado da execução — {dados.processo}
-                            </p>
-                            <Campo t="Resultado">
-                              <span style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
-                                {rotuloResultado[l.resultado.resultado] ?? l.resultado.resultado}
-                              </span>
-                            </Campo>
-                            {l.resultado.valor && <Campo t="Valor">{l.resultado.valor}</Campo>}
-                            {l.resultado.fonte && <Campo t="Fonte">{l.resultado.fonte}</Campo>}
-                            {l.resultado.evidencia && <Campo t="Evidência (NP)">{l.resultado.evidencia}</Campo>}
-                            {l.resultado.tentativa && (
-                              <Campo t="Tentativa do leitor">
-                                {l.resultado.tentativa.motivo}
-                                {!!l.resultado.tentativa.procurou?.length && (
-                                  <> — procurou: {l.resultado.tentativa.procurou.join(", ")}</>
+                            {l.resultado ? (
+                              <>
+                                <p className="text-[10px] uppercase font-bold"
+                                  style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
+                                  Resultado da execução — {dados.processo}
+                                </p>
+                                <Campo t="Resultado">
+                                  <span style={{ color: CORES_RESULTADO[l.resultado.resultado] }}>
+                                    {rotuloResultado[l.resultado.resultado] ?? l.resultado.resultado}
+                                  </span>
+                                </Campo>
+                                {l.resultado.valor && <Campo t="Valor">{l.resultado.valor}</Campo>}
+                                {l.resultado.fonte && <Campo t="Fonte">{l.resultado.fonte}</Campo>}
+                                {l.resultado.evidencia && <Campo t="Evidência (NP)">{l.resultado.evidencia}</Campo>}
+                                {l.resultado.tentativa && (
+                                  <Campo t="Tentativa do leitor">
+                                    {l.resultado.tentativa.motivo}
+                                    {!!l.resultado.tentativa.procurou?.length && (
+                                      <> — procurou: {l.resultado.tentativa.procurou.join(", ")}</>
+                                    )}
+                                    {l.resultado.tentativa.documento && <> · documento: {l.resultado.tentativa.documento}</>}
+                                    {l.resultado.tentativa.temCamadaTexto === false && <> · sem camada de texto</>}
+                                  </Campo>
                                 )}
-                                {l.resultado.tentativa.documento && <> · documento: {l.resultado.tentativa.documento}</>}
-                                {l.resultado.tentativa.temCamadaTexto === false && <> · sem camada de texto</>}
-                              </Campo>
+                                {l.resultado.valorManual && (
+                                  <Campo t="Complementado manualmente">
+                                    {l.resultado.valorManual} — {l.resultado.complementadoEm}
+                                  </Campo>
+                                )}
+                              </>
+                            ) : (
+                              <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
+                                Sem execução automática ainda — processo {dados.processo}
+                              </p>
                             )}
-                            {l.resultado.valorManual && (
-                              <Campo t="Complementado manualmente">
-                                {l.resultado.valorManual} — {l.resultado.complementadoEm}
-                              </Campo>
+
+                            {modulo === "MAC" && (
+                              <div className="mt-2">
+                                <p className="text-[10px] uppercase font-bold"
+                                  style={{ color: CORES_POSTURA[posturaDe(l)] }}>
+                                  Postura — {ROT_POSTURA[posturaDe(l)]}
+                                </p>
+                                <RespostaItem linha={l} processo={dados.processo}
+                                  onSalvo={(v) => atualizarValorManual(l.id, v)} />
+                              </div>
                             )}
                           </div>
                         )}
@@ -574,6 +661,83 @@ function Campo({ t, children }: { t: string; children: React.ReactNode }) {
     <div>
       <p className="text-[10px] uppercase text-[var(--text-muted)] font-bold">{t}</p>
       <p className="text-[var(--text-secondary)]">{children}</p>
+    </div>
+  );
+}
+
+/**
+ * Formulário de resposta assistida do plano do motor MAC Slot 5 (4 posturas). Chama o POST de
+ * app/api/admin/rastreabilidade/route.ts — nunca grava direto, só via essa rota.
+ */
+function RespostaItem({ linha, processo, onSalvo }: { linha: Linha; processo: string; onSalvo: (valorManual: string) => void }) {
+  const postura = posturaDe(linha);
+  const jaRespondido = !!linha.resultado?.valorManual;
+  const [editando, setEditando] = useState(false);
+  const [valor, setValor] = useState(linha.resultado?.valorManual ?? linha.resultado?.valor ?? "");
+  const [status, setStatus] = useState<"idle" | "salvando" | "erro">("idle");
+  const [erro, setErro] = useState("");
+
+  const rotuloAcao = postura === "RESOLVIDO"
+    ? "Confirmar"
+    : postura === "DADO_NECESSARIO" ? "Registrar resposta" : "Registrar veredito";
+
+  async function salvar() {
+    if (!valor.trim()) return;
+    setStatus("salvando"); setErro("");
+    try {
+      const r = await fetch("/api/admin/rastreabilidade", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modulo: "MAC", slot: "slot_05", processo, chave: linha.id, valorManual: valor.trim() }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao gravar");
+      onSalvo(valor.trim());
+      setEditando(false);
+      setStatus("idle");
+    } catch (e: any) {
+      setStatus("erro"); setErro(String(e?.message ?? e));
+    }
+  }
+
+  if (postura === "NAO_APLICAVEL") {
+    return <p className="text-[10px] text-[var(--text-muted)]">Recolhido — não aplicável, sem ação necessária.</p>;
+  }
+
+  if (jaRespondido && !editando) {
+    return (
+      <div className="flex items-center gap-2 text-[10px]">
+        <span className="text-[var(--text-secondary)]">
+          resposta: <b>{linha.resultado.valorManual}</b>
+        </span>
+        <button onClick={() => setEditando(true)} className="underline text-[var(--text-muted)]">editar</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      {postura === "RESOLVIDO" && (
+        <p className="text-[10px] text-[var(--text-muted)]">
+          valor lido automaticamente: <b>{linha.resultado?.valor ?? "—"}</b> — confira antes de confirmar
+        </p>
+      )}
+      {jaRespondido && editando && (
+        <p className="text-[10px] text-[var(--text-muted)]">resposta anterior: <b>{linha.resultado.valorManual}</b></p>
+      )}
+      <div className="flex items-center gap-2">
+        <textarea value={valor} onChange={(e) => setValor(e.target.value)} rows={2}
+          className="flex-1 bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs text-[var(--text-primary)]" />
+        <button onClick={salvar} disabled={status === "salvando" || !valor.trim()}
+          className="px-3 py-1 rounded text-xs font-semibold bg-[var(--primary)] text-white disabled:opacity-50 shrink-0">
+          {status === "salvando" ? "salvando…" : rotuloAcao}
+        </button>
+        {jaRespondido && editando && (
+          <button onClick={() => { setEditando(false); setValor(linha.resultado.valorManual); setStatus("idle"); }}
+            className="text-[10px] underline text-[var(--text-muted)] shrink-0">cancelar</button>
+        )}
+      </div>
+      {status === "erro" && <p className="text-[10px] text-[#DC2626]">✗ {erro}</p>}
     </div>
   );
 }
