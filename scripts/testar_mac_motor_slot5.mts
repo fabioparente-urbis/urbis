@@ -22,7 +22,7 @@ import {
   decidirCaixaDeRecarga, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME,
 } from "../lib/mac-motor/slot5/regras/caixaDeRecarga";
 import { compararQuadroDeAreasComCarimbo } from "../lib/mac-motor/slot5/comparadorQuadroCarimbo";
-import { recortarBlocosIccap, ANCORAS_ICCAP_PADRAO } from "../lib/mac-motor/slot5/recorteIccap";
+import { recortarBlocosIccap, blocosEncontrados } from "../lib/mac-motor/slot5/recorteIccap";
 import { recortesIccapParaEvidencia } from "../lib/mac-motor/slot5/evidencias";
 import { validarPdf, TAMANHO_MAXIMO_PDF_BYTES } from "../lib/mac-motor/slot5/validacaoDocumento";
 import { lerCampoLip } from "../lib/mac-motor/slot5/camposLip";
@@ -553,76 +553,112 @@ async function pdfComTextos(paginas: { texto: string; x: number; y: number; size
   return doc.save();
 }
 
-secao("20 · recorte automático dos blocos ICCAP, por busca de texto em MuPDF");
+secao("20 · recorte automático dos blocos ICCAP por CATEGORIA, agrupamento e dedup (recorteIccap.ts)");
 {
-  const pdfComIccap = await pdfComTextos([
+  // Reprodução estrutural do achado do teste histórico 44353: 2 âncoras de CABEÇALHO muito próximas
+  // (devem colapsar em 1 recorte), 1 âncora de CABEÇALHO distante (deve ficar em recorte separado,
+  // mesma categoria) e 1 âncora de MEMORIAL bem distante de tudo (categoria diferente, nunca eliminada
+  // por estar longe do cabeçalho). Nenhuma coordenada do processo real é usada — só a estrutura.
+  const pdfComOsDoisBlocos = await pdfComTextos([
+    [
+      { texto: "QUADRO ICCAP - CARIMBO", x: 50, y: 750, size: 12 },
+      { texto: "INDICE DE CONTROLE", x: 50, y: 745 }, // a 5pt do anterior → deve SOBREPOR e agrupar
+      { texto: "CAPTACAO AGUA PLUVIAL", x: 50, y: 600 }, // 150pt de distância → cabeçalho, mas recorte SEPARADO
+      { texto: "CALCULO DA AREA PERMEAVEL - 356,93 M2", x: 50, y: 200 }, // memorial, bem distante de tudo
+    ],
+  ]);
+
+  const r1 = await recortarBlocosIccap(pdfComOsDoisBlocos);
+  const cabecalho1 = r1.porCategoria.cabecalho_iccap;
+  const memorial1 = r1.porCategoria.memorial_iccap;
+
+  t("20a. âncora de cabeçalho produz categoria \"cabecalho_iccap\" encontrada", cabecalho1.encontrado === true);
+  t("20b. âncora de memorial produz categoria \"memorial_iccap\" encontrada", memorial1.encontrado === true);
+
+  if (cabecalho1.encontrado) {
+    t("20c. dois hits sobrepostos (ICCAP + INDICE DE CONTROLE, 5pt de distância) produzem UM único recorte de cabeçalho, não dois", cabecalho1.blocos.some((b) => b.ancoras.includes("iccap") && b.ancoras.includes("indice-controle")));
+    const mesclado = cabecalho1.blocos.find((b) => b.ancoras.includes("iccap") && b.ancoras.includes("indice-controle"))!;
+    t("20d. o recorte mesclado preserva TODAS as âncoras contribuintes (iccap + indice-controle), sem perder nenhuma", mesclado.ancoras.length === 2 && mesclado.termosEncontrados.length === 2);
+
+    t("20e. o hit distante (CAPTACAO AGUA PLUVIAL, 150pt do primeiro) produz um SEGUNDO recorte de cabeçalho, distinto do mesclado", cabecalho1.blocos.length === 2);
+    const distante = cabecalho1.blocos.find((b) => b.ancoras.includes("captacao-agua-pluvial"))!;
+    t("20f. o recorte distante não herda as âncoras do recorte mesclado (grupos realmente separados)", !!distante && !distante.ancoras.includes("iccap") && !distante.ancoras.includes("indice-controle"));
+    t("20g. os dois recortes de cabeçalho têm limites (limitesPt) diferentes — não colapsaram na mesma região", mesclado.limitesPt.y0 !== distante.limitesPt.y0);
+    t("20h. os dois recortes de cabeçalho têm PNG diferentes (não é o mesmo buffer reaproveitado por engano)", Buffer.compare(Buffer.from(mesclado.png), Buffer.from(distante.png)) !== 0);
+  }
+
+  if (memorial1.encontrado) {
+    const blocoMemorial = memorial1.blocos[0];
+    t("20i. cada recorte conserva categoria, página, âncoras e limites (metadados auditáveis)", blocoMemorial.categoria === "memorial_iccap" && typeof blocoMemorial.pagina === "number" && blocoMemorial.ancoras.length > 0 && Number.isFinite(blocoMemorial.limitesPt.x0) && Number.isFinite(blocoMemorial.limitesPt.y1));
+    t("20j. nomeLogico do memorial é estável e identifica pela CATEGORIA + ordem, nunca por coordenada (ex.: \"memorial_iccap#1\")", /^memorial_iccap#\d+$/.test(blocoMemorial.nomeLogico));
+    t("20k. o recorte de memorial não se confunde com o de cabeçalho — âncora \"calculo-area-permeavel\" só aparece na categoria memorial", blocoMemorial.ancoras.includes("calculo-area-permeavel") && !cabecalho1.encontrado || (cabecalho1.encontrado && cabecalho1.blocos.every((b) => !b.ancoras.includes("calculo-area-permeavel"))));
+  }
+
+  t("20l. blocosEncontrados() achata cabeçalho + memorial numa lista só, sem perder nenhum", blocosEncontrados(r1).length === (cabecalho1.encontrado ? cabecalho1.blocos.length : 0) + (memorial1.encontrado ? memorial1.blocos.length : 0));
+
+  // ausência de memorial (só cabeçalho na prancha) → categoria memorial abstém explicitamente, SEM
+  // erro e SEM que isso afete o cabeçalho (já encontrado) — nunca fallback para a prancha inteira.
+  const pdfSoComCabecalho = await pdfComTextos([
     [
       { texto: "QUADRO ICCAP - CARIMBO", x: 50, y: 750, size: 12 },
       { texto: "EXIGIDO 1,80 M3", x: 50, y: 730 },
       { texto: "ATENDIDO 1,90 M3", x: 50, y: 710 },
-      { texto: "MEMORIAL ICCAP - AREA IMPERMEABILIZADA 356,93 M2", x: 50, y: 200 },
     ],
   ]);
-
-  const r1 = await recortarBlocosIccap(pdfComIccap);
-  t("20a. âncora ICCAP encontrada → encontrado=true, ao menos 1 bloco", r1.encontrado === true && r1.encontrado && r1.blocos.length > 0);
-  if (r1.encontrado) {
-    const bloco = r1.blocos[0];
-    t("20b. bloco traz página, âncora, termo e limites (metadados auditáveis)", typeof bloco.pagina === "number" && bloco.ancora.length > 0 && bloco.termoEncontrado.length > 0 && Number.isFinite(bloco.limitesPt.x0) && Number.isFinite(bloco.limitesPt.y1));
-    t("20c. bloco traz um PNG não vazio", bloco.png instanceof Uint8Array && bloco.png.byteLength > 0);
-    t("20d. nomeLogico é estável e identifica o bloco por âncora+ordem, nunca por coordenada (ex.: \"iccap#1\")", /^[a-z-]+#\d+$/.test(bloco.nomeLogico));
+  const r2 = await recortarBlocosIccap(pdfSoComCabecalho);
+  t("20m. só o cabeçalho presente → categoria \"cabecalho_iccap\" encontrada", r2.porCategoria.cabecalho_iccap.encontrado === true);
+  t("20n. ausência do memorial produz abstenção EXPLÍCITA para \"memorial_iccap\", nunca lança exceção", r2.porCategoria.memorial_iccap.encontrado === false);
+  if (!r2.porCategoria.memorial_iccap.encontrado) {
+    t("20o. a abstenção do memorial traz motivo não vazio", r2.porCategoria.memorial_iccap.motivo.length > 0);
   }
+  t("20p. categoria abstida (memorial) não elimina nem esvazia a categoria já encontrada (cabeçalho)", r2.porCategoria.cabecalho_iccap.encontrado && r2.porCategoria.cabecalho_iccap.blocos.length > 0);
 
-  t("20e. múltiplos blocos da MESMA âncora (\"ICCAP\" aparece 2x, longe uma da outra) não se sobrescrevem", r1.encontrado && r1.blocos.filter((b) => b.ancora === "iccap").length === 2);
-  if (r1.encontrado) {
-    const doisIccap = r1.blocos.filter((b) => b.ancora === "iccap");
-    const [b1, b2] = doisIccap;
-    t("20f. os dois blocos têm nomeLogico distintos", b1.nomeLogico !== b2.nomeLogico);
-    t("20g. os dois blocos têm PNG diferentes (não é o mesmo buffer reaproveitado por engano)", Buffer.compare(Buffer.from(b1.png), Buffer.from(b2.png)) !== 0);
-    t("20h. os dois blocos têm limites (limitesPt) diferentes — não colapsaram na mesma região", b1.limitesPt.y0 !== b2.limitesPt.y0);
-  }
-
-  const pdfSemIccap = await pdfComTextos([
-    [{ texto: "MEMORIAL DESCRITIVO DO PROJETO - SEM RELACAO COM O QUADRO PROCURADO", x: 50, y: 400 }],
+  // nenhuma âncora nenhuma — as DUAS categorias abstêm, abstenção limpa nas duas, nunca lança.
+  const pdfVazio = await pdfComTextos([
+    [{ texto: "MEMORIAL DESCRITIVO DO PROJETO - SEM RELACAO COM QUALQUER QUADRO PROCURADO", x: 50, y: 400 }],
   ]);
-  const r2 = await recortarBlocosIccap(pdfSemIccap);
-  t("20i. nenhuma âncora encontrada → abstenção limpa (encontrado=false), nunca lança exceção", r2.encontrado === false);
-  if (!r2.encontrado) {
-    t("20j. abstenção traz motivo e a lista de âncoras buscadas", r2.motivo.length > 0 && r2.ancorasBuscadas.length === ANCORAS_ICCAP_PADRAO.flatMap((a) => a.termos).length);
-  }
+  const r3 = await recortarBlocosIccap(pdfVazio);
+  t("20q. nenhuma âncora de nenhuma categoria → as DUAS abstêm explicitamente, nunca lança exceção", r3.porCategoria.cabecalho_iccap.encontrado === false && r3.porCategoria.memorial_iccap.encontrado === false);
+  t("20r. blocosEncontrados() de um resultado totalmente abstido é uma lista vazia, não undefined/erro", Array.isArray(blocosEncontrados(r3)) && blocosEncontrados(r3).length === 0);
 
   // bytes copiados: chama 2x com a MESMA instância de Uint8Array de origem (não cópias externas) —
   // se o módulo detachasse/mutasse o buffer, a segunda chamada falharia ou o buffer original mudaria.
-  const bytesOriginaisAntes = pdfComIccap.slice();
-  const rSegundaChamada = await recortarBlocosIccap(pdfComIccap);
-  t("20k. bytes são copiados internamente — reexecutar com a MESMA instância de origem funciona igual (buffer não foi detachado/mutado)", rSegundaChamada.encontrado === true && rSegundaChamada.encontrado && r1.encontrado && rSegundaChamada.blocos.length === r1.blocos.length);
-  t("20l. o Uint8Array de origem passado continua intacto depois da chamada (nenhum consumidor pode ter invalidado outro)", Buffer.compare(Buffer.from(pdfComIccap), Buffer.from(bytesOriginaisAntes)) === 0);
+  const bytesOriginaisAntes = pdfComOsDoisBlocos.slice();
+  const rSegundaChamada = await recortarBlocosIccap(pdfComOsDoisBlocos);
+  t("20s. bytes são copiados internamente — reexecutar com a MESMA instância de origem funciona igual (buffer não foi detachado/mutado)", blocosEncontrados(rSegundaChamada).length === blocosEncontrados(r1).length);
+  t("20t. o Uint8Array de origem passado continua intacto depois da chamada (nenhum consumidor pode ter invalidado outro)", Buffer.compare(Buffer.from(pdfComOsDoisBlocos), Buffer.from(bytesOriginaisAntes)) === 0);
 
   const fonteRecorte = readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "recorteIccap.ts"), "utf8");
-  // busca por IMPORT real de pdfjs-dist (não pela palavra em comentário — o cabeçalho do arquivo
-  // cita "pdfjs-dist" de propósito, explicando por que NÃO é usado; isso não pode contar como uso).
-  const importaPdfjs = /from\s+["']pdfjs-dist["']|require\(\s*["']pdfjs-dist["']\s*\)/.test(fonteRecorte);
-  t("20m. recorteIccap.ts usa só MuPDF para localizar e recortar — nenhum IMPORT de pdfjs-dist", !importaPdfjs && /await import\(["']mupdf["']\)/.test(fonteRecorte));
+  // busca por IMPORT real de pdfjs-dist/lib/visao (não pela palavra em comentário — o cabeçalho do
+  // arquivo cita "pdfjs-dist" e "lib/visao" de propósito, explicando por que NÃO são usados; isso
+  // não pode contar como uso). Mesmo padrão de busca do teste 14f (que varre o Slot 1).
+  const linhasDeImport = fonteRecorte.split("\n").filter((l) => /^\s*import\b/.test(l));
+  const importaProibido = linhasDeImport.some((l) => /pdfjs-dist|lib\/visao|analise-regularizacao|despacho-regularizacao|mac\/p3|admin\/prompts/i.test(l));
+  t("20u. recorteIccap.ts não introduz nenhum IMPORT de pdfjs-dist, lib/visao ou Slot 1 — só MuPDF", !importaProibido && /await import\(["']mupdf["']\)/.test(fonteRecorte));
 
-  // evidência: página, âncora e limites de cada bloco — mesmo contrato de proveniência do resto do
-  // motor (evidencias.ts), nunca confundida com um fato do LIP.
+  // evidência: uma entrada POR CATEGORIA, cada uma com página, âncoras, termos e limites — mesmo
+  // contrato de proveniência do resto do motor (evidencias.ts), nunca confundida com um fato do LIP.
   const evidenciaEncontrada = recortesIccapParaEvidencia(r1);
-  t("20n. evidência da preparação visual usa lipChave sintético (\"_recorte_iccap\"), nunca confundida com fato do LIP", evidenciaEncontrada.lipChave === "_recorte_iccap");
+  t("20v. evidência da preparação visual usa lipChave sintético (\"_recorte_iccap\"), nunca confundida com fato do LIP", evidenciaEncontrada.lipChave === "_recorte_iccap");
   const valorEvidencia = evidenciaEncontrada.valor as any;
-  t("20o. evidência registra página, âncora e limites de CADA bloco enviado ao Gemini", valorEvidencia.encontrado === true && Array.isArray(valorEvidencia.blocos) && valorEvidencia.blocos.length > 0 && valorEvidencia.blocos.every((b: any) => typeof b.pagina === "number" && typeof b.ancora === "string" && b.limitesPt && Number.isFinite(b.limitesPt.x0)));
+  t("20w. evidência tem uma entrada por categoria (cabecalho_iccap e memorial_iccap)", "cabecalho_iccap" in valorEvidencia.porCategoria && "memorial_iccap" in valorEvidencia.porCategoria);
+  t("20x. a entrada de cabeçalho registra página, âncoras e limites de CADA bloco", valorEvidencia.porCategoria.cabecalho_iccap.encontrado === true && valorEvidencia.porCategoria.cabecalho_iccap.blocos.every((b: any) => typeof b.pagina === "number" && Array.isArray(b.ancoras) && b.limitesPt && Number.isFinite(b.limitesPt.x0)));
+  t("20y. a entrada de memorial registra página, âncoras e limites de CADA bloco", valorEvidencia.porCategoria.memorial_iccap.encontrado === true && valorEvidencia.porCategoria.memorial_iccap.blocos.every((b: any) => typeof b.pagina === "number" && Array.isArray(b.ancoras) && b.limitesPt && Number.isFinite(b.limitesPt.x0)));
 
-  const evidenciaAbstida = recortesIccapParaEvidencia(r2);
-  t("20p. quando nenhuma âncora é encontrada, a evidência registra a abstenção explicitamente (não finge que houve recorte)", (evidenciaAbstida.valor as any).encontrado === false && typeof (evidenciaAbstida.valor as any).motivo === "string" && (evidenciaAbstida.valor as any).motivo.length > 0);
+  const evidenciaComAbstencaoParcial = recortesIccapParaEvidencia(r2);
+  const valorParcial = (evidenciaComAbstencaoParcial.valor as any).porCategoria;
+  t("20z. quando só uma categoria é encontrada, a evidência registra a abstenção explícita SÓ na categoria ausente, sem afetar a encontrada", valorParcial.cabecalho_iccap.encontrado === true && valorParcial.memorial_iccap.encontrado === false && typeof valorParcial.memorial_iccap.motivo === "string" && valorParcial.memorial_iccap.motivo.length > 0);
 
-  // integração ao fluxo do motor (index.ts): Gemini deve receber os recortes ICCAP, não a prancha
-  // inteira, e NUNCA há fallback silencioso para a prancha inteira quando a busca textual falha.
+  // integração ao fluxo do motor (index.ts): Gemini deve receber os recortes ICCAP (de qualquer
+  // categoria encontrada), não a prancha inteira, e NUNCA há fallback silencioso quando a busca falha.
   const fonteIndex = readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "index.ts"), "utf8");
-  t("20q. index.ts chama recortarBlocosIccap sobre a prancha antes de decidir o que enviar ao Gemini para a caixa de recarga", fonteIndex.includes("recortarBlocosIccap(entrada.documentoPrancha.bytes)"));
-  t("20r. a extração da caixa de recarga usa os recortes (mimeType image/png), não mais [entrada.documentoPrancha] direto", fonteIndex.includes('mimeType: "image/png"') && !fonteIndex.includes("chamarGemini([entrada.documentoPrancha], PROMPT_CAIXA_RECARGA"));
-  t("20s. a chamada ao Gemini com os recortes só acontece DENTRO de \"if (recorteIccap.encontrado)\" — sem fallback silencioso quando a busca falha", fonteIndex.includes("if (recorteIccap.encontrado) {"));
-  t("20t. a extração de DIMENSÕES continua recebendo a prancha/certidão originais, sem alteração", fonteIndex.includes("chamarGemini(documentosDimensoes, PROMPT_DIMENSOES_TERRENO, entrada.apiKey)"));
+  t("20aa. index.ts chama recortarBlocosIccap sobre a prancha antes de decidir o que enviar ao Gemini para a caixa de recarga", fonteIndex.includes("recortarBlocosIccap(entrada.documentoPrancha.bytes)"));
+  t("20ab. index.ts usa blocosEncontrados() (achatado por categoria), não um campo único \"blocos\"", fonteIndex.includes("blocosEncontrados(recorteIccap)"));
+  t("20ac. a extração da caixa de recarga usa os recortes (mimeType image/png), não mais [entrada.documentoPrancha] direto", fonteIndex.includes('mimeType: "image/png"') && !fonteIndex.includes("chamarGemini([entrada.documentoPrancha], PROMPT_CAIXA_RECARGA"));
+  t("20ad. a chamada ao Gemini com os recortes só acontece quando ALGUM recorte foi encontrado — sem fallback silencioso quando a busca falha nas duas categorias", fonteIndex.includes("if (blocos.length > 0) {"));
+  t("20ae. a extração de DIMENSÕES continua recebendo a prancha/certidão originais, sem alteração", fonteIndex.includes("chamarGemini(documentosDimensoes, PROMPT_DIMENSOES_TERRENO, entrada.apiKey)"));
 
-  t("20u. DocumentoEntrada (tipos.ts) foi ampliado só para aceitar PDF e PNG em memória, nada além disso", /mimeType:\s*"application\/pdf"\s*\|\s*"image\/png"/.test(readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "tipos.ts"), "utf8")));
+  t("20af. DocumentoEntrada (tipos.ts) continua aceitando só PDF e PNG em memória, nada além disso", /mimeType:\s*"application\/pdf"\s*\|\s*"image\/png"/.test(readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "tipos.ts"), "utf8")));
 }
 
 // ─────────────────────────── resultado ───────────────────────────

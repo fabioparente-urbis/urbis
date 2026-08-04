@@ -22,7 +22,7 @@ import type { CampoLipCongelado, DocumentoEntrada, ResultadoExtracao } from "./t
 import { chamarGemini } from "./gemini";
 import { PROMPT_CAIXA_RECARGA, PROMPT_DIMENSOES_TERRENO } from "./prompts";
 import { fatoParaEvidencia, metadadosExtracaoParaEvidencia, recortesIccapParaEvidencia } from "./evidencias";
-import { recortarBlocosIccap, type ResultadoRecorteIccap } from "./recorteIccap";
+import { recortarBlocosIccap, blocosEncontrados, type ResultadoRecorteIccap } from "./recorteIccap";
 import {
   MAC_ITEM_DIMENSOES_TERRENO, decidirDimensoesTerreno,
 } from "./regras/dimensoesTerreno";
@@ -136,17 +136,20 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       requerRevisao: saidaDimensoes.requerRevisao,
     });
 
-    // Preparação visual do ICCAP (recorteIccap.ts): busca as âncoras na camada de texto da prancha
-    // e recorta em PNG só o(s) bloco(s) encontrado(s) — o Gemini recebe o(s) recorte(s) no lugar da
-    // prancha A0 inteira (instável de ler completa). Se NENHUMA âncora for encontrada, o motor NÃO
-    // cai para a prancha inteira por fallback — extracaoCaixa fica null, e decidirCaixaDeRecarga já
-    // trata fatos=[] como abstenção (PENDENTE/NAO_AVALIADO, nunca CONFORME por dedução).
+    // Preparação visual do ICCAP (recorteIccap.ts): busca as âncoras (por categoria — cabeçalho E
+    // memorial, independentes) na camada de texto da prancha e recorta em PNG só o(s) bloco(s)
+    // encontrado(s) — o Gemini recebe o(s) recorte(s) no lugar da prancha A0 inteira (instável de
+    // ler completa). Uma categoria abstida NUNCA impede a outra (já encontrada) de seguir; e se
+    // NENHUMA categoria for encontrada, o motor NÃO cai para a prancha inteira por fallback —
+    // extracaoCaixa fica null, e decidirCaixaDeRecarga já trata fatos=[] como abstenção
+    // (PENDENTE/NAO_AVALIADO, nunca CONFORME por dedução).
     let extracaoCaixa: ResultadoExtracao | null = null;
     let recorteIccap: ResultadoRecorteIccap | null = null;
     if (entrada.documentoPrancha) {
       recorteIccap = await recortarBlocosIccap(entrada.documentoPrancha.bytes);
-      if (recorteIccap.encontrado) {
-        const documentosIccap: DocumentoEntrada[] = recorteIccap.blocos.map((bloco) => ({
+      const blocos = blocosEncontrados(recorteIccap);
+      if (blocos.length > 0) {
+        const documentosIccap: DocumentoEntrada[] = blocos.map((bloco) => ({
           papel: `${entrada.documentoPrancha!.papel}:iccap-${bloco.nomeLogico}`,
           nomeArquivo: `${entrada.documentoPrancha!.nomeArquivo}#${bloco.nomeLogico}.png`,
           mimeType: "image/png",
@@ -219,6 +222,6 @@ export {
   decidirCaixaDeRecarga, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME,
 } from "./regras/caixaDeRecarga";
 export { compararQuadroDeAreasComCarimbo } from "./comparadorQuadroCarimbo";
-export { recortarBlocosIccap, ANCORAS_ICCAP_PADRAO } from "./recorteIccap";
+export { recortarBlocosIccap, blocosEncontrados, ANCORAS_ICCAP_PADRAO, CATEGORIAS_BLOCO_ICCAP } from "./recorteIccap";
 export { interpretarResposta, chamarGemini, RespostaGeminiInvalidaError } from "./gemini";
 export * from "./tipos";

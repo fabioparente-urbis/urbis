@@ -10,7 +10,7 @@
 
 import type { EvidenciaLip } from "@/lib/mac-execucao";
 import type { FatoExtraido, ResultadoExtracao } from "./tipos";
-import type { ResultadoRecorteIccap } from "./recorteIccap";
+import { CATEGORIAS_BLOCO_ICCAP, type ResultadoRecorteIccap } from "./recorteIccap";
 
 /** Um fato do Gemini → uma EvidenciaLip. `papel` carrega documento/página/trecho/observação. */
 export function fatoParaEvidencia(f: FatoExtraido): EvidenciaLip {
@@ -39,27 +39,28 @@ export function metadadosExtracaoParaEvidencia(r: Pick<ResultadoExtracao, "model
 
 /**
  * Proveniência da preparação visual do ICCAP (`recorteIccap.ts`) como UMA evidência sintética —
- * página, âncora e limites de CADA bloco recortado e enviado ao Gemini, ou o motivo da abstenção
- * quando nenhuma âncora foi encontrada. Nunca é confundida com um fato do LIP (`lipChave` fixo,
- * mesmo padrão de `_motor_metadata`).
+ * uma entrada POR CATEGORIA (cabecalho_iccap/memorial_iccap), cada uma com página, âncoras, termos
+ * e limites de cada bloco recortado e enviado ao Gemini, ou o motivo da abstenção quando aquela
+ * categoria não foi encontrada. Uma categoria abstida nunca esconde a outra já encontrada. Nunca é
+ * confundida com um fato do LIP (`lipChave` fixo, mesmo padrão de `_motor_metadata`).
  */
 export function recortesIccapParaEvidencia(recorte: ResultadoRecorteIccap): EvidenciaLip {
-  if (!recorte.encontrado) {
-    return {
-      lipChave: "_recorte_iccap",
-      valor: { encontrado: false, motivo: recorte.motivo, ancorasBuscadas: recorte.ancorasBuscadas, paginasVarridas: recorte.paginasVarridas },
-      papel: "preparação visual do ICCAP (recorteIccap.ts) — nenhuma âncora encontrada na camada de texto; motor absteve-se do recorte",
-    };
+  const porCategoria: Record<string, unknown> = {};
+  for (const categoria of CATEGORIAS_BLOCO_ICCAP) {
+    const r = recorte.porCategoria[categoria];
+    porCategoria[categoria] = r.encontrado
+      ? {
+          encontrado: true,
+          blocos: r.blocos.map((b) => ({
+            nomeLogico: b.nomeLogico, ancoras: b.ancoras, termosEncontrados: b.termosEncontrados,
+            pagina: b.pagina, limitesPt: b.limitesPt,
+          })),
+        }
+      : { encontrado: false, motivo: r.motivo };
   }
   return {
     lipChave: "_recorte_iccap",
-    valor: {
-      encontrado: true,
-      blocos: recorte.blocos.map((b) => ({
-        nomeLogico: b.nomeLogico, ancora: b.ancora, termoEncontrado: b.termoEncontrado,
-        pagina: b.pagina, limitesPt: b.limitesPt,
-      })),
-    },
-    papel: "preparação visual do ICCAP (recorteIccap.ts) — página, âncora e limites de cada bloco recortado enviado ao Gemini no lugar da prancha inteira",
+    valor: { porCategoria, ancorasBuscadas: recorte.ancorasBuscadas, paginasVarridas: recorte.paginasVarridas },
+    papel: "preparação visual do ICCAP (recorteIccap.ts) — página, âncoras e limites de cada bloco recortado por categoria (cabeçalho/memorial), com abstenção explícita por categoria quando não encontrada",
   };
 }
