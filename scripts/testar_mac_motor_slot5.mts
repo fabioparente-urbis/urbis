@@ -336,16 +336,29 @@ secao("14 · versionamento/hash do prompt · validação de PDF · isolamento do
 secao("15 · integração — vinculos_bip_json persistido, criado_por da execução");
 {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  const { data: processo } = await supabase.from("processos").select("id").eq("assunto_id", ASSUNTO_ID_SLOT5).eq("tipo_processo", TIPO_PROCESSO_SLOT5).limit(1).maybeSingle();
+  const { data: processo } = await supabase.from("processos").select("id, codigo").eq("assunto_id", ASSUNTO_ID_SLOT5).eq("tipo_processo", TIPO_PROCESSO_SLOT5).limit(1).maybeSingle();
   const { data: usuario } = await supabase.from("usuarios").select("id").limit(1).maybeSingle();
 
   if (!processo || !usuario) {
     console.log("  (pulado — precisa de ao menos 1 processo do Slot 5 e 1 usuário no banco; não conta como falha)");
+  } else if (!processo.codigo) {
+    console.log("  (pulado — o processo Slot 5 encontrado não tem código; a ponte pra mhd_resultados_campo precisa de um código real)");
   } else {
+    // O processo é REAL (não sintético) — a ponte nova (ponteMhd.ts) grava em mhd_resultados_campo
+    // usando o código dele. Snapshot ANTES de rodar, pra restaurar exatamente o estado encontrado
+    // no finally, mesmo padrão de cautela de testar_mhd.mts (nunca alterar dado real sem desfazer).
+    const itensDoPiloto = [MAC_ITEM_DIMENSOES_TERRENO, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME];
+    const { data: snapshotAntes } = await supabase
+      .from("mhd_resultados_campo").select("id, chave")
+      .eq("processo_codigo", processo.codigo).eq("modulo", "MAC").eq("slot", "slot_05")
+      .eq("vigente", true).in("chave", itensDoPiloto);
+    const idVigentePorChave = new Map((snapshotAntes ?? []).map((r: any) => [r.chave, r.id as string]));
+
     let execucaoId: string | null = null;
     try {
       const resultado = await executarPilotoSlot5({
-        processoId: processo.id, criadoPor: usuario.id, apiKey: "não usada — sem documentos, motor não chama o Gemini",
+        processoId: processo.id, processoCodigo: processo.codigo,
+        criadoPor: usuario.id, apiKey: "não usada — sem documentos, motor não chama o Gemini",
         areaTerreno: CAMPO_VAZIO, areaPermeavelProjetada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO,
         documentoCertidao: null, documentoPrancha: null,
       });
@@ -361,11 +374,42 @@ secao("15 · integração — vinculos_bip_json persistido, criado_por da execu�
 
       const itemVolume = (itensGravados ?? []).find((r: any) => r.mac_item_id === MAC_ITEM_CAIXA_RECARGA_VOLUME);
       t("15d. campos_lip_json do item VOLUME (persistido no banco) tem os 3 campos, não {}", !!itemVolume && Object.keys(itemVolume.campos_lip_json ?? {}).length === 3, JSON.stringify(itemVolume?.campos_lip_json));
+
+      // Ponte pra mhd_resultados_campo (ponteMhd.ts) — sem documento nem dado do LIP, os 3 itens
+      // ficam INDETERMINADO/NAO_AVALIADO no piloto, que a ponte traduz pra BLOQUEADO (postura
+      // VEREDITO_HUMANO na tela — "a regra não conseguiu concluir nada, precisa de gente").
+      const { data: mhdGravados } = await supabase
+        .from("mhd_resultados_campo").select("chave, resultado, versao, hash")
+        .eq("processo_codigo", processo.codigo).eq("modulo", "MAC").eq("slot", "slot_05").eq("vigente", true)
+        .in("chave", itensDoPiloto);
+      t("15e. a ponte gravou os 3 itens do piloto em mhd_resultados_campo", (mhdGravados?.length ?? 0) === 3,
+        JSON.stringify(mhdGravados));
+      t("15f. sem documento/dado do LIP, os 3 vêm como BLOQUEADO (postura veredito humano)",
+        (mhdGravados ?? []).every((r: any) => r.resultado === "BLOQUEADO"),
+        JSON.stringify((mhdGravados ?? []).map((r: any) => ({ chave: r.chave, resultado: r.resultado }))));
     } finally {
       if (execucaoId) {
         await supabase.from("mac_execucoes").delete().eq("id", execucaoId);
         console.log(`  limpeza: execução de teste ${execucaoId} removida (cascata apaga resultados)`);
       }
+
+      // Desfaz o que ponteMhd.ts gravou em mhd_resultados_campo pra este teste: apaga a linha
+      // nova de cada item do piloto e, se havia uma linha vigente ANTES (snapshot), restaura ela.
+      const itensDoPiloto = [MAC_ITEM_DIMENSOES_TERRENO, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME];
+      const { data: agora } = await supabase
+        .from("mhd_resultados_campo").select("id, chave")
+        .eq("processo_codigo", processo.codigo).eq("modulo", "MAC").eq("slot", "slot_05")
+        .in("chave", itensDoPiloto);
+      for (const linha of agora ?? []) {
+        const idAnterior = idVigentePorChave.get((linha as any).chave);
+        if ((linha as any).id !== idAnterior) {
+          await supabase.from("mhd_resultados_campo").delete().eq("id", (linha as any).id);
+        }
+      }
+      for (const id of idVigentePorChave.values()) {
+        await supabase.from("mhd_resultados_campo").update({ vigente: true }).eq("id", id);
+      }
+      console.log(`  limpeza: mhd_resultados_campo restaurado ao estado anterior pros ${itensDoPiloto.length} itens do piloto`);
     }
   }
 }

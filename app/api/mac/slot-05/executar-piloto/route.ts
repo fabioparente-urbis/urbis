@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
     // 4 — criado_por sempre da sessão autenticada, nunca de um campo do formulário
     const resultado = await executarPilotoSlot5({
       processoId: processo.id,
+      processoCodigo: codigo,
       criadoPor: usuario.id,
       apiKey,
       areaTerreno,

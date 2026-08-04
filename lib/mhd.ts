@@ -532,6 +532,86 @@ export async function registrarResultados(args: {
   }
 }
 
+// ─────────────────────────── resultado automático de UM item ───────────────────────────
+
+export type ResumoResultadoItem = { ativa: boolean; gravou: boolean; problemas: string[] };
+
+/**
+ * Grava o resultado automático de UM item — nunca mexe em outras chaves do mesmo
+ * (processo,modulo,slot). Ao contrário de `registrarResultados()` (substitui o LOTE inteiro de
+ * uma vez, pensada pra leitura completa da pasta do LIP: `fecharResultados` sempre entrega os
+ * 136/768 campos juntos), o motor do MAC Slot 5 resolve só alguns dos 768 itens por execução —
+ * chamar `registrarResultados` aqui aposentaria por engano as respostas manuais de TODOS os
+ * outros itens do processo. Esta função existe pra isso: só toca a chave dada.
+ *
+ * Se a chave já tinha uma resposta manual (`valor_manual`) e agora chega um resultado
+ * automático novo, a linha nova nasce sem `valor_manual` — mas o valor anterior nunca some de
+ * verdade, fica registrado em `mhd_eventos` (mesmo princípio de auditoria de `complementarCampo`).
+ */
+export async function registrarResultadoItem(args: {
+  processoCodigo: string;
+  modulo: "LIP" | "MAC";
+  slot: string;
+  chave: string;
+  resultado: string;
+  valor?: string | null;
+  fonte?: string | null;
+  evidencia?: string | null;
+  confianca?: number | null;
+  versao: number;
+  hash: string;
+}): Promise<ResumoResultadoItem> {
+  const {
+    processoCodigo, modulo, slot, chave, resultado,
+    valor = null, fonte = null, evidencia = null, confianca = null, versao, hash,
+  } = args;
+
+  try {
+    const { data: atual, error: erroBusca } = await supabase
+      .from("mhd_resultados_campo").select("id, valor_manual, autor_manual_id")
+      .eq("processo_codigo", processoCodigo).eq("modulo", modulo).eq("slot", slot).eq("chave", chave)
+      .eq("vigente", true).maybeSingle();
+    if (erroBusca) {
+      return {
+        ativa: false, gravou: false,
+        problemas: [
+          "O registro de resultados por campo não está instalado ou está desatualizado — rode as migrations " +
+          `2026_07_29_mhd_resultados_campo.sql e 2026_07_29_resultados_versionados_e_visao.sql. Detalhe: ${erroBusca.message}`,
+        ],
+      };
+    }
+
+    if ((atual as any)?.id) {
+      const { error: erroAposentar } = await supabase
+        .from("mhd_resultados_campo").update({ vigente: false }).eq("id", (atual as any).id);
+      if (erroAposentar) return { ativa: true, gravou: false, problemas: [erroAposentar.message] };
+    }
+
+    const agora = new Date().toISOString();
+    const { error } = await supabase.from("mhd_resultados_campo").insert({
+      processo_codigo: processoCodigo, modulo, slot, chave,
+      execucao_id: crypto.randomUUID(), vigente: true,
+      resultado, valor, fonte, tentativa: null, evidencia,
+      confianca, versao, hash, atualizado_em: agora,
+    });
+    if (error) return { ativa: true, gravou: false, problemas: [error.message] };
+
+    if ((atual as any)?.valor_manual) {
+      await registrarEvento({
+        processoCodigo, tipo: "resultado_automatico_substitui_manual",
+        usuarioId: (atual as any).autor_manual_id ?? null,
+        titulo: `${modulo}/${chave} — resultado automático substituiu resposta manual anterior`,
+        detalhe: { valorManualAnterior: (atual as any).valor_manual, resultadoNovo: resultado, valorNovo: valor },
+      }).catch(() => {});
+    }
+
+    return { ativa: true, gravou: true, problemas: [] };
+  } catch (err: any) {
+    console.error("[MHD] falha ao registrar resultado de item:", err);
+    return { ativa: true, gravou: false, problemas: [`falha inesperada ao registrar resultado de item: ${err?.message ?? err}`] };
+  }
+}
+
 // ─────────────────────────── complementação manual (fato/veredito assistido) ───────────────────────────
 
 export type ResumoComplementacao = { ativa: boolean; gravou: boolean; problemas: string[] };

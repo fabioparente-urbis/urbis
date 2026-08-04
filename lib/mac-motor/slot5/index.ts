@@ -22,6 +22,7 @@ import type { CampoLipCongelado, DocumentoEntrada, ResultadoExtracao } from "./t
 import { chamarGemini } from "./gemini";
 import { PROMPT_CAIXA_RECARGA, PROMPT_DIMENSOES_TERRENO } from "./prompts";
 import { fatoParaEvidencia, metadadosExtracaoParaEvidencia, recortesIccapParaEvidencia } from "./evidencias";
+import { publicarResultadoNaMhd } from "./ponteMhd";
 import { recortarBlocosIccap, blocosEncontrados, type ResultadoRecorteIccap } from "./recorteIccap";
 import {
   MAC_ITEM_DIMENSOES_TERRENO, decidirDimensoesTerreno,
@@ -36,6 +37,8 @@ export const ITENS_MAC_DO_PILOTO_SLOT5 = [
 
 export type EntradaPilotoSlot5 = {
   processoId: string;
+  /** código do processo — a chave que a tela de rastreabilidade (mhd_resultados_campo) usa, não o id interno */
+  processoCodigo: string;
   criadoPor?: string | null;
   apiKey: string;
 
@@ -56,6 +59,8 @@ export type SaidaPilotoSlot5 = {
   execucaoId: string;
   resultados: ResultadoItem[];
   extracoes: { dimensoesTerreno: ResultadoExtracao | null; caixaRecarga: ResultadoExtracao | null };
+  /** publicação em mhd_resultados_campo (ver ponteMhd.ts) — nunca impede a execução de concluir */
+  mhd: { publicados: number; problemas: string[] };
 };
 
 async function vinculosBipDoPiloto(): Promise<{ porItem: Map<string, VinculoBipUsado[]>; todos: { fragmentoId: string; confianca: string }[] }> {
@@ -106,6 +111,16 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
     },
   });
 
+  const mhd = { publicados: 0, problemas: [] as string[] };
+  async function publicar(saida: {
+    macItemId: string; aplicabilidade: any; resultado: any; confianca: any;
+    justificativa: string; regraId: string; regraVersao: number;
+  }) {
+    const resumo = await publicarResultadoNaMhd({ processoCodigo: entrada.processoCodigo, ...saida });
+    if (resumo.gravou) mhd.publicados++;
+    else if (resumo.problemas.length) mhd.problemas.push(...resumo.problemas.map((p) => `${saida.macItemId}: ${p}`));
+  }
+
   try {
     // dimensões lê planta + certidão juntas — o mesmo arquivo de planta usado na caixa de recarga
     const documentosDimensoes = [entrada.documentoPrancha, entrada.documentoCertidao].filter(
@@ -135,6 +150,7 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       regraVersao: saidaDimensoes.regraVersao,
       requerRevisao: saidaDimensoes.requerRevisao,
     });
+    await publicar(saidaDimensoes);
 
     // Preparação visual do ICCAP (recorteIccap.ts): busca as âncoras (por categoria — cabeçalho E
     // memorial, independentes) na camada de texto da prancha e recorta em PNG só o(s) bloco(s)
@@ -189,6 +205,7 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       regraVersao: memorial.regraVersao,
       requerRevisao: memorial.requerRevisao,
     });
+    await publicar(memorial);
 
     const resultado3 = await registrarResultado(execucao.id, {
       macItemId: volume.macItemId,
@@ -203,6 +220,7 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       regraVersao: volume.regraVersao,
       requerRevisao: volume.requerRevisao,
     });
+    await publicar(volume);
 
     await concluirExecucao(execucao.id);
 
@@ -210,6 +228,7 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       execucaoId: execucao.id,
       resultados: [resultado1, resultado2, resultado3],
       extracoes: { dimensoesTerreno: extracaoDimensoes, caixaRecarga: extracaoCaixa },
+      mhd,
     };
   } catch (e: any) {
     await marcarErro(execucao.id, e?.message ?? "erro desconhecido no piloto do Slot 5").catch(() => {});
