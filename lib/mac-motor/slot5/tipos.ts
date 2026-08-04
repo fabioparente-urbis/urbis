@@ -38,11 +38,19 @@ export type RespostaExtracao = {
   fatos: FatoExtraido[];
 };
 
-/** Documento de entrada para uma chamada de extração — já em memória, sem tocar em storage do LIP. */
+/**
+ * Documento de entrada para uma chamada de extração — já em memória, sem tocar em storage do LIP.
+ *
+ * `mimeType` aceita "image/png" além de "application/pdf" desde a preparação visual do ICCAP
+ * (`recorteIccap.ts`): o recorte de um bloco ICCAP é um PNG em memória, nunca um arquivo na pasta
+ * oficial — o Gemini recebe o PNG do bloco no lugar da prancha inteira quando o recorte encontra a
+ * âncora. `chamarGemini` (gemini.ts) já era agnóstico ao mimeType (só repassa no upload); nenhuma
+ * mudança foi necessária lá.
+ */
 export type DocumentoEntrada = {
-  papel: string; // ex.: "certidao_matricula", "projeto"
+  papel: string; // ex.: "certidao_matricula", "projeto", "projeto:iccap-recorte"
   nomeArquivo: string;
-  mimeType: "application/pdf";
+  mimeType: "application/pdf" | "image/png";
   bytes: Uint8Array;
 };
 

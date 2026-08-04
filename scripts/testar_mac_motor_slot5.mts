@@ -14,6 +14,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { interpretarResposta, RespostaGeminiInvalidaError } from "../lib/mac-motor/slot5/gemini";
 import { hashPrompt, PROMPT_DIMENSOES_TERRENO, PROMPT_CAIXA_RECARGA } from "../lib/mac-motor/slot5/prompts";
 import { decidirDimensoesTerreno, MAC_ITEM_DIMENSOES_TERRENO, TOLERANCIA_ARREDONDAMENTO } from "../lib/mac-motor/slot5/regras/dimensoesTerreno";
@@ -21,6 +22,8 @@ import {
   decidirCaixaDeRecarga, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME,
 } from "../lib/mac-motor/slot5/regras/caixaDeRecarga";
 import { compararQuadroDeAreasComCarimbo } from "../lib/mac-motor/slot5/comparadorQuadroCarimbo";
+import { recortarBlocosIccap, ANCORAS_ICCAP_PADRAO } from "../lib/mac-motor/slot5/recorteIccap";
+import { recortesIccapParaEvidencia } from "../lib/mac-motor/slot5/evidencias";
 import { validarPdf, TAMANHO_MAXIMO_PDF_BYTES } from "../lib/mac-motor/slot5/validacaoDocumento";
 import { lerCampoLip } from "../lib/mac-motor/slot5/camposLip";
 import { parseNumeroBR } from "../lib/mac-motor/slot5/util";
@@ -284,7 +287,7 @@ secao("14 · versionamento/hash do prompt · validação de PDF · isolamento do
   const hCaixa = hashPrompt(PROMPT_CAIXA_RECARGA);
   t("14a2. hashPrompt de PROMPT_CAIXA_RECARGA também é determinístico", hCaixa === hashPrompt(PROMPT_CAIXA_RECARGA) && hCaixa.length > 0);
   t("14b2. mudar o texto de PROMPT_CAIXA_RECARGA muda o hash", hCaixa !== hashPrompt({ ...PROMPT_CAIXA_RECARGA, texto: PROMPT_CAIXA_RECARGA.texto + " " }));
-  t("14b3. PROMPT_CAIXA_RECARGA está na v3 (exige número documental no trecho + distingue EXIGIDO×ATENDIDO, 2026-08-03)", PROMPT_CAIXA_RECARGA.versao === 3);
+  t("14b3. PROMPT_CAIXA_RECARGA está na v4 (v3: exige número documental + distingue EXIGIDO×ATENDIDO; v4: avisa que pode receber recortes ICCAP em vez da prancha inteira, 2026-08-04)", PROMPT_CAIXA_RECARGA.versao === 4);
   t("14b4. o texto do prompt instrui a aceitar rótulo alternativo só com expressão documental visível", /rótulo alternativo/i.test(PROMPT_CAIXA_RECARGA.texto) && /por conta própria/i.test(PROMPT_CAIXA_RECARGA.texto));
   t("14b5. o texto do prompt mantém a instrução de abstenção quando não há suporte documental", /abstenha-se deste fato/i.test(PROMPT_CAIXA_RECARGA.texto) && /Nunca infira ou\s+calcule um/i.test(PROMPT_CAIXA_RECARGA.texto));
   t("14b6. o texto do prompt proíbe fórmula simbólica sem número como evidência", /FÓRMULA simbólica sozinha/i.test(PROMPT_CAIXA_RECARGA.texto) && /LINHA COM O\s+NÚMERO/i.test(PROMPT_CAIXA_RECARGA.texto));
@@ -535,6 +538,91 @@ secao("19 · volume projetado: LIP × Gemini divergentes → REVISAO_MANUAL; fal
     ],
   });
   t("19i. Gemini se abstém explicitamente (não é ausência silenciosa) × LIP → mesmo fallback explícito", geminiAbstidoExplicito.volume.resultado === "CONFORME" && /NÃO confirmou documentalmente/i.test(geminiAbstidoExplicito.volume.justificativa));
+}
+
+// ─────────────────────────── 20 · recorte automático dos blocos ICCAP (recorteIccap.ts) ───────────────────────────
+
+/** PDF sintético com camada de texto real (pdf-lib), só para os testes de recorteIccap — nenhum dado do processo 44353. */
+async function pdfComTextos(paginas: { texto: string; x: number; y: number; size?: number }[][]): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  for (const linhas of paginas) {
+    const page = doc.addPage([600, 800]);
+    for (const l of linhas) page.drawText(l.texto, { x: l.x, y: l.y, size: l.size ?? 10, font });
+  }
+  return doc.save();
+}
+
+secao("20 · recorte automático dos blocos ICCAP, por busca de texto em MuPDF");
+{
+  const pdfComIccap = await pdfComTextos([
+    [
+      { texto: "QUADRO ICCAP - CARIMBO", x: 50, y: 750, size: 12 },
+      { texto: "EXIGIDO 1,80 M3", x: 50, y: 730 },
+      { texto: "ATENDIDO 1,90 M3", x: 50, y: 710 },
+      { texto: "MEMORIAL ICCAP - AREA IMPERMEABILIZADA 356,93 M2", x: 50, y: 200 },
+    ],
+  ]);
+
+  const r1 = await recortarBlocosIccap(pdfComIccap);
+  t("20a. âncora ICCAP encontrada → encontrado=true, ao menos 1 bloco", r1.encontrado === true && r1.encontrado && r1.blocos.length > 0);
+  if (r1.encontrado) {
+    const bloco = r1.blocos[0];
+    t("20b. bloco traz página, âncora, termo e limites (metadados auditáveis)", typeof bloco.pagina === "number" && bloco.ancora.length > 0 && bloco.termoEncontrado.length > 0 && Number.isFinite(bloco.limitesPt.x0) && Number.isFinite(bloco.limitesPt.y1));
+    t("20c. bloco traz um PNG não vazio", bloco.png instanceof Uint8Array && bloco.png.byteLength > 0);
+    t("20d. nomeLogico é estável e identifica o bloco por âncora+ordem, nunca por coordenada (ex.: \"iccap#1\")", /^[a-z-]+#\d+$/.test(bloco.nomeLogico));
+  }
+
+  t("20e. múltiplos blocos da MESMA âncora (\"ICCAP\" aparece 2x, longe uma da outra) não se sobrescrevem", r1.encontrado && r1.blocos.filter((b) => b.ancora === "iccap").length === 2);
+  if (r1.encontrado) {
+    const doisIccap = r1.blocos.filter((b) => b.ancora === "iccap");
+    const [b1, b2] = doisIccap;
+    t("20f. os dois blocos têm nomeLogico distintos", b1.nomeLogico !== b2.nomeLogico);
+    t("20g. os dois blocos têm PNG diferentes (não é o mesmo buffer reaproveitado por engano)", Buffer.compare(Buffer.from(b1.png), Buffer.from(b2.png)) !== 0);
+    t("20h. os dois blocos têm limites (limitesPt) diferentes — não colapsaram na mesma região", b1.limitesPt.y0 !== b2.limitesPt.y0);
+  }
+
+  const pdfSemIccap = await pdfComTextos([
+    [{ texto: "MEMORIAL DESCRITIVO DO PROJETO - SEM RELACAO COM O QUADRO PROCURADO", x: 50, y: 400 }],
+  ]);
+  const r2 = await recortarBlocosIccap(pdfSemIccap);
+  t("20i. nenhuma âncora encontrada → abstenção limpa (encontrado=false), nunca lança exceção", r2.encontrado === false);
+  if (!r2.encontrado) {
+    t("20j. abstenção traz motivo e a lista de âncoras buscadas", r2.motivo.length > 0 && r2.ancorasBuscadas.length === ANCORAS_ICCAP_PADRAO.flatMap((a) => a.termos).length);
+  }
+
+  // bytes copiados: chama 2x com a MESMA instância de Uint8Array de origem (não cópias externas) —
+  // se o módulo detachasse/mutasse o buffer, a segunda chamada falharia ou o buffer original mudaria.
+  const bytesOriginaisAntes = pdfComIccap.slice();
+  const rSegundaChamada = await recortarBlocosIccap(pdfComIccap);
+  t("20k. bytes são copiados internamente — reexecutar com a MESMA instância de origem funciona igual (buffer não foi detachado/mutado)", rSegundaChamada.encontrado === true && rSegundaChamada.encontrado && r1.encontrado && rSegundaChamada.blocos.length === r1.blocos.length);
+  t("20l. o Uint8Array de origem passado continua intacto depois da chamada (nenhum consumidor pode ter invalidado outro)", Buffer.compare(Buffer.from(pdfComIccap), Buffer.from(bytesOriginaisAntes)) === 0);
+
+  const fonteRecorte = readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "recorteIccap.ts"), "utf8");
+  // busca por IMPORT real de pdfjs-dist (não pela palavra em comentário — o cabeçalho do arquivo
+  // cita "pdfjs-dist" de propósito, explicando por que NÃO é usado; isso não pode contar como uso).
+  const importaPdfjs = /from\s+["']pdfjs-dist["']|require\(\s*["']pdfjs-dist["']\s*\)/.test(fonteRecorte);
+  t("20m. recorteIccap.ts usa só MuPDF para localizar e recortar — nenhum IMPORT de pdfjs-dist", !importaPdfjs && /await import\(["']mupdf["']\)/.test(fonteRecorte));
+
+  // evidência: página, âncora e limites de cada bloco — mesmo contrato de proveniência do resto do
+  // motor (evidencias.ts), nunca confundida com um fato do LIP.
+  const evidenciaEncontrada = recortesIccapParaEvidencia(r1);
+  t("20n. evidência da preparação visual usa lipChave sintético (\"_recorte_iccap\"), nunca confundida com fato do LIP", evidenciaEncontrada.lipChave === "_recorte_iccap");
+  const valorEvidencia = evidenciaEncontrada.valor as any;
+  t("20o. evidência registra página, âncora e limites de CADA bloco enviado ao Gemini", valorEvidencia.encontrado === true && Array.isArray(valorEvidencia.blocos) && valorEvidencia.blocos.length > 0 && valorEvidencia.blocos.every((b: any) => typeof b.pagina === "number" && typeof b.ancora === "string" && b.limitesPt && Number.isFinite(b.limitesPt.x0)));
+
+  const evidenciaAbstida = recortesIccapParaEvidencia(r2);
+  t("20p. quando nenhuma âncora é encontrada, a evidência registra a abstenção explicitamente (não finge que houve recorte)", (evidenciaAbstida.valor as any).encontrado === false && typeof (evidenciaAbstida.valor as any).motivo === "string" && (evidenciaAbstida.valor as any).motivo.length > 0);
+
+  // integração ao fluxo do motor (index.ts): Gemini deve receber os recortes ICCAP, não a prancha
+  // inteira, e NUNCA há fallback silencioso para a prancha inteira quando a busca textual falha.
+  const fonteIndex = readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "index.ts"), "utf8");
+  t("20q. index.ts chama recortarBlocosIccap sobre a prancha antes de decidir o que enviar ao Gemini para a caixa de recarga", fonteIndex.includes("recortarBlocosIccap(entrada.documentoPrancha.bytes)"));
+  t("20r. a extração da caixa de recarga usa os recortes (mimeType image/png), não mais [entrada.documentoPrancha] direto", fonteIndex.includes('mimeType: "image/png"') && !fonteIndex.includes("chamarGemini([entrada.documentoPrancha], PROMPT_CAIXA_RECARGA"));
+  t("20s. a chamada ao Gemini com os recortes só acontece DENTRO de \"if (recorteIccap.encontrado)\" — sem fallback silencioso quando a busca falha", fonteIndex.includes("if (recorteIccap.encontrado) {"));
+  t("20t. a extração de DIMENSÕES continua recebendo a prancha/certidão originais, sem alteração", fonteIndex.includes("chamarGemini(documentosDimensoes, PROMPT_DIMENSOES_TERRENO, entrada.apiKey)"));
+
+  t("20u. DocumentoEntrada (tipos.ts) foi ampliado só para aceitar PDF e PNG em memória, nada além disso", /mimeType:\s*"application\/pdf"\s*\|\s*"image\/png"/.test(readFileSync(join(process.cwd(), "lib", "mac-motor", "slot5", "tipos.ts"), "utf8")));
 }
 
 // ─────────────────────────── resultado ───────────────────────────

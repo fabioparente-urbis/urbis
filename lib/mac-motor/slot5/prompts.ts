@@ -116,15 +116,27 @@ export const PROMPT_DIMENSOES_TERRENO: PromptSlot5 = {
  * regra determinística agora TRAVA isso via `evidenciaMemorialSuficiente()`, mas o prompt precisa
  * parar de produzir esse caso, não só ser pego depois); (2) o Gemini leu o MESMO valor (1,78) para
  * `volumeExigidoCarimbo` e `volumeProjetadoCarimbo` — confundiu as duas linhas do quadro ICCAP.
+ *
+ * v4 em 2026-08-04 — preparação visual isolada (`recorteIccap.ts`): em vez da prancha A0 inteira
+ * (instável para o Gemini ler), o motor agora pode enviar só o(s) recorte(s) PNG do quadro ICCAP,
+ * localizados por busca de texto (MuPDF) antes da chamada. Único ajuste: um parágrafo avisando que
+ * a imagem pode já vir cortada — a leitura em si (rótulos, linhas, guarda de evidência) não mudou
+ * nem uma palavra. Regra determinística também não muda; só troca ONDE o Gemini olha, nunca O QUE
+ * ele decide.
  */
 export const PROMPT_CAIXA_RECARGA: PromptSlot5 = {
   id: "slot5.caixaDeRecarga",
-  versao: 3,
+  versao: 4,
   modelo: GEMINI_MODEL,
   papeisEsperados: ["projeto"],
   texto: [
     "Você está lendo o CARIMBO e o quadro \"Cálculo do Índice de Controle de Captação de Água",
     "Pluvial\" (ICCAP) de uma prancha de projeto arquitetônico brasileira (prefeitura de Goiânia).",
+    "",
+    "A imagem pode ser a prancha inteira OU um ou mais recortes já focados no quadro ICCAP",
+    "(carimbo e/ou memorial de cálculo) — nos dois casos, procure e leia normalmente o que estiver",
+    "visível; se receber vários recortes, trate cada um como parte do mesmo quadro, nunca como",
+    "documentos independentes.",
     "",
     "Extraia até quatro fatos, cada um pela linha correspondente do quadro ICCAP ou do carimbo:",
     "",

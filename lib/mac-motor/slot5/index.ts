@@ -21,7 +21,8 @@ import {
 import type { CampoLipCongelado, DocumentoEntrada, ResultadoExtracao } from "./tipos";
 import { chamarGemini } from "./gemini";
 import { PROMPT_CAIXA_RECARGA, PROMPT_DIMENSOES_TERRENO } from "./prompts";
-import { fatoParaEvidencia, metadadosExtracaoParaEvidencia } from "./evidencias";
+import { fatoParaEvidencia, metadadosExtracaoParaEvidencia, recortesIccapParaEvidencia } from "./evidencias";
+import { recortarBlocosIccap, type ResultadoRecorteIccap } from "./recorteIccap";
 import {
   MAC_ITEM_DIMENSOES_TERRENO, decidirDimensoesTerreno,
 } from "./regras/dimensoesTerreno";
@@ -135,9 +136,24 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       requerRevisao: saidaDimensoes.requerRevisao,
     });
 
+    // Preparação visual do ICCAP (recorteIccap.ts): busca as âncoras na camada de texto da prancha
+    // e recorta em PNG só o(s) bloco(s) encontrado(s) — o Gemini recebe o(s) recorte(s) no lugar da
+    // prancha A0 inteira (instável de ler completa). Se NENHUMA âncora for encontrada, o motor NÃO
+    // cai para a prancha inteira por fallback — extracaoCaixa fica null, e decidirCaixaDeRecarga já
+    // trata fatos=[] como abstenção (PENDENTE/NAO_AVALIADO, nunca CONFORME por dedução).
     let extracaoCaixa: ResultadoExtracao | null = null;
+    let recorteIccap: ResultadoRecorteIccap | null = null;
     if (entrada.documentoPrancha) {
-      extracaoCaixa = await chamarGemini([entrada.documentoPrancha], PROMPT_CAIXA_RECARGA, entrada.apiKey);
+      recorteIccap = await recortarBlocosIccap(entrada.documentoPrancha.bytes);
+      if (recorteIccap.encontrado) {
+        const documentosIccap: DocumentoEntrada[] = recorteIccap.blocos.map((bloco) => ({
+          papel: `${entrada.documentoPrancha!.papel}:iccap-${bloco.nomeLogico}`,
+          nomeArquivo: `${entrada.documentoPrancha!.nomeArquivo}#${bloco.nomeLogico}.png`,
+          mimeType: "image/png",
+          bytes: bloco.png,
+        }));
+        extracaoCaixa = await chamarGemini(documentosIccap, PROMPT_CAIXA_RECARGA, entrada.apiKey);
+      }
     }
     const { memorial, volume } = decidirCaixaDeRecarga({
       areaTerreno: entrada.areaTerreno,
@@ -151,6 +167,10 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
     if (extracaoCaixa) {
       evidenciasMemorial.push(metadadosExtracaoParaEvidencia(extracaoCaixa));
       evidenciasVolume.push(metadadosExtracaoParaEvidencia(extracaoCaixa));
+    }
+    if (recorteIccap) {
+      evidenciasMemorial.push(recortesIccapParaEvidencia(recorteIccap));
+      evidenciasVolume.push(recortesIccapParaEvidencia(recorteIccap));
     }
 
     const resultado2 = await registrarResultado(execucao.id, {
@@ -199,5 +219,6 @@ export {
   decidirCaixaDeRecarga, MAC_ITEM_CAIXA_RECARGA_MEMORIAL, MAC_ITEM_CAIXA_RECARGA_VOLUME,
 } from "./regras/caixaDeRecarga";
 export { compararQuadroDeAreasComCarimbo } from "./comparadorQuadroCarimbo";
+export { recortarBlocosIccap, ANCORAS_ICCAP_PADRAO } from "./recorteIccap";
 export { interpretarResposta, chamarGemini, RespostaGeminiInvalidaError } from "./gemini";
 export * from "./tipos";
