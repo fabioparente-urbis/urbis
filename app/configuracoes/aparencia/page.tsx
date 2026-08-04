@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/components/ThemeProvider";
 import { TEMAS, Tema } from "@/lib/themes";
-import { ArrowLeft, Palette, Hash, CheckCircle2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Palette, Hash, KeyRound, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const LABELS: Record<Tema, string> = {
   institucional: "🏛 Institucional",
@@ -181,10 +181,71 @@ function FaixaEditor({ tipo, label }: { tipo: "despacho" | "parecer"; label: str
   );
 }
 
+function SenhaEditor() {
+  const [senhaAtual, setSenhaAtual] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [status, setStatus] = useState<StatusSalvar>("idle");
+  const [erro, setErro] = useState("");
+
+  async function salvar() {
+    setErro("");
+    if (novaSenha.length < 8) { setErro("A nova senha deve ter pelo menos 8 caracteres."); return; }
+    if (novaSenha !== confirmar) { setErro("As senhas não conferem."); return; }
+    setStatus("salvando");
+    try {
+      const res = await fetch("/api/auth/trocar-senha", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senhaAtual, novaSenha }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.erro ?? "Erro");
+      setSenhaAtual(""); setNovaSenha(""); setConfirmar("");
+      setStatus("ok");
+      setTimeout(() => setStatus("idle"), 2500);
+    } catch (e: any) {
+      setErro(e.message);
+      setStatus("erro");
+      setTimeout(() => setStatus("idle"), 3000);
+    }
+  }
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--border)] rounded-lg p-5 shadow-sm">
+      <h3 className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide mb-4">Trocar senha</h3>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Senha atual</label>
+          <input type="password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nova senha</label>
+          <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Confirmar nova senha</label>
+          <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && salvar()}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+        </div>
+        <button onClick={salvar} disabled={status === "salvando" || !senhaAtual || !novaSenha || !confirmar}
+          className="self-start bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-semibold px-5 py-2 rounded-lg text-sm transition-colors disabled:opacity-60">
+          {status === "salvando" ? "Salvando…" : status === "ok" ? "✓ Senha alterada" : "Salvar nova senha"}
+        </button>
+        {erro && <p className="text-xs text-red-600 font-medium">{erro}</p>}
+      </div>
+    </div>
+  );
+}
+
 export default function ConfiguracoesPage() {
   const router = useRouter();
   const { tema, setTema } = useTheme();
-  const [aba, setAba] = useState<"aparencia" | "numeracao">("aparencia");
+  const [aba, setAba] = useState<"aparencia" | "numeracao" | "senha">("aparencia");
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] flex flex-col">
@@ -205,6 +266,7 @@ export default function ConfiguracoesPage() {
             {([
               { id: "aparencia", label: "Aparência", Icone: Palette },
               { id: "numeracao", label: "Numeração", Icone: Hash },
+              { id: "senha", label: "Senha", Icone: KeyRound },
             ] as const).map(({ id, label, Icone }) => (
               <button
                 key={id}
@@ -255,6 +317,17 @@ export default function ConfiguracoesPage() {
               </div>
               <FaixaEditor tipo="despacho" label="Despacho" />
               <FaixaEditor tipo="parecer" label="Parecer de Indeferimento" />
+            </div>
+          )}
+
+          {/* Senha */}
+          {aba === "senha" && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-bold text-[var(--text-primary)]">Senha</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Troque sua senha de acesso ao URBIS a qualquer momento.</p>
+              </div>
+              <SenhaEditor />
             </div>
           )}
 

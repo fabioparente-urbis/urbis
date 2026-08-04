@@ -5,9 +5,6 @@ import { createClient } from "@supabase/supabase-js";
 // nativa do Supabase Auth (envio gerenciado pelo próprio Supabase, sem
 // dependência de provedor SMTP no projeto). Sempre responde { ok: true }
 // para evitar enumeração de e-mails cadastrados.
-const URL_BASE_REDIRECT =
-  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-  "https://urbis-production.up.railway.app";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,10 +21,16 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     );
 
+    // A origem de QUEM fez a requisição — nunca uma env var separada que pode
+    // divergir do ambiente real (já aconteceu apontar para o domínio de outro
+    // projeto). NEXT_PUBLIC_APP_URL vira só um override explícito, opcional.
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || req.nextUrl.origin;
+
     // Não bloqueamos por erro do provedor: sempre devolvemos ok:true.
     // O Supabase já trata silenciosamente e-mails inexistentes.
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${URL_BASE_REDIRECT}/redefinir-senha`,
+      redirectTo: `${baseUrl}/redefinir-senha`,
     });
 
     return NextResponse.json({ ok: true });
