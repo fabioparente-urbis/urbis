@@ -24,6 +24,7 @@ type Processo = {
   analista_id: string | null;
   dados?: Record<string, any>;
   tags?: ProcessoTag[];
+  lip_incompleto?: boolean;
 };
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
@@ -359,7 +360,7 @@ export default function ProcessosPage() {
             const numero = p.codigo || p.numero_sei || "—";
             const processoFisico = p.dados?.processoFisico?.valor;
             return (
-              <div key={p.id} className="bg-[var(--card)] border border-[var(--card-border)] hover:border-[var(--border-strong)] rounded-xl p-4 flex items-center gap-4 transition-all">
+              <div key={p.id} className={`border hover:border-[var(--border-strong)] rounded-xl p-4 flex items-center gap-4 transition-all ${p.lip_incompleto ? "bg-red-50 border-red-200" : "bg-[var(--card)] border-[var(--card-border)]"}`}>
                 {/* Clicavel */}
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => abrirProcesso(p)}>
                   <p className="font-mono text-[var(--accent)] font-semibold text-sm">

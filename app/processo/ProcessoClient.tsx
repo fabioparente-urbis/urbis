@@ -164,6 +164,29 @@ function parseCoords(val: string): string {
 
 
 
+// Chaves de campo que alimentam o Laudo (xlsx), espelhando 1:1 os `v("...")`
+// lidos em app/api/mac/gerar-laudo/route.ts — se um campo novo passar a
+// alimentar o laudo lá, precisa entrar aqui também para ganhar o destaque
+// verde. Usado só pra pintar o campo; o analista pode desligar campo a
+// campo (ver `laudoOcultos` / `toggleDestaqueLaudo`).
+const CAMPOS_LAUDO = new Set([
+  "proprietario", "logradouro", "quadra", "lote", "bairro", "processoFisico",
+  "despacho", "seiCheadv", "certidao", "artLev", "levantamento", "laudo",
+  "tombado", "certidaoRememDesm", "vistoriaAreaAeroportuaria", "vistoria",
+  "embargo", "dataEmb", "onerosa", "foto", "usoSolo", "tipoUso",
+  "vistoriaUnidadeTerritorial", "certCorredorViario", "cnae1", "descCnae1",
+  "cnae2", "descCnae2", "corredor", "areaTotal", "caixa", "indiceCaptacao",
+  "areaImpermeavel", "volAt", "caixas", "areaTerreno", "existente", "pav",
+  "unid", "vistoriaAreaComercial", "vistoriaEstruturaConcluida",
+  "vistoriaMais12m", "vistoriaOcupaRecuo", "vistoriaMax7Pav",
+  "vistoriaAltMax21m", "vistoriaOcupaPublica", "vistoriaLevante",
+  "vistoriaEsquadriaDivisa", "vistoriaCalcadas", "comaer", "flExercito",
+  "areaRecuo", "areaVertical", "areaForaFrontal",
+  // Só entram na checagem de área divergente (Regularização SEI), mas
+  // ainda são fontes de dado pro laudo — ficam com o mesmo destaque.
+  "areaLaudo", "areaArt", "areaVistoria",
+]);
+
 function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {
   if (!v) return v;
   const clean = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -253,6 +276,12 @@ export default function ProcessoClient() {
   const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(tipoUrl);
   const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
   const [analiseAtualLIP, setAnaliseAtualLIP] = useState<{ numero_analise: number; status: string; numero_despacho?: string; numero_parecer?: string } | null>(null);
+  // Id real (uuid) da linha em `processos` — carregado junto com o LIP,
+  // usado só pra gravar lip_incompleto/laudo_campos_ocultos via /api/processos.
+  const [processoDbId, setProcessoDbId] = useState<string | null>(null);
+  const [lipIncompleto, setLipIncompleto] = useState(false);
+  const [salvandoLipIncompleto, setSalvandoLipIncompleto] = useState(false);
+  const [laudoOcultos, setLaudoOcultos] = useState<string[]>([]);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [progresso, setProgresso] = useState(0);
@@ -371,6 +400,9 @@ export default function ProcessoClient() {
       if (!json?.ok || !json?.data?.dados) {
         setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
       }
+      setProcessoDbId(json.data.id ?? null);
+      setLipIncompleto(json.data.lip_incompleto === true);
+      setLaudoOcultos(Array.isArray(json.data.laudo_campos_ocultos) ? json.data.laudo_campos_ocultos : []);
       const dadosSalvos = json.data.dados;
       setD((prev) => {
         const atualizado = { ...prev };
@@ -391,6 +423,45 @@ export default function ProcessoClient() {
       setCarregando(false);
     }
   }, [idUrl, tipoUrl]);
+
+  async function toggleLipIncompleto() {
+    if (!processoDbId || salvandoLipIncompleto) return;
+    const novo = !lipIncompleto;
+    setLipIncompleto(novo); // otimista — a pilha de processos é quem mais se beneficia de resposta imediata
+    setSalvandoLipIncompleto(true);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, lip_incompleto: novo }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) { setLipIncompleto(!novo); mostrarToast("Erro ao marcar LIP não concluído.", "erro"); }
+    } catch {
+      setLipIncompleto(!novo);
+      mostrarToast("Erro ao marcar LIP não concluído.", "erro");
+    } finally {
+      setSalvandoLipIncompleto(false);
+    }
+  }
+
+  async function toggleDestaqueLaudo(chave: string) {
+    if (!processoDbId) return;
+    const ligado = !laudoOcultos.includes(chave);
+    const novo = ligado ? [...laudoOcultos, chave] : laudoOcultos.filter((c) => c !== chave);
+    setLaudoOcultos(novo); // otimista
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, laudo_campos_ocultos: novo }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) setLaudoOcultos(laudoOcultos); // desfaz
+    } catch {
+      setLaudoOcultos(laudoOcultos); // desfaz
+    }
+  }
 
   useEffect(() => {
     if (!idUrl || carregandoAbas) return;
@@ -1165,15 +1236,28 @@ export default function ProcessoClient() {
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
+    // Destaque do Laudo: por padrão, todo campo em CAMPOS_LAUDO fica verde
+    // clarinho. O analista pode desligar campo a campo (não fica "verde
+    // pra sempre") — ver toggleDestaqueLaudo.
+    const noLaudo = CAMPOS_LAUDO.has(campo.chave);
+    const laudoAtivo = noLaudo && !laudoOcultos.includes(campo.chave);
+    const bgLaudo = laudoAtivo ? "bg-green-50" : "";
+    const badgeLaudo = noLaudo && (
+      <button type="button" onClick={() => toggleDestaqueLaudo(campo.chave)}
+        title={laudoAtivo ? "Este campo alimenta o Laudo — clique pra tirar o destaque" : "Destaque do Laudo desligado — clique pra religar"}
+        className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded border align-middle ${laudoAtivo ? "bg-green-100 border-green-400 text-green-700" : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)]"}`}>
+        LAUDO
+      </button>
+    );
     if (campo.tipo === "textarea" || campo.chave === "observacoes") {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
           </label>
           <textarea value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             placeholder={campo.placeholder || campo.label} rows={10}
-            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-vertical ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-vertical ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
           {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
         </div>
       );
@@ -1183,10 +1267,10 @@ export default function ProcessoClient() {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
           </label>
           <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
-            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`}>
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`}>
             <option value="">— selecione —</option>
             {campo.opcoes.map((op) => <option key={op} value={op}>{op}</option>)}
           </select>
@@ -1199,7 +1283,7 @@ export default function ProcessoClient() {
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
           {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
-          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ VCP</span>}
+          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ VCP</span>}{badgeLaudo}
         </label>
         {temSugestaoVCP && (
           <div className="mb-1 p-2 rounded border border-yellow-400 bg-yellow-50 text-xs flex items-center gap-2">
@@ -1258,7 +1342,7 @@ export default function ProcessoClient() {
             }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
-            className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)}`} />
+            className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
           {mostrarBotaoMaps && (
             <>
             <a
@@ -1292,6 +1376,7 @@ export default function ProcessoClient() {
     { cor: "bg-[#7C3AED]", label: "Inferido por visão (conferir!)" },
     { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
     { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
+    { cor: "bg-green-200 border border-green-400", label: "Fundo verde = alimenta o Laudo" },
   ];
   // "Preenchido" é o que alguém de fato preencheu — leitura da IA ou
   // digitação. Valor padrão não conta: com 59 padrões na Aprovação de
@@ -1847,6 +1932,18 @@ export default function ProcessoClient() {
             onClick={() => setModalLimparLip(true)}
             className="mt-1 bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🗑️ Limpar LIP
+          </button>
+          <button
+            type="button"
+            onClick={toggleLipIncompleto}
+            disabled={!processoDbId || salvandoLipIncompleto}
+            title="Marca este processo com destaque vermelho na pilha de processos, pra lembrar de terminar o LIP depois"
+            className={`mt-1 px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 ${
+              lipIncompleto
+                ? "bg-red-100 border border-red-400 text-red-700 hover:bg-red-200"
+                : "bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-red-400"
+            }`}>
+            {lipIncompleto ? "🔴 LIP não concluído" : "⚪ Marcar LIP não concluído"}
           </button>
           </div>
           <div>
