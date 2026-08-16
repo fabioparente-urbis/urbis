@@ -873,7 +873,7 @@ export default function MacPage() {
         // Confirma a numeração de forma confiável: tenta até 3x em falha de
         // rede/5xx. 409 = servidor já avançou o número (re-emissão) → ok.
         // Se todas falharem, avisa o analista (não trava o fluxo).
-        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}${capturedAnaliseId ? `&analise_id=${encodeURIComponent(capturedAnaliseId)}&analise_numero=${capturedNumeroAnalise}` : ""}`;
+        const _urlCommit = `/api/numeracao/proximo?tipo=${_tipoSerieCommit}&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommit)}&data=${encodeURIComponent(dataEmissao)}${capturedAnaliseId ? `&analise_id=${encodeURIComponent(capturedAnaliseId)}&analise_numero=${capturedNumeroAnalise}` : ""}`;
         let _commitOk = false;
         for (let _t = 1; _t <= 3 && !_commitOk; _t++) {
           try {
@@ -945,9 +945,15 @@ export default function MacPage() {
   }
 
   // A data de cada análise no despacho é a data em que aquela análise foi
-  // efetivamente despachada — registrada na tag do processo. `criado_em` é
-  // fallback para análises que ainda não geraram documento.
+  // efetivamente despachada. Fonte primária: data_despacho/data_parecer,
+  // gravada atomicamente em analises_mac junto com o número (numeracao/
+  // proximo). A tag em processos.tags é fallback (gravação client-side,
+  // best-effort — pode ter sido perdida em análises emitidas antes desta
+  // coluna existir). `criado_em` é o último fallback, para análises que
+  // ainda não geraram documento.
   function dataDaAnalise(a: any): string {
+    if (a.data_despacho) return a.data_despacho;
+    if (a.data_parecer) return a.data_parecer;
     const tag = (tagsProcesso ?? []).find((t: any) =>
       t?.numero_analise === a.numero_analise &&
       ["despacho", "indeferimento", "arquivamento"].includes(t?.tipo)
@@ -2090,7 +2096,7 @@ export default function MacPage() {
                   let _commitOkParecer = false;
                   for (let _t = 1; _t <= 3 && !_commitOkParecer; _t++) {
                     try {
-                      const _rc = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitParecer)}${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
+                      const _rc = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitParecer)}&data=${encodeURIComponent(dataEmissao)}${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
                       if (_rc.ok || _rc.status === 409) { _commitOkParecer = true; break; }
                     } catch { /* rede — tenta de novo */ }
                     if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));

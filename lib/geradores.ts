@@ -358,22 +358,6 @@ function gerarItens(ids: string[]) {
   return out;
 }
 
-// Helper para renderizar CAU/CREA do responsável técnico abaixo do "Interessado"
-// quando ao menos um dos campos vier preenchido (item 3 Cowork).
-function linhaResponsavelTecnico(resp?: { cau?: string | null; crea?: string | null }): Paragraph[] {
-  if (!resp) return [];
-  const cau = (resp.cau || "").trim();
-  const crea = (resp.crea || "").trim();
-  const cauValido = cau && cau.toUpperCase() !== "NP" && cau.toUpperCase() !== "CAU-NP";
-  const creaValido = crea && crea.toUpperCase() !== "NP";
-  if (!cauValido && !creaValido) return [];
-  const partes: any[] = [txt("Responsável Técnico:  ", { bold: true })];
-  if (cauValido) partes.push(txt(`CAU ${cau}`));
-  if (cauValido && creaValido) partes.push(txt("  |  "));
-  if (creaValido) partes.push(txt(`CREA ${crea}`));
-  return [p(partes, { align: AlignmentType.LEFT, after: 80 })];
-}
-
 // Data de emissão dos documentos. O cliente envia "dd/mm/aaaa" (data escolhida
 // no modal de emissão); se vier vazia ou inválida, cai para "hoje". Fixamos
 // meio-dia local ao parsear para a data não escorregar de dia ao formatar em
@@ -407,7 +391,6 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(vazio(160));
   children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
-  linhaResponsavelTecnico(dados.responsavelTecnico).forEach(par => children.push(par));
   children.push(p([txt("Assunto:  "), txt("ALVARÁ DE REGULARIZAÇÃO", { bold: true })], { align: AlignmentType.LEFT, after: 180 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº   ${dados.numeroDespacho || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(new Paragraph({ spacing: { before: 0, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000", space: 1 } }, children: [txt("AO INTERESSADO/AUTOR", { bold: true })] }));
@@ -478,7 +461,6 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   children.push(vazio(160));
   children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 60 }));
-  linhaResponsavelTecnico(dados.responsavelTecnico).forEach(par => children.push(par));
   // Cabeçalho do ACEITE: difere do despacho de Regularização.
   children.push(p([txt("Assunto:  "), txt("ANÁLISE DE ACEITE", { bold: true })], { align: AlignmentType.LEFT, after: 180 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº   ${dados.numeroDespacho || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));

@@ -28,6 +28,10 @@ export async function GET(req: NextRequest) {
   // Interno saem da MESMA série ('despacho'), então `tipo` não os separa —
   // e a mesma análise pode emitir os dois.
   const documento = searchParams.get("documento") || null;
+  // Data de emissão escolhida no modal (dd/mm/aaaa) — gravada atomicamente
+  // junto com o número na linha da análise, para dataDaAnalise() no front
+  // não depender de processos.tags (client-side, best-effort).
+  const dataEmissao = searchParams.get("data") || null;
 
   if (!tipo || !["despacho", "parecer"].includes(tipo))
     return NextResponse.json({ ok: false, motivo: "TIPO_INVALIDO" }, { status: 400 });
@@ -129,9 +133,17 @@ export async function GET(req: NextRequest) {
         documento === "despacho_interno" ? "numero_despacho_interno"
         : tipo === "parecer" ? "numero_parecer"
         : "numero_despacho";
+      // Despacho Interno não entra no label "Nª ANÁLISE: dd/mm/aaaa" do
+      // despacho ao interessado — só despacho/parecer precisam da data.
+      const colunaData =
+        documento === "despacho_interno" ? null
+        : tipo === "parecer" ? "data_parecer"
+        : "data_despacho";
+      const patch: Record<string, string> = { [coluna]: String(numero) };
+      if (colunaData && dataEmissao) patch[colunaData] = dataEmissao;
       const { error: erroAnalise } = await supabase
         .from("analises_mac")
-        .update({ [coluna]: String(numero) })
+        .update(patch)
         .eq("id", analiseId);
       if (erroAnalise)
         console.error("[numeracao] falha ao vincular número à análise:", erroAnalise.message);
