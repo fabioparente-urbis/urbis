@@ -818,6 +818,31 @@ export default function ProcessoClient() {
         `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
         `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · ` +
         `${p.custo?.paginasNaPasta ?? 0} páginas · sem IA · ${Math.round((p.msLeitura ?? 0) / 100) / 10}s`,
+        /* A ordem das pastas entra no log quando foi ADIVINHADA. Se depois se descobrir que a
+         * ordem estava errada, é por aqui que se sabe qual leitura usou qual ordem. */
+        ...(p.rodadaAmbigua
+          ? [``, `⚠ ORDEM DAS SUBPASTAS ASSUMIDA (não foi possível determinar com segurança):`,
+             ...(p.pastas ?? []).filter((x: any) => x.caminho)
+               .map((x: any) => `  rodada ${x.rodada}: ${x.caminho}`)]
+          : []),
+        /* MEMÓRIA DOCUMENTAL: é o que diferencia uma leitura da anterior. Sem isto no LIP, a prova
+         * de que um documento foi corrigido (e o que mudou nele) só existia na janela da proposta
+         * e morria no aceite. */
+        ...(p.mhd?.ativa
+          ? [``,
+             `— MEMÓRIA DOCUMENTAL —`,
+             `  encontrados ${p.mhd.encontrados} · já conhecidos ${p.mhd.jaConhecidos} · ` +
+             `novos ${p.mhd.novos} · corrigidos ${p.mhd.corrigidos}` +
+             (p.mhd.paginasEconomizadas > 0 ? ` · ${p.mhd.paginasEconomizadas} página(s) vieram da memória` : ""),
+             ...(p.mhd.versoesCriadas ?? []).map((v: any) =>
+               `  • ${v.rotulo} — versão ${v.versao} (${v.nome})`),
+             ...(p.mhd.alteracoes?.length
+               ? [`  alterações em relação à versão anterior:`,
+                  ...p.mhd.alteracoes.map((a: any) => `    ↻ ${a.campo}: ${a.de ?? "—"} → ${a.para ?? "—"}`)]
+               : []),
+             ...(p.mhd.gravou === false
+               ? [`  ⚠ MHD NÃO GRAVOU: ${(p.mhd.problemas ?? []).join(" · ")}`] : [])]
+          : []),
         ``,
         `— VERSÕES VIGENTES (a rodada mais recente vence; versão antiga não é usada) —`,
         ...p.catalogo.map((it: any) => {
