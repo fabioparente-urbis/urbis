@@ -701,6 +701,8 @@ export default function ProcessoClient() {
     const arquivos = todos.filter((f) => !f.name.startsWith("."));
     if (!arquivos.length) { mostrarToast("Nenhum arquivo na pasta.", "erro"); return; }
 
+    const _t0 = Date.now();
+    const _quando = new Date().toLocaleString("pt-BR");
     try {
       setLendoPasta(true);
       setDocsLocalizados({}); // leitura nova, achados avulsos da anterior não valem mais
@@ -720,8 +722,23 @@ export default function ProcessoClient() {
       }
 
       const r = await fetch("/api/lip/ler-pasta", { method: "POST", body: fd });
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.erro || "Falha ao ler a pasta");
+      /* NÃO usar r.json() direto. Quando a leitura estoura o tempo, ou o container reinicia, a
+       * resposta é uma página de erro em HTML — e aí o json() falha com "Unexpected token '<'",
+       * que não diz nada ao analista e esconde o motivo real. Lendo como texto primeiro, o status
+       * HTTP e o começo do corpo vão para a mensagem. */
+      const corpo = await r.text();
+      let data: any;
+      try {
+        data = JSON.parse(corpo);
+      } catch {
+        throw new Error(
+          `o servidor respondeu HTTP ${r.status} sem JSON` +
+          (r.status === 504 || r.status === 502
+            ? " — a leitura provavelmente estourou o tempo limite do servidor"
+            : `: ${corpo.slice(0, 200).replace(/\s+/g, " ").trim()}`),
+        );
+      }
+      if (!r.ok || !data.ok) throw new Error(data?.erro || `Falha ao ler a pasta (HTTP ${r.status})`);
 
       setPropostaPasta(data);
       registrar({
@@ -729,6 +746,22 @@ export default function ProcessoClient() {
         detalhe: { arquivos: arquivos.length, campos: Object.keys(data.campos ?? {}).length, ms: data.msLeitura },
       });
     } catch (e: any) {
+      /* LEITURA QUE FALHA TEM QUE DEIXAR RASTRO. O toast some em segundos e a proposta nunca
+       * chega, então até agora uma falha não gerava registro nenhum — o analista ficava sem saber
+       * se leu e não achou nada, ou se nem chegou a ler. O bloco de erro vai para a OBS na hora,
+       * sem depender de aceite nenhum, exatamente como já acontece no LER PROCESSO. */
+      const seg = Math.round((Date.now() - _t0) / 1000);
+      const mm = String(Math.floor(seg / 60)).padStart(2, "0");
+      const ss = String(seg % 60).padStart(2, "0");
+      anexarObsLip(
+        `📁 LEITURA DA PASTA — ${_quando}\n` +
+        `❌ Status: ERRO NA LEITURA · ${arquivos.length} arquivo(s) enviados · durou ${mm}:${ss}\n` +
+        `⚠ Motivo: ${e?.message ?? e}`,
+      );
+      registrar({
+        modulo: "LIP", acao: "LIP_LEITURA_PASTA", processo_codigo: idUrl, origem: "SISTEMA",
+        detalhe: { erro: String(e?.message ?? e), arquivos: arquivos.length, segundos: seg },
+      });
       mostrarToast("Erro na leitura da pasta: " + (e?.message ?? e), "erro");
     } finally {
       if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
