@@ -254,7 +254,9 @@ const SLOTS_SEI: { re: RegExp; papel: string }[] = [
   { re: /ART.*CAIXA/i, papel: "art_caixa" },
   { re: /ART.*EXECU/i, papel: "art_execucao" },
   { re: /ART.*PROJETO/i, papel: "art_projeto" },
-  { re: /CERTID[ÃA]?[AO]/i, papel: "certidao_matricula" },
+  /* "CERTIDAO DE CORREDOR" é certidão de corredor viário, não de matrícula — documento diferente,
+   * de outro órgão. Sem a exclusão ela assumia o papel da matrícula pela pista do nome. */
+  { re: /CERTID[ÃA]?[AO](?!.*CORREDOR)/i, papel: "certidao_matricula" },
   { re: /DECLARA/i, papel: "declaracao" },
   { re: /DOCUMENTOS/i, papel: "documentos_pessoais" },
   { re: /\.(dwg|dxf)$/i, papel: "projeto_cad" },
@@ -293,14 +295,22 @@ export const DISPENSAVEIS = new Set(["documentos_pessoais", "projeto_cad"]);
 function lerUsoDoSolo(doc: DocTexto) {
   const t = doc.texto;
   const d: any = {};
-  d.numero = (t.match(/UDS\d{10,}/) || [])[0] || null;
+  /* Duas grafias do número do Uso do Solo. A antiga imprime "UDS0000000000"; a do 50724 traz só a
+   * coluna "Processo" ("Processo | Tipo de Uso Do Solo" → "92202842 | APROVAÇÃO DE PROJETO"), e
+   * sem este segundo caminho o campo ficava vazio e a conferência da prancha morria em SEM DADO. */
+  d.numero = (t.match(/UDS\d{10,}/) || [])[0]
+    || colunas(proxLinha(doc, /^\s*Processo\s+Tipo de Uso Do Solo\s*$/i))[0]?.match(/^\d{6,}$/)?.[0]
+    || null;
   d.iptu = (t.match(/\b\d{14}\b/) || [])[0] || null;
   d.tipo = /APROVA[ÇC][ÃA]O DE PROJETO/i.test(t) ? "APROVAÇÃO DE PROJETO" : null;
 
-  const [q, l, emb] = colunas(proxLinha(doc, /Quadra\s+Lote\s+Possui Embargo/i));
+  /* O cabeçalho "Quadra Lote" nem sempre traz "Possui Embargo" na mesma linha — no 50724 o embargo
+   * está lá em cima, junto da Inscrição IPTU, e a exigência das três colunas fazia a linha não
+   * casar: quadra e lote saíam vazios, e com eles as dimensões do lote. Casa com as duas grafias. */
+  const [q, l, emb] = colunas(proxLinha(doc, /^\s*Quadra\s+Lote(\s+Possui Embargo)?\s*$/i));
   d.quadra = q ?? null;
   d.lote = l ?? null;
-  d.embargo = emb ?? null;
+  d.embargo = emb ?? colunas(proxLinha(doc, /Inscri[çc][ãa]o IPTU\s+Possui Embargo/i))[1] ?? null;
 
   d.bairro = colunas(proxLinha(doc, /^\s*Bairro\s*$/i))[0] ?? null;
 
@@ -508,7 +518,9 @@ function lerRequerimento(doc: DocTexto) {
 function lerCertidao(doc: DocTexto) {
   const t = doc.texto;
   return {
-    matricula: (t.match(/matr[íi]cula n[ºo°]\s*([\d.]+)/i) || [])[1] || null,
+    // o cartório da 3ª circunscrição escreve "Matricula n. 55.816", com PONTO: exigir "nº/no/n°"
+    // deixava o número de fora e o campo do LIP nascia vazio
+    matricula: (t.match(/matr[íi]cula\s*n[.ºo°]*\s*([\d.]+)/i) || [])[1] || null,
     livro: (t.match(/Livro\s*(\d+)/i) || [])[1] || null,
     // as dimensões e confrontações da matrícula vêm em imagem: não há o que ler aqui
     dimensoes: null as string | null,
@@ -678,6 +690,36 @@ function vigentes(catalogo: ItemCatalogo[]) {
     for (const papel of it.papeis) {
       const atual = porPapel[papel];
       if (!atual) { porPapel[papel] = it; continue; }
+
+      /* PALPITE NÃO DERRUBA LEITURA (processo 50724, 17/08/2026).
+       *
+       * A rodada é soberana entre documentos IDENTIFICADOS pelo conteúdo. Mas o papel também pode
+       * vir da pista do nome, como último recurso, e aí a confiança é "baixa" — é chute. No 50724 a
+       * "Certidao de Corredor" numa subpasta casou com a pista /CERTID[ÃA][AO]/, virou
+       * `certidao_matricula` de confiança baixa, e por estar na rodada seguinte derrubou a Certidão
+       * de Matrícula de verdade, lida com assinatura de conteúdo. O LIP perdeu quadra, lote e
+       * dimensões, e o histórico registrou a perda como se fosse "correção" do requerente.
+       *
+       * Regra: um palpite nunca substitui uma identificação de conteúdo. Ele fica registrado no
+       * catálogo e vira alerta — o analista decide, o sistema não decide calado. */
+      const palpite = (x: ItemCatalogo) => x.confianca === "baixa";
+      if (palpite(it) && !palpite(atual)) {
+        it.alertaRetrocesso =
+          `identificado como "${papel}" apenas pela pista do nome (confiança baixa) e na rodada ` +
+          `${it.rodada}, mas NÃO substitui "${atual.nome}" (rodada ${atual.rodada}), que foi ` +
+          `identificado pelo conteúdo — confira se este arquivo é mesmo um(a) ${papel}`;
+        continue;
+      }
+      /* O simétrico é indispensável, e é o que faltava: o palpite pode chegar PRIMEIRO na ordem do
+       * catálogo (rodada maior vem antes) e ocupar o papel. Sem esta linha o guarda acima nunca
+       * dispara, porque quando o documento de verdade chega ele é o de confiança alta. */
+      if (!palpite(it) && palpite(atual)) {
+        atual.alertaRetrocesso =
+          `assumia o papel de "${papel}" só pela pista do nome; "${it.nome}" foi identificado pelo ` +
+          `conteúdo e passa a valer — confira se este arquivo é mesmo um(a) ${papel}`;
+        porPapel[papel] = it;
+        continue;
+      }
 
       // 1º critério e critério soberano: rodada maior vence
       let venceu = it.rodada > atual.rodada;
