@@ -12,6 +12,8 @@
  *
  * NENHUMA chamada de IA acontece aqui. Ver docs/PROMPT_LEITURA_PASTA_SLOT5.md
  */
+import crypto from "node:crypto";
+import { ehCompactado, abrirCompactado } from "./descompactar";
 
 export type ItemTexto = { t: string; x: number; y: number; h: number; pagina: number };
 export type Linha = { y: number; pagina: number; itens: ItemTexto[]; texto: string };
@@ -30,6 +32,8 @@ export type ArquivoEntrada = {
   rodada: number;
   hash: string;
   buffer: Uint8Array;
+  /** veio de dentro de um .rar/.zip — guarda o nome do compactado, para o catálogo dizer de onde saiu */
+  origemCompactado?: string;
 };
 
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
@@ -739,6 +743,12 @@ async function catalogar(
 
     out.push(item);
   }
+  // procedência do que veio de dentro de compactado — sem isso o analista vê no catálogo um
+  // arquivo que não existe na pasta e não tem como saber de onde ele saiu
+  for (const it of out) {
+    const origem = arquivos.find((a) => a.hash === it.hash)?.origemCompactado;
+    if (origem) it.prova = `${it.prova} · de dentro de "${origem}"`;
+  }
   return { catalogo: out, extratos };
 }
 
@@ -1442,12 +1452,51 @@ function conferir(vig: Record<string, ItemCatalogo>): Conferencia[] {
 
 // ───────────────────────────── entrada ─────────────────────────────
 
+/**
+ * Abre os compactados ANTES de catalogar, e só os que importam.
+ *
+ * Regra do Fábio: documento importante que vier em .rar é descompactado. O que continua fechado é
+ * o que a regra master já dá por irrelevante — e é o NOME do compactado que decide, porque ele é o
+ * slot do SEI. "Requerimento.rar" fica fechado e vale presença; "ART.zip" é aberto.
+ *
+ * Abrir aqui, e não dentro de `catalogar`, mantém o resto da leitura sem saber que compactado
+ * existe: o que sai daqui é uma lista de arquivos comum, cada um com hash do PRÓPRIO conteúdo — é
+ * isso que faz o MHD reconhecer depois a mesma folha solta na pasta.
+ */
+async function expandirCompactados(arquivos: ArquivoEntrada[]): Promise<ArquivoEntrada[]> {
+  const out: ArquivoEntrada[] = [];
+
+  for (const a of arquivos) {
+    if (!ehCompactado(a.nome)) { out.push(a); continue; }
+
+    const pista = SLOTS_SEI.find((s) => s.re.test(a.nome))?.papel ?? null;
+    if (pista && SO_PRESENCA.has(pista)) { out.push(a); continue; } // irrelevante: não se abre
+
+    const { arquivos: dentro, erro } = await abrirCompactado(a.nome, a.buffer);
+    if (erro || !dentro.length) {
+      // falhou: segue como estava, valendo presença — a leitura nunca cai por causa disto
+      out.push({ ...a, origemCompactado: erro ? `não foi possível abrir: ${erro}` : undefined });
+      continue;
+    }
+    for (const f of dentro) {
+      out.push({
+        nome: f.nome,
+        rodada: a.rodada,
+        hash: crypto.createHash("sha256").update(f.buffer).digest("hex"),
+        buffer: f.buffer,
+        origemCompactado: a.nome,
+      });
+    }
+  }
+  return out;
+}
+
 /** Lê a pasta inteira e devolve catálogo, campos do LIP e conferências. Zero chamadas de IA. */
 export async function lerPastaSlot5(
   arquivos: ArquivoEntrada[],
   conhecidos?: Map<string, Conhecido>,
 ): Promise<ResultadoLeitura> {
-  const { catalogo, extratos } = await catalogar(arquivos, conhecidos);
+  const { catalogo, extratos } = await catalogar(await expandirCompactados(arquivos), conhecidos);
   const vig = vigentes(catalogo);
   const campos = preencherLip(vig);
   const conferencias = conferir(vig);
