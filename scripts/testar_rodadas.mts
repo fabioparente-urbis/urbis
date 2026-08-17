@@ -38,9 +38,29 @@ ok(!r.ambigua, "data do arquivo resolve, não é ambíguo");
 r = mapaDeRodadas([arq("P/x.pdf"), arq("P/correcao/a.pdf"), arq("P/anexos/b.pdf")]);
 ok(r.ambigua, "sem número, sem data e sem mtime → AMBÍGUA (pergunta, não escolhe calado)");
 
+/* Pasta dentro de pasta de rodada é ORGANIZAÇÃO, não rodada nova (regra do Fábio, 17/08/2026).
+ * O teste anterior afirmava o contrário — foi ele que deixou passar o processo 50724, onde três
+ * pastas reais viraram seis rodadas e as duas pastas temáticas de dentro "venceram" a vigência. */
 r = mapaDeRodadas([arq("P/x.pdf"), arq("P/A/1.pdf"), arq("P/A/B/2.pdf")]);
-ok(r.rodadaDoArquivo("P/A/B/2.pdf", "").rodada > r.rodadaDoArquivo("P/A/1.pdf", "").rodada,
-   "aninhada mais profunda vem depois");
+ok(r.rodadaDoArquivo("P/A/B/2.pdf", "").rodada === r.rodadaDoArquivo("P/A/1.pdf", "").rodada,
+   "subpasta de subpasta HERDA a rodada, não cria outra");
+ok(r.pastas.length === 2, "P/A/B não vira pasta de rodada própria");
+
+r = mapaDeRodadas([
+  arq("50724/Anexados pela Prefeitura/a.pdf"),
+  arq("50724/Anexados pelo interessado/REQ.pdf"),
+  arq("50724/Anexados pelo interessado/COMAER/c.pdf"),
+  arq("50724/Anexados pelo interessado/CERTIDAO DE CORREDOR/d.pdf"),
+  arq("50724/Arquivos Iniciais/e.pdf"),
+]);
+ok(r.pastas.length === 4, "50724: três pastas de rodada + raiz (antes davam seis)");
+ok(r.rodadaDoArquivo("50724/Anexados pelo interessado/COMAER/c.pdf", "").rodada ===
+   r.rodadaDoArquivo("50724/Anexados pelo interessado/REQ.pdf", "").rodada,
+   "50724: COMAER está na mesma rodada do REQ que o acompanha");
+ok(r.rodadaDoArquivo("50724/Arquivos Iniciais/e.pdf", "").rodada <
+   r.rodadaDoArquivo("50724/Anexados pelo interessado/REQ.pdf", "").rodada,
+   "50724: 'Arquivos Iniciais' não pode vencer a vigência das correções");
+ok(r.ambigua, "50724: ordem das demais segue ambígua — pergunta, não escolhe calado");
 
 ok(numeroNoNome("Correção 02") === 2 && numeroNoNome("REV04") === 4 && numeroNoNome("3ª análise") === 3,
    "números no nome");

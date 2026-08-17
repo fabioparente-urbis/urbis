@@ -114,7 +114,7 @@ export type ResultadoLeitura = {
   catalogo: ItemCatalogo[];
   campos: Record<string, ResultadoCampo>;
   conferencias: Conferencia[];
-  obrigatorios: { papel: string; nome: string; presente: boolean }[];
+  obrigatorios: { papel: string; nome: string; presente: boolean; dispensavel: boolean }[];
   duplicidades: { mesmaRodada: string[][]; entreRodadas: string[][] };
   custo: { paginasNaPasta: number; paginasIgnoradas: number; arquivosDistintos: number; chamadasIA: number;
            paginasReaproveitadas: number; paginasProcessadas: number };
@@ -279,6 +279,14 @@ export const OBRIGATORIOS: [string, string][] = [
 
 /** Nunca são lidos: escopo da CHEADV (decisão do analista) ou ilegíveis por natureza. */
 export const SO_PRESENCA = new Set(["documentos_pessoais", "declaracao", "projeto_cad"]);
+
+/**
+ * Ausência REGISTRADA, mas não exigida. Os documentos pessoais são escopo da CHEADV e o DWG não é
+ * legível por ninguém aqui — cobrar os dois do requerente é ruído. A falta continua aparecendo na
+ * proposta e no bloco de observações; o que muda é que ela não é tratada como pendência.
+ * A Declaração de Responsabilidade NÃO entra aqui: ela é só-presença, mas é exigível.
+ */
+export const DISPENSAVEIS = new Set(["documentos_pessoais", "projeto_cad"]);
 
 // ───────────────────────────── extratores ─────────────────────────────
 
@@ -1311,7 +1319,9 @@ export async function lerPastaSlot5(
   const conferencias = conferir(vig);
 
   const presentes = new Set(catalogo.flatMap((it) => it.papeis));
-  const obrigatorios = OBRIGATORIOS.map(([papel, nome]) => ({ papel, nome, presente: presentes.has(papel) }));
+  const obrigatorios = OBRIGATORIOS.map(([papel, nome]) => ({
+    papel, nome, presente: presentes.has(papel), dispensavel: DISPENSAVEIS.has(papel),
+  }));
 
   const porHash: Record<string, ItemCatalogo[]> = {};
   for (const it of catalogo) (porHash[it.hash] ||= []).push(it);

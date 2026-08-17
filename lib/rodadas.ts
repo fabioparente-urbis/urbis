@@ -23,6 +23,19 @@
  *   2. data no nome da pasta     — "2026-04-30", "30-04-2026", "20260430"
  *   3. data de modificação dos arquivos de dentro (a mais recente da pasta)
  *   4. ambiguidade declarada     — devolve `ambigua: true` e a tela pede a ordem ao analista
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * SÓ O PRIMEIRO NÍVEL É RODADA (regra do Fábio, 17/08/2026)
+ *
+ * Pasta dentro de pasta de rodada é ORGANIZAÇÃO do requerente, não rodada nova:
+ *
+ *     Processo/Anexados pelo interessado/COMAER/x.pdf
+ *     Processo/Anexados pelo interessado/CERTIDAO DE CORREDOR/y.pdf
+ *
+ * Antes, cada caminho distinto virava uma rodada — o processo 50724 abriu SEIS rodadas para três
+ * pastas reais, e as duas pastas temáticas de dentro passaram a "vencer" por serem as mais
+ * recentes. A rodada agora é o primeiro nível abaixo da pasta selecionada; tudo abaixo dele herda.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export type PastaRodada = {
@@ -62,16 +75,34 @@ export function dataNoNome(nome: string): number | null {
 export type ArquivoBruto = { caminhoRelativo: string; nome: string; modificadoEm?: number };
 
 /**
+ * Qual pasta de rodada contém este arquivo. "" = raiz.
+ *
+ * `partes[0]` é a pasta que o analista escolheu no seletor e o último item é o arquivo; o que
+ * sobra no meio é a hierarquia interna, e dela só o PRIMEIRO nível define rodada.
+ */
+export function pastaDeRodada(caminhoRelativo: string): string {
+  const partes = caminhoRelativo.split("/").filter(Boolean);
+  return partes.length > 2 ? partes[1] : "";
+}
+
+/**
+ * Nome que declara ser a entrega ORIGINAL. Sem isto, "Arquivos Iniciais" caía na ordenação
+ * alfabética e ficava DEPOIS de "Anexados pelo interessado" — a entrega inicial virava a rodada
+ * mais recente e seus documentos venciam a vigência contra as próprias correções que os
+ * substituíram. É desempate de último recurso: só vale quando número, data e mtime não decidem.
+ */
+const RE_INICIAL = /\b(INICIA|ORIGINA|PROTOCOL|ENTRADA|1[ªa°o]?\s*(ANALISE|VIA))/i;
+
+/**
  * Ordena as pastas e devolve a rodada de cada uma.
  * A raiz é sempre a rodada 1; as subpastas começam em 2.
  */
 export function ordenarRodadas(arquivos: ArquivoBruto[]): PastaRodada[] {
-  // agrupa por PASTA (o caminho sem o nome do arquivo, e sem a pasta-mãe escolhida no seletor)
+  // agrupa pela PASTA DE RODADA: o primeiro nível abaixo da pasta que o analista selecionou.
+  // Subpasta de subpasta é organização do requerente e HERDA a rodada da pasta que a contém.
   const porPasta = new Map<string, ArquivoBruto[]>();
   for (const a of arquivos) {
-    const partes = (a.caminhoRelativo || a.nome).split("/").filter(Boolean);
-    // partes[0] é a pasta que o analista selecionou; o último é o arquivo
-    const sub = partes.slice(1, -1).join("/");
+    const sub = pastaDeRodada(a.caminhoRelativo || a.nome);
     (porPasta.get(sub) ?? porPasta.set(sub, []).get(sub)!).push(a);
   }
 
@@ -81,14 +112,14 @@ export function ordenarRodadas(arquivos: ArquivoBruto[]): PastaRodada[] {
 
   // tenta na ordem: número no nome → data no nome → data do arquivo mais recente
   const info = subs.map((caminho) => {
-    const ultimoNivel = caminho.split("/").pop() ?? caminho;
     const arqs = porPasta.get(caminho) ?? [];
     return {
       caminho,
-      numero: numeroNoNome(ultimoNivel),
-      data: dataNoNome(ultimoNivel),
+      numero: numeroNoNome(caminho),
+      data: dataNoNome(caminho),
+      // o mtime é o do arquivo mais recente EM QUALQUER PROFUNDIDADE abaixo da pasta de rodada
       modificado: Math.max(0, ...arqs.map((a) => a.modificadoEm ?? 0)),
-      profundidade: caminho.split("/").length,
+      inicial: RE_INICIAL.test(caminho),
     };
   });
 
@@ -113,11 +144,12 @@ export function ordenarRodadas(arquivos: ArquivoBruto[]): PastaRodada[] {
     criterio = "data-do-arquivo";
     ordenadas = [...info].sort((a, b) => a.modificado - b.modificado);
   } else {
-    // não há como decidir com segurança. Ordena por profundidade e nome só para ter algo
-    // determinístico, mas MARCA como ambígua para a tela pedir confirmação.
+    /* Não há como decidir com segurança. Ordena alfabeticamente só para ter algo determinístico,
+     * mas MARCA como ambígua para a tela pedir confirmação. A pasta que se declara INICIAL vai
+     * para a frente: continua sendo chute, só que um chute que não inverte o óbvio. */
     criterio = "alfabetica";
     ordenadas = [...info].sort(
-      (a, b) => a.profundidade - b.profundidade || a.caminho.localeCompare(b.caminho, "pt-BR"),
+      (a, b) => Number(b.inicial) - Number(a.inicial) || a.caminho.localeCompare(b.caminho, "pt-BR"),
     );
   }
 
@@ -132,10 +164,7 @@ export function ordenarRodadas(arquivos: ArquivoBruto[]): PastaRodada[] {
 export function mapaDeRodadas(arquivos: ArquivoBruto[]) {
   const pastas = ordenarRodadas(arquivos);
   const mapa = new Map(pastas.map((p) => [p.caminho, p]));
-  const rodadaDoArquivo = (caminhoRelativo: string, nome: string) => {
-    const partes = (caminhoRelativo || nome).split("/").filter(Boolean);
-    const sub = partes.slice(1, -1).join("/");
-    return mapa.get(sub) ?? mapa.get("")!;
-  };
+  const rodadaDoArquivo = (caminhoRelativo: string, nome: string) =>
+    mapa.get(pastaDeRodada(caminhoRelativo || nome)) ?? mapa.get("")!;
   return { pastas, rodadaDoArquivo, ambigua: pastas.some((p) => p.ambigua) };
 }

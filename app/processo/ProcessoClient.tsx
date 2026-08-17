@@ -235,6 +235,9 @@ export default function ProcessoClient() {
   const [lendoPasta, setLendoPasta] = useState(false);
   // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
   const [propostaPasta, setPropostaPasta] = useState<any>(null);
+  // obrigatórios que faltavam na pasta e o analista apontou de fora dela — papel → resultado da leitura
+  const [docsLocalizados, setDocsLocalizados] = useState<Record<string, any>>({});
+  const [localizandoPapel, setLocalizandoPapel] = useState<string | null>(null);
   // MHD — histórico documental. Módulo satélite: vale para todo slot e todo assunto.
   const [mhd, setMhd] = useState<any>(null);
   const [carregandoMhd, setCarregandoMhd] = useState(false);
@@ -639,12 +642,12 @@ export default function ProcessoClient() {
     return partes.length ? `${nome} (${partes.join(", ")})` : String(nome);
   }
 
-  // Anexa um bloco ao campo Observações do LIP (preservando o conteúdo atual)
+  // Empilha um bloco no campo Observações do LIP: o mais recente EM CIMA, o anterior desce.
   function anexarObsLip(bloco: string) {
     setD((prev) => {
       const novo = { ...prev };
       const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
-      novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + bloco : bloco, origem: "urbis", fonte: "LIP" };
+      novo["observacoes"] = { valor: obsAtual ? bloco + "\n\n" + obsAtual : bloco, origem: "urbis", fonte: "LIP" };
       autoSalvar(novo);
       return novo;
     });
@@ -700,6 +703,11 @@ export default function ProcessoClient() {
 
     try {
       setLendoPasta(true);
+      setDocsLocalizados({}); // leitura nova, achados avulsos da anterior não valem mais
+      setTempoLeitura(0);
+      if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
+      tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
+      iniciarProgresso();
       mostrarToast(`📁 Lendo ${arquivos.length} arquivo(s) da pasta...`, "info");
 
       const fd = new FormData();
@@ -723,7 +731,59 @@ export default function ProcessoClient() {
     } catch (e: any) {
       mostrarToast("Erro na leitura da pasta: " + (e?.message ?? e), "erro");
     } finally {
+      if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
+      setTempoLeitura(0);
       setLendoPasta(false);
+      finalizarProgresso();
+    }
+  }
+
+  /**
+   * LOCALIZAR — o obrigatório que não estava na pasta, apontado de fora dela.
+   *
+   * Lido pelo mesmo leitor da pasta, com a mesma identificação de papel. O que ele preencher entra
+   * na MESMA proposta, mas nunca por cima de valor que a pasta já resolveu: quem está dentro da
+   * pasta é a rodada, e a rodada manda.
+   */
+  async function localizarDocumento(papel: string, arquivo: File) {
+    try {
+      setLocalizandoPapel(papel);
+      const fd = new FormData();
+      fd.append("arquivo", arquivo, arquivo.name);
+      fd.append("papel", papel);
+      fd.append("processo_codigo", idUrl);
+      fd.append("local", (arquivo as any).webkitRelativePath || arquivo.name);
+
+      const r = await fetch("/api/lip/localizar-documento", { method: "POST", body: fd });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.erro || "Falha ao ler o documento");
+
+      setDocsLocalizados((prev) => ({ ...prev, [papel]: data }));
+
+      const novos: Record<string, any> = {};
+      setPropostaPasta((p: any) => {
+        if (!p) return p;
+        const campos = { ...p.campos };
+        for (const [chave, item] of Object.entries(data.campos as Record<string, any>)) {
+          if (campos[chave]?.valor) continue; // a pasta já resolveu — não sobrescreve
+          campos[chave] = { ...item, fonte: `${item.fonte} (localizado fora da pasta: ${data.arquivo})` };
+          novos[chave] = item;
+        }
+        return { ...p, campos };
+      });
+
+      const nNovos = Object.keys(novos).length;
+      if (!data.confere) mostrarToast(`⚠ ${data.avisos[0]}`, "erro");
+      else mostrarToast(`✅ ${data.nome} localizado — ${nNovos} campo(s) novo(s)`, "sucesso");
+
+      registrar({
+        modulo: "LIP", acao: "LIP_DOC_LOCALIZADO_FORA", processo_codigo: idUrl, origem: "MANUAL",
+        detalhe: { papel, arquivo: data.arquivo, confere: data.confere, campos: nNovos },
+      });
+    } catch (e: any) {
+      mostrarToast("Erro ao ler o documento: " + (e?.message ?? e), "erro");
+    } finally {
+      setLocalizandoPapel(null);
     }
   }
 
@@ -746,20 +806,68 @@ export default function ProcessoClient() {
           fonte: item.fonte,
         };
       }
-      // o log da leitura vai para a aba OBS, como já acontece na leitura por arquivo
+      /* O log da leitura vai para a aba OBS. É o único registro legível do que a máquina decidiu:
+       * qual versão de cada documento foi eleita a vigente, o que foi descartado por ser versão
+       * velha ou reenvio idêntico, e o que faltou. Sem isso o analista não tem como auditar a
+       * própria análise depois. */
+      const vigPorPapel: Record<string, string> = p.vigentesPorPapel ?? {};
+      const rotuloVigente = (it: any) =>
+        it.papeis.filter((x: string) => x !== "outros" && vigPorPapel[x] === it.hash);
+
       const linhas = [
         `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
-        `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · sem IA`,
-        ...p.obrigatorios.filter((o: any) => !o.presente).map((o: any) => `  ⚠ FALTA: ${o.nome}`),
-        ...p.conferencias
-          .filter((c: any) => c.estado === "NÃO CONFERE")
-          .map((c: any) => `  ✘ ${c.nome} — ${c.detalhe}`),
-        ...p.conferencias
-          .filter((c: any) => c.estado === "SEM DADO" && c.dependencia)
-          .map((c: any) => `  ? ${c.nome} (depende de: ${c.dependencia})`),
+        `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · ` +
+        `${p.custo?.paginasNaPasta ?? 0} páginas · sem IA · ${Math.round((p.msLeitura ?? 0) / 100) / 10}s`,
+        ``,
+        `— VERSÕES VIGENTES (a rodada mais recente vence; versão antiga não é usada) —`,
+        ...p.catalogo.map((it: any) => {
+          const vence = rotuloVigente(it);
+          const marca = it.soPresenca ? "○" : vence.length ? "✔" : "·";
+          const situacao = it.soPresenca ? "só presença, não lido"
+            : vence.length ? `VIGENTE como ${vence.join(" + ")}`
+            : "versão superada — não usada";
+          return `  ${marca} r${it.rodada} ${it.nome} → ${it.papeis.join(" + ")} [${situacao}]` +
+            (it.alertaRetrocesso ? `\n     ⚠ ${it.alertaRetrocesso}` : "") +
+            (it.divergenciaNome ? `\n     ⚠ ${it.divergenciaNome}` : "");
+        }),
+        ...(p.duplicidades?.mesmaRodada?.length || p.duplicidades?.entreRodadas?.length
+          ? [`— DUPLICIDADES (mesmo conteúdo, arquivos diferentes) —`,
+             ...(p.duplicidades.mesmaRodada ?? []).map((g: string[]) => `  ↺ na mesma rodada: ${g.join(" = ")}`),
+             ...(p.duplicidades.entreRodadas ?? []).map((g: string[]) => `  ↺ reenviado sem alteração: ${g.join(" → ")}`)]
+          : []),
+        ``,
+        `— DOCUMENTOS E PENDÊNCIAS —`,
+        /* A ausência dos dispensáveis é REGISTRADA, mas não é pendência: documentos pessoais são
+         * escopo da CHEADV e o DWG ninguém lê aqui. Cobrá-los do requerente é ruído. */
+        ...p.obrigatorios
+          .filter((o: any) => !o.presente && !docsLocalizados[o.papel])
+          .map((o: any) => (o.dispensavel
+            ? `  ○ NÃO ENCONTRADO (dispensável, não exigido): ${o.nome}`
+            : `  ⚠ FALTA: ${o.nome}`)),
+        ...p.obrigatorios
+          .filter((o: any) => !o.presente && docsLocalizados[o.papel])
+          .map((o: any) => {
+            const loc = docsLocalizados[o.papel];
+            return `  📎 ${o.nome} — localizado FORA da pasta em "${loc.local}"` +
+              (loc.confere ? "" : ` (⚠ ${loc.avisos[0]})`) +
+              `\n     ↳ recomendação: mover o arquivo para dentro da pasta do processo, na rodada correspondente.`;
+          }),
+        ``,
+        `— CONFERÊNCIAS (${p.conferencias.length}) —`,
+        ...p.conferencias.map((c: any) => {
+          const s = c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘"
+            : c.estado === "ALERTA" ? "⚠" : c.estado === "SEM DADO" ? "?" : "i";
+          return `  ${s} ${c.nome} — ${c.detalhe}` +
+            (c.dependencia ? ` (depende de: ${c.dependencia})` : "");
+        }),
+        ``,
+        `Campos preenchidos pela leitura: ${Object.keys(p.campos).length}`,
       ].join("\n");
+      /* HISTÓRICO, não substituição: cada leitura EMPILHA POR CIMA e empurra as anteriores para
+       * baixo. Ler a pasta de novo é rotina — a cada correção do requerente — e o analista precisa
+       * comparar o que mudou entre uma leitura e outra. Sobrescrever apagaria a análise anterior. */
       const obsAtual = novo["observacoes"]?.valor ?? "";
-      novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + linhas : linhas, origem: "urbis", fonte: "LIP" };
+      novo["observacoes"] = { valor: obsAtual ? linhas + "\n\n" + obsAtual : linhas, origem: "urbis", fonte: "LIP" };
       corrigirSeiFisico(novo, idUrl);
       autoSalvar(novo);
 
@@ -775,6 +883,7 @@ export default function ProcessoClient() {
     });
     mostrarToast(`✅ ${Object.keys(p.campos).length} campos aceitos`, "sucesso");
     setPropostaPasta(null);
+    setDocsLocalizados({});
   }
 
   async function lerLip(arquivos: File[]) {
@@ -1653,29 +1762,82 @@ export default function ProcessoClient() {
                 </div>
               )}
 
-              {/* documentos obrigatórios ausentes */}
+              {/* documentos obrigatórios ausentes — cada um com o botão de apontar o arquivo de fora
+                  da pasta. O dispensável aparece igual, mas em cinza: a falta é registrada, não cobrada. */}
               {propostaPasta.obrigatorios?.some((o: any) => !o.presente) && (
                 <div>
                   <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Documentos obrigatórios ausentes</p>
-                  {propostaPasta.obrigatorios.filter((o: any) => !o.presente).map((o: any) => (
-                    <p key={o.papel} className="text-xs text-[#DC2626]">✘ {o.nome}</p>
-                  ))}
+                  <div className="space-y-1">
+                    {propostaPasta.obrigatorios.filter((o: any) => !o.presente).map((o: any) => {
+                      const loc = docsLocalizados[o.papel];
+                      const ocupado = localizandoPapel === o.papel;
+                      return (
+                        <div key={o.papel} className="text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {loc
+                              ? <span className={loc.confere ? "text-[#16A34A]" : "text-[#EA580C]"}>
+                                  {loc.confere ? "📎" : "⚠"} {o.nome}
+                                </span>
+                              : <span className={o.dispensavel ? "text-[var(--text-muted)]" : "text-[#DC2626]"}>
+                                  {o.dispensavel ? "○" : "✘"} {o.nome}
+                                  {o.dispensavel && <span className="text-[var(--text-muted)]"> — dispensável, não exigido</span>}
+                                </span>}
+                            <label className={`px-2 py-0.5 rounded border border-[var(--border)] ${
+                              ocupado ? "text-[var(--text-muted)] cursor-not-allowed"
+                                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--primary)] cursor-pointer"}`}>
+                              {ocupado ? "⏳ lendo..." : loc ? "trocar arquivo" : "📎 Localizar"}
+                              <input type="file" className="hidden" disabled={ocupado}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) localizarDocumento(o.papel, f);
+                                  e.target.value = "";
+                                }} />
+                            </label>
+                          </div>
+                          {loc && (
+                            <div className="pl-4 text-[var(--text-muted)]">
+                              <p>local: <span className="text-[var(--text-secondary)]">{loc.local}</span>
+                                {loc.paginas > 0 && ` · ${loc.paginas} página(s)`}
+                                {!loc.soPresenca && ` · ${Object.keys(loc.campos).length} campo(s) lido(s)`}
+                                {loc.soPresenca && " · só presença, não lido"}
+                              </p>
+                              {loc.avisos.map((a: string, i: number) => (
+                                <p key={i} className="text-[#EA580C]">⚠ {a}</p>
+                              ))}
+                              <p className="text-[#EA580C]">↳ {loc.recomendacao}</p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
-              {/* catálogo */}
+              {/* catálogo — com a vigência explícita: a rodada mais recente vence, e a versão
+                  superada fica visível como descartada em vez de sumir sem explicação */}
               <div>
                 <p className="text-sm font-bold text-[var(--text-primary)] mb-1">O que foi identificado</p>
                 <div className="text-xs text-[var(--text-secondary)] space-y-0.5">
-                  {propostaPasta.catalogo.map((it: any, i: number) => (
-                    <p key={i}>
-                      <span className="text-[var(--text-muted)]">r{it.rodada}</span>{" "}
-                      {it.soPresenca ? "○" : "●"} {it.nome} → <b>{it.papeis.join(" + ")}</b>
-                      {it.confianca !== "alta" && <span className="text-[#EA580C]"> ({it.confianca})</span>}
-                      {it.soPresenca && <span className="text-[var(--text-muted)]"> — só presença, não lido</span>}
-                      {it.alertaRetrocesso && <span className="text-[#DC2626]"> ⚠ {it.alertaRetrocesso}</span>}
-                      {it.divergenciaNome && <span className="text-[#EA580C]"> ⚠ {it.divergenciaNome}</span>}
-                    </p>
+                  {propostaPasta.catalogo.map((it: any, i: number) => {
+                    const vence = it.papeis.filter((x: string) =>
+                      x !== "outros" && (propostaPasta.vigentesPorPapel ?? {})[x] === it.hash);
+                    const superada = !it.soPresenca && !vence.length && !it.papeis.every((x: string) => x === "outros");
+                    return (
+                      <p key={i} className={superada ? "opacity-60" : ""}>
+                        <span className="text-[var(--text-muted)]">r{it.rodada}</span>{" "}
+                        {it.soPresenca ? "○" : vence.length ? "●" : "·"} {it.nome} → <b>{it.papeis.join(" + ")}</b>
+                        {!!vence.length && <span className="text-[#16A34A]"> ✔ vigente</span>}
+                        {superada && <span className="text-[var(--text-muted)]"> — versão superada, não usada</span>}
+                        {it.confianca !== "alta" && <span className="text-[#EA580C]"> ({it.confianca})</span>}
+                        {it.soPresenca && <span className="text-[var(--text-muted)]"> — só presença, não lido</span>}
+                        {it.alertaRetrocesso && <span className="text-[#DC2626]"> ⚠ {it.alertaRetrocesso}</span>}
+                        {it.divergenciaNome && <span className="text-[#EA580C]"> ⚠ {it.divergenciaNome}</span>}
+                      </p>
+                    );
+                  })}
+                  {propostaPasta.duplicidades?.mesmaRodada?.map((g: string[], i: number) => (
+                    <p key={"m" + i} className="text-[var(--text-muted)]">↺ mesmo conteúdo na mesma rodada: {g.join(" = ")}</p>
                   ))}
                   {propostaPasta.duplicidades?.entreRodadas?.map((g: string[], i: number) => (
                     <p key={"d" + i} className="text-[var(--text-muted)]">↺ reenviado sem alteração: {g.join(" → ")}</p>
@@ -1724,7 +1886,7 @@ export default function ProcessoClient() {
             </div>
 
             <div className="sticky bottom-0 bg-[var(--bg-card)] border-t border-[var(--border)] p-4 flex justify-end gap-2">
-              <button onClick={() => setPropostaPasta(null)}
+              <button onClick={() => { setPropostaPasta(null); setDocsLocalizados({}); }}
                 className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                 Descartar
               </button>
@@ -2094,7 +2256,7 @@ export default function ProcessoClient() {
       {progresso > 0 && (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4">
           <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
-            <span>🤖 Lendo PDF com IA...</span>
+            <span>{lendoPasta ? "📁 Lendo a pasta..." : "🤖 Lendo PDF com IA..."}</span>
             <span className="flex gap-2">
               <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
               <span>{progresso}%</span>
