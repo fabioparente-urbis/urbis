@@ -1236,10 +1236,15 @@ export default function ProcessoClient() {
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
-    // Destaque do Laudo: por padrão, todo campo em CAMPOS_LAUDO fica verde
-    // clarinho. O analista pode desligar campo a campo (não fica "verde
-    // pra sempre") — ver toggleDestaqueLaudo.
-    const noLaudo = CAMPOS_LAUDO.has(campo.chave);
+    // Destaque do Laudo: só existe Laudo definido pra Regularização SEI
+    // (slot 1) e Aceite SEI (slot 2) — outros slots (ex.: slot_05,
+    // Aprovação de Projeto) usam as MESMAS chaves de campo (proprietario,
+    // areaTotal etc.) mas ainda não têm um Laudo próprio, então não fazem
+    // parte dessa checagem. Por padrão, todo campo em CAMPOS_LAUDO nesses
+    // dois slots fica verde clarinho; o analista pode desligar campo a
+    // campo (não fica "verde pra sempre") — ver toggleDestaqueLaudo.
+    const laudoDefinidoNesteSlot = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei";
+    const noLaudo = laudoDefinidoNesteSlot && CAMPOS_LAUDO.has(campo.chave);
     const laudoAtivo = noLaudo && !laudoOcultos.includes(campo.chave);
     const bgLaudo = laudoAtivo ? "bg-green-50" : "";
     const badgeLaudo = noLaudo && (
