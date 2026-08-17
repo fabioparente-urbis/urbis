@@ -36,6 +36,22 @@ export type ArquivoEntrada = {
   origemCompactado?: string;
 };
 
+/**
+ * Andamento da leitura, para a barra de progresso ser HONESTA.
+ *
+ * A leitura da pasta é uma requisição só e demora dezenas de segundos. Sem isto a tela só podia
+ * fingir progresso — encher sozinha por tempo e travar num número qualquer até a resposta chegar.
+ * Com o retorno de quantos arquivos já foram, a porcentagem passa a significar trabalho feito,
+ * como já é no LER PROCESSO.
+ */
+export type Andamento = {
+  fase: "abrindo" | "lendo" | "conferindo";
+  atual: number;
+  total: number;
+  documento?: string;
+};
+export type AoAndar = (a: Andamento) => void;
+
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
 
 export type ItemCatalogo = {
@@ -611,11 +627,15 @@ export type Conhecido = {
 async function catalogar(
   arquivos: ArquivoEntrada[],
   conhecidos?: Map<string, Conhecido>,
+  aoAndar?: AoAndar,
 ): Promise<{ catalogo: ItemCatalogo[]; extratos: { hash: string; texto: string; linhas: unknown }[] }> {
   const out: ItemCatalogo[] = [];
   const extratos: { hash: string; texto: string; linhas: unknown }[] = [];
 
+  let lidos = 0;
   for (const a of arquivos) {
+    // andamento REAL: quem chama sabe quantos arquivos faltam, e não precisa fingir uma barra
+    aoAndar?.({ fase: "lendo", atual: ++lidos, total: arquivos.length, documento: a.nome });
     // ── MEMÓRIA: mesmo hash = mesmo conteúdo. Não abre o arquivo, não extrai, não chama IA.
     const memo = conhecidos?.get(a.hash);
     if (memo) {
@@ -1495,8 +1515,14 @@ async function expandirCompactados(arquivos: ArquivoEntrada[]): Promise<ArquivoE
 export async function lerPastaSlot5(
   arquivos: ArquivoEntrada[],
   conhecidos?: Map<string, Conhecido>,
+  aoAndar?: AoAndar,
 ): Promise<ResultadoLeitura> {
-  const { catalogo, extratos } = await catalogar(await expandirCompactados(arquivos), conhecidos);
+  aoAndar?.({ fase: "abrindo", atual: 0, total: arquivos.length });
+  const expandidos = await expandirCompactados(arquivos);
+
+  const { catalogo, extratos } = await catalogar(expandidos, conhecidos, aoAndar);
+
+  aoAndar?.({ fase: "conferindo", atual: expandidos.length, total: expandidos.length });
   const vig = vigentes(catalogo);
   const campos = preencherLip(vig);
   const conferencias = conferir(vig);

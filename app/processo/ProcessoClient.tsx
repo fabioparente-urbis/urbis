@@ -238,6 +238,8 @@ export default function ProcessoClient() {
   // obrigatórios que faltavam na pasta e o analista apontou de fora dela — papel → resultado da leitura
   const [docsLocalizados, setDocsLocalizados] = useState<Record<string, any>>({});
   const [localizandoPapel, setLocalizandoPapel] = useState<string | null>(null);
+  // qual documento a leitura da pasta está abrindo agora — vai para o rótulo da barra
+  const [docLendo, setDocLendo] = useState<string | null>(null);
   // MHD — histórico documental. Módulo satélite: vale para todo slot e todo assunto.
   const [mhd, setMhd] = useState<any>(null);
   const [carregandoMhd, setCarregandoMhd] = useState(false);
@@ -623,6 +625,11 @@ export default function ProcessoClient() {
     }, 300);
   }
 
+  /** Desliga a rampa por tempo — usada quando o servidor passa a informar o andamento de verdade. */
+  function pararProgressoFalso() {
+    if (progressoRef.current) { clearInterval(progressoRef.current); progressoRef.current = null; }
+  }
+
   function finalizarProgresso() {
     if (progressoRef.current) clearInterval(progressoRef.current);
     setProgresso(100);
@@ -722,24 +729,64 @@ export default function ProcessoClient() {
       }
 
       const r = await fetch("/api/lip/ler-pasta", { method: "POST", body: fd });
-      /* NÃO usar r.json() direto. Quando a leitura estoura o tempo, ou o container reinicia, a
-       * resposta é uma página de erro em HTML — e aí o json() falha com "Unexpected token '<'",
-       * que não diz nada ao analista e esconde o motivo real. Lendo como texto primeiro, o status
-       * HTTP e o começo do corpo vão para a mensagem. */
-      const corpo = await r.text();
-      let data: any;
-      try {
-        data = JSON.parse(corpo);
-      } catch {
+      if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
+
+      /* A rota responde NDJSON: uma linha por evento, o andamento durante a leitura e o resultado
+       * no fim. É o que faz a barra dizer a verdade — a porcentagem é arquivo lido, não tempo
+       * passado, como já era no LER PROCESSO.
+       *
+       * Nada de r.json() aqui: se a leitura estourar o tempo ou o container reiniciar, o corpo
+       * vira HTML e o json() falharia com "Unexpected token '<'", escondendo o motivo real. */
+      const leitor = r.body.getReader();
+      const decodificador = new TextDecoder();
+      let resto = "";
+      let data: any = null;
+      let erroFluxo: string | null = null;
+      let naoJson = "";
+
+      const processarLinha = (bruta: string) => {
+        const l = bruta.trim();
+        if (!l) return;
+        let ev: any;
+        try { ev = JSON.parse(l); } catch { naoJson += l.slice(0, 200); return; }
+        if (ev.tipo === "progresso") {
+          // 5% de largada, 85% distribuídos pelos arquivos, o resto para conferências e visão
+          const frac = ev.total > 0 ? ev.atual / ev.total : 0;
+          setProgresso(Math.min(90, Math.round(5 + frac * 85)));
+          if (ev.documento) setDocLendo(ev.documento);
+          if (ev.fase === "conferindo") setDocLendo("conferindo e preenchendo o LIP...");
+        } else if (ev.tipo === "erro") {
+          erroFluxo = ev.erro || "Falha ao ler a pasta";
+        } else if (ev.tipo === "resultado") {
+          data = ev;
+        }
+      };
+
+      // a barra passa a ser alimentada pelo servidor: a rampa por tempo sai de cena
+      pararProgressoFalso();
+      setProgresso(5);
+
+      for (;;) {
+        const { done, value } = await leitor.read();
+        if (done) break;
+        resto += decodificador.decode(value, { stream: true });
+        const linhas = resto.split("\n");
+        resto = linhas.pop() ?? ""; // a última pode estar cortada no meio
+        linhas.forEach(processarLinha);
+      }
+      processarLinha(resto);
+
+      if (erroFluxo) throw new Error(erroFluxo);
+      if (!data) {
         throw new Error(
-          `o servidor respondeu HTTP ${r.status} sem JSON` +
-          (r.status === 504 || r.status === 502
-            ? " — a leitura provavelmente estourou o tempo limite do servidor"
-            : `: ${corpo.slice(0, 200).replace(/\s+/g, " ").trim()}`),
+          naoJson
+            ? `o servidor respondeu HTTP ${r.status} sem JSON: ${naoJson.replace(/\s+/g, " ").trim()}`
+            : `a leitura terminou sem resultado (HTTP ${r.status})` +
+              (r.status === 502 || r.status === 504 ? " — estourou o tempo limite do servidor" : ""),
         );
       }
-      if (!r.ok || !data.ok) throw new Error(data?.erro || `Falha ao ler a pasta (HTTP ${r.status})`);
 
+      setDocLendo(null);
       setPropostaPasta(data);
       registrar({
         modulo: "LIP", acao: "LIP_LEITURA_PASTA", processo_codigo: idUrl, origem: "SISTEMA",
@@ -767,6 +814,7 @@ export default function ProcessoClient() {
       if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
       setTempoLeitura(0);
       setLendoPasta(false);
+      setDocLendo(null);
       finalizarProgresso();
     }
   }
@@ -2314,7 +2362,9 @@ export default function ProcessoClient() {
       {progresso > 0 && (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4">
           <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
-            <span>{lendoPasta ? "📁 Lendo a pasta..." : "🤖 Lendo PDF com IA..."}</span>
+            <span className="truncate pr-2">
+              {lendoPasta ? (docLendo ? `📁 ${docLendo}` : "📁 Lendo a pasta...") : "🤖 Lendo PDF com IA..."}
+            </span>
             <span className="flex gap-2">
               <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
               <span>{progresso}%</span>

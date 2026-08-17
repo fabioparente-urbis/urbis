@@ -31,16 +31,64 @@ export const maxDuration = 120;
 const MAX_ARQUIVOS = 60;
 const MAX_BYTES_TOTAL = 150 * 1024 * 1024;
 
+/**
+ * A resposta é NDJSON: uma linha JSON por evento.
+ *
+ *   {"tipo":"progresso","fase":"lendo","atual":3,"total":17,"documento":"ART.pdf"}
+ *   {"tipo":"resultado", ...a proposta inteira...}
+ *   {"tipo":"erro","erro":"..."}
+ *
+ * A leitura da pasta é uma requisição só que demora dezenas de segundos; devolvendo tudo no fim, a
+ * tela só podia FINGIR progresso — encher por tempo e travar num número até a resposta chegar. Com
+ * o andamento vindo durante a leitura, a porcentagem passa a significar arquivo lido.
+ *
+ * A última linha continua sendo exatamente o JSON que a rota devolvia antes, então quem já sabia
+ * ler a resposta antiga só precisa pegar a linha de tipo "resultado".
+ */
+function linha(o: unknown) {
+  return new TextEncoder().encode(JSON.stringify(o) + "\n");
+}
+
 export async function POST(req: NextRequest) {
+  /* O multipart é consumido AQUI, antes de abrir o fluxo. Ler o corpo da requisição depois de já
+   * ter devolvido a resposta é pedir para o runtime ter fechado a entrada no meio do caminho — e a
+   * falha apareceria como upload truncado, que é péssimo de diagnosticar. Enquanto isto roda o
+   * cliente ainda está enviando, então não custa tempo nenhum. */
+  const form = await req.formData();
+
+  const fluxo = new TransformStream();
+  const escritor = fluxo.writable.getWriter();
+
+  // roda solto: o corpo da resposta já foi devolvido e vai sendo preenchido conforme a leitura anda
+  processar(req, form, escritor).catch(async (e: any) => {
+    console.error("[ler-pasta]", e);
+    try { await escritor.write(linha({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao ler a pasta" })); } catch {}
+  }).finally(() => { escritor.close().catch(() => {}); });
+
+  return new Response(fluxo.readable, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      // sem isto um proxy com buffer segura tudo e o progresso chega junto com o resultado
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+async function processar(
+  req: NextRequest,
+  form: FormData,
+  escritor: WritableStreamDefaultWriter<Uint8Array>,
+) {
+  const enviar = (o: unknown) => escritor.write(linha(o));
   try {
-    const form = await req.formData();
     const arquivos = form.getAll("arquivos").filter((f): f is File => f instanceof File);
     const caminhos = form.getAll("caminhos").map(String);
     const processoCodigo = String(form.get("processo_codigo") ?? "");
     const assuntoId = String(form.get("assunto_id") ?? "");
 
     if (!arquivos.length) {
-      return NextResponse.json({ ok: false, erro: "Nenhum arquivo enviado" }, { status: 400 });
+      return enviar({ tipo: "erro", ok: false, erro: "Nenhum arquivo enviado" });
     }
 
     // esta rota GRAVA no MHD com service role: precisa saber quem é e se pode
@@ -48,21 +96,17 @@ export async function POST(req: NextRequest) {
     if (processoCodigo) {
       const permissao = await autorizar(req, processoCodigo);
       if (!permissao.ok) {
-        return NextResponse.json({ ok: false, erro: permissao.erro }, { status: permissao.status });
+        return enviar({ tipo: "erro", ok: false, erro: permissao.erro });
       }
     }
     if (arquivos.length > MAX_ARQUIVOS) {
-      return NextResponse.json(
-        { ok: false, erro: `Pasta com ${arquivos.length} arquivos — o limite é ${MAX_ARQUIVOS}` },
-        { status: 400 },
-      );
+      return enviar({ tipo: "erro", ok: false,
+        erro: `Pasta com ${arquivos.length} arquivos — o limite é ${MAX_ARQUIVOS}` });
     }
     const bytesTotal = arquivos.reduce((s, f) => s + f.size, 0);
     if (bytesTotal > MAX_BYTES_TOTAL) {
-      return NextResponse.json(
-        { ok: false, erro: `Pasta com ${(bytesTotal / 1024 / 1024).toFixed(0)}MB — o limite é 150MB` },
-        { status: 400 },
-      );
+      return enviar({ tipo: "erro", ok: false,
+        erro: `Pasta com ${(bytesTotal / 1024 / 1024).toFixed(0)}MB — o limite é 150MB` });
     }
 
     /**
@@ -98,7 +142,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!entradas.length) {
-      return NextResponse.json({ ok: false, erro: "Nenhum arquivo legível na pasta" }, { status: 400 });
+      return enviar({ tipo: "erro", ok: false, erro: "Nenhum arquivo legível na pasta" });
     }
 
     const t0 = Date.now();
@@ -120,7 +164,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const resultado = await lerPastaSlot5(entradas, conhecidos);
+    /* O andamento vai saindo enquanto a leitura acontece. `enviar` devolve promessa, mas aqui não
+     * se espera: segurar a leitura para escrever a barra seria trocar velocidade por enfeite. */
+    const resultado = await lerPastaSlot5(entradas, conhecidos, (a) => {
+      void enviar({ tipo: "progresso", ...a });
+    });
 
     /**
      * O MHD recebe UM registro por arquivo distinto, com apenas os papéis em que aquele arquivo
@@ -254,12 +302,33 @@ export async function POST(req: NextRequest) {
       }))
       .filter((it) => it.buffer.length > 0);
 
-    const visao = await executarVisao({
-      entradas: paraVisao,
-      processoCodigo: processoCodigo || "sem-processo",
-      usuarioId: usuario?.id ?? null,
-      jaResolvidos: campos,
-    });
+    /* TETO DE TEMPO PARA A VISÃO — 17/08/2026.
+     *
+     * A visão é o ÚNICO trecho desta rota que depende de IA, e é opcional: ela só alcança os campos
+     * que existem apenas como imagem no carimbo. Mas o módulo não tem timeout nenhum, e quando o
+     * Gemini responde 503/UNAVAILABLE ou simplesmente pendura, a requisição inteira estoura o
+     * tempo — e some a leitura toda, inclusive as dezenas de campos que vieram da camada de texto
+     * e nunca precisaram de IA. Foi o que derrubou a leitura do 50724.
+     *
+     * Com o teto, indisponibilidade do Gemini vira degradação: o analista recebe tudo que o texto
+     * deu, e os campos de imagem ficam por ler, com o motivo registrado em `pulos`. */
+    const TETO_VISAO_MS = 45_000;
+    const visao = await Promise.race([
+      executarVisao({
+        entradas: paraVisao,
+        processoCodigo: processoCodigo || "sem-processo",
+        usuarioId: usuario?.id ?? null,
+        jaResolvidos: campos,
+      }).catch((e: any) => ({
+        campos: {}, chamadas: 0, reaproveitadas: 0, custoTotal: 0, msTotal: 0, meta: {},
+        pulos: [`visão falhou e foi ignorada: ${e?.message ?? e}`],
+      })),
+      new Promise<any>((resolve) => setTimeout(() => resolve({
+        campos: {}, chamadas: 0, reaproveitadas: 0, custoTotal: 0, msTotal: TETO_VISAO_MS, meta: {},
+        pulos: [`visão passou de ${TETO_VISAO_MS / 1000}s e foi abandonada — os campos que só ` +
+                `existem como imagem no carimbo ficaram por ler; o resto da leitura está completo`],
+      }), TETO_VISAO_MS)),
+    ]);
     Object.assign(campos, visao.campos);
 
     /* Fecha todo campo declarado que leitor e rota não tocaram — NAO_ENCONTRADO/AGUARDANDO_FATO/
@@ -272,7 +341,8 @@ export async function POST(req: NextRequest) {
     // tela nao usa. Ele ja foi gravado no MHD acima.
     const { extratos: _extratos, campos: _campos, ...semExtratos } = resultado;
 
-    return NextResponse.json({
+    return enviar({
+      tipo: "resultado",
       ok: true,
       ...semExtratos,
       campos: camposFechados,
@@ -292,6 +362,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     console.error("[ler-pasta]", e);
-    return NextResponse.json({ ok: false, erro: e?.message ?? "Falha ao ler a pasta" }, { status: 500 });
+    return enviar({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao ler a pasta" });
   }
 }
