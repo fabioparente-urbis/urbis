@@ -227,6 +227,49 @@ function proxLinha(doc: DocTexto, re: RegExp): Linha | null {
 
 const colunas = (l: Linha | null) => (l ? l.itens.map((i) => i.t) : []);
 
+/** Vocabulário fechado da hierarquia viária de Goiânia — é o que fecha a linha de uma via. */
+const P_CLASSE_VIA = /\b(ARTERIAL|COLETORA|LOCAL|EXPRESSA|MARGINAL|VICINAL|RODOVI|CICLOVI|PEDESTRE)/i;
+/** Um nome de via começa pelo tipo de logradouro. Serve para NÃO confundir nota com nome. */
+const P_NOME_VIA = /^(AVENIDA|AV\b|RUA|R\b|ALAMEDA|AL\b|PRA[ÇC]A|TRAVESSA|RODOVIA|ANEL|VIA)\b/i;
+
+/**
+ * Todas as vias da tabela "Nome da Via / Classificação da Via" do Uso do Solo.
+ *
+ * A célula do nome QUEBRA em mais de uma linha quando traz nota ("Esta na influencia da via
+ * expressa: GO010"), e a classificação aparece na linha onde a quebra termina. Por isso quem fecha
+ * a via é a linha da CLASSIFICAÇÃO, e o nome é o último candidato válido visto — a nota nunca vira
+ * nome, porque não começa por tipo de logradouro.
+ */
+function lerTabelaDeVias(doc: DocTexto): { nome: string; classificacao: string | null }[] {
+  const i = doc.linhas.findIndex((l) => /Nome da Via\s+Classifica[çc][ãa]o da Via/i.test(l.texto));
+  if (i < 0) return [];
+
+  const vias: { nome: string; classificacao: string | null }[] = [];
+  let nomePendente: string | null = null;
+
+  for (const linha of doc.linhas.slice(i + 1)) {
+    // a tabela acaba quando começa a próxima seção do documento
+    if (/Unidades Territoriais|Corredor\(es\)|FRA[ÇC][ÃA]O IDEAL|[ÍI]NDICE DE OCUPA|Processo\s+Tipo/i.test(linha.texto)) break;
+
+    const cols = linha.itens.map((it) => it.t.trim()).filter(Boolean);
+    if (!cols.length) continue;
+
+    const ultima = cols[cols.length - 1];
+    if (P_CLASSE_VIA.test(ultima) && cols.length > 1) {
+      const candidato = cols[0];
+      const nome = P_NOME_VIA.test(candidato) ? candidato : nomePendente;
+      if (nome) vias.push({ nome, classificacao: ultima });
+      nomePendente = null;
+    } else if (P_NOME_VIA.test(cols[0])) {
+      // nome sem classificação na mesma linha: guarda e espera a linha que fecha
+      if (nomePendente) vias.push({ nome: nomePendente, classificacao: null });
+      nomePendente = cols[0];
+    }
+  }
+  if (nomePendente) vias.push({ nome: nomePendente, classificacao: null });
+  return vias;
+}
+
 const P_AREA = /\d{1,3}(?:\.\d{3})*,\d{2}\s*m?²?/i;
 const P_DATA = /^\d{2}\/\d{2}\/\d{4}$/;
 
@@ -279,16 +322,19 @@ export const OBRIGATORIOS: [string, string][] = [
   ["uso_solo", "Uso do Solo Aprovação de Projeto"],
 ];
 
-/** Nunca são lidos: escopo da CHEADV (decisão do analista) ou ilegíveis por natureza. */
-export const SO_PRESENCA = new Set(["documentos_pessoais", "declaracao", "projeto_cad"]);
-
 /**
- * Ausência REGISTRADA, mas não exigida. Os documentos pessoais são escopo da CHEADV e o DWG não é
- * legível por ninguém aqui — cobrar os dois do requerente é ruído. A falta continua aparecendo na
- * proposta e no bloco de observações; o que muda é que ela não é tratada como pendência.
- * A Declaração de Responsabilidade NÃO entra aqui: ela é só-presença, mas é exigível.
+ * REGRA MASTER DO FÁBIO (17/08/2026): Requerimento, Declaração de Responsabilidade, Documentos
+ * pessoais do interessado e o Projeto em DWG/DXF são **totalmente irrelevantes para qualquer
+ * análise de Aprovação de Projeto**. Foram peça da análise documental da CHEADV, não da técnica.
+ *
+ * Consequência: nunca são lidos (`SO_PRESENCA`) e nunca são cobrados (`DISPENSAVEIS`). Continuam
+ * catalogados e a ausência continua registrada — o analista vê o que veio e o que não veio; o que
+ * some é a exigência e o gasto de leitura.
  */
-export const DISPENSAVEIS = new Set(["documentos_pessoais", "projeto_cad"]);
+export const SO_PRESENCA = new Set(["documentos_pessoais", "declaracao", "projeto_cad", "requerimento"]);
+
+/** Ausência REGISTRADA, mas não exigida. Mesma regra master: some a cobrança, não o registro. */
+export const DISPENSAVEIS = new Set(["documentos_pessoais", "declaracao", "projeto_cad", "requerimento"]);
 
 // ───────────────────────────── extratores ─────────────────────────────
 
@@ -314,9 +360,24 @@ function lerUsoDoSolo(doc: DocTexto) {
 
   d.bairro = colunas(proxLinha(doc, /^\s*Bairro\s*$/i))[0] ?? null;
 
-  const [via, classe] = colunas(proxLinha(doc, /Nome da Via\s+Classifica[çc][ãa]o da Via/i));
-  d.via = via ?? null;
-  d.classificacaoVia = classe ?? null;
+  /* A tabela "Nome da Via / Classificação da Via" tem UMA LINHA POR VIA, e o lote de esquina tem
+   * mais de uma. Ler só a primeira linha depois do cabeçalho custava caro: no 50724 o UDS traz
+   * AVENIDA ANAPOLIS (Arterial de 1ª Categoria) e RUA RSL12 (Coletora), e o LIP registrava uma via
+   * sem classificação, com via2/3/4 marcadas "não se aplica" e esquina = NÃO. Frente, recuo, porte
+   * e vagas saem todos daí.
+   *
+   * A célula do nome pode QUEBRAR em duas linhas ("AVENIDA ANAPOLIS" + a nota de via expressa), e
+   * a classificação vem na linha onde a quebra termina. Por isso a linha da CLASSIFICAÇÃO é que
+   * fecha a via, e o nome é o último candidato visto — nunca a nota. */
+  d.vias = lerTabelaDeVias(doc);
+  d.via = d.vias[0]?.nome ?? null;
+  d.classificacaoVia = d.vias[0]?.classificacao ?? null;
+  d.via2 = d.vias[1]?.nome ?? null;
+  d.classificacaoVia2 = d.vias[1]?.classificacao ?? null;
+  d.via3 = d.vias[2]?.nome ?? null;
+  d.classificacaoVia3 = d.vias[2]?.classificacao ?? null;
+  d.via4 = d.vias[3]?.nome ?? null;
+  d.classificacaoVia4 = d.vias[3]?.classificacao ?? null;
 
   d.unidadeTerritorial = colunas(proxLinha(doc, /Unidades Territoriais/i))[0] ?? null;
 
@@ -583,7 +644,21 @@ async function catalogar(
       continue;
     }
     if (ext !== ".pdf") {
-      out.push({ ...base, papeis: ["outros"], prova: "extensão não reconhecida" });
+      /* Não-PDF (no 50724, três .rar com os slots do SEI dentro) não tem conteúdo a ler, mas TEM
+       * nome, e o nome é o slot do SEI. Sem isto o arquivo virava "outros" e o obrigatório era
+       * dado como ausente mesmo estando na pasta — "Requerimento.rar" não contava como
+       * requerimento. Vale como presença; ler o que está dentro nunca foi necessário, porque todos
+       * os papéis que chegam compactados são os da regra master (ver SO_PRESENCA). */
+      const pistaNome = SLOTS_SEI.find((s) => s.re.test(a.nome))?.papel ?? null;
+      out.push({
+        ...base,
+        papeis: pistaNome ? [pistaNome] : ["outros"],
+        confianca: pistaNome ? "media" : "baixa",
+        soPresenca: pistaNome ? SO_PRESENCA.has(pistaNome) : false,
+        prova: pistaNome
+          ? `arquivo ${ext} — sem conteúdo legível; papel reconhecido pelo nome, vale como presença`
+          : "extensão não reconhecida",
+      });
       continue;
     }
 
@@ -894,8 +969,12 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("nome_responsavel_eng", pr.engenheiro, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("crea", pr.crea, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
-  set("quantasFrentes", uds.via ? 1 : null, "CALCULADO", "1 via no Uso do Solo", undefined, vig.uso_solo ?? null);
-  set("esquina", uds.via ? "NÃO" : null, "CALCULADO", "1 frente", undefined, vig.uso_solo ?? null);
+  /* Frentes = vias listadas no Uso do Solo. Antes o extrator lia UMA via só, então todo lote saía
+   * com 1 frente e esquina NÃO — inclusive os de esquina, e é a esquina que muda recuo e vagas. */
+  const nVias = uds.vias?.length ?? 0;
+  set("quantasFrentes", nVias || null, "CALCULADO", `${nVias} via(s) no Uso do Solo`, undefined, vig.uso_solo ?? null);
+  set("esquina", nVias ? (nVias > 1 ? "SIM" : "NÃO") : null, "CALCULADO",
+      `${nVias} frente(s) no Uso do Solo`, undefined, vig.uso_solo ?? null);
 
   // uso do solo
   set("usoDoSoloN", uds.numero, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
@@ -903,6 +982,11 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("usoDoSoloEParaAprovacao", uds.tipo ? (uds.tipo === "APROVAÇÃO DE PROJETO" ? "SIM" : "NÃO") : null, "CALCULADO", "Tipo de Uso do Solo",
       undefined, vig.uso_solo ?? null);
   set("tipoDeVia1", uds.classificacaoVia, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  // 2ª a 4ª frente: só nascem quando o Uso do Solo lista mais de uma via
+  for (const n of [2, 3, 4] as const) {
+    set(`via${n}`, uds[`via${n}`], "ENCONTRADO", "Uso do Solo (Nome da Via)", undefined, vig.uso_solo ?? null);
+    set(`tipoDeVia${n}`, uds[`classificacaoVia${n}`], "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
+  }
   set("anexouCertidaoDeCorredorViario", uds.via ? (uds.corredorViario ? "SIM" : "NÃO") : null, "CALCULADO", "campo Corredor Viário do UDS",
       undefined, vig.uso_solo ?? null);
   set("atendeOPorteAdmitido", /sem limite/i.test(uds.areaMaxima ?? "") ? "SIM" : null, "CALCULADO", uds.areaMaxima ?? "",
@@ -991,7 +1075,11 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   }
 
   set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "ENCONTRADO", "valor padrão do assunto");
-  set("comercio", /comercial/i.test(rq.tipoUso ?? "") ? "SIM" : null, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
+  /* Sem o requerimento (regra master), quem diz que o uso é econômico são os CNAEs do Uso do Solo
+   * — documento que a análise lê de qualquer jeito. Antes o campo dependia só do requerimento e
+   * por isso nascia vazio. */
+  set("comercio", (uds.cnaes?.length ?? 0) > 0 ? "SIM" : null, "CALCULADO", "CNAEs no Uso do Solo",
+      undefined, vig.uso_solo ?? null);
   set("atividadeEconomica", uds.cnaes?.length ? "SIM" : null, "CALCULADO", "CNAEs no Uso do Solo", undefined, vig.uso_solo ?? null);
 
   /* ══════════════════════════════════════════════════════════════════════════════
@@ -1019,7 +1107,8 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   // ── tipo de uso: derivado do que o requerimento marca e do que o UDS lista
   const ehComercial = /comercial/i.test(rq.tipoUso ?? "") || (uds.cnaes?.length ?? 0) > 0;
   const ehHabitacional = /residencial|habitacional/i.test(rq.tipoUso ?? "");
-  set("tipoUso", rq.tipoUso ? String(rq.tipoUso).toUpperCase() : null, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
+  set("tipoUso", ehComercial && !ehHabitacional ? "COMERCIAL" : ehHabitacional && !ehComercial ? "HABITACIONAL" : null,
+      "CALCULADO", "CNAEs no Uso do Solo", undefined, vig.uso_solo ?? null);
 
   if (ehComercial && !ehHabitacional) {
     np("habSeriada", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
@@ -1203,14 +1292,17 @@ function conferir(vig: Record<string, ItemCatalogo>): Conferencia[] {
   cmp("Área na ART de projeto confere com o projeto?", q(aProj, /QUADRAD/i), pr.areaTotalConstrucao);
   cmp("Área na ART de execução confere com o projeto?", q(aExec, /QUADRAD/i), pr.areaTotalConstrucao);
   cmp("Volume na ART de caixa confere com o projeto?", q(aCx, /C[ÚU]BIC/i), pr.volumeCaixa, "m³");
-  cmp("Área no requerimento confere com o projeto?", rq.areaDeclarada, pr.areaTotalConstrucao);
+  /* A conferência "Área no requerimento × projeto" saiu com a regra master: o requerimento não
+   * entra na análise do slot 5, então ela viveria eternamente em SEM DADO — pendência de mentira,
+   * que é pior do que pendência nenhuma. Pelo mesmo motivo o IPTU passou a ser conferido em dois
+   * documentos, não três. */
 
   // mesmo dado em documentos diferentes, normalizado antes de comparar
-  const iptus = ([["Uso do Solo", uds.iptu], ["prancha", pr.iptu], ["requerimento", rq.iptu]] as [string, string][])
+  const iptus = ([["Uso do Solo", uds.iptu], ["prancha", pr.iptu]] as [string, string][])
     .filter(([, v]) => v).map(([k, v]) => [k, soDigitos(v)] as [string, string]);
   const distintos = new Set(iptus.map(([, v]) => v));
   out.push({
-    nome: "IPTU é o mesmo nos três documentos?",
+    nome: "IPTU é o mesmo no Uso do Solo e na prancha?",
     estado: iptus.length < 2 ? "SEM DADO" : distintos.size === 1 ? "CONFERE" : "NÃO CONFERE",
     detalhe: iptus.map(([k, v]) => `${k}: ${v}`).join(" · ") + (distintos.size === 1 ? " (normalizados)" : ""),
   });
