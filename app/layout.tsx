@@ -4,6 +4,7 @@ import HeaderGlobal from "@/components/HeaderGlobal";
 import UrbiWrapper from "@/components/urbi/UrbiWrapper";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SessionTracker from "@/components/SessionTracker";
+import AutoLogout from "@/components/AutoLogout";
 
 export const metadata: Metadata = {
   title: "URBIS",

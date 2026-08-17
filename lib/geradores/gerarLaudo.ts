@@ -287,6 +287,12 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
   set(ws, "M65", dataExtenso(dataEmissao));
   set(ws, "K66", dados.nomeAnalista);
   ws.getCell("K66").alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
+  // No template original, K66 (mesclada K66:N72) trazia um texto de nota
+  // em tamanho 8 — ilegível quando impresso, e agora essa célula carrega
+  // a assinatura de verdade (nome, cargo, CAU/CREA), não uma nota de
+  // rodapé. Sobe pra 12, igual ao resto do corpo do laudo (D6, D7, D12,
+  // "Área do terreno:" etc.).
+  ws.getCell("K66").font = { ...ws.getCell("K66").font, size: 12 };
 
   // ── OBSERVAÇÕES FINAIS ────────────────────────────────────
   // Célula B70 é a âncora da mesclagem B70:J70 — escrever em D70 (célula
