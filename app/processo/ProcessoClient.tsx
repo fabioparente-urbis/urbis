@@ -873,6 +873,129 @@ export default function ProcessoClient() {
    * que ela vira valor gravado. Decisão do analista: aceita tudo de uma vez, sem marcar campo a
    * campo.
    */
+  /**
+   * O log da leitura, em texto. É o único registro legível do que a máquina decidiu: qual versão de
+   * cada documento foi eleita a vigente, o que foi descartado por ser versão velha ou reenvio
+   * idêntico, o que faltou, e de onde veio cada campo.
+   *
+   * Mora fora do aceite porque tem DOIS consumidores — a aba OBS e o botão de copiar. Se cada um
+   * montasse o seu, eles divergiriam na primeira mudança, e o texto que o analista manda para
+   * conferência deixaria de ser o mesmo que ficou registrado no processo.
+   */
+  function montarLogLeitura(p: any): string {
+    const vigPorPapel: Record<string, string> = p.vigentesPorPapel ?? {};
+    const rotuloVigente = (it: any) =>
+      it.papeis.filter((x: string) => x !== "outros" && vigPorPapel[x] === it.hash);
+
+    return [
+      `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
+      `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · ` +
+      `${p.custo?.paginasNaPasta ?? 0} páginas · sem IA · ${Math.round((p.msLeitura ?? 0) / 100) / 10}s`,
+      /* A ordem das pastas entra no log quando foi ADIVINHADA. Se depois se descobrir que a
+       * ordem estava errada, é por aqui que se sabe qual leitura usou qual ordem. */
+      ...(p.rodadaAmbigua
+        ? [``, `⚠ ORDEM DAS SUBPASTAS ASSUMIDA (não foi possível determinar com segurança):`,
+           ...(p.pastas ?? []).filter((x: any) => x.caminho)
+             .map((x: any) => `  rodada ${x.rodada}: ${x.caminho}`)]
+        : []),
+      /* MEMÓRIA DOCUMENTAL: é o que diferencia uma leitura da anterior. Sem isto no LIP, a prova
+       * de que um documento foi corrigido (e o que mudou nele) só existia na janela da proposta
+       * e morria no aceite. */
+      ...(p.mhd?.ativa
+        ? [``,
+           `— MEMÓRIA DOCUMENTAL —`,
+           `  encontrados ${p.mhd.encontrados} · já conhecidos ${p.mhd.jaConhecidos} · ` +
+           `novos ${p.mhd.novos} · corrigidos ${p.mhd.corrigidos}` +
+           (p.mhd.paginasEconomizadas > 0 ? ` · ${p.mhd.paginasEconomizadas} página(s) vieram da memória` : ""),
+           ...(p.mhd.versoesCriadas ?? []).map((v: any) =>
+             `  • ${v.rotulo} — versão ${v.versao} (${v.nome})`),
+           ...(p.mhd.alteracoes?.length
+             ? [`  alterações em relação à versão anterior:`,
+                ...p.mhd.alteracoes.map((a: any) => `    ↻ ${a.campo}: ${a.de ?? "—"} → ${a.para ?? "—"}`)]
+             : []),
+           ...(p.mhd.gravou === false
+             ? [`  ⚠ MHD NÃO GRAVOU: ${(p.mhd.problemas ?? []).join(" · ")}`] : [])]
+        : []),
+      ``,
+      `— VERSÕES VIGENTES (a rodada mais recente vence; versão antiga não é usada) —`,
+      ...p.catalogo.map((it: any) => {
+        const vence = rotuloVigente(it);
+        const marca = it.soPresenca ? "○" : vence.length ? "✔" : "·";
+        const situacao = it.soPresenca ? "só presença, não lido"
+          : vence.length ? `VIGENTE como ${vence.join(" + ")}`
+          : "versão superada — não usada";
+        return `  ${marca} r${it.rodada} ${it.nome} → ${it.papeis.join(" + ")} [${situacao}]` +
+          (it.alertaRetrocesso ? `\n     ⚠ ${it.alertaRetrocesso}` : "") +
+          (it.divergenciaNome ? `\n     ⚠ ${it.divergenciaNome}` : "");
+      }),
+      ...(p.duplicidades?.mesmaRodada?.length || p.duplicidades?.entreRodadas?.length
+        ? [`— DUPLICIDADES (mesmo conteúdo, arquivos diferentes) —`,
+           ...(p.duplicidades.mesmaRodada ?? []).map((g: string[]) => `  ↺ na mesma rodada: ${g.join(" = ")}`),
+           ...(p.duplicidades.entreRodadas ?? []).map((g: string[]) => `  ↺ reenviado sem alteração: ${g.join(" → ")}`)]
+        : []),
+      ``,
+      `— DOCUMENTOS E PENDÊNCIAS —`,
+      /* A ausência dos dispensáveis é REGISTRADA, mas não é pendência: documentos pessoais são
+       * escopo da CHEADV e o DWG ninguém lê aqui. Cobrá-los do requerente é ruído. */
+      ...p.obrigatorios
+        .filter((o: any) => !o.presente && !docsLocalizados[o.papel])
+        .map((o: any) => (o.dispensavel
+          ? `  ○ NÃO ENCONTRADO (dispensável, não exigido): ${o.nome}`
+          : `  ⚠ FALTA: ${o.nome}`)),
+      ...p.obrigatorios
+        .filter((o: any) => !o.presente && docsLocalizados[o.papel])
+        .map((o: any) => {
+          const loc = docsLocalizados[o.papel];
+          return `  📎 ${o.nome} — localizado FORA da pasta em "${loc.local}"` +
+            (loc.confere ? "" : ` (⚠ ${loc.avisos[0]})`) +
+            `\n     ↳ recomendação: mover o arquivo para dentro da pasta do processo, na rodada correspondente.`;
+        }),
+      ``,
+      `— CONFERÊNCIAS (${p.conferencias.length}) —`,
+      ...p.conferencias.map((c: any) => {
+        const s = c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘"
+          : c.estado === "ALERTA" ? "⚠" : c.estado === "SEM DADO" ? "?" : "i";
+        return `  ${s} ${c.nome} — ${c.detalhe}` +
+          (c.dependencia ? ` (depende de: ${c.dependencia})` : "");
+      }),
+      /* A LISTA INTEIRA DOS CAMPOS, com valor e procedência. É o que transforma a OBS no retrato
+       * da leitura: dá para saber DE ONDE veio cada valor e o que ele substituiu, sem depender
+       * da janela da proposta, que morre no aceite. Campo sem valor entra igual, com o motivo —
+       * é ele que responde "por que isso não foi lido?". */
+      ``,
+      `— CAMPOS (${Object.keys(p.campos).length}) —`,
+      ...Object.entries(p.campos as Record<string, any>).map(([k, v]) => {
+        const atual = d[k]?.valor;
+        const conflito = atual && atual !== v.valor;
+        return `  ${k}: ${v.valor || "—"}` +
+          (conflito ? ` (substitui "${atual}")` : "") +
+          ` · ${v.fonte || v.origem || ""}`;
+      }),
+    ].join("\n");
+  }
+
+  /** Copia o log da leitura para a área de transferência — o mesmo texto que vai para a aba OBS. */
+  async function copiarLogLeitura() {
+    if (!propostaPasta) return;
+    const texto = montarLogLeitura(propostaPasta);
+    try {
+      await navigator.clipboard.writeText(texto);
+      mostrarToast("📋 Leitura copiada — é o mesmo texto que vai para a aba OBS", "sucesso");
+    } catch {
+      /* clipboard exige contexto seguro e permissão; quando não dá, o textarea escondido com
+       * execCommand ainda funciona e evita o analista ter que selecionar tudo na mão */
+      const ta = document.createElement("textarea");
+      ta.value = texto;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const deu = document.execCommand("copy");
+      document.body.removeChild(ta);
+      mostrarToast(deu ? "📋 Leitura copiada" : "Não foi possível copiar — o navegador bloqueou", deu ? "sucesso" : "erro");
+    }
+  }
+
   function aceitarPropostaPasta() {
     const p = propostaPasta;
     if (!p) return;
@@ -887,99 +1010,7 @@ export default function ProcessoClient() {
           fonte: item.fonte,
         };
       }
-      /* O log da leitura vai para a aba OBS. É o único registro legível do que a máquina decidiu:
-       * qual versão de cada documento foi eleita a vigente, o que foi descartado por ser versão
-       * velha ou reenvio idêntico, e o que faltou. Sem isso o analista não tem como auditar a
-       * própria análise depois. */
-      const vigPorPapel: Record<string, string> = p.vigentesPorPapel ?? {};
-      const rotuloVigente = (it: any) =>
-        it.papeis.filter((x: string) => x !== "outros" && vigPorPapel[x] === it.hash);
-
-      const linhas = [
-        `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
-        `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · ` +
-        `${p.custo?.paginasNaPasta ?? 0} páginas · sem IA · ${Math.round((p.msLeitura ?? 0) / 100) / 10}s`,
-        /* A ordem das pastas entra no log quando foi ADIVINHADA. Se depois se descobrir que a
-         * ordem estava errada, é por aqui que se sabe qual leitura usou qual ordem. */
-        ...(p.rodadaAmbigua
-          ? [``, `⚠ ORDEM DAS SUBPASTAS ASSUMIDA (não foi possível determinar com segurança):`,
-             ...(p.pastas ?? []).filter((x: any) => x.caminho)
-               .map((x: any) => `  rodada ${x.rodada}: ${x.caminho}`)]
-          : []),
-        /* MEMÓRIA DOCUMENTAL: é o que diferencia uma leitura da anterior. Sem isto no LIP, a prova
-         * de que um documento foi corrigido (e o que mudou nele) só existia na janela da proposta
-         * e morria no aceite. */
-        ...(p.mhd?.ativa
-          ? [``,
-             `— MEMÓRIA DOCUMENTAL —`,
-             `  encontrados ${p.mhd.encontrados} · já conhecidos ${p.mhd.jaConhecidos} · ` +
-             `novos ${p.mhd.novos} · corrigidos ${p.mhd.corrigidos}` +
-             (p.mhd.paginasEconomizadas > 0 ? ` · ${p.mhd.paginasEconomizadas} página(s) vieram da memória` : ""),
-             ...(p.mhd.versoesCriadas ?? []).map((v: any) =>
-               `  • ${v.rotulo} — versão ${v.versao} (${v.nome})`),
-             ...(p.mhd.alteracoes?.length
-               ? [`  alterações em relação à versão anterior:`,
-                  ...p.mhd.alteracoes.map((a: any) => `    ↻ ${a.campo}: ${a.de ?? "—"} → ${a.para ?? "—"}`)]
-               : []),
-             ...(p.mhd.gravou === false
-               ? [`  ⚠ MHD NÃO GRAVOU: ${(p.mhd.problemas ?? []).join(" · ")}`] : [])]
-          : []),
-        ``,
-        `— VERSÕES VIGENTES (a rodada mais recente vence; versão antiga não é usada) —`,
-        ...p.catalogo.map((it: any) => {
-          const vence = rotuloVigente(it);
-          const marca = it.soPresenca ? "○" : vence.length ? "✔" : "·";
-          const situacao = it.soPresenca ? "só presença, não lido"
-            : vence.length ? `VIGENTE como ${vence.join(" + ")}`
-            : "versão superada — não usada";
-          return `  ${marca} r${it.rodada} ${it.nome} → ${it.papeis.join(" + ")} [${situacao}]` +
-            (it.alertaRetrocesso ? `\n     ⚠ ${it.alertaRetrocesso}` : "") +
-            (it.divergenciaNome ? `\n     ⚠ ${it.divergenciaNome}` : "");
-        }),
-        ...(p.duplicidades?.mesmaRodada?.length || p.duplicidades?.entreRodadas?.length
-          ? [`— DUPLICIDADES (mesmo conteúdo, arquivos diferentes) —`,
-             ...(p.duplicidades.mesmaRodada ?? []).map((g: string[]) => `  ↺ na mesma rodada: ${g.join(" = ")}`),
-             ...(p.duplicidades.entreRodadas ?? []).map((g: string[]) => `  ↺ reenviado sem alteração: ${g.join(" → ")}`)]
-          : []),
-        ``,
-        `— DOCUMENTOS E PENDÊNCIAS —`,
-        /* A ausência dos dispensáveis é REGISTRADA, mas não é pendência: documentos pessoais são
-         * escopo da CHEADV e o DWG ninguém lê aqui. Cobrá-los do requerente é ruído. */
-        ...p.obrigatorios
-          .filter((o: any) => !o.presente && !docsLocalizados[o.papel])
-          .map((o: any) => (o.dispensavel
-            ? `  ○ NÃO ENCONTRADO (dispensável, não exigido): ${o.nome}`
-            : `  ⚠ FALTA: ${o.nome}`)),
-        ...p.obrigatorios
-          .filter((o: any) => !o.presente && docsLocalizados[o.papel])
-          .map((o: any) => {
-            const loc = docsLocalizados[o.papel];
-            return `  📎 ${o.nome} — localizado FORA da pasta em "${loc.local}"` +
-              (loc.confere ? "" : ` (⚠ ${loc.avisos[0]})`) +
-              `\n     ↳ recomendação: mover o arquivo para dentro da pasta do processo, na rodada correspondente.`;
-          }),
-        ``,
-        `— CONFERÊNCIAS (${p.conferencias.length}) —`,
-        ...p.conferencias.map((c: any) => {
-          const s = c.estado === "CONFERE" ? "✔" : c.estado === "NÃO CONFERE" ? "✘"
-            : c.estado === "ALERTA" ? "⚠" : c.estado === "SEM DADO" ? "?" : "i";
-          return `  ${s} ${c.nome} — ${c.detalhe}` +
-            (c.dependencia ? ` (depende de: ${c.dependencia})` : "");
-        }),
-        /* A LISTA INTEIRA DOS CAMPOS, com valor e procedência. É o que transforma a OBS no retrato
-         * da leitura: dá para saber DE ONDE veio cada valor e o que ele substituiu, sem depender
-         * da janela da proposta, que morre no aceite. Campo sem valor entra igual, com o motivo —
-         * é ele que responde "por que isso não foi lido?". */
-        ``,
-        `— CAMPOS (${Object.keys(p.campos).length}) —`,
-        ...Object.entries(p.campos as Record<string, any>).map(([k, v]) => {
-          const atual = d[k]?.valor;
-          const conflito = atual && atual !== v.valor;
-          return `  ${k}: ${v.valor || "—"}` +
-            (conflito ? ` (substitui "${atual}")` : "") +
-            ` · ${v.fonte || v.origem || ""}`;
-        }),
-      ].join("\n");
+      const linhas = montarLogLeitura(p);
       /* HISTÓRICO, não substituição: cada leitura EMPILHA POR CIMA e empurra as anteriores para
        * baixo. Ler a pasta de novo é rotina — a cada correção do requerente — e o analista precisa
        * comparar o que mudou entre uma leitura e outra. Sobrescrever apagaria a análise anterior. */
@@ -2003,6 +2034,12 @@ export default function ProcessoClient() {
             </div>
 
             <div className="sticky bottom-0 bg-[var(--bg-card)] border-t border-[var(--border)] p-4 flex justify-end gap-2">
+              {/* copiar fica à ESQUERDA e separado: é ação de leitura, não decide nada sobre a
+                  proposta, e não pode ser clicado por engano no lugar de aceitar ou descartar */}
+              <button onClick={copiarLogLeitura} title="Copia a leitura inteira — o mesmo texto que vai para a aba OBS"
+                className="mr-auto px-4 py-2 rounded text-sm border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--primary)]">
+                📋 Copiar tudo
+              </button>
               <button onClick={() => { setPropostaPasta(null); setDocsLocalizados({}); }}
                 className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                 Descartar
