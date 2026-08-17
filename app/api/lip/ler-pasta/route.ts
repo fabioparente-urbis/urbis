@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
-import { lerPastaSlot5, type ArquivoEntrada, type Conhecido } from "@/lib/lerPastaSlot5";
+import { lerPastaSlot5, VERSAO_EXTRATOR, type ArquivoEntrada, type Conhecido } from "@/lib/lerPastaSlot5";
 import { buscarPorHash, registrarLeitura } from "@/lib/mhd";
 import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { mapaDeRodadas } from "@/lib/rodadas";
@@ -157,6 +157,10 @@ async function processar(
     const conhecidos: Map<string, Conhecido> = new Map();
     for (const [hash, c] of memoria.conhecidos) {
       if (!c.papeis?.length) continue;
+      /* Memória gravada por uma versão anterior dos extratores NÃO vale: ela devolveria o que a
+       * leitura antiga sabia extrair, e a correção nova nunca apareceria. Ignorando aqui, o
+       * documento é relido e regrava já na versão corrente. Custa páginas de texto, não IA. */
+      if ((c.dados as any)?._v !== VERSAO_EXTRATOR) continue;
       conhecidos.set(hash, {
         papeis: c.papeis, dados: c.dados, paginas: c.paginas,
         charsTexto: c.texto ? c.texto.replace(/\s/g, "").length : 0,

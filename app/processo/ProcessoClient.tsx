@@ -966,8 +966,19 @@ export default function ProcessoClient() {
           return `  ${s} ${c.nome} — ${c.detalhe}` +
             (c.dependencia ? ` (depende de: ${c.dependencia})` : "");
         }),
+        /* A LISTA INTEIRA DOS CAMPOS, com valor e procedência. É o que transforma a OBS no retrato
+         * da leitura: dá para saber DE ONDE veio cada valor e o que ele substituiu, sem depender
+         * da janela da proposta, que morre no aceite. Campo sem valor entra igual, com o motivo —
+         * é ele que responde "por que isso não foi lido?". */
         ``,
-        `Campos preenchidos pela leitura: ${Object.keys(p.campos).length}`,
+        `— CAMPOS (${Object.keys(p.campos).length}) —`,
+        ...Object.entries(p.campos as Record<string, any>).map(([k, v]) => {
+          const atual = d[k]?.valor;
+          const conflito = atual && atual !== v.valor;
+          return `  ${k}: ${v.valor || "—"}` +
+            (conflito ? ` (substitui "${atual}")` : "") +
+            ` · ${v.fonte || v.origem || ""}`;
+        }),
       ].join("\n");
       /* HISTÓRICO, não substituição: cada leitura EMPILHA POR CIMA e empurra as anteriores para
        * baixo. Ler a pasta de novo é rotina — a cada correção do requerente — e o analista precisa

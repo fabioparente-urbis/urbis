@@ -52,6 +52,23 @@ export type Andamento = {
 };
 export type AoAndar = (a: Andamento) => void;
 
+/**
+ * VERSÃO DOS EXTRATORES — subir SEMPRE que a leitura passar a extrair algo diferente.
+ *
+ * O MHD não reprocessa documento de hash conhecido: reconstrói o catálogo a partir do `dados` que
+ * ficou guardado. Isso é ótimo para custo, e foi uma armadilha real — as correções de quadra,
+ * lote, nº do Uso do Solo, matrícula e tabela de vias não apareceram no processo 50724, porque
+ * todos os documentos já estavam na memória e voltaram com o `dados` da versão ANTIGA. O analista
+ * via campo vazio e não tinha como saber que a correção existia.
+ *
+ * A versão viaja dentro do próprio `dados` (é JSON), então não precisa de migração: memória
+ * gravada por versão diferente é ignorada, o documento é relido e volta a valer.
+ *
+ * v2 — 17/08/2026: quadra/lote sem "Possui Embargo", nº do UDS pela coluna Processo, matrícula
+ *      com "n." e a tabela de vias inteira.
+ */
+export const VERSAO_EXTRATOR = 2;
+
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
 
 export type ItemCatalogo = {
@@ -750,6 +767,8 @@ async function catalogar(
       else if (item.papeis.includes("requerimento")) item.dados = lerRequerimento(doc);
       else if (item.papeis.includes("certidao_matricula")) item.dados = lerCertidao(doc);
       else if (item.papeis.some((p) => p.startsWith("art"))) item.dados = lerArt(doc);
+      // carimba a versão do extrator no próprio `dados`: é ela que diz se a memória ainda vale
+      if (item.dados) item.dados._v = VERSAO_EXTRATOR;
     }
 
     item.dataDocumento =
