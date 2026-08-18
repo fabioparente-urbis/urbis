@@ -332,6 +332,10 @@ const ASSINATURAS: { papel: string; re: RegExp }[] = [
   { papel: "art", re: /ART OBRA OU SERVICO|DETALHES DO RRT|N[ºO°]? DO RRT|ANOTACAO DE RESPONSABILIDADE TECNICA PARA/ },
   { papel: "requerimento", re: /REQUERIMENTO|REQUEIRO/ },
   { papel: "declaracao", re: /DECLARACAO DE RESPONSABILIDADE|DECLARO/ },
+  /* Print da tela "Analisar projeto" do sistema Atendimento da Prefeitura (Alvará Mais Fácil) —
+   * pedido do Fábio 2026-08-18 pra alimentar o item 1 do MAC ("Conferir os dados... no Sistema
+   * Alvará Fácil"). Não é papel do SEI, entra só quando o analista anexa o print na pasta. */
+  { papel: "atendimento", re: /ANALISAR PROJETO.*LICENCA|SISTEMA ALVARA MAIS FACIL.*ANALISAR PROJETO/ },
 ];
 
 /** Nome do arquivo → papel esperado. Vale SÓ na rodada 1 (slots fixos do SEI). */

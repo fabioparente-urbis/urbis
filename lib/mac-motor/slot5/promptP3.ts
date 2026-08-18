@@ -51,6 +51,12 @@ unidades habitacionais. NÃO aplique LC 181/2008 nem LC 314/2018 — são de reg
 - USO DO SOLO (documento): atividade, CNAE, unidade territorial, corredor viário.
 - CERTIDÃO DE MATRÍCULA: proprietário, nº da matrícula, área e dimensões do terreno.
 - ART/RRT: nº, profissional, e se a área declarada bate com a do projeto.
+- ATENDIMENTO (print da tela "Analisar projeto" do sistema Alvará Mais Fácil, quando presente):
+  Licença Prévia, Data de Pagamento da Taxa Inicial, área do terreno, área a construir, nº de
+  pavimentos, nº das ARTs de execução/caixa/projeto, vagas atendidas, responsável técnico. É a
+  fonte principal do item 1 do checklist ("Conferir os dados informados... no Sistema Alvará
+  Fácil") — compare o que está aqui contra o carimbo/projeto e aponte divergência com os dois
+  valores, nunca decida sozinho qual está certo.
 
 ===== COMO DECIDIR (regras que evitam erro) =====
 1. SÓ MARQUE "conforme" SE VOCÊ VIU A EVIDÊNCIA. Não deduza pelo tipo do projeto, não presuma
@@ -91,4 +97,4 @@ Inclua em "fontes" APENAS os itens que você classificou (não os null). A fonte
 vai conferir: diga a prancha/pavimento e o que leu, não repita o texto do item.`;
 
 /** Versão do prompt — sobe junto com mudança de conteúdo, para rastrear execuções. */
-export const VERSAO_PROMPT_P3_SLOT5 = 1;
+export const VERSAO_PROMPT_P3_SLOT5 = 2;

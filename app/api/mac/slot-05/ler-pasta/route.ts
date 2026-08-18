@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { lerPastaSlot5, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
+import { lerPastaSlot5, extrairPdf, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { PROMPT_P3_MAC_SLOT5, VERSAO_PROMPT_P3_SLOT5 } from "@/lib/mac-motor/slot5/promptP3";
@@ -28,13 +28,23 @@ export const maxDuration = 300;
 const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const STATUS_OK = new Set(["conforme", "nao_conforme", "nao_aplica"]);
 
-/** Papéis que o Gemini precisa VER. Documentos pessoais e requerimento não decidem item do MAC. */
-const PAPEIS_UTEIS = ["projeto", "uso_solo", "certidao_matricula", "art_projeto", "art_caixa", "art_execucao"];
+/** Papéis que o Gemini precisa VER. Documentos pessoais e requerimento não decidem item do MAC.
+ * "atendimento" (print do sistema Alvará Mais Fácil) é opcional — só entra quando o analista
+ * anexa; alimenta principalmente o item 1 do checklist, mas fica visível pro modelo todo. */
+const PAPEIS_UTEIS = ["projeto", "uso_solo", "certidao_matricula", "art_projeto", "art_caixa", "art_execucao", "atendimento"];
 
 /** A rodada vem do caminho: raiz = 1ª análise, cada subpasta a seguinte (mesma regra do LIP). */
 function rodadaDoCaminho(caminho: string): number {
   const partes = caminho.split("/").filter(Boolean);
   return Math.max(1, partes.length - 1);
+}
+
+/** Header HTTP só aceita ByteString (0-255) — nome de arquivo em português ("Certidão",
+ * "Execução...") tem acento fora dessa faixa e quebra a chamada. Achado testando esta rota pela
+ * primeira vez contra uma pasta real. Sanitiza só pro header; o nome original segue intacto no
+ * resto da rota (log, identificação de papel). */
+function nomeParaHeaderHttp(nome: string): string {
+  return nome.normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7e]/g, "_");
 }
 
 async function subirPdf(bytes: Uint8Array, apiKey: string, nome: string): Promise<string> {
@@ -44,7 +54,7 @@ async function subirPdf(bytes: Uint8Array, apiKey: string, nome: string): Promis
       "X-Goog-Upload-Protocol": "raw",
       "X-Goog-Upload-Header-Content-Type": "application/pdf",
       "Content-Type": "application/pdf",
-      "X-Goog-File-Name": nome,
+      "X-Goog-File-Name": nomeParaHeaderHttp(nome),
     },
     body: bytes as any,
   });
@@ -89,7 +99,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Catalogação: identifica papel, rodada e elege o VENCEDOR de cada papel ────────
-    const leitura = await lerPastaSlot5(arquivos);
+    // pdfjs (usado dentro de lerPastaSlot5) DETACHA o ArrayBuffer que recebe — sem clonar antes,
+    // o passo 4 (subir o PDF vencedor pro Gemini) quebrava com "Cannot perform slice on a
+    // detached ArrayBuffer". Achado testando esta rota pela primeira vez, nunca executada antes
+    // (mesma armadilha documentada em urbis-mac-slot5-iccap-recorte-proposta).
+    const paraCatalogar = arquivos.map((a) => ({ ...a, buffer: a.buffer.slice() }));
+    const leitura = await lerPastaSlot5(paraCatalogar);
     const vencedorPorPapel = leitura.vigentesPorPapel ?? {};
     const porHash = new Map(arquivos.map((a) => [a.hash, a]));
 
