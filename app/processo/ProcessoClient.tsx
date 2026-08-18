@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
+import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 
 /**
  * De onde veio o valor que está no formulário.
@@ -1517,11 +1518,19 @@ export default function ProcessoClient() {
         LAUDO
       </button>
     );
+    // "janelinha" de ajuda no rótulo — só pra lembrar a regra, não é validação
+    const textoAjuda = AJUDA_CAMPOS[campo.chave];
+    const badgeAjuda = textoAjuda && (
+      <span title={textoAjuda} tabIndex={0}
+        className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-[var(--border-strong)] text-[9px] text-[var(--text-muted)] cursor-help align-middle">
+        i
+      </span>
+    );
     if (campo.tipo === "textarea" || campo.chave === "observacoes") {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
           </label>
           <textarea value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             placeholder={campo.placeholder || campo.label} rows={10}
@@ -1535,7 +1544,7 @@ export default function ProcessoClient() {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
           </label>
           <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`}>
@@ -1550,7 +1559,7 @@ export default function ProcessoClient() {
     return (
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-          {campo.label}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
           {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ VCP</span>}{badgeLaudo}
         </label>
         {temSugestaoVCP && (

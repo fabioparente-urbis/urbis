@@ -119,70 +119,6 @@
     "versao": 2,
     "hash": "70ca1ef371cea841"
   },
-  "LIP:slot_05:numeroDeDespachoDa1Analise": {
-    "versao": 2,
-    "hash": "d1b88be59d6b6b69"
-  },
-  "LIP:slot_05:dataDa1Analise": {
-    "versao": 2,
-    "hash": "d1b88be59d6b6b69"
-  },
-  "LIP:slot_05:numeroDeDespachoDa2Analise": {
-    "versao": 2,
-    "hash": "c3b15c3c6dbc2734"
-  },
-  "LIP:slot_05:dataDa2Analise": {
-    "versao": 2,
-    "hash": "c3b15c3c6dbc2734"
-  },
-  "LIP:slot_05:numeroDeDespachoDa3Analise": {
-    "versao": 2,
-    "hash": "a3b8fa473e0ce2ff"
-  },
-  "LIP:slot_05:dataDa3Analise": {
-    "versao": 2,
-    "hash": "a3b8fa473e0ce2ff"
-  },
-  "LIP:slot_05:numeroDeDespachoDa4Analise": {
-    "versao": 2,
-    "hash": "58f888de0e5d9eca"
-  },
-  "LIP:slot_05:dataDa4Analise": {
-    "versao": 2,
-    "hash": "58f888de0e5d9eca"
-  },
-  "LIP:slot_05:numeroDeDespachoDa5Analise": {
-    "versao": 2,
-    "hash": "a09e97b9deae5a95"
-  },
-  "LIP:slot_05:dataDa5Analise": {
-    "versao": 2,
-    "hash": "a09e97b9deae5a95"
-  },
-  "LIP:slot_05:numeroDoLaudo5": {
-    "versao": 2,
-    "hash": "57e7fd2cda2ba0bc"
-  },
-  "LIP:slot_05:dataDoLaudo5": {
-    "versao": 2,
-    "hash": "57e7fd2cda2ba0bc"
-  },
-  "LIP:slot_05:numeroDoParecerDeIndeferimento": {
-    "versao": 2,
-    "hash": "f9c85411fca6aaf5"
-  },
-  "LIP:slot_05:dataDoParecerDeIndeferimento": {
-    "versao": 2,
-    "hash": "f9c85411fca6aaf5"
-  },
-  "LIP:slot_05:numeroDoParecerDeArquivamento": {
-    "versao": 2,
-    "hash": "d9669f78d86cca6e"
-  },
-  "LIP:slot_05:dataDoParecerDeArquivamento": {
-    "versao": 2,
-    "hash": "d9669f78d86cca6e"
-  },
   "LIP:slot_05:houveMudancaDeAnalista": {
     "versao": 2,
     "hash": "81f3b66bb58da661"
@@ -231,17 +167,9 @@
     "versao": 2,
     "hash": "f603f2996982a003"
   },
-  "LIP:slot_05:dimensoesDoLoteNaCertidao": {
-    "versao": 1,
-    "hash": "66149f7f8c505f99"
-  },
-  "LIP:slot_05:dimensoesDoLoteNoProjeto": {
-    "versao": 1,
-    "hash": "76d10edd4e5be66b"
-  },
   "LIP:slot_05:dimensoesDoLoteConferemComA": {
-    "versao": 1,
-    "hash": "2fdc61124268005a"
+    "versao": 2,
+    "hash": "17787803a59d2fe9"
   },
   "LIP:slot_05:dimensoesDoLoteConferemComRememb": {
     "versao": 2,
@@ -465,7 +393,7 @@
   },
   "LIP:slot_05:areaImpermeabilizada": {
     "versao": 2,
-    "hash": "01f00779f4f188c3"
+    "hash": "54575ef734295785"
   },
   "LIP:slot_05:volumeExigidoDaCaixa": {
     "versao": 2,
@@ -542,5 +470,3077 @@
   "LIP:slot_05:observacoes": {
     "versao": 1,
     "hash": "a89a9c2e12cd8486"
+  },
+  "MAC:slot_05:e9d940e3-e909-4b63-9e5a-ff0425d4f008": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:39a7f80f-48b5-4ebf-8b78-71d94681e727": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a9e5978f-5523-43f5-8f85-480d3d70ff79": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d64bd290-b879-42c9-86b9-19e585f681fc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:07b1c7ce-538c-476b-be37-9f6dccacaf68": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f14d741d-ae94-4dc6-b28f-08ab0214ebe1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:789bcc4c-8504-4f09-8aa4-1846997a62d5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:14603208-1887-4289-b7a1-dd173f151d34": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:afb6c086-26c4-4c1e-831d-a68869ff208f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4a4a6730-8495-4bff-9501-f07778eda38c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:78b6f0e9-0f0e-4166-8b55-12625cb8dfb7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7c2942a4-641e-4a34-afb7-2110cbb57c2c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e2958e9f-534f-4922-8186-39f2e82f0325": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7d62dac8-cb0c-4168-b2c7-bd2cb1427ebf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0e6f4e5c-686c-450f-bddf-fc575cb3c7b9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:69f829d5-2fbc-43b4-afef-f94ec59fdf00": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:705a01ef-3bcb-4f0f-833a-0f8c1dd98dfb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:be514417-80a2-4f29-81c5-71386d857f8c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:16892a1a-4a48-4602-8ed7-266a95d3bf24": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b236de08-8f61-44ea-b64a-5b5befaf4b40": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b872e042-a2cd-4258-9107-e20559690526": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f7d1651b-3819-47b2-85d8-1a40de6b3a12": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9458814e-0efe-4e5b-bdea-55d00d393327": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4ad98b72-c6fa-441b-b23c-d71d51339eee": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a036653e-7bff-48ea-b1ef-28ced00320aa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1807d75d-7f2b-42f0-a045-db67c13ba778": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eb8ce886-7c73-49bb-823b-5e638523f59f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1995bdd7-8df7-40c9-a818-3c6f9b7f0184": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:26c05a4c-8934-4b23-bd7e-5c6374c17ff3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5c345c04-bea2-4d9c-af82-1af93bb13a8e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1ff4d22a-0e82-46f3-b8d6-a7dcd5e5d981": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25e7f23b-6719-4f05-b25e-e5bbc00c27d0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f0cd620a-c1db-47f0-99f9-c726df64be78": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a112fe6d-7077-4355-a1b4-d31ea851961f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d034e9fb-036b-4b0a-a002-f394ffbbf285": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7773e229-09a2-4795-b6c7-45d8e545c708": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d0e6f8e7-a2eb-4aa0-b69d-6c4df693b1f0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:91855bc9-142b-4737-8f09-b4734c0c2769": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:64784f14-69e8-4505-8de3-d3a187cb15e9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:633b95db-6275-4534-ba8d-19f1f0fe8dd8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:14d4228f-f1e0-42c7-9585-9fd5ce5ce260": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad488f91-b599-4a38-8820-1a7a65b90b0e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:35064e3a-f4fe-402a-8cb4-ed365f46cfd2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a4a94970-769d-43f8-9d79-f50e9aa61d13": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1ecc19fe-3d2e-43a6-a048-9ebd8a8c27d7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ba5222c9-f00d-4122-a959-803d93c8e180": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bdbeb4f0-754e-44ee-8f35-a3077ad2dab9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cf83bd8f-676a-4f39-b714-cb6a09cba394": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f44111eb-c7d9-450b-8bef-f54d5c093d41": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c7d55a20-725d-427b-ade8-957dee45cee9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1e3128d9-8c12-4919-b282-a60ce0563f58": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:13509781-c477-4665-b6b8-d6e889c33981": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:dcfeaa54-51a0-42b3-b420-1ad6a9eb829c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:14970606-6a56-42f1-ab52-6e0eabd905bb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2de6cd35-e707-42dc-8537-f503cbb4a5ed": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b567d184-1ffa-4424-bd24-abc6a3b51f90": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0563158e-8ef7-45b0-a71a-f14545cd5ea5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:02d00279-94e2-4ee2-83ff-212d232baf3e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e0a809ef-a74c-4e3d-b352-5c7ac49f70b4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2f0fe1fb-0064-443a-942d-89a8f6d3ce99": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:de7baf18-0928-4d3e-8256-96d721fe287a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1acfb83e-19da-4191-82df-7281aeffb6d0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:610e2497-f895-4fd7-9509-33f201d60be1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c88d2a90-034f-471b-894f-2bb725273a6d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fab8e774-5dac-4bb8-8a18-c2c8e79db650": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1e906a4c-7dc6-49ae-afa8-225ff3d3108e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e65e2631-700a-4434-a33b-953a989009d4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2e6f71e1-41f2-491e-aec6-4c96cf3b7df8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c2523053-af53-4652-a65a-3b1eb8648eef": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8a2360fe-d7af-4dc1-997e-1b901e0c33c7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7aca2854-75a7-4d16-b837-8c30dd35abd0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:296436b7-cc8e-4001-bca8-c8489834b0cd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a16809bf-769d-4d0d-bebd-79118a89e244": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c8f8f35b-2f7c-4a31-b128-e73ba4447853": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9086573b-14cc-45f9-9769-eb88f8ab5d0d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0cf15c79-9694-4d59-9864-21a58c9ab558": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4a169110-21a7-4306-8cf7-017015692dc0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:19999253-775b-48be-8549-6231445d64a6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4a415e40-3c1d-44aa-b7f7-07c39db8ec4d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:103f4a8a-78dc-4646-ac28-4c6e7418ce02": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f9969d3d-4748-4e0d-876b-045b92c1bb1b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:013e0b6a-4a89-456b-9ae4-fb6af9caadf5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c9281e1d-fa9a-4ec2-a68d-f9be4724bc5c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9e841421-6b04-4427-a512-d4317c71a873": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3636d19a-d405-400e-a178-224b273556ee": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6e804881-fdd9-4111-be85-0a6b19328fc1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e53a2cb1-43a8-4ec4-a8cc-38a7d64b8ed2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:092eb27c-a9d0-4bc1-8b50-f2fa3d9f7901": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:68681cf0-f0ea-4f72-bca7-dd7607a0cf48": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:012e0448-d439-44f9-8807-a31376699a9b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:20c70ed1-2298-4008-8fa3-9ccb803010cc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:51ae1a3a-ba52-4a45-a8fd-858a646251f6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0707a5d4-95d2-4426-bc10-797b1d10bb00": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:401bb29e-f51c-4575-b5ca-bdda106538de": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7ffa5469-735d-4e6d-acb3-de8d3c8bd9f5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:488f0ae1-a596-4930-9db3-0c724193e1b9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ccfb5016-91d5-46ed-a6b0-c7247a651893": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:adebbdc8-4bae-4e0c-8455-177a12cde781": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7909fd33-ceef-4192-be0e-bb3bcc1e37e6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3a3b9e5e-2432-4d35-9ba0-82d15302236b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:dc77b6b6-66aa-490a-a4bc-07e908c2d472": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fe51ebe3-8856-4b41-8134-45042fb40d61": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ec434fb3-7573-4407-9bf9-d968e91e48e9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b50e8599-c126-469d-9d72-6b8e5e63ca14": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:437f8df6-59e4-47ca-bbb8-aa444999d440": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:677821aa-6710-49ac-9e1c-cbef3afbd12e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7b5d6e19-3386-41ed-b0a1-b22184d10caa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:258af8e9-5f42-49ae-b730-266e2419eb49": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:08714c31-8159-4d6b-b361-0a4adacd6f9a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2b5644d4-73e4-43fa-9f25-3a214bc35270": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ded2a7a9-e72d-4d8b-a5e3-6ca4b6cae7d1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5242d795-419a-4045-96c2-ab873ca3fee7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:276613bf-8def-416f-9c84-717d8e516f3c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:538c394d-e485-426a-be12-4200d03a3842": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8a4acc8d-1645-4cad-a376-90535031d8c9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b95d1357-318f-40b1-9d63-884553fefaed": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c32870e7-532f-4753-afc9-92e81a26f40c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4e09b340-679b-4948-9f83-6ae4557c604a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6e291f38-a9e4-4f75-ab8e-45b3739926a9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e8a74264-9b9f-4b16-bd86-65d54b5433e6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f33e506b-3ace-47f2-af48-68c22416ad09": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:32c33026-a477-4ae0-b5a2-0a596f19a71f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cc1dbef9-5568-41cf-85e3-98e100c89892": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:67bf4956-8e57-4cba-8765-ca6ae3ece523": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d63de326-e14b-493a-a188-fd3a2091131b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a17c9d66-1765-4188-b266-1918c2162063": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fb4ef838-b55b-4ece-b3bb-55468a8e7765": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c68cd931-3e44-4c8c-818b-e52b7fbc6366": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:775a0d02-9162-4b50-9be5-646d99bb1a44": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1757f7e2-3ccf-4026-a3ed-4c208e372526": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6d782147-c11a-4482-8117-13eec4ed3103": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7baad5d4-6167-4797-a436-44adcfd33af7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a8a539bd-3bb3-474b-b20f-b71e73931dfc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a64c0882-e997-4858-8d96-98c4e4ef2240": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:17b055cd-ee13-4e7e-8c4a-4939b4de3bba": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ebedb741-bf3f-41a3-998b-36eb9aabd557": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:da873b86-2026-4c83-8884-faa426ad328e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a1fa5d37-b899-434d-9958-f6c2024fbd8c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:abfa9c08-bbf8-4a75-b6f6-8d2e905e6232": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f39cf8a6-c4b1-412e-bf73-adcb100dfdf4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:79f8dcf5-4e37-4d19-93d3-e6e5550ec7a8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5690515e-aec5-4e84-85df-c57c77b6305c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:566e76bb-b014-4b4c-a53f-35409dc342c6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cd161be6-06e1-439f-a712-8f74b2251d88": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aa4686d7-039d-40b1-a2b6-f34a6d6d6793": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a0205038-50af-4aaf-9115-413b53c8603d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2c09e774-665b-4057-b7bc-2b54cc1f5c91": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:19144a62-6eff-4ba1-ad99-02ff0d61f411": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a09d4d75-c514-4e19-b2e5-597b6a6a6179": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7b182845-6e98-4296-ae5c-ac2307ce33d5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e76f5165-ec6f-49bc-bf54-7109ebd247d8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:77aeb7b5-d2ae-4762-8124-2e848f8c942b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ae7e548a-f809-40cc-a7d5-6a8d1d1a0ff6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:585df609-9ce1-46cf-8268-b47ecdb6ccdf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:93098344-aad4-4094-9aef-add035ca90af": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6fefafb3-53c0-4a91-bf7c-a72c50e19707": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0155464b-7fc9-428e-aa63-7770f2a53789": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2642cfec-50db-407c-9e2f-36e103569847": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6cf479b3-e889-417c-a049-e3d6c2bbaf4f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5c61f78d-687e-4e0d-aec2-e58d3916e59b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e48b4bfe-1289-4c2e-9295-0cbe53dd3daf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f052bba6-de7c-4fdb-9da7-4bafecfeae89": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:12f01f9e-4862-42ac-8060-fa52327dd056": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6162db1f-b065-40b6-8ab4-7993df24857a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b9330f7b-a4d9-4ea7-8ca6-2b9974d59281": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:01664698-5c7f-4ae4-9f01-f7d800db3192": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:263b27e5-b4f7-49f2-a35f-58820ca0fc38": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:68593992-e32d-4a05-b902-61f06c9ca002": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b306cd0f-f1c9-4758-b4a1-68643ac0debf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:89c57f08-1f6e-451b-8d2b-dfb66a728366": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2658a538-cae9-4a1a-a08e-d376d2a22b99": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:23a1bad1-7bc4-49fa-bbd0-2dda5f570477": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9e08906c-ad15-4c49-8152-fc39e74f436e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7fce310a-e77a-4379-992c-52c757d78169": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ccdad59c-b515-4164-9ce9-c3f70e415630": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:44dcc7c0-7210-4841-9e16-dd19f42c79fd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c41e8943-3e00-42b4-9c08-8d666d8c0089": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b1c19a10-e9c1-405f-bdf4-7969c4083602": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:04addf3e-527a-4dc8-ba26-860ba7ea588f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e6d1b1d9-296b-4aa3-88e5-59496960b781": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:32e2f524-6c5c-4d27-82cb-d819a3383da0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:15f24fe2-3e3a-49ac-b328-9e854682648c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aed5f3c7-fc6d-4cf4-859a-984d44f85ec9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9c87787a-3ee4-4bed-8e35-c4b43841a9d1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9d150924-49a3-4b3b-8d30-f6c799933246": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5149e095-ccdd-4f99-9592-16cfddf2b582": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:01080dac-2b99-44f1-aa8d-aae2b61b90c5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cb4b406a-594e-47a0-8cce-66b300c39706": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3934dc89-9929-4a10-bee0-c175a5fd46c4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:49f121e8-7428-41d7-967b-86bb3a547b89": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ee756537-5f2a-44f6-b88c-d5afe39de56e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:115f6b03-62c8-4601-bc8d-10a65209e956": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eda72a2e-6a20-4ce8-b699-98344025cf64": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9d7def63-eb40-412b-80b0-728579bebd2b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:564415fb-41fb-437f-8e03-18b7bb6d5824": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:62a8bf93-20d3-4e1b-9b46-d04a7ad036ed": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:17767ec9-1c6c-4202-a4c8-e86049c7b4dd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f0819124-cedb-490a-84bd-6d1d32db7d04": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1e310486-a0ea-4690-aaa1-ec73193fda19": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eef3865d-efe5-4ecb-adc0-a50942b35ffa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:493064e1-258f-4be8-ae18-89adc7f79675": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e3ec2363-bc29-42b7-bf05-8db3df510d8f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c18ecc0a-5077-4e3c-9e59-fb70ebb2145a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6dc8efb2-8b4a-4b9f-8801-9ab3b07f091c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0265fc5f-e37b-4a65-b975-21f812159b9c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7f6ae634-2db2-4e10-9ad5-dd9fe70256c2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:32451fec-cde2-4a00-81e7-e41bebea0a42": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:67fa4443-6204-441b-aa36-4c3387b839c6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:630bf972-33f5-47de-b97a-e433644f5f20": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:63988a63-c6ff-433d-8a3a-372d564ecbb3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6243792a-0e0f-45b4-817a-b63316d5a903": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:55925448-460e-4e76-a10b-9ab5d04ac734": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b5ff7f20-b4d9-4d6e-aa3a-8cae03e4a8a6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:19a71f6e-0627-45fd-a211-25b3b837cc86": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:11908174-542d-491b-b60e-181093141e9d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:817bc081-8bca-45ba-a933-c5d714e537dd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:34abc7ef-34c7-4d08-96a0-faf10b548609": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:13cb0379-c20b-4308-b3bb-db59ef3267ed": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:971cc08c-cbc1-4bff-b16c-a19aed12a825": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c2925158-172c-47e2-a061-c4bc7b7f7542": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:197fbf9f-e3f8-432b-8ebd-b29fa0c102d0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0d33c21d-fade-4fd3-9a19-508c784eb363": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad9bd325-23a7-437d-bd85-402c3a05a5f4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2516ade4-cde1-4017-8e30-d649c64cb1ab": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2cbea017-4384-4aac-8b0a-ebae9c43099d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d05d247a-4a12-4bd9-a744-dd68755a170e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:63cdd3e8-b86b-4304-9fbf-19e21ee327bc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a7b0daaf-94c4-4a62-ae2d-816a8ad454ab": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c0fe03ff-6524-4ff8-a5ef-d9e202660119": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ce1fd8ae-6ce1-4f29-bf81-9c79ceb0a415": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1c8b2ae8-c0a5-499b-8081-de441e0b1dd9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:27f05172-1f43-4fc0-be2b-42e7efac6896": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5f2784ee-7fa0-4baf-8265-4fca8aa6ee24": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5cadd759-b946-4c8f-ac8a-cf354681e0e8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ef8a28ce-a3b9-45ec-8a43-9a752e663916": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b6869f87-d048-43ff-b11f-0c3821a25a71": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a58caa35-c389-428c-99e5-9c00a04607ac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:656383fb-db79-42c0-851b-2e41286aa295": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1a16ffe4-aee8-4674-8cf2-886d5c34ed47": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1c8142e7-fb5a-451b-ac25-ce28ad952f18": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9d1c28ce-60e3-48cb-8357-e363b2ca214d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d9cf68b6-44a6-4c6a-88e4-502f65f893d6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8b4708cd-ac47-47a2-81b6-51200938025f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:948e71fb-fa98-4d5c-a907-d43b6ae7b227": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad57a1a1-9372-4c81-9146-969c9583dea8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c55f4332-47e9-444b-92b2-f7088d055106": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e321db1f-32fc-49ce-85ac-5b0d923cdad2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:04ba5c55-623f-4af5-828c-486c31732656": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:076eeae4-1659-44c8-b3bb-c4b88e2c5698": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:333694c8-5de5-4069-aef2-a2f3fb4749a2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d9f735e0-e032-41b3-9767-a87c40e38f33": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eb9a2ae1-0770-4c89-a200-e84b569f5ea3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6a5d513b-89e6-43f4-95b3-efd339d534fd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e92bac76-4a12-445c-810f-50861b0442a0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1b7c0c71-65b5-4aa3-9992-dc30e162755c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:df12a5c6-b8ee-4802-80b2-39e0a09ff12b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c2d0e9cd-73e4-4229-9d8f-9e940cc35fc4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e6ea920b-4852-448d-976f-67c4442acde2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:48efea8d-c305-4d7f-be60-13bcddca6253": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8a70521e-120e-4e87-8df9-831578c82e82": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f2fece01-b685-4ed8-b988-01eda488d585": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1c981929-3688-4ea5-af29-bd9a711e4b45": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4fcabfdd-4cc8-4631-838e-f59bb49cf048": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1406b3ce-cc6f-4a9e-b7d9-13a461b7e309": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bf04d847-aa16-4bf7-8ff5-7d55c134f629": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1d9b3b42-7e77-49af-8f0f-be57f553751e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3b0329c6-0ac8-4005-8a76-17f3f1de7f9e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bdd0f5bb-e786-4377-84d9-199cd756d468": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:30465af1-4fcd-4d39-8bf4-e4ae2c91ee5b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8dfea4c2-f105-424a-8a6d-41e99d0fa519": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9cb752fd-5cb4-43d1-a456-109d41f67ea3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:679db950-3cf3-4b18-8577-e8c4834a2176": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0a0ebe10-4b96-4ada-8d31-bcfd8d37a4ed": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4c7a4946-9730-49ad-9fdb-5e811fd5f47f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:db74244e-329c-48da-a96a-343fcaa43ee2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b25107c2-2258-40a4-891a-a7ed968bdef9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d9c6bd6d-0acd-4067-a589-f79ddf1634e5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fdd09c95-2686-4fd0-a76d-05b79b4d2536": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9a981f91-d4f5-4aaa-8729-8aaca0ce60aa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:437e823e-e5bb-446f-82b7-bd9be8346057": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:36adb7c7-19d9-49ac-b011-215f88fd27ef": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e615d6a9-690e-4a10-80e7-6f5e9cc3d788": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b34a4766-f65d-49c7-b85c-521698cadefa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bbde1fb6-ef63-43c3-b86b-d2cf12059538": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7f9df8d8-4f1b-4f02-bd50-20ff827bd61a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fe956a18-52be-4a39-b3b3-47bfe68cce9b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:76b55f92-68e6-479a-a8a9-bbba98129d1c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:afe282ed-6135-4bb0-82fc-26b1dcb4a99a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a058b957-2ad4-4a62-8bc3-5c3eee861d09": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7faddf8a-b2cf-4afe-bab4-8df09f0de796": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9ed8d90e-3465-49ef-825f-1cda7026dab2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:dc3e8acc-b689-4e7d-afc5-4e1f99eebf20": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:46b8271a-94e1-401a-9fac-1e736f5c1da0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cc50a2e7-0562-4bb8-8873-42e673c49864": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cec92fe1-ef2d-4108-98dd-66ea9bf51897": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c9f46535-0c67-4937-bdc8-83336bf82719": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8502c824-9434-4df7-a391-1f5a45540f9e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4ff1ab51-d3f5-4238-8736-b292c860480f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d12cc084-e92f-448a-a6eb-0798ea438d46": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6d47acec-8238-4969-9b08-39c8ce484010": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d8775c15-b7ad-41ca-b76f-37e3ec333ce4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4ffdc969-dbc6-44e0-b223-5746ed33dd55": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4586be3d-fb96-49ee-802e-2ed7a4c9ca00": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6e1b709b-5bd0-4903-b02c-620d3f0e90e6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:29b0b21f-1114-4234-9c16-28dc2f771765": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c651026f-342a-48e3-b962-47bcbe6e8a4d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ae2c1c38-4025-4cf7-852f-6d40f5033353": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cef1564c-4f29-4934-a5c2-430bba047161": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:257d94ba-5592-45e1-96b4-bc7a8aa6357c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4f647ff7-bb43-4775-85f0-664577e387c1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:45dbdf52-ad14-416c-b74f-a4676bb930f7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bf1ecfee-ddd8-41c6-8db6-008b5a0f09ef": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4e0bd9e5-d3bd-4053-bf84-018fa7337abc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1ce2fe17-36e0-40cf-a770-29fbff1772f0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:65553717-3625-46bf-8ceb-b4977705cf80": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d6b54d7b-d462-4f2e-a867-7437dcd5bf40": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:80826ca4-cdc8-435f-80cc-d4b7e546b414": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1191c0be-8b35-47a4-920b-b97828a773a0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b3917c3e-d678-40d8-a3f4-ff385901dcd5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d8ce230a-cfce-4bf5-a047-d51eacae3184": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:09686677-9117-4ec2-aa36-343b2569bfd5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:15710d2b-4518-4147-bb9d-9e433a7a6ccc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:00de56b5-699a-4ca9-bc55-3fbaae3dc72d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0f7fba6e-76b3-432c-b15b-b1d335bde11d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:690ba0d0-6625-46da-8bcd-60907f87435b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c86d5146-f452-4063-81e7-d0fa97abaabc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:adea992b-fd81-4dba-9278-6b1d7380929e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b78ad537-e365-4bc5-9de8-4a2cb460c31c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:43b4dbdf-ba50-4720-b2dc-2440f0be57a3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:958eb891-4f9c-476a-aa7f-2e98a416e1d0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8589affd-3dff-4572-aa6b-e899c827fcdb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b513a62b-3cc4-4d14-81db-2020319058d8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b96994b7-f929-4e85-8a3c-52dea8ea0299": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e8abe9c0-b46f-444d-a599-e01ec465e851": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ba4a15ea-89c5-470d-ad03-36527e6afcd6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:db3fc028-f8ed-4a4f-9fb6-51f5b72f8f39": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b24e8c35-e675-4678-93e7-fc224154c824": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d8439472-5487-4aa2-b99d-45ca1991a4ea": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4054582a-d08d-44f7-87bd-8a0a0b03f902": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5f629cda-2f5f-440a-9ce7-51dcb9e0903f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bf6185b7-ec27-4c2c-be63-fc5c2b9bd7ef": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:03935b54-5b18-4148-8b2c-490e9036cfc1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:de79bb24-9a64-49c0-99be-850f5e2d0d7b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:df6ecc59-1357-4bff-8b2a-53a88a188a40": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:703a085f-0e27-4314-82de-4d407e994f8e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0681e971-3baf-4fa5-99bd-8430e3400401": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad1c1473-fc35-4962-97b4-01a2ed295d49": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:300a9e37-8308-4e2b-9c49-fdbac5e5724e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e733273e-ff38-4a25-840b-b8103da9a473": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8dcaee00-9713-4be4-b47a-dbff3addc309": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:07301edb-9b7e-4376-813b-a6bcb2c600dd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:667f8912-9057-4803-8251-7e66e191a4db": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ab1dbd47-c668-45ef-ad88-6b2a3d6b82e4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9bc4a846-63ca-4765-afe7-5482f5114f06": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f5afc65b-2733-43b3-8666-2bea6723c406": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ecbe58eb-dbc5-4527-840f-18599c978e65": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5e4e1b00-b85d-4fe5-90e7-9ad84d42ef51": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:599f99e9-e3d3-439a-8120-77617757a560": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:182abd45-de1f-4cd1-accf-0e35728226f2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:77bb3b48-5a3f-4549-a642-1cca8e21cbb5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e62cd79a-fe88-4c41-ac50-ff0476160d4d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:018c887d-770d-48c4-988c-da73ca985d44": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:40e0bd78-5586-41e2-9a22-fd46f8d4c775": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:de33220a-3c07-4942-b7de-a6651884ec3f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ec6dd7a5-70c0-4cc7-bd31-b94c676afd1d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bc5e6303-96bb-4528-93ee-990a0e44857c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d0c92844-2e97-450c-8aa3-8da17bb8d27b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:754dd491-bf4b-48f5-97fe-2efb6552065b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8b717b19-48a6-4353-8143-807c274887db": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:76cff3aa-197f-4927-a64a-d461f252fd83": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d7546737-70c0-42a6-88d7-b6d2bc626c69": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:91168c09-7fdc-42de-b17a-79a899d0a2b8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2edf7feb-fa8b-4071-8071-4d2cb6757c4c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:083d96fa-d625-44e8-a043-4cf637cda1ec": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1e2f26b6-8478-452b-a2ae-f9c11651ecaf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c437524f-cd5d-4e93-b1b0-79166626ef11": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e2edb6f9-8f2c-4c9a-957b-b4ab7caf07db": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b0636caf-3b86-4a98-a2cb-6f1fabaa4338": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b7540caf-a383-462a-864b-54acfebc47da": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d4350469-258f-46b3-8ec6-7a3c23134826": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c6b5891a-ac71-44be-a21c-e22ef974f637": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f475b1e9-9c87-43f7-9625-f28d5c592857": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5886cdac-cc6d-450c-9886-af93633eee79": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f2220a8e-de7c-4c3a-9e30-a47ec2f782b7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ada8ff3c-02c2-463c-9c33-f10e4418ec59": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b128d844-20d1-474b-b936-ae82799ac88f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9b574fe7-4e93-47d0-b6e7-165597c768a8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:633ad9ca-9811-4694-9e32-495ca5fc6e63": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8302b599-5e46-423e-9000-0f2fa003d0b7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:399eb4ea-e38a-4cc9-932e-1ffc31c0d3e8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9e5734e0-f3b1-4f2e-8862-00a5c2206145": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1ae9d02e-040a-4779-aa41-9bd95608bf56": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b75a7ddb-f00a-4090-acca-cb203c1ad28f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:99778478-9ff5-4277-9aed-5f80c2e84e56": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ef1aea1a-9d0f-40a2-b518-87dcf5e6e380": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a5b3021d-7d76-4e3d-ae79-0d33870e977d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4707fe5c-6b9b-4474-a7e1-1bc12d2d33ba": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:afddba27-b005-4d4a-a87e-7fa55defe909": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0960c083-c4f4-4cc1-aef3-62b77a7e4443": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7091cd85-0346-447c-a036-fef304062f03": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3e836fc3-6523-47d0-95ed-23fbca378fea": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d9c3c382-4193-4ca5-b154-539929222cbc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:87ce5ef3-e145-42bb-86a1-a5c01d20b993": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:40a9c841-40bf-488d-abd5-f606b2e3ff78": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:11b357ef-5b9c-425b-8c8c-114f37640863": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:15a234fd-e93a-40c4-bd9e-25ed4688a055": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0e55be77-8e18-4c42-9f6f-a07a29790302": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d1b6734e-74d3-44c4-9081-af8740d101be": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:06ca4464-14e5-403e-9863-29515d5b76af": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2b073d30-722f-4214-91e8-4e1bc06a9ac5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:50e90db9-b8da-44c3-9696-9ab5134e1c86": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:936266f5-5749-484f-a0ac-40ef6c2eaff7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a5659cb1-d23d-48e6-8116-c82ca3d15f69": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c27fffd6-0e99-4ac7-bb31-f5c33e040a4e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7cd8c221-4568-4e35-81cf-40c0d560b54f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25dd10cc-aa17-41fd-ba25-fcfcc3c4955c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3022325c-b194-4cb5-80b0-fe6174630c98": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:751ecd70-f4a0-48d8-a943-4779b28b192d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:761841b2-d7f0-4db2-988f-24d1ebda2552": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1fc28fb2-0a53-423f-93a3-a0b3f5d0c1bb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:459ac442-bce3-401a-8761-9299b53b754e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f8257e1b-2463-4638-94b0-a31a066aef66": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c7c29764-8d1a-4b4b-ac74-975c938e82f5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:23d03c55-ecc2-4fd0-a58a-f55aab274237": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5b791db4-cb42-4e1d-a1a9-8c1b4f3d54ab": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5b2fc8db-145d-4378-887f-ad7d5a89a269": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a5744bca-07a7-464f-9d21-ee74b2e817d9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:07e9116e-a0db-45bf-ac2c-94ab800b5f3c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c57a3f51-10d7-4a4f-8759-cb47eadd5791": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0dcf00f6-c3a4-4884-8109-77621b71e465": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:18b33e90-c93d-4627-9219-3cb00a5c6678": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fdae7635-cbd6-4108-8aa6-1d4067cc98b7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5b30f303-6f49-4413-abc4-97fc10b15476": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0e413ce7-cdd8-4b9c-b340-8774a08c3d71": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f0352663-3710-40b7-885d-a2930c850b7c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7543950c-2eb3-473b-a4d6-b70aa2171665": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:972286b7-85b7-4a86-b8e5-69f1e206b122": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cc3b4a70-c3e8-4764-93a7-b9dcab0be691": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3d09ff11-1eae-4e24-b70b-f16e0ba7f02f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a3b020b2-ca18-43d8-a996-471fd4ae989b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:46d38110-0525-4141-a5d3-b7ffa36fe7a1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6cb478f1-0fe9-44b1-ac7c-c2e072661fbd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3a87887f-359a-4b46-b92a-6c3932c37a2a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2636ddbf-9045-47ba-b1fc-b8513ec60db1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2da479bb-140c-43a5-bd76-7f71e1dfc29d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:62478f82-48c0-4c8a-9421-c6ba7d9917c7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad309541-5d01-4eca-a34c-8642c4269d62": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fbc9427b-fde5-42a8-9656-6b5def4285d5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:61182650-7a3b-4a7f-984a-a911e0d7251d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4b331dbd-1c22-494f-8d06-7c4739858699": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eefa2cc6-636b-4ad1-b047-c7d0c0cd066b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0bb7266c-83fd-4a83-8a91-73ad19e1c643": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6e37444e-b8cd-47b0-ac4b-13b22b68b527": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:01748fed-edf1-4457-b701-d286d81e958b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:52e1af98-3d50-48d9-9ddf-8e4d07419d4b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9ac3625b-6df1-4342-b6d9-7ada26c6eef9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:36120dd2-dcce-4aa1-b83a-1004532a9182": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a5bab3b0-910b-463b-b96e-f558d6b61422": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c8f10cf1-dcfd-4b02-8a78-df1797fd062a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fe99bc8d-841d-4994-b1a3-9f03ad1404b9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7a9d0cca-c374-480f-ad15-5932425eaa57": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8eca4a5d-d817-45b8-8c28-92942950f610": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:881c323d-0a5e-4d12-b7dc-aefc9c6ddefd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:00e5313e-98f6-4f0c-88cc-ec80ca38302b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:67d63c8e-5528-4681-a581-ecd8f90cab2e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fe62880a-29db-4928-a921-517352ad408a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3ed65746-9396-43ef-930b-e678324802f2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9e67e805-d95f-427b-85b5-2a537e938997": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3a4b2a56-88b2-4c4f-a55f-75480a774149": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1ec4957d-30fd-49d4-a101-a417a15cbd8c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b7d0b5b9-bc10-4bbb-9781-ced65b820b9e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e904355e-730c-43a5-bc93-0982167291df": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d228c27d-e72f-4aee-ac3a-93cfa295c4f5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f5e54cf7-021b-476f-b51e-dc3efbb7b03d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a2e632f7-120c-4f60-8256-c18c368dcd01": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b99be0f0-a681-4e47-9f22-60d78869cf6c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:46d034f6-9954-425b-9e39-8eaaf384e579": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6f18a32c-d430-4c15-871b-324d8f37a844": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c256268a-29a9-4cd0-b2a2-837693027090": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0328c4f5-986c-4db2-802d-81a45588b28a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:18033471-7b54-4b09-a17b-d65c00afd153": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b3a797b3-5f9d-4128-a9a3-e66923816808": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d64d9133-5a4f-4627-9b1c-6c406c69434c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:08092d14-60e6-4dd7-92a8-36806d0122d3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:190476ac-6bdf-4b23-ab35-3484cf183ecf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:18cf6ab7-9746-435b-917d-3319b0a16e7d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bac8a51d-5d6c-408c-90f3-d66f34ee9df6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3952e3a4-c095-463c-acee-c021f8de6db5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f27fee36-103e-4427-87eb-95e8f80e1954": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:33f81af8-d06b-4489-b1ed-ee9359ef2526": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:62354129-a1ff-4693-851d-98433aebc352": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0674efac-cff0-429a-82ca-d39510733766": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4f3b6b7c-723c-41bd-a085-5925d0e2b331": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:443723a9-5264-439c-8e4a-79a0e1977a56": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:600359d2-75f4-4006-a324-e11f41041cec": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e147c94b-daac-44ad-a5de-6c4e621580ba": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5e673630-70a1-4a6e-a558-a92652ccbd15": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e7d0ebde-40b2-41f6-881d-b18dd6fda3ef": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ddcfa3a5-a0d8-48a1-8140-6b0dacd8c9dc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5ce59837-e848-4464-bfae-baea5d9a68c4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d97372c2-2efc-4686-bc5b-1392cec0fbe1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7474ec34-aff0-4118-b60a-ed6475ea6047": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:24266251-7f46-4ac1-b393-e7c00bf7c05b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7d8c5fbc-47b3-4ac9-9202-38a29a19dc68": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2ed8e60d-d57b-485c-a33d-4a6748e3951b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d18e7bda-35af-4a9b-b986-58e3f41a3493": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f615af14-09a0-488f-9b70-cec80e457d35": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:65ba861c-aac2-4a24-8d5a-504d0604fa17": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5976732b-2659-4346-9da6-b08de7e53384": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e1971f84-92e4-491d-8a70-962a6eab0b22": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:36e827bf-b5e8-4e08-bc89-3013eb627c3d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c30bc783-ef2e-42e1-ba7a-a506f494d76b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2730bb00-26a3-4e4d-9f0d-85607a9eec2e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:06a3b776-2119-46b0-b099-2d3983ee3cc6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:83bb7f24-79be-46ca-95cd-14cd12da1051": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:df2383ef-3b85-4788-9138-94594cc8781b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1a0ba3bb-9e00-49b1-9db7-5eef6373c8ac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6b7e5f80-7e6d-4816-a2b5-b7c8acc500b6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:64b66197-33f5-4266-a05d-ed0265966233": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c6538aad-0318-48d5-b480-4202176689fc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0206e792-0b9b-42f2-9c73-402821744949": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6bdcb2fa-1cfd-48e0-a194-3b936a072d26": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:126fb120-bd17-48f3-b0ca-bb68cedf13e6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5386fa3b-78bd-4ee9-b9a8-9cb922b08bec": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e58d2ee9-c024-4d7b-8c20-8142f794aecf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5f400ed1-671f-43b0-8415-bf0fdc571fc8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a2f5dd04-b1e1-4192-b35d-69f77efb2a11": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b7c9778a-5a57-4fc3-afd3-b730e93fd606": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c5fe7ffe-7dea-420b-9cbc-3e5b4bac191a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25206612-9007-4534-962b-4172f4d84b47": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:80b479ef-0665-433c-84ff-0a8319ffebce": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4f1635f8-dd48-47d7-93e5-ebcd5cfe4d67": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6b1215a2-f944-4c6a-97e3-a5c026b8462c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6d6162be-8053-4d94-8de7-abe14a205291": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25f0b9ab-6827-4fc3-bd1f-f4d9163e1b34": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2abc0f60-eed5-493d-8b90-ca78d1bc141d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:deaf5e39-9416-45e5-89c5-adaeccedff03": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2d2f49d0-7cc0-4ea5-badd-1fde64f6429e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8e275a07-1636-4a7e-8f7a-70546bada613": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:01f84c75-2897-40c1-a9be-f12cfdf750cd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4b73724e-79af-4f58-bcf9-a87033d8010c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a04989df-9bfc-4d33-9d24-b2cb32637d57": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bce39982-7d4c-432c-8e30-ec133c2b1dea": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e4d82fcc-bac1-480e-857b-8640587fe853": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:032f8e26-ab00-4e34-9c53-44a1a2b7f78f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c7296220-1b0c-49e7-a74f-b80f02f87d44": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3b8c7a85-bd21-4f35-91af-0b038073699d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:65ca9bc1-b452-4ecb-b088-72a2b9ff18d3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d316206d-fab2-412f-b743-875d239c7d23": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:810aaf43-cd0d-4cc7-a77c-5a1747f13be7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4c8c5340-7f79-47e3-8b02-979517de4a25": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:112c2b51-3a4a-461c-85e2-0406a065dbcb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:18560cdf-3d56-4905-8f56-057cf9b7ecc6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4b5e94c8-3a13-4621-b18a-717010003f67": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:30e1e3ef-118f-4392-b50a-400e3eec7b87": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a2b9013c-76b2-4601-a7d8-d2c2c9fb816b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:89e4b71b-bc67-4af2-9472-d7eb97789f1b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3b4f95b0-8b5b-42ed-80a6-f180bebe272c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:17e76011-24ae-409a-8654-c998df8d5416": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f8b78edc-673c-4f5d-b781-6c371b9038d9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:395e1159-f408-4791-aa3a-e32b34772617": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:68fd5bd5-c7d0-49f9-b104-9944656198e4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8a95554a-c316-480b-b873-205c9a72ded4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0e15bec0-3436-4333-9127-8bce055edd12": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a7f46a74-4e9d-4dad-b813-59de552292b4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c6dfc853-4028-4e39-b501-81b7400a8b6a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3b509fb7-c22b-43a9-beae-c17c8422ef67": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:771a00d8-6752-4443-a7ae-7585782a3b9b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eb69361e-aa8f-4a13-b51e-0e8fad198a59": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1f24cc41-92f6-40dd-b102-bc964da98b47": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a9134d89-76fc-4009-97a2-64482b4195b2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6f5e9d2c-5316-4177-9402-14dfe6749e4a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:86675edb-5e37-4ea0-96d1-a43c92724f72": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4d8d1e4a-a719-4d4a-a292-8a8a8040d959": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:08dbb723-ca62-4ad3-ba7f-6c33e33b6302": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e056359d-30b1-4910-b4c8-445e5bb11390": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:88ab3161-2642-48b8-93c1-57249fb01e83": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8d0420b5-2617-4933-acdb-ea541457ad03": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bc11ce68-ab81-43f8-8ffb-ec8fbccf495c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9d4718ff-6dd9-4e4d-aba3-93910d5080b4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ec8959d2-e1a9-47c3-b821-9245e0ce5e31": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:33b25b5c-1f4e-4f36-bee0-0cbe4d6405a8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c662f80f-adb5-40a4-a2aa-574406b4ad07": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ef0f72c0-9735-4aaa-98d2-c1d7bf020a2c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:553afb7a-bf26-42d7-b6f9-abc456253f34": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bab617f3-0447-4768-b2ea-72cd0e26ed71": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7172db39-b89e-4302-8bff-02d0c713861d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a2369950-c5aa-49b7-a9c4-24c6c9db5f0a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7b6c58c3-b3c3-4821-b4a4-0533fa09a4e1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:896eaecd-1c24-4e21-9940-1e804d3a03db": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:179e008c-58ff-4745-9656-612dcd70949a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:246ce78a-8755-4c2c-bed4-2178c8f8b112": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d0b67f0c-98c1-40a2-adaa-6e842a128425": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:55850051-23e8-44ef-9553-382fae20d5f4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:690bdb6c-af12-431d-a59d-1a1d25232f81": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:effa2fd9-3ad0-48c7-8a80-3b2de2c40f54": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9b1337ef-a3dc-41c1-a971-f51626d649bc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0bda2ef5-745b-40fa-839f-b9da92c630a1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9f0a2cb3-0562-481d-a548-d99d9b139de4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5ab1149c-eb33-464d-b5a8-60c329ff23aa": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9056eda2-0e43-425f-9411-ea5c4d55644b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:99abea28-7e04-42fa-8cc8-ea6d3b07c1ac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2c9ba30c-685f-407e-9600-ee2f5df41256": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:792ea3a3-bf03-4ff1-9663-3b93bef27def": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad7cd8d1-a404-46d0-937a-71d0604cc0ba": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25202424-c349-49df-a0f8-e73f71f53d23": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:21d75558-4332-4f26-acbf-472bc08ac756": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d4e2b4ab-8ea2-4ae3-9601-3517cf932324": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fcd4d06d-b404-4e62-9c2d-baaf0cde7027": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9181fde1-f5b7-4a3c-8c6b-e35884c94a96": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:98be4e09-49f8-43aa-a108-6b5ed0a9771b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7929dfbe-b1d3-476c-a3e3-9b0991b0babc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3504d0aa-c9cf-4360-8689-8d2350ac74fe": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6599d27c-60a2-443f-9ed9-4bf2cdb18d79": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:77f9e424-927b-43b6-80c7-3101125aa719": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1afcc83d-3a78-4d20-9d71-d746668d7193": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aef26efc-8275-4e59-abcc-adfc8c1a32c0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:554292cc-e8a7-493f-97e6-468d9df7fa0c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:eb94f95c-1ee6-4f51-a2eb-54934f6f1390": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ec7b3e0e-b462-4a91-8ff9-42ed7c8f1fa3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:120b290f-8a64-49b3-a531-88844ef29ce2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0f6c04d1-76ed-4943-aced-35020b482621": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c7d5c1fe-189f-4f4b-94b4-1ae8a693e353": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:dc0dfe5f-9c54-45c4-9ea6-3ee46e58d5c6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c17ab92d-ffee-4008-af6a-9cadd6d248ad": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fad16682-d7fd-4d27-a0d7-f15eb8aa2e55": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a0d2cc7d-8c36-4227-97e1-541e16c25a34": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aa3ca53c-cd40-419e-b81b-4d3d6c304eac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:59c4c512-500e-4e02-9a2e-b1b9b225eda2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a3556e0d-c589-48d8-8c93-1f50525e33bf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e67adddd-b1cf-42d3-9121-2396742fe185": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1d6da401-db0b-411e-b96a-874dd7c771c8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:893d1b69-2f94-4c37-9824-832b089d118a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ad65f11c-84ae-4a61-b4a3-dee35c3a7f64": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9258178e-3271-418d-b7ff-e8b0f087ec8f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2166c4b7-8bd5-4047-994c-500623761dbe": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1b705cd6-5c16-48d0-9bf9-16d607164f62": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c875b827-f30c-403e-90de-4937ef9ca3ac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3eb9c149-f262-447b-9f89-394fb744cf38": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0589ba8b-f6e0-4169-ae69-88d593d2f6d5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a136e0b1-d5cd-4861-9e1f-1363b5cc248d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:25b36135-27d2-487a-8e1f-d80caa7e94e5": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aaa38692-c579-4b6d-81ce-7eb99f1bcab4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:9e7f52be-8960-46fe-84ef-81013fd623bb": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4d92b98a-8734-4871-8142-43c921afacae": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c8baf2b5-be51-44c6-9f76-becf24ae5f94": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a6ee2763-32a4-475a-ba71-d199904ca2d4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2e7ae60c-a515-49d6-bca5-07001e035b10": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2a458bd2-afa6-4a9c-af81-7b249cab7eb8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:69adc14b-832e-41d4-8f0f-d899441e73f9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2cbddc7e-9058-471c-8ed6-997c6de913af": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1d51de7a-b8dd-4b58-9a13-b4e72bf08f23": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:717e3d8f-6213-4a75-95e1-fa6e80ce7d14": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0246d227-ffba-4c75-aa76-73384c80ba8d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d1891ff3-aa9e-45ce-a596-9c1662f325d0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:4c9b9cdd-772c-45d9-ab42-6d58bb65815a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5dd8bf95-e8fc-4ea6-9bc5-f6bd5f0625da": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cace3216-bcf4-4fae-b064-bbce989c19ec": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7ad21a3f-cc16-4d95-8f95-48a66fcfaff6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8ebc968e-005a-4dd7-bb81-f54ca94859b3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1c9c7d83-f6c5-4f05-b700-b78e069f3235": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:46ff95be-35ac-4f52-bdc3-ad7a60dd4f99": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f0a762b3-ee2c-4297-a046-5ba096b28caf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:fec0329a-0494-4691-bcd5-ed3a1053be1b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:babc07a6-447e-4662-a956-48add6a4a780": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:83c80d03-7e93-442e-a9a1-2db3054edfd3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b084b603-668e-4a10-ba7e-9087e1e09e16": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:86223313-ad4b-4350-9e0b-0c2c8c164d95": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b80d7278-eda1-43c2-93d9-e3eff712a996": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1740997f-af2f-43b5-b909-32799a01cf8b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a3ba6021-2084-472c-99b4-ef0bfdf100c1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:21e42946-679e-4754-a026-80c0316bd811": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f4a5d3fe-028f-47b3-b7a2-fbc887242087": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cab4d1a0-3e39-4fd1-a1e8-1b56ebcae4b1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2cad432a-8157-489a-b3f2-d91d11ed89ff": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0f780806-8604-4bd7-b857-08588160ce7f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:55950a9e-fcb9-4d37-b714-41782c3ac5f9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d07b218b-4e49-47b1-8b04-0313c61641b9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d54e3eea-b389-477d-94d2-8c862950df9d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:476f3063-840e-4ec4-b74f-2ffac65d5738": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b31029d3-edab-4cd6-b59d-e8d3cc8b7e37": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:69227705-b408-496a-8a48-4c8fbe2f5866": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:54f19457-2949-4fdb-abee-56cc4f49125e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:30d47564-867d-4b89-aa58-6ee89efd8748": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2a2021ae-c4a4-4216-8eff-7e78006cd413": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a6b2f3a9-aece-4a23-807c-264f8591af64": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:33fb1ee7-65c9-48bf-87b7-6e8185853346": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1e1045e7-33f2-466e-97c3-86ddc531799d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:18381f30-b0b7-4f92-bf3c-a5be334105f3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3f3d87cd-3c10-4ae9-8cb1-386bb5f32579": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e1571e55-8e48-4c42-ae27-8d2fb79fa8ce": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:03bfc5b6-192d-42f9-8b73-aebb60ac4c31": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7c3a132c-447d-40af-a6bc-07552b2c3be1": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b8d30f7b-6b0e-4d49-a283-03dddc1ed911": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1f8fcf5a-e8e3-47ce-9845-49f9760a3379": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:8fb3e34c-fc38-4aa6-8b32-abc8027fa4a8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6f01b549-f4b0-46d2-aeee-6443bdcba588": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3b5119e1-7aba-4ee0-9ffa-ce265c4b12f0": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:aba4150c-6bba-4a5c-b320-7e04c0c3758d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ebb8f0d7-ef01-4523-b976-f1ecf08f4c81": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0704470d-a616-41ea-ad60-779730302889": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ea98f3f0-914c-4706-9f8b-70399a93c7bc": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1c7afafe-2a67-4362-86fb-fca988a0b0bf": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:54307970-2fbf-4ef8-9299-a1b7817088a3": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7fd2b0c2-1536-4ccd-870b-cba462c04b60": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:24fe3ff5-a0a3-4020-a0b1-cdf25ac17905": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2dfe463f-2fe6-4141-a8a2-71f39745929c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2b22c305-5c9d-44df-a943-e438e179562d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b4a2fa2e-7323-4ddc-929a-451b21d4c7f7": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:50dfc492-cbf6-42f4-9c6d-e6230f5b4056": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:496f3ee8-735b-4759-90be-e2a362908344": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:2a85b19f-8a72-494f-af18-207ac48aaf39": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:85da71df-ff75-40b7-a2b0-11f211573a75": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:bb8a0f09-3967-4445-bb41-dff869b4f471": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:71dc0ca2-4553-48e6-b9a7-704d968d57a4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a8d054b8-0f83-440f-8db2-cff44748513f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f0d25b43-8e3e-4e83-b15d-81be61d7cb90": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:642b51ec-22f4-49dc-8f85-23e59c9f0d72": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:370e6c72-f445-4c0f-8a0e-bb74f6537722": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:cb417910-1df8-4bfe-9714-e6e589b04784": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:79534afb-7840-45ed-8cb9-39768f3abe8a": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ea2553ea-885d-45c2-9a0e-3ae69e3898f2": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:81198291-8ea6-40ae-957a-065dd05f3329": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6071df48-c74e-4e07-8c75-90b0fb2a3e8d": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:011ca499-1827-430d-8c8f-3214dd8d5993": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:d4038ba1-fdd5-44e4-9ca5-e8eca174e804": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:3313ee01-b6c6-49bd-870d-7c8da68f4490": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:404a75f3-ff73-424c-bd26-e6b3b59ed970": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1bb671b9-00d7-4dbd-8b8b-06aa1b248653": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:26f0c0b5-d4f5-4be1-91c4-7dd54cfad47b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:5788b628-55f5-41cc-bc6c-80180e138a70": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b27292fe-2921-4a04-8cb8-6b9621ff6c61": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b4d55238-f51f-4fbd-aa35-d42fa9c085dd": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a32e33b9-887a-4392-93fe-3287f77300d9": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:49aab1c8-3142-4512-a074-6faac6eca362": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:6a274e36-d08a-40a8-9db9-4bb167938561": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0e0dfe06-fdea-49a0-82e2-0cfbf2f66b7f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7522838c-425b-45e2-b5c9-33a4f6f4ac71": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:11d47b5a-6667-4094-bf1c-6107e090f357": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:293679a6-a92d-47f0-8a44-46c9a4e57d7b": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:ffbaeec1-8f14-4db1-a45e-27b0da37356f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:54ecc227-b18a-4271-b5d3-5cf15c434579": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1a064e99-6a36-482f-8a06-60bbe44016c8": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1cf58918-b885-4246-a11e-d86cf766a627": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:35db6ba1-f631-4087-b7e5-cbc1413e015c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:47576646-60dd-4f3d-b23a-ea7a7d5a3038": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:e8d8a14f-d3f2-413b-82af-7951128d8d21": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a2e532cb-aea9-4864-bc13-211be5438490": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:dd41c3cd-910a-4da2-906d-a3ae0da289c6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:c7ef852b-0d00-49c0-beb7-431421b5f586": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b357a586-b07f-41a1-80ff-f5e3974cb160": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a051e164-b256-46ec-8721-7cfc7a1b9d96": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:524f528b-4c8c-4cde-b91c-8ad5419723ac": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f5ad7b5e-97cb-4ca6-81ff-be2f1b658c7c": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:7f4c0fd7-3d88-4a6e-8869-d20a645ffb0e": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a961d8a0-9579-4532-a108-e3fed198eafe": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:26d11c1d-eacb-4c41-9395-95d877ca06fe": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:09702d64-d041-4c89-a4a4-eda455d3103f": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b43dc82d-c3da-4808-acea-f19e4264caea": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:15631e2e-d6a3-477f-838f-f7c10dbdeb26": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a4ef7596-f51b-4cc7-8185-9fb834389fab": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:b42d41ed-8bad-48e5-9db5-d11e7bc545ad": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:1a1b98ab-6160-4d41-816c-babf4bb43406": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:289b4df2-26d4-4dd9-9b54-849547a37330": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:04ac8eb1-0c74-4fdd-8c79-c6921b388c32": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:0be4b116-f316-42b4-aabe-4f88df8ed5d6": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:f549ac89-87c8-4035-a206-c07dcfb9fef4": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
+  },
+  "MAC:slot_05:a906810f-dda9-4235-add8-6326d0b0ba08": {
+    "versao": 1,
+    "hash": "76f8d41a4f578f26"
   }
 }

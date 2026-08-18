@@ -483,9 +483,11 @@ function lerUsoDoSolo(doc: DocTexto) {
 const CARIMBO_IN007: { chave: string; oficial: string; variantes: string[]; exigidoPelaIN: boolean }[] = [
   { chave: "areaTerreno", oficial: "ÁREA DO TERRENO", variantes: ["ÁREA DO TERRENO ORIGINAL"], exigidoPelaIN: true },
   { chave: "areaTotalConstrucao", oficial: "ÁREA TOTAL DA CONSTRUÇÃO", variantes: [], exigidoPelaIN: true },
-  { chave: "permeavel", oficial: "FORRAÇÃO VEGETAL PERMEÁVEL", variantes: ["Área de cobertura vegetal permeável"], exigidoPelaIN: true },
-  { chave: "naoPermeavel", oficial: "FORRAÇÃO VEGETAL NÃO PERMEÁVEL", variantes: ["Área de cobertura vegetal não permeável"], exigidoPelaIN: true },
-  { chave: "vegetalTotal", oficial: "ÍNDICE TOTAL", variantes: ["Área de cobertura vegetal TOTAL"], exigidoPelaIN: true },
+  // "I. P. Grama"/"I. P. Cob. veg. não permeável"/"I. P. Total" achado real no processo 50724 —
+  // "I.P." = Índice Paisagístico, terceira grafia diferente pro mesmo trio de campos
+  { chave: "permeavel", oficial: "FORRAÇÃO VEGETAL PERMEÁVEL", variantes: ["Área de cobertura vegetal permeável", "I. P. Grama"], exigidoPelaIN: true },
+  { chave: "naoPermeavel", oficial: "FORRAÇÃO VEGETAL NÃO PERMEÁVEL", variantes: ["Área de cobertura vegetal não permeável", "I. P. Cob. veg. nao permeavel", "I. P. Cob. veg. não permeável"], exigidoPelaIN: true },
+  { chave: "vegetalTotal", oficial: "ÍNDICE TOTAL", variantes: ["Área de cobertura vegetal TOTAL", "I. P. Total"], exigidoPelaIN: true },
 ];
 
 function lerPrancha(doc: DocTexto) {
@@ -523,6 +525,20 @@ function lerPrancha(doc: DocTexto) {
    * prancha traz só o volume atendido (como na amostra, "V = 2,32m³"), o carimbo está fora do
    * modelo e a conferência do ICCAP fica sem base.
    */
+  /**
+   * REGRA MESTRA — elevador em imóvel comercial (Fábio, 2026-08-18).
+   *
+   * "Previsão"/"projeção" de espaço pro elevador NÃO conta como ter elevador — é tratado
+   * EXATAMENTE como não ter. Em imóvel comercial só existe "ou tem ou não tem", sem meio-termo.
+   * Um poço reservado pra instalação futura não gera tráfego de passageiros hoje.
+   *
+   * Achado real (processo 50724): a palavra "ELEVADOR" aparece na prancha, mas só em
+   * "PROJEÇÃO ESPAÇO ELEVADOR" (poço reservado, nunca instalado) e numa especificação de
+   * esquadria ("JA03 Elevador Vasca..." — é tipo de janela, não elevador de prédio). Procurar
+   * só a palavra "ELEVADOR" dá falso positivo; o sinal certo é a frase de previsão/projeção.
+   */
+  d.previsaoElevadorSemInstalar = /PROJE[ÇC][ÃA]O\s+ESPA[ÇC]O\s+ELEVADOR|PREVIS[ÃA]O[\s\S]{0,20}ELEVADOR/i.test(t);
+
   const iccap = valorPerto(doc, "ICCAP", /EXIGIDO|ATENDIDO|\d+,\d+/i, 60)
              || valorPerto(doc, "ÍNDICE DE CONTROLE E CAPTAÇÃO", /V\s*=|\d+,\d+/i, 60);
   d.iccapExigido = num(t.match(/EXIGIDO\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
@@ -1107,8 +1123,17 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       "cobertura vegetal permeável no carimbo", undefined, vig.projeto ?? null);
   set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "ENCONTRADO",
       "ICCAP EXIGIDO no carimbo (IN 007/2024)", undefined, vig.projeto ?? null);
-  // área impermeabilizada: quando o carimbo traz o EXIGIDO, ela é dedutível do parâmetro do UDS
-  if (pr.iccapExigido != null && uds.iccapDivisor) {
+  /* área impermeabilizada: achado real (memorial das caixas de retenção do processo 50724) —
+   * é a área do lote MENOS a área de grama (permeável), sem descontar mais nada (nem
+   * estacionamento, nem construção separadamente — tudo que não é grama já conta como
+   * impermeável). Bate exato com a conta do próprio projetista: 5.071,49 − 569,29 = 4.502,20m².
+   * Preferido ao cálculo reverso (ICCAP EXIGIDO × divisor) por não depender do carimbo declarar
+   * EXIGIDO — quando os dois discordam, é sinal de erro no ICCAP declarado ou no rótulo de
+   * grama lido, então vale a pena manter o reverso como fallback pra quando falta a grama. */
+  if (pr.areaTerreno != null && pr.permeavel != null) {
+    set("areaImpermeabilizada", fmt(pr.areaTerreno - pr.permeavel), "CALCULADO",
+        `${fmt(pr.areaTerreno)} m² (lote) − ${fmt(pr.permeavel)} m² (grama/permeável)`);
+  } else if (pr.iccapExigido != null && uds.iccapDivisor) {
     set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "CALCULADO",
         `${fmt(pr.iccapExigido)} m³ × ${uds.iccapDivisor} m²/m³ (parâmetro do Uso do Solo)`);
   }
@@ -1122,18 +1147,40 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
         undefined, vig.uso_solo ?? null);
   }
 
-  // fração ideal
-  if (/90,00m²/.test(uds.fracaoIdeal ?? "") && /ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
-    set("aabEApac190", "SIM", "CALCULADO", uds.fracaoIdeal);
-  }
+  // fração ideal: a lógica completa (comercial × zona territorial) está mais abaixo, junto com
+  // os outros 4 campos da aba — precisa de `ehComercial`/`ehHabitacional`, calculados só lá embaixo.
 
-  // área permeável exigida — fórmula sobre o parâmetro do UDS
-  if (pr.areaTerreno && uds.paisagisticoMin) {
-    set("opcao1TotalExigidoAreaTerreno", fmt((pr.areaTerreno * uds.paisagisticoMin) / 100), "CALCULADO",
-        `${fmt(pr.areaTerreno)} m² × ${uds.paisagisticoMin}%`);
-    set("opcao2TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.10), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 10%`);
-    set("opcao2TotalExigidoAreaTerreno2", fmt(pr.areaTerreno * 0.05), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 5%`);
-    set("opcao3TotalExigidoAreaTerreno", fmt(pr.areaTerreno * 0.25), "CALCULADO", `${fmt(pr.areaTerreno)} m² × 25%`);
+  /* Índice paisagístico — 3 caminhos de conformidade, MUTUAMENTE EXCLUSIVOS, decididos pelo que
+   * o carimbo mostra (não pelo que se "exige" em abstrato — a versão anterior calculava os 4
+   * valores sempre, mesmo pros caminhos que o projeto nem usa). Regra do Fábio (2026-08-18),
+   * revista ao vivo no processo 50724:
+   *   Opção 1 (15% só grama): só quando NÃO há cobertura vegetal não permeável nenhuma.
+   *   Opção 2 (10% grama + até 5% não permeável): quando HÁ as duas frações.
+   *   Opção 3 (25% não permeável, zero grama): só quando NÃO há grama nenhuma.
+   * O valor de cada opção que se aplica é o PERCENTUAL alcançado daquela fração (não a área,
+   * não um "exigido" abstrato) — a(s) opção(ões) que não se aplicam ao caso concreto viram NP,
+   * nunca ficam em branco. */
+  if (pr.permeavelPct != null || pr.naoPermeavelPct != null) {
+    const temGrama = (pr.permeavel ?? 0) > 0;
+    const temNaoPermeavel = (pr.naoPermeavel ?? 0) > 0;
+    const pctGrama = pr.permeavelPct != null ? `${fmt(pr.permeavelPct)}%` : null;
+    const pctNaoPermeavel = pr.naoPermeavelPct != null ? `${fmt(pr.naoPermeavelPct)}%` : null;
+    if (temGrama && !temNaoPermeavel) {
+      set("opcao1TotalExigidoAreaTerreno", pctGrama, "CALCULADO", "só grama, sem cobertura não permeável — Opção 1");
+      np("opcao2TotalExigidoAreaTerreno", "sem cobertura não permeável — se aplica a Opção 1, não a 2", "regra aplicada sobre dado já lido nesta leitura");
+      np("opcao2TotalExigidoAreaTerreno2", "sem cobertura não permeável — se aplica a Opção 1, não a 2", "regra aplicada sobre dado já lido nesta leitura");
+      np("opcao3TotalExigidoAreaTerreno", "há grama — Opção 3 exige zero grama", "regra aplicada sobre dado já lido nesta leitura");
+    } else if (temGrama && temNaoPermeavel) {
+      np("opcao1TotalExigidoAreaTerreno", "há cobertura não permeável — Opção 1 exige só grama", "regra aplicada sobre dado já lido nesta leitura");
+      set("opcao2TotalExigidoAreaTerreno", pctGrama, "CALCULADO", "fração de grama da Opção 2");
+      set("opcao2TotalExigidoAreaTerreno2", pctNaoPermeavel, "CALCULADO", "fração não permeável da Opção 2");
+      np("opcao3TotalExigidoAreaTerreno", "há grama — Opção 3 exige zero grama", "regra aplicada sobre dado já lido nesta leitura");
+    } else if (!temGrama && temNaoPermeavel) {
+      np("opcao1TotalExigidoAreaTerreno", "sem grama — Opção 1 exige grama", "regra aplicada sobre dado já lido nesta leitura");
+      np("opcao2TotalExigidoAreaTerreno", "sem grama — Opção 2 exige mínimo de grama", "regra aplicada sobre dado já lido nesta leitura");
+      np("opcao2TotalExigidoAreaTerreno2", "sem grama — Opção 2 exige mínimo de grama", "regra aplicada sobre dado já lido nesta leitura");
+      set("opcao3TotalExigidoAreaTerreno", pctNaoPermeavel, "CALCULADO", "zero grama, só cobertura não permeável — Opção 3");
+    }
   }
 
   set("tipoProcessoLip", "APROVAÇÃO DE PROJETO", "ENCONTRADO", "valor padrão do assunto");
@@ -1186,6 +1233,13 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     np("trafegoElevadores", "edificação térrea", "regra aplicada sobre dado já lido nesta leitura");
     np("acessoVertical", "edificação térrea", "regra aplicada sobre dado já lido nesta leitura");
   }
+  /* Regra mestra do Fábio (2026-08-18) continua valendo em princípio — em comercial, previsão/
+   * projeção de elevador sem instalar conta como não ter — mas a DETECÇÃO por texto que eu
+   * tinha escrito aqui (procurar "PROJEÇÃO ESPAÇO ELEVADOR") deu falso positivo no próprio
+   * processo 50724: a frase aparece, mas o projeto TEM elevador real (sala "Elevador 3,15m²"
+   * ao lado da escada, na planta do 1º pavimento). "Projeção" nesse contexto de desenho é termo
+   * de representação gráfica (o elemento projetado numa vista), não "reservado sem instalar".
+   * Removido até achar um sinal textual confiável — fica MANUAL igual antes. */
 
   // ── documentos: presença no catálogo, ou alerta do próprio Uso do Solo
   if (vig.uso_solo) {
@@ -1199,7 +1253,13 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   if (vig.projeto) {
     np("tDC", "nenhum documento de T.D.C. na pasta", "regra aplicada sobre dado já lido nesta leitura");
     np("demolicao", "nenhum documento de demolição na pasta", "regra aplicada sobre dado já lido nesta leitura");
-    np("certidaoDeAcessib", "certidão de acessibilidade não regulamentada", "regra aplicada sobre dado já lido nesta leitura");
+    // padrão do Fábio (2026-08-18): valor sempre é o texto completo, nunca "NP" — a Prefeitura
+    // não emite essa certidão, então "NP" (não se aplica) confundiria com "não pertence"
+    C.certidaoDeAcessib = {
+      valor: "Não Implementada Pela Prefeitura", resultado: "NAO_APLICAVEL",
+      fonte: "certidão de acessibilidade não regulamentada pela Prefeitura",
+      evidencia: "regra aplicada sobre dado já lido nesta leitura",
+    };
     np("dimensoesDoLoteConferemComRememb", "sem remembramento, remanejamento ou desmembramento na pasta", "regra aplicada sobre dado já lido nesta leitura");
   }
 
@@ -1285,8 +1345,20 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
         `porte admitido no Uso do Solo: ${uds.areaMaxima}`);
   }
 
-  // ── fração ideal: só se aplica por unidade territorial, e uma exclui as outras
-  if (/ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
+  /* ── fração ideal: regula subdivisão em "economias" — só existe em uso habitacional.
+   * Regra mestra do Fábio (2026-08-18): se o carimbo/requerimento já classificou comercial,
+   * a aba inteira é NP, ponto — nem chega a olhar zona territorial. Achado real (processo
+   * 50724): `aabEApac190` não tinha NENHUM caminho de NP, só o de SIM (linha removida acima) —
+   * ficava em branco em todo processo comercial, e o Fábio tinha que digitar NP à mão. */
+  if (ehComercial && !ehHabitacional) {
+    np("aabEApac190", "uso comercial — fração ideal só se aplica a uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+    np("aosEApaIntegranteDaArau", "uso comercial — fração ideal só se aplica a uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+    np("chacarasVerificarNomeDoBairroNa", "uso comercial — fração ideal só se aplica a uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+    np("chacarasVerificarNomeDoBairroNa2", "uso comercial — fração ideal só se aplica a uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+    np("quitineteEmAab130", "uso comercial — fração ideal só se aplica a uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+  } else if (/ADENSAMENTO B[ÁA]SICO/i.test(uds.unidadeTerritorial ?? "")) {
+    // uso habitacional em AAB: ARAU/APA e Chácara são zonas territoriais diferentes, se excluem
+    if (/90,00\s*m²/.test(uds.fracaoIdeal ?? "")) set("aabEApac190", "SIM", "CALCULADO", uds.fracaoIdeal);
     np("aosEApaIntegranteDaArau", "unidade territorial é AAB", "regra aplicada sobre dado já lido nesta leitura");
     np("chacarasVerificarNomeDoBairroNa", "unidade territorial é AAB, não chácara", "regra aplicada sobre dado já lido nesta leitura");
     np("chacarasVerificarNomeDoBairroNa2", "unidade territorial é AAB, não chácara", "regra aplicada sobre dado já lido nesta leitura");

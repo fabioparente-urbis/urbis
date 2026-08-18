@@ -442,11 +442,17 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     observacao: "o carimbo da amostra declara só o atendido, o que é pendência contra a IN 007/2024",
   }),
   doDoc("nDeCaixasDeCaptacao", "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"]),
-  porVisao("areaImpermeabilizada", "prancha.iccap", "linha ÁREA IMPERMEABILIZADA DO TERRENO no quadro do ICCAP, colado como imagem"),
-  /* O leitor TENTA ler do carimbo: a IN 007/2024 obriga a linha "ICCAP: EXIGIDO ... / ATENDIDO ...".
-   * Quando o projetista omite o EXIGIDO — como na amostra — o resultado é NAO_ENCONTRADO, e isso é
-   * pendência de carimbo, não limitação do leitor. Declarar PENDENTE_VISAO escondia esse fato.
-   * A trava 13b pegou: a matriz dizia que ninguém preenchia, e o leitor preenchia. */
+  /* v2 em 18/08/2026: era PENDENTE_VISAO (achava que só dava pra ler numa imagem colada). Achado
+   * real (memorial das caixas de retenção, processo 50724): área impermeável = área do lote
+   * MENOS área de grama — os dois já saem do carimbo como texto, sem precisar de visão nenhuma.
+   * Fallback pro cálculo reverso (ICCAP EXIGIDO × divisor do UDS) quando falta a grama. A trava
+   * 13b pegou: a matriz dizia que ninguém preenchia, e o leitor já preenchia. */
+  derivado("areaImpermeabilizada", "areaTerreno − permeavel (grama), com fallback iccapExigido × divisor do UDS",
+    [
+      { regra: "DERIVAR_DE_CAMPO", descricao: "área do lote menos área de grama/permeável" },
+      { regra: "FONTE_PRIORITARIA", descricao: "cálculo reverso do ICCAP só entra quando falta a grama" },
+    ],
+    { versao: 2, depende: ["areaTerreno", "areaPermeavelProjetada"], fontesComparadas: ["PRANCHA"] }),
   doDoc("volumeExigidoDaCaixa", "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"], {
     versao: 2,
     ondeProcura: ["rótulo ICCAP + 'EXIGIDO'", "linha 'EXIGIDO ... m³' no carimbo"],
