@@ -1,0 +1,133 @@
+[
+  {
+    "sobrevive": {
+      "id": "e0a809ef-a74c-4e3d-b352-5c7ac49f70b4",
+      "grupo_de": "PROCESSOS MODIFICAÇÃO SEM ACRÉSCIMO",
+      "grupo_para": "CARIMBO",
+      "ordem_de": 58,
+      "ordem_para": 52
+    },
+    "perde": [
+      {
+        "id": "21d75558-4332-4f26-acbf-472bc08ac756",
+        "grupo": "CORREDOR VIÁRIO",
+        "ordem": 9045
+      }
+    ],
+    "texto": "Área total construída;",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"CARIMBO\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "eb94f95c-1ee6-4f51-a2eb-54934f6f1390",
+      "grupo_de": "EMBARQUE E DESEMBARQUE",
+      "grupo_para": "CALÇADA",
+      "ordem_de": 9057,
+      "ordem_para": 306
+    },
+    "perde": [
+      {
+        "id": "a32e33b9-887a-4392-93fe-3287f77300d9",
+        "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+        "ordem": 9172
+      },
+      {
+        "id": "b357a586-b07f-41a1-80ff-f5e3974cb160",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9189
+      }
+    ],
+    "texto": "Para as vagas externas à edificação o rebaixo deverá estar posicionado para dar acesso no máx. a três vagas;",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"CALÇADA\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "26f0c0b5-d4f5-4be1-91c4-7dd54cfad47b",
+      "grupo_de": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "grupo_para": "CALÇADA",
+      "ordem_de": 9168,
+      "ordem_para": 306
+    },
+    "perde": [
+      {
+        "id": "e8d8a14f-d3f2-413b-82af-7951128d8d21",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9185
+      }
+    ],
+    "texto": "Hab. Coletiva, independentemente do tamanho da testada, admite-se a junção dos rebaixos do meio-fio para: §8º",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"CALÇADA\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "5788b628-55f5-41cc-bc6c-80180e138a70",
+      "grupo_de": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "grupo_para": "CALÇADA",
+      "ordem_de": 9169,
+      "ordem_para": 306
+    },
+    "perde": [
+      {
+        "id": "a2e532cb-aea9-4864-bc13-211be5438490",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9186
+      }
+    ],
+    "texto": "Vagas de visitante externas à edificação;",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"CALÇADA\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "b27292fe-2921-4a04-8cb8-6b9621ff6c61",
+      "grupo_de": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "grupo_para": "CALÇADA",
+      "ordem_de": 9170,
+      "ordem_para": 306
+    },
+    "perde": [
+      {
+        "id": "dd41c3cd-910a-4da2-906d-a3ae0da289c6",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9187
+      }
+    ],
+    "texto": "Acessos a estacionamento com manobra interna ao terreno;",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"CALÇADA\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "0e0dfe06-fdea-49a0-82e2-0cfbf2f66b7f",
+      "grupo_de": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "grupo_para": "BAIA DE DESACELERAÇÃO DE VELOCIDADE",
+      "ordem_de": 9175,
+      "ordem_para": 283
+    },
+    "perde": [
+      {
+        "id": "f5ad7b5e-97cb-4ca6-81ff-be2f1b658c7c",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9192
+      }
+    ],
+    "texto": "Baia de desaceleração de velocidade",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"BAIA DE DESACELERAÇÃO DE VELOCIDADE\"), as outras copias desativadas"
+  },
+  {
+    "sobrevive": {
+      "id": "7522838c-425b-45e2-b5c9-33a4f6f4ac71",
+      "grupo_de": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "grupo_para": "BAIA DE DESACELERAÇÃO DE VELOCIDADE",
+      "ordem_de": 9176,
+      "ordem_para": 283
+    },
+    "perde": [
+      {
+        "id": "7f4c0fd7-3d88-4a6e-8869-d20a645ffb0e",
+        "grupo": "Rebaixo para atividades econômicas em geral §11º",
+        "ordem": 9193
+      }
+    ],
+    "texto": "Área de embarque e desembarque interna ao lote",
+    "motivo": "duplicata; nenhuma copia estava no grupo certo — sobrevivente movida pro grupo que o Despacho Geral Oficial confirma (\"BAIA DE DESACELERAÇÃO DE VELOCIDADE\"), as outras copias desativadas"
+  }
+]

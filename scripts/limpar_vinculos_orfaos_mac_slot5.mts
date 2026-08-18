@@ -21,8 +21,9 @@ import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const APLICAR = process.argv.includes("--aplicar");
+const ARQUIVO_PARES = process.argv.find((a) => a.endsWith(".json")) ?? "mac_slot5_dup_resolvidas.json";
 const pares: { desativar: { id: string }; gemea: { id: string } }[] = JSON.parse(
-  readFileSync(join(import.meta.dirname, "mac_slot5_dup_resolvidas.json"), "utf8"),
+  readFileSync(join(import.meta.dirname, ARQUIVO_PARES), "utf8"),
 );
 const gemeaDe = new Map(pares.map((p) => [p.desativar.id, p.gemea.id]));
 const ids = [...gemeaDe.keys()];

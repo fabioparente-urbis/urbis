@@ -1,0 +1,72 @@
+[
+  {
+    "desativar": {
+      "id": "6599d27c-60a2-443f-9ed9-4bf2cdb18d79",
+      "grupo": "DESNÍVEL DO TERRENO",
+      "ordem": 9052
+    },
+    "gemea": {
+      "id": "d64bd290-b879-42c9-86b9-19e585f681fc",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 3
+    },
+    "texto": "Área construída, número de pavimentos, descrição de pavimentos;",
+    "motivo": "duplicata exata; posicao no Despacho Geral Oficial confirma que pertence ao grupo \"INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL\""
+  },
+  {
+    "desativar": {
+      "id": "d07b218b-4e49-47b1-8b04-0313c61641b9",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9116
+    },
+    "gemea": {
+      "id": "77f9e424-927b-43b6-80c7-3101125aa719",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 9053
+    },
+    "texto": "Apresentar o De Acordo da COMAER, conforme uso do solo (abaixo);",
+    "motivo": "duplicata exata; posicao no Despacho Geral Oficial confirma que pertence ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "476f3063-840e-4ec4-b74f-2ffac65d5738",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9118
+    },
+    "gemea": {
+      "id": "16892a1a-4a48-4602-8ed7-266a95d3bf24",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 18
+    },
+    "texto": "Anexar RRT/ART de projeto, com área e endereço conforme projeto apresentado, declarando que atende às regras de acessibilidade;",
+    "motivo": "duplicata exata; posicao no Despacho Geral Oficial confirma que pertence ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "b31029d3-edab-4cd6-b59d-e8d3cc8b7e37",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9119
+    },
+    "gemea": {
+      "id": "b236de08-8f61-44ea-b64a-5b5befaf4b40",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 19
+    },
+    "texto": "Anexar RRT/ART de execução, com área e endereço conforme projeto apresentado, declarando que atende às regras de acessibilidade;",
+    "motivo": "duplicata exata; posicao no Despacho Geral Oficial confirma que pertence ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "69227705-b408-496a-8a48-4c8fbe2f5866",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9120
+    },
+    "gemea": {
+      "id": "b872e042-a2cd-4258-9107-e20559690526",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 20
+    },
+    "texto": "Anexar RRT/ART de projeto e execução da caixa de recarga, indicando volume total da(s) caixa(s);",
+    "motivo": "duplicata exata; posicao no Despacho Geral Oficial confirma que pertence ao grupo \"DOCUMENTAÇÃO\""
+  }
+]

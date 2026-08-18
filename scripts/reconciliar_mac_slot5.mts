@@ -40,6 +40,7 @@ import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 const APLICAR = process.argv.includes("--aplicar");
+const ARQUIVO_PARES = process.argv.find((a) => a.endsWith(".json")) ?? "mac_slot5_dup_resolvidas.json";
 const MODELO_SLOT5 = "88451782-86ed-47b5-b34c-e2e2b8f3a99f";
 
 type Par = {
@@ -50,7 +51,7 @@ type Par = {
 };
 
 const pares: Par[] = JSON.parse(
-  readFileSync(join(import.meta.dirname, "mac_slot5_dup_resolvidas.json"), "utf8"),
+  readFileSync(join(import.meta.dirname, ARQUIVO_PARES), "utf8"),
 );
 
 const sb = createClient(
