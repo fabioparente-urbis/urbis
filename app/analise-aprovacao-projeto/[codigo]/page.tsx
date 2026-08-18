@@ -611,7 +611,7 @@ export default function AnaliseAprovacaoProjeto() {
         </div>
       )}
 
-      <div className="px-6 pt-4">
+      <div className="bg-[var(--bg-card)] border-b border-[var(--border)] px-6 py-4">
         {/* ─── Cabeçalho ─────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex flex-wrap items-center gap-2">
@@ -631,16 +631,33 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
+            <button onClick={() => router.push("/admin/checklists")}
+              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              📋 Gerenciar MAC
+            </button>
+            <a href={`/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}`} download
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors"
+              title="Baixa todos os itens com status, filtro que marcou e observações — dá para restaurar tudo">
+              📊 Exportar Excel
+            </a>
+            <button type="button" onClick={() => inputImportRef.current?.click()} disabled={importando}
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors"
+              title="Restaura a análise a partir de um Excel exportado desta tela">
+              {importando ? "⏳ Importando…" : "📥 Importar Excel"}
+            </button>
+            <input ref={inputImportRef} type="file" accept=".xlsx" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void importarExcel(f); e.target.value = ""; }} />
           </div>
 
-          <div className="text-right ml-auto">
-            <h1 className="text-lg font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
+          <div>
+            <h1 className="text-xl font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
             <p className="text-xs text-[var(--text-muted)]">Aprovação de Projeto</p>
             {salvando
               ? <p className="text-xs text-[var(--warning)] animate-pulse">⏳ Salvando…</p>
               : <p className="text-xs text-[var(--success)]">✓ Salvo automaticamente</p>}
             <p className="text-sm">
-              Nº do Alvará (Projeto): <span className="font-mono text-[var(--accent)]">{codigo}</span>
+              <span className="text-[var(--text-muted)]">Nº do Alvará (Projeto): </span>
+              <span className="font-mono text-[var(--accent)]">{codigo}</span>
             </p>
             {processo?.proprietario && (
               <p className="text-xs text-[var(--text-muted)]">{processo.proprietario}</p>
@@ -1112,10 +1129,6 @@ export default function AnaliseAprovacaoProjeto() {
             className="w-full py-2 rounded-lg text-sm font-bold border bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)] mt-1">
             🗺️ Via / Logradouro
           </button>
-          <button onClick={() => router.push("/admin/checklists")}
-            className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
-            📋 Gerenciar MAC
-          </button>
           <button onClick={() => router.push("/admin/filtros-slot5")}
             className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors"
             title="Criar e editar os filtros que tiram itens da análise">
@@ -1196,23 +1209,9 @@ export default function AnaliseAprovacaoProjeto() {
             independente do Slot 1.
           </p>
 
-          {/* ── Backup e manutenção ───────────────────────────────────── */}
-          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mt-3">
-            Backup
-          </p>
-          <a href={`/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}`} download
-            className="w-full text-center bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold py-2 rounded-lg text-sm transition-colors"
-            title="Baixa todos os itens com status, filtro que marcou e observações — dá para restaurar tudo">
-            📊 Exportar Excel
-          </a>
-          <button type="button" onClick={() => inputImportRef.current?.click()} disabled={importando}
-            className="w-full bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm transition-colors"
-            title="Restaura a análise a partir de um Excel exportado desta tela">
-            {importando ? "⏳ Importando…" : "📥 Importar Excel"}
-          </button>
-          <input ref={inputImportRef} type="file" accept=".xlsx" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) void importarExcel(f); e.target.value = ""; }} />
-
+          {/* ── Manutenção ─────────────────────────────────────────────
+              Exportar/Importar Excel e Gerenciar MAC subiram pro topo,
+              junto com Home/Sair/LIP — mesmo padrão do Slot 1. */}
           <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mt-3">
             Manutenção
           </p>
