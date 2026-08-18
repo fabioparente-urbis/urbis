@@ -1399,6 +1399,12 @@ export default function ProcessoClient() {
       URL.revokeObjectURL(url);
       // Confirma o número apenas após download bem-sucedido
       const _num = parseInt(numDI, 10);
+      // Documento emitido com sucesso → desmarca "LIP não concluído" automaticamente
+      if (lipIncompleto && processoDbId) {
+        setLipIncompleto(false);
+        fetch("/api/processos", { method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: processoDbId, lip_incompleto: false }) }).catch(() => null);
+      }
       if (!isNaN(_num)) {
         for (let i = 0; i < 3; i++) {
           try {
