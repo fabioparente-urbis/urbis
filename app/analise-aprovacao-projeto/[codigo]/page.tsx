@@ -1108,7 +1108,7 @@ export default function AnaliseAprovacaoProjeto() {
             );
           })}
 
-          <button onClick={() => { void salvar(marcas, fontes, observacoes, true); router.push(`/logradouro/${encodeURIComponent(codigo)}`); }}
+          <button onClick={() => { void salvar(marcas, fontes, observacoes, true); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-aprovacao-projeto/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}
             className="w-full py-2 rounded-lg text-sm font-bold border bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)] mt-1">
             🗺️ Via / Logradouro
           </button>

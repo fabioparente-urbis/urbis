@@ -2412,7 +2412,7 @@ export default function ProcessoClient() {
             </button>
             {ehSlot5 && (
               <button
-                onClick={() => router.push(`/logradouro/${encodeURIComponent(idUrl)}`)}
+                onClick={() => router.push(`/logradouro/${encodeURIComponent(idUrl)}?voltar=${encodeURIComponent(`/processo/${idUrl}?tipo=${tipoUrl}`)}&rotulo=${encodeURIComponent("Voltar ao LIP")}`)}
                 title="Cadastro de Logradouros — largura de via, calçada e hierarquia viária"
                 className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
               >

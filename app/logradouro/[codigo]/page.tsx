@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 
 type DadosVia = {
   bairro?: string; nome_logradouro?: string; hierarquia_viaria?: string;
@@ -17,7 +17,14 @@ const vazio = (): Slot => ({ bairroBusca: "", bairroOpcoes: [], logradouroBusca:
 export default function LogradouroPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const codigo = params.codigo as string;
+  /* Página compartilhada por LIP e pelas 3 telas de MAC (aceite-sei, regularização,
+   * aprovação de projeto) — sem `voltar` explícito não há como saber quem chamou, e o padrão
+   * antigo (sempre `/analise-regularizacao`) mandava até quem veio do Slot 5 de volta pro
+   * Slot 1. Cada chamador agora manda seu próprio caminho de volta. */
+  const voltarPara = searchParams?.get("voltar") || `/analise-regularizacao/${encodeURIComponent(codigo)}`;
+  const rotuloVoltar = searchParams?.get("rotulo") || "Voltar ao MAC";
   const [slots, setSlots] = useState<Slot[]>([vazio(), vazio(), vazio(), vazio()]);
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
@@ -31,19 +38,11 @@ export default function LogradouroPage() {
       const j = await r.json();
       let bairroSlot0 = "";
       let logSlot0 = "";
+      let jaTinhaValorSalvo = false;
       if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
-        const novosSlots = await Promise.all(j.data.map(async (v: DadosVia, idx: number) => {
-          if (!v) return vazio();
-          let logOpcoes: string[] = [];
-          if (v.bairro) {
-            try {
-              const rl = await fetch(`/api/logradouros?bairro=${encodeURIComponent(v.bairro)}&q=`);
-              const jl = await rl.json();
-              logOpcoes = jl.data || [];
-            } catch { /* silencioso */ }
-          }
-          return { ...vazio(), bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v, logradouroOpcoes: [] };
-        }));
+        jaTinhaValorSalvo = true;
+        const novosSlots = j.data.map((v: DadosVia) =>
+          v ? { ...vazio(), bairroBusca: v.bairro || "", logradouroBusca: v.nome_logradouro || "", dados: v, logradouroOpcoes: [] } : vazio());
         setSlots(prev => prev.map((s, i) => novosSlots[i] || s));
         bairroSlot0 = j.data[0]?.bairro || "";
       } else {
@@ -59,8 +58,11 @@ export default function LogradouroPage() {
           ));
         }
       }
-      // 3. Para o slot 0 com bairro definido, pré-carrega lista de ruas
-      if (bairroSlot0) {
+      /* 3. Pré-carrega a lista de ruas do slot 0 SÓ quando ele veio vazio do LIP (precisa que o
+       * analista escolha). Quando já existe valor salvo (`dados` preenchido), abrir a caixa de
+       * sugestões por cima do card com os dados é o bug que o Fábio reportou — o campo já tem
+       * resposta, não precisa de sugestão nenhuma. */
+      if (bairroSlot0 && !jaTinhaValorSalvo) {
         try {
           const rl = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairroSlot0)}&q=`);
           const jl = await rl.json();
@@ -122,7 +124,7 @@ export default function LogradouroPage() {
       body: JSON.stringify({ codigo, vias: slots.filter(s => s.dados).map(s => s.dados!) }),
     });
     setSalvando(false); setSalvo(true);
-    setTimeout(() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`), 900);
+    setTimeout(() => router.push(voltarPara), 900);
   }
 
   const CAMPOS: [string, keyof DadosVia][] = [
@@ -139,8 +141,8 @@ export default function LogradouroPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <header className="bg-[var(--bg-primary)] border-b border-[var(--border)] px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`)}
-          className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-sm">← Voltar ao MAC</button>
+        <button onClick={() => router.push(voltarPara)}
+          className="text-[var(--text-muted)] hover:text-[var(--primary-text)] text-sm">← {rotuloVoltar}</button>
         <h1 className="text-lg font-bold">🗺️ Via no Cadastro Imobiliário</h1>
         <span className="ml-2 text-[var(--text-muted)] text-sm font-mono">{codigo}</span>
       </header>
@@ -197,9 +199,9 @@ export default function LogradouroPage() {
             className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-8 py-3 rounded-xl text-sm transition-colors">
             {salvo ? "✓ Salvo!" : salvando ? "Salvando..." : "💾 Salvar"}
           </button>
-          <button onClick={() => router.push(`/analise-regularizacao/${encodeURIComponent(codigo)}`)}
+          <button onClick={() => router.push(voltarPara)}
             className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold px-6 py-3 rounded-xl text-sm transition-colors">
-            Voltar ao MAC
+            {rotuloVoltar}
           </button>
         </div>
       </main>

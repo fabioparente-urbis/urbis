@@ -2003,7 +2003,7 @@ export default function MacPage() {
 
           {/* Botão Via / Logradouro */}
           <button
-            onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}`); }}
+            onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-regularizacao/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}
             className="w-full py-2 rounded-lg text-sm font-bold border transition-all bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)] mt-1"
           >
             🗺️ Via / Logradouro
