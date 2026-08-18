@@ -87,6 +87,18 @@ export default function Rastreabilidade() {
   const [aberto, setAberto] = useState<string | null>(null);
   const [processoBusca, setProcessoBusca] = useState("");
   const [processoAtivo, setProcessoAtivo] = useState("");
+
+  // pré-preenche o processo e muda para a aba MAC quando aberto via MAC → do slot_05
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const p = params.get("processo");
+    if (p) {
+      setProcessoBusca(p);
+      setProcessoAtivo(p);
+      setModulo("MAC");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [soLacunas, setSoLacunas] = useState(false);
   const [fPostura, setFPostura] = useState("");
 
