@@ -198,19 +198,6 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     podeSerNP(`larguraDoPasseio${n}`, "CADASTRO_LOGRADOUROS", "o Uso do Solo lista uma via apenas", { depende: ["quantasFrentes"] }),
   ]),
 
-  // ═══════════════ DOCUMENTOS EMITIDOS PELO URBIS ═══════════════
-  // Auditoria de 28/07/2026: o registro está VIVO (20 registros, os últimos de 27/07). Não é
-  // legado nem foi absorvido pelo MHD. O que falta é o FATO: o slot 5 nunca emitiu despacho.
-  ...([1, 2, 3, 4, 5] as const).flatMap((n) => [
-    aguardandoFato(`numeroDeDespachoDa${n}Analise`, `despacho da ${n}ª análise ainda não emitido`, "despacho"),
-    aguardandoFato(`dataDa${n}Analise`, `despacho da ${n}ª análise ainda não emitido`, "despacho"),
-  ]),
-  aguardandoFato("numeroDoLaudo5", "laudo ainda não emitido", "laudo"),
-  aguardandoFato("dataDoLaudo5", "laudo ainda não emitido", "laudo"),
-  aguardandoFato("numeroDoParecerDeIndeferimento", "parecer de indeferimento ainda não emitido", "parecer de indeferimento"),
-  aguardandoFato("dataDoParecerDeIndeferimento", "parecer de indeferimento ainda não emitido", "parecer de indeferimento"),
-  aguardandoFato("numeroDoParecerDeArquivamento", "parecer de arquivamento ainda não emitido", "parecer de arquivamento"),
-  aguardandoFato("dataDoParecerDeArquivamento", "parecer de arquivamento ainda não emitido", "parecer de arquivamento"),
   {
     chave: "houveMudancaDeAnalista", declaracao: "AUTOMATICO", implementado: true,
     // derivação DENTRO de uma fonte só (quantos usuários distintos emitiram), não confronto

@@ -51,7 +51,7 @@ const noBanco = await camposDoBanco(m.assuntoId);
 const fantasmas = new Set(CHAVES_FANTASMA["LIP:slot_05"] ?? []);
 
 secao("1-5 · cobertura: a matriz cobre o LIP, e só o LIP");
-t("1. os 136 campos do LIP existem na matriz", campos.length === noBanco.size,
+t(`1. os ${campos.length} campos do LIP existem na matriz`, campos.length === noBanco.size,
   `matriz ${campos.length} × banco ${noBanco.size}`);
 
 const chaves = campos.map((c) => c.chave);
@@ -165,20 +165,20 @@ if (!fs.existsSync(AMOSTRA)) {
 
   console.log(`\n  cobertura real: ${preenchidos.size} de ${noBanco.size} campos preenchidos na amostra`);
 
-  secao("14 · a trava dos 136: nenhum campo termina uma execução sem resultado");
+  secao(`14 · a trava dos ${campos.length}: nenhum campo termina uma execução sem resultado`);
   const chavesMatriz = new Set(campos.map((c) => c.chave));
   const fechados = fecharResultados(campos, r.campos);
-  // chaves fantasma (ex.: `certidao`) não são da matriz — contam à parte, não nos 136
+  // chaves fantasma (ex.: `certidao`) não são da matriz — contam à parte, não no total
   const fechadosNaMatriz = Object.keys(fechados).filter((k) => chavesMatriz.has(k));
-  t("14a. tudo que não é preenchido pela tela recebeu resultado (135 de 136 — falta só `observacoes`)",
+  t("14a. tudo que não é preenchido pela tela recebeu resultado (todos menos `observacoes`)",
     fechadosNaMatriz.length === campos.length - 1,
     `${fechadosNaMatriz.length} de ${campos.length - 1}`);
 
   // `observacoes` só nasce no aceite (preenchidoPor "tela") — simula o que a rota
-  // /api/lip/aceitar-pasta faz, para conferir que a execução completa fecha em 136.
+  // /api/lip/aceitar-pasta faz, para conferir que a execução completa fecha em todos os campos.
   const comObservacoes = { ...fechados, observacoes: { resultado: "CALCULADO" as const, valor: "log da leitura", fonte: "aceite" } };
   const comObsNaMatriz = Object.keys(comObservacoes).filter((k) => chavesMatriz.has(k));
-  t("14b. a execução completa (com o aceite) fecha exatamente em 136", comObsNaMatriz.length === 136,
+  t(`14b. a execução completa (com o aceite) fecha exatamente em ${campos.length}`, comObsNaMatriz.length === campos.length,
     `${comObsNaMatriz.length}`);
 
   const semDeclaracao = Object.keys(comObservacoes).filter((k) => !chavesMatriz.has(k) && !fantasmas.has(k));
@@ -220,7 +220,7 @@ if (!fs.existsSync(AMOSTRA)) {
     .reduce((acc: Record<string, number>, [, v]: any) => {
     acc[v.resultado] = (acc[v.resultado] ?? 0) + 1; return acc;
   }, {});
-  console.log(`\n  distribuição dos 136 resultados: ${Object.entries(distribuicao).map(([k, n]) => `${k}=${n}`).join(" · ")}`);
+  console.log(`\n  distribuição dos ${campos.length} resultados: ${Object.entries(distribuicao).map(([k, n]) => `${k}=${n}`).join(" · ")}`);
 }
 
 secao("MAC · itens cadastrados");

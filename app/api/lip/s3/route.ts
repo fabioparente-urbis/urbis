@@ -5,6 +5,7 @@ const _modeloValidado: GeminiModel = GEMINI_MODEL;
 import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
 import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
+import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
 import { aplicarMarcadores } from "@/lib/promptCampos";
 
 const supabaseAdmin = createClient(
@@ -72,6 +73,7 @@ export async function POST(req: NextRequest) {
       tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
     }
     const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
+    const blocoArea = blocoPromptCompatibilidadeArea(tipoProcesso);
 
     // Marcadores resolvidos pelo banco ({{CAMPOS_DO_ASSUNTO}},
     // {{ESQUELETO_JSON}}, {{CAMPOS_VAZIOS}}). Prompt sem marcador passa
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
       assunto_id: assuntoValido ? assunto_id : null,
       codigo: typeof codigo === "string" ? codigo : null,
     });
-    const promptFinal = conteudoResolvido + ctxDocs + blocoMarco;
+    const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea;
 
     // Cria job no banco
     const { data: job, error: jobErr } = await supabaseAdmin

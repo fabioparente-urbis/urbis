@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { gerarLaudo, type DadosLaudo, type SimNao } from "@/lib/geradores/gerarLaudo";
+import { compararAreas, ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,7 +14,7 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { processoId } = await req.json();
+    const { processoId, confirmarDivergenciaArea } = await req.json();
     if (!processoId) {
       return NextResponse.json({ erro: "processoId obrigatório" }, { status: 400 });
     }
@@ -71,6 +72,34 @@ ${membro.cau_crea}`;
     // Helper para ler campos do JSON dados
     const d = p.dados || {};
     const v = (campo: string) => d[campo]?.valor ?? null;
+    const tipoProc = String(p.tipo_processo || "regularizacao");
+
+    // ── Compatibilidade de área (Slot 1 — Regularização SEI) ──────────
+    // Autorizado explicitamente pelo usuário em 2026-08-04: antes de
+    // emitir o Laudo, confere se a área a regularizar do Projeto, do
+    // Laudo Técnico, da ART de Levantamento e da Fiscalização (Vistoria)
+    // batem entre si. Se não baterem, avisa com destaque ANTES de gerar
+    // o documento — o analista decide se segue mesmo assim
+    // (`confirmarDivergenciaArea: true`). Não afeta nenhum outro tipo de
+    // processo (Aceite SEI etc.) que também usa esta rota.
+    let avisoAreaConfirmado: string | null = null;
+    if (ehRegularizacaoSei(tipoProc)) {
+      const veredictoArea = compararAreas({
+        projeto: { valor: v("areaTotal") },
+        laudo: { valor: v("areaLaudo") },
+        art: { valor: v("areaArt") },
+        vistoria: { valor: v("areaVistoria") },
+      });
+      if (!veredictoArea.compativel) {
+        if (!confirmarDivergenciaArea) {
+          return NextResponse.json(
+            { erro: "AREA_DIVERGENTE", precisaConfirmar: true, veredictoArea },
+            { status: 409 }
+          );
+        }
+        avisoAreaConfirmado = `⚠️ ÁREA DIVERGENTE — analista confirmou geração mesmo assim (${new Date().toLocaleString("pt-BR")}): ${veredictoArea.mensagem}`;
+      }
+    }
 
     // O textarea de "observações" acumula, além do texto do analista, blocos
     // de log automático gerados a cada leitura P3 (delimitados por
@@ -181,7 +210,7 @@ ${membro.cau_crea}`;
       nomeAnalista,
       dataEmissao:  new Date(),
 
-      observacoesFinais: stripLogAutomatico(mac?.observacoes),
+      observacoesFinais: [stripLogAutomatico(mac?.observacoes), avisoAreaConfirmado].filter(Boolean).join("\n\n") || undefined,
     };
 
     const buffer = await gerarLaudo(dados);
@@ -202,7 +231,6 @@ ${membro.cau_crea}`;
     // ── MRP: grava geração do laudo automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
-      const tipoProc = String(p.tipo_processo || "regularizacao");
       await gravarRegistroMRP({
         processo_codigo: processoId,
         tipo_processo: tipoProc,
