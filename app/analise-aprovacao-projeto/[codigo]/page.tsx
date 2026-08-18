@@ -81,6 +81,8 @@ export default function AnaliseAprovacaoProjeto() {
   const [salvandoIncompleto, setSalvandoIncompleto] = useState(false);
   const [confirmarLimpar, setConfirmarLimpar] = useState(false);
   const inputImportRef = useRef<HTMLInputElement>(null);
+  const inputPastaRef = useRef<HTMLInputElement>(null);
+  const [lendoPasta, setLendoPasta] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notificar = useCallback((m: string) => {
@@ -387,6 +389,51 @@ export default function AnaliseAprovacaoProjeto() {
 
   function marcarDecidido(f: FiltroProposto, decisao: "aceito" | "recusado") {
     setDecisoes((prev) => ({ ...prev, [f.id]: decisao }));
+  }
+
+  /**
+   * LER PASTA (IA): manda a pasta inteira; o servidor acha o último de cada documento e o Gemini
+   * avalia os itens pendentes. Nada é gravado sem o analista aceitar — a resposta vira proposta.
+   */
+  async function lerPastaIA(arquivos: File[]) {
+    setLendoPasta(true);
+    try {
+      const fd = new FormData();
+      fd.append("codigo", codigo);
+      arquivos.forEach((f, i) => {
+        fd.append(`arquivo_${i}`, f);
+        fd.append(`caminho_${i}`, (f as any).webkitRelativePath || f.name);
+      });
+      const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha na leitura");
+
+      const novasMarcas = { ...marcas };
+      const novasFontes = { ...fontes };
+      let aplicados = 0;
+      for (const [id, st] of Object.entries(d.itens ?? {})) {
+        if (novasMarcas[id]) continue;           // nunca sobrescreve resposta existente
+        novasMarcas[id] = st as Status;
+        novasFontes[id] = d.fontes?.[id] ?? "IA";
+        aplicados++;
+      }
+      const bloco =
+        `━━━ LEITURA DA PASTA COM IA ━━━\n` +
+        `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) sugeridos de ${d.avaliados} pendentes\n` +
+        `Documentos lidos (últimos de cada): ${(d.documentosLidos ?? []).map((x: any) => `${x.papel} (${x.arquivo})`).join(" · ")}\n` +
+        `Arquivos na pasta: ${d.arquivosNaPasta} · modelo ${d.modelo} · prompt v${d.versaoPrompt}` +
+        ((d.incompatibilidades ?? []).length
+          ? `\nIncompatibilidades apontadas:\n${d.incompatibilidades.map((s: string) => `  ⚠ ${s}`).join("\n")}` : "");
+      const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+
+      setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+      await salvar(novasMarcas, novasFontes, novasObs, true);
+      notificar(`IA sugeriu ${aplicados} item(ns) — confira: a fonte de cada um está no item.`);
+    } catch (e: any) {
+      notificar(`Erro na leitura: ${e?.message ?? e}`);
+    } finally {
+      setLendoPasta(false);
+    }
   }
 
   /** Restaura a análise a partir do Excel exportado desta tela. */
@@ -1092,6 +1139,16 @@ export default function AnaliseAprovacaoProjeto() {
               🔄 Reavaliar filtros
             </button>
           )}
+
+          <button type="button" onClick={() => inputPastaRef.current?.click()} disabled={lendoPasta}
+            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"
+            title="Lê a pasta inteira, acha o último projeto/ART/uso/certidão e manda pro Gemini avaliar os itens pendentes">
+            {lendoPasta ? "⏳ Lendo pasta…" : "📁 LER PASTA (IA)"}
+          </button>
+          <input ref={inputPastaRef} type="file" multiple className="hidden"
+            /* @ts-expect-error atributos de seleção de pasta não estão no tipo do React */
+            webkitdirectory="" directory=""
+            onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) void lerPastaIA(fs); e.target.value = ""; }} />
 
           <button onClick={() => salvar()} disabled={salvando}
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
