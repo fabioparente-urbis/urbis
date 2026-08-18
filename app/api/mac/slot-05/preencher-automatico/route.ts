@@ -48,9 +48,13 @@ async function carregarTextosDaPasta(codigo: string): Promise<Record<string, str
   if (!docs?.length) return {};
 
   const papelPorDoc = new Map(docs.map((d: any) => [d.id, d.papel as string]));
+
+  // SÓ A VERSÃO VIGENTE de cada documento. Concatenar as versões antigas junto faria um filtro
+  // de "palavra ausente" deixar de acionar por causa de texto que o requerente já substituiu —
+  // no 50724 a certidão tem 3 versões e o requerimento 2.
   const { data: versoes } = await supabaseAdmin
-    .from("mhd_versoes").select("documento_id, conteudo_id")
-    .in("documento_id", docs.map((d: any) => d.id)).limit(500);
+    .from("mhd_versoes").select("documento_id, conteudo_id, vigente, versao")
+    .in("documento_id", docs.map((d: any) => d.id)).eq("vigente", true).limit(500);
   if (!versoes?.length) return {};
 
   const conteudoIds = [...new Set(versoes.map((v: any) => v.conteudo_id).filter(Boolean))];

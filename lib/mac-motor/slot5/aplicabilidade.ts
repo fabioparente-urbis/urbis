@@ -212,11 +212,15 @@ type Regra = {
  */
 function regraPorAusencia(cfg: {
   id: string; nome: string; grupos: string[]; papeis: string[]; termos: string[];
+  /** Quando o filtro não tem grupo próprio, os itens-alvo são achados pelo texto.
+   *  Por padrão usa os mesmos termos procurados no documento. */
+  termosItem?: string[];
 }): Regra {
   return {
     id: cfg.id,
     nome: cfg.nome,
     grupos: cfg.grupos,
+    termosItem: cfg.termosItem ?? (cfg.grupos.length ? [] : cfg.termos),
     campos: [],
     avaliar: (_lip, textos) => {
       if (!temAlgumPapel(textos, cfg.papeis)) return null;
@@ -381,6 +385,36 @@ const REGRAS: Regra[] = [
     grupos: ["EIT / EIV"],
     papeis: ["projeto", "uso_solo"],
     termos: ["EIT", "EIV", "ESTUDO DE IMPACTO"],
+  }),
+
+  // ── Temas que costumam não existir no projeto ──────────────────────────────
+  // Validados contra o 50724: cada um só derruba item cujo TEXTO cita o tema, e só quando o
+  // tema não aparece no projeto. ELEVADOR/RAMPA/MURO foram testados e NÃO entraram: existem
+  // mesmo naquele projeto, e o motor corretamente se recusou a derrubá-los.
+  regraPorAusencia({
+    id: "SEM_PISCINA", nome: "Sem piscina", grupos: [],
+    papeis: ["projeto"], termos: ["PISCINA", "PISCINAS"],
+  }),
+  regraPorAusencia({
+    id: "SEM_GUARITA", nome: "Sem guarita/portaria", grupos: [],
+    papeis: ["projeto"], termos: ["GUARITA", "PORTARIA"],
+  }),
+  regraPorAusencia({
+    id: "SEM_ESCADA", nome: "Sem escada", grupos: [],
+    papeis: ["projeto"], termos: ["ESCADA", "ESCADAS"],
+  }),
+  regraPorAusencia({
+    id: "SEM_TERRACO", nome: "Sem terraço", grupos: [],
+    papeis: ["projeto"], termos: ["TERRACO", "TERRACOS"],
+  }),
+  regraPorAusencia({
+    id: "SEM_DESNIVEL", nome: "Sem desnível/talude/arrimo", grupos: [],
+    papeis: ["projeto"], termos: ["DESNIVEL", "TALUDE", "ARRIMO"],
+  }),
+  regraPorAusencia({
+    id: "SEM_REMEMBRAMENTO", nome: "Sem remembramento/desmembramento", grupos: [],
+    papeis: ["projeto", "certidao_matricula"],
+    termos: ["REMEMBRAMENTO", "DESMEMBRAMENTO", "REMANEJAMENTO"],
   }),
 
   {
