@@ -850,8 +850,32 @@ export default function AnaliseAprovacaoProjeto() {
             ✅ Concluir pendentes
           </button>
 
+          {/* ── Documentos do Slot 5 ────────────────────────────────────
+              Os botões existem no lugar certo, mas a GERAÇÃO ainda não foi
+              construída. Cada slot é independente: quando forem feitos, serão
+              rotas próprias do Slot 5 — nunca reuso das do Slot 1. */}
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mt-3">
+            Documentos
+          </p>
+
+          {[
+            { rotulo: "📨 Despacho Interno", cor: "#2563EB" },
+            { rotulo: "📄 Despacho", cor: "#2563EB" },
+            { rotulo: "📑 Laudo", cor: "#059669" },
+            { rotulo: "⛔ Indeferimento", cor: "#DC2626" },
+          ].map((b) => (
+            <button key={b.rotulo}
+              onClick={() => notificar(`"${b.rotulo.replace(/^\S+\s/, "")}" do Slot 5 ainda não foi construído.`)}
+              title="Ainda não construído para o Slot 5 — será rota própria, independente do Slot 1"
+              className="w-full font-bold py-2.5 rounded-lg text-sm border border-dashed hover:bg-[var(--bg-card-hover)] transition-colors"
+              style={{ borderColor: b.cor, color: b.cor }}>
+              {b.rotulo}
+            </button>
+          ))}
+
           <p className="text-[10px] text-[var(--text-muted)] leading-snug mt-1">
-            Despacho e Laudo do Slot 5 ainda não estão ligados nesta tela.
+            Tracejado = ainda não gera documento. Cada um será rota própria do Slot 5,
+            independente do Slot 1.
           </p>
         </aside>
       </div>
