@@ -543,11 +543,15 @@ function lerPrancha(doc: DocTexto) {
              || valorPerto(doc, "ÍNDICE DE CONTROLE E CAPTAÇÃO", /V\s*=|\d+,\d+/i, 60);
   d.iccapExigido = num(t.match(/EXIGIDO\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
   d.iccapAtendido = num(t.match(/ATENDIDO\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
-  d.volumeCaixa = d.iccapAtendido ?? num((t.match(/V\s*=\s*(\d+,\d+)\s*m³/i) || [])[1]);
+  /* Achado real (processo 50724): o carimbo não traz "EXIGIDO"/"ATENDIDO" nem "V = X,XXm³" —
+   * só "10Cxs. 22,60m³" direto, junto do rótulo I.C.C.A.P. Sem esse terceiro padrão, tanto o
+   * número de caixas quanto o volume adotado ficavam vazios. */
+  const cxs = t.match(/(\d+)\s*Cxs\.?\s*(\d+,\d+)\s*m³/i);
+  d.volumeCaixa = d.iccapAtendido ?? num((t.match(/V\s*=\s*(\d+,\d+)\s*m³/i) || [])[1]) ?? num(cxs?.[2]);
   if (d.iccapExigido == null) d.carimboFaltando.push("ICCAP — EXIGIDO (o modelo pede EXIGIDO e ATENDIDO)");
   d.iccapBruto = iccap;
 
-  d.numeroCaixas = (t.match(/N[úu]mero de caixas:\s*(\d+)/i) || [])[1] || null;
+  d.numeroCaixas = (t.match(/N[úu]mero de caixas:\s*(\d+)/i) || [])[1] || cxs?.[1] || null;
   d.revisao = (t.match(/\bREV\s?(\d{2})\b/i) || [])[0]?.replace(/\s/g, "") || null;
 
   // a data do carimbo tem que vir DO RÓTULO: a prancha está cheia de outras datas (especificação
@@ -1121,8 +1125,6 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       undefined, vig.art_caixa ?? null);
   set("areaPermeavelProjetada", pr.permeavel != null ? fmt(pr.permeavel) : null, "ENCONTRADO",
       "cobertura vegetal permeável no carimbo", undefined, vig.projeto ?? null);
-  set("volumeExigidoDaCaixa", pr.iccapExigido != null ? fmt(pr.iccapExigido) : null, "ENCONTRADO",
-      "ICCAP EXIGIDO no carimbo (IN 007/2024)", undefined, vig.projeto ?? null);
   /* área impermeabilizada: achado real (memorial das caixas de retenção do processo 50724) —
    * é a área do lote MENOS a área de grama (permeável), sem descontar mais nada (nem
    * estacionamento, nem construção separadamente — tudo que não é grama já conta como
@@ -1130,12 +1132,24 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
    * Preferido ao cálculo reverso (ICCAP EXIGIDO × divisor) por não depender do carimbo declarar
    * EXIGIDO — quando os dois discordam, é sinal de erro no ICCAP declarado ou no rótulo de
    * grama lido, então vale a pena manter o reverso como fallback pra quando falta a grama. */
-  if (pr.areaTerreno != null && pr.permeavel != null) {
-    set("areaImpermeabilizada", fmt(pr.areaTerreno - pr.permeavel), "CALCULADO",
+  const areaImpermCalc = pr.areaTerreno != null && pr.permeavel != null ? pr.areaTerreno - pr.permeavel : null;
+  if (areaImpermCalc != null) {
+    set("areaImpermeabilizada", fmt(areaImpermCalc), "CALCULADO",
         `${fmt(pr.areaTerreno)} m² (lote) − ${fmt(pr.permeavel)} m² (grama/permeável)`);
   } else if (pr.iccapExigido != null && uds.iccapDivisor) {
     set("areaImpermeabilizada", fmt(pr.iccapExigido * uds.iccapDivisor), "CALCULADO",
         `${fmt(pr.iccapExigido)} m³ × ${uds.iccapDivisor} m²/m³ (parâmetro do Uso do Solo)`);
+  }
+  /* volume exigido da caixa: mesmo achado — o carimbo deste processo nunca declara "EXIGIDO"
+   * (só "10Cxs. 22,60m³", o volume ADOTADO). Sem a área impermeabilizada calculada acima e o
+   * divisor do Uso do Solo (1m³ a cada 200m²), esse campo ficava sempre vazio nesse formato de
+   * carimbo. Bate com a conta do memorial: 4.502,20 ÷ 200 = 22,51m³. */
+  if (pr.iccapExigido != null) {
+    set("volumeExigidoDaCaixa", fmt(pr.iccapExigido), "ENCONTRADO",
+        "ICCAP EXIGIDO no carimbo (IN 007/2024)", undefined, vig.projeto ?? null);
+  } else if (areaImpermCalc != null && uds.iccapDivisor) {
+    set("volumeExigidoDaCaixa", fmt(areaImpermCalc / uds.iccapDivisor), "CALCULADO",
+        `${fmt(areaImpermCalc)} m² ÷ ${uds.iccapDivisor} m²/m³ (área impermeável ÷ parâmetro do Uso do Solo)`);
   }
   // alertas do Uso do Solo: o que o próprio documento sinaliza e muda a análise
   {
