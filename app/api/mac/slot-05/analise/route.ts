@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
+import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 
 export const runtime = "nodejs";
 
@@ -31,17 +32,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: resolucao.erro }, { status: resolucao.status });
     }
 
+    const modeloId = await modeloDoSlot5();
+    if (!modeloId) {
+      return NextResponse.json({
+        ok: false,
+        erro: "nenhum modelo de checklist cadastrado para o Slot 5 (tipo_processo = slot_05)",
+      }, { status: 404 });
+    }
+
     const [{ data: analises }, { data: itensChecklist }] = await Promise.all([
       supabaseAdmin.from("analises_mac")
         .select("*").eq("processo_codigo", codigo).eq("tipo_processo", TIPO)
         .is("excluido_em", null).order("numero_analise", { ascending: false }),
       supabaseAdmin.from("mac_checklist_itens")
-        .select("id, texto, grupo, ordem, ref").eq("ativo", true).order("ordem").limit(1000),
+        .select("id, texto, grupo, ordem, ref")
+        .eq("modelo_id", modeloId).eq("ativo", true).order("ordem").limit(2000),
     ]);
 
     return NextResponse.json({
       ok: true,
       processo: { codigo, proprietario: (resolucao.processo.dados as any)?.proprietario?.valor ?? null },
+      modeloId,
       analises: analises ?? [],
       itens: itensChecklist ?? [],
     });

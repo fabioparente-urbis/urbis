@@ -608,6 +608,11 @@ export default function AnaliseAprovacaoProjeto() {
             className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
             📋 Gerenciar MAC
           </button>
+          <button onClick={() => router.push("/admin/filtros-slot5")}
+            className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors"
+            title="Criar e editar os filtros que tiram itens da análise">
+            🎛️ Gerenciar Filtros
+          </button>
 
           <button onClick={preencherDoLip} disabled={lendoLip}
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"

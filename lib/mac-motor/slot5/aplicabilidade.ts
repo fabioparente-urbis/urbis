@@ -105,6 +105,76 @@ function temAlgumPapel(textos: TextosPorPapel, papeis: string[]): boolean {
   return papeis.some((p) => (textos[p]?.length ?? 0) > 0);
 }
 
+// ── Avaliação de condição declarativa ─────────────────────────────────────────
+// Usada pelos filtros cadastrados no banco (ver filtrosDoBanco.ts). As regras fixas abaixo
+// continuam existindo como fallback para quando a tabela ainda não foi criada/populada.
+
+export type CondicaoDeclarativa = {
+  tipo: "CAMPO_LIP_AUSENTE" | "CAMPO_LIP_IGUAL" | "PALAVRA_AUSENTE" | "MANUAL";
+  camposLip: string[];
+  valorEsperado: string | null;
+  termos: string[];
+  papeis: string[];
+};
+
+/** true = aciona (tema não existe) · false = não aciona · null = sem dado para decidir. */
+export function avaliarCondicao(
+  c: CondicaoDeclarativa, lip: DadosLip, textos: TextosPorPapel,
+): { veredicto: boolean | null; justificativa: string } {
+  switch (c.tipo) {
+    case "CAMPO_LIP_AUSENTE": {
+      if (!c.camposLip.length) return { veredicto: null, justificativa: "nenhum campo do LIP configurado" };
+      const v = todosAusentes(lip, c.camposLip);
+      const detalhe = c.camposLip.map((k) => `${k} = "${bruto(lip, k) ?? "—"}"`).join(" · ");
+      if (v === null) {
+        return { veredicto: null, justificativa: `sem dado no LIP para: ${c.camposLip.join(", ")}` };
+      }
+      return {
+        veredicto: v,
+        justificativa: v ? `${detalhe} — tema ausente no processo` : `${detalhe} — o tema existe no processo`,
+      };
+    }
+    case "CAMPO_LIP_IGUAL": {
+      if (!c.camposLip.length || !c.valorEsperado) {
+        return { veredicto: null, justificativa: "campo ou valor esperado não configurado" };
+      }
+      const esperado = semAcento(c.valorEsperado).toUpperCase();
+      let algumDado = false;
+      for (const k of c.camposLip) {
+        const atual = bruto(lip, k);
+        if (atual === null) continue;
+        algumDado = true;
+        if (semAcento(atual).toUpperCase().includes(esperado)) {
+          return { veredicto: true, justificativa: `${k} = "${atual}" — casa com "${c.valorEsperado}"` };
+        }
+      }
+      if (!algumDado) return { veredicto: null, justificativa: `sem dado no LIP para: ${c.camposLip.join(", ")}` };
+      return {
+        veredicto: false,
+        justificativa: `nenhum de ${c.camposLip.join(", ")} vale "${c.valorEsperado}"`,
+      };
+    }
+    case "PALAVRA_AUSENTE": {
+      if (!c.termos.length || !c.papeis.length) {
+        return { veredicto: null, justificativa: "termos ou documentos não configurados" };
+      }
+      if (!temAlgumPapel(textos, c.papeis)) {
+        return { veredicto: null, justificativa: `documento não lido na pasta: ${c.papeis.join(", ")}` };
+      }
+      const r = acharPalavra(textos, c.papeis, c.termos);
+      if (r.achou) {
+        return { veredicto: false, justificativa: `"${r.termo}" encontrado em ${r.papel}: …${r.trecho}…` };
+      }
+      return {
+        veredicto: true,
+        justificativa: `nenhuma ocorrência de ${c.termos.map((t) => `"${t}"`).join(" / ")} em ${c.papeis.join(", ")}`,
+      };
+    }
+    default:
+      return { veredicto: null, justificativa: "filtro manual — não aciona sozinho" };
+  }
+}
+
 type Regra = {
   id: string;
   /** Rótulo curto, o mesmo vocabulário dos filtros manuais que o analista já conhece. */

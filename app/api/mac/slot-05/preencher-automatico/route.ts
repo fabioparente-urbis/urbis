@@ -11,6 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { gruposNaoAplicaveis } from "@/lib/mac-motor/slot5/aplicabilidade";
+import { avaliarFiltros, type FiltroSlot5 } from "@/lib/mac-motor/slot5/filtrosDoBanco";
+import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 
 export const runtime = "nodejs";
@@ -49,6 +51,69 @@ async function carregarTextosDaPasta(codigo: string): Promise<Record<string, str
   return Object.fromEntries(Object.entries(acc).map(([p, partes]) => [p, partes.join("\n")]));
 }
 
+/** Monta a proposta a partir dos filtros cadastrados em `mac_slot5_filtros`. */
+async function propostaPorFiltrosDoBanco(
+  filtros: FiltroSlot5[], lip: any, textos: Record<string, string>,
+  codigo: string, camposPreenchidos: number, modeloId: string,
+) {
+  const { acionados, naoAcionados, indecisos, manuais } = avaliarFiltros(filtros, lip, textos);
+
+  const gruposAlvo = [...new Set(acionados.flatMap((a) => a.grupos))];
+  const itensAvulsos = [...new Set(acionados.flatMap((a) => a.itensIds))];
+
+  const itensDoBanco: { id: string; grupo: string }[] = [];
+  if (gruposAlvo.length) {
+    const { data } = await supabaseAdmin.from("mac_checklist_itens")
+      .select("id, grupo").eq("modelo_id", modeloId).in("grupo", gruposAlvo).eq("ativo", true).limit(2000);
+    itensDoBanco.push(...((data ?? []) as any[]));
+  }
+  if (itensAvulsos.length) {
+    const { data } = await supabaseAdmin.from("mac_checklist_itens")
+      .select("id, grupo").eq("modelo_id", modeloId).in("id", itensAvulsos).eq("ativo", true).limit(2000);
+    for (const it of (data ?? []) as any[]) {
+      if (!itensDoBanco.some((x) => x.id === it.id)) itensDoBanco.push(it);
+    }
+  }
+
+  // Quem decidiu cada grupo/item — o primeiro filtro acionado que o reivindica.
+  const donoDoGrupo = new Map<string, typeof acionados[number]>();
+  const donoDoItem = new Map<string, typeof acionados[number]>();
+  for (const a of acionados) {
+    for (const g of a.grupos) if (!donoDoGrupo.has(g)) donoDoGrupo.set(g, a);
+    for (const i of a.itensIds) if (!donoDoItem.has(i)) donoDoItem.set(i, a);
+  }
+
+  const itens: Record<string, string> = {};
+  const fontes: Record<string, string> = {};
+  const contagem = new Map<string, { qtd: number; filtro: typeof acionados[number] }>();
+
+  for (const it of itensDoBanco) {
+    const dono = donoDoItem.get(it.id) ?? donoDoGrupo.get(it.grupo);
+    if (!dono) continue;
+    itens[it.id] = dono.statusAlvo;
+    fontes[it.id] = `Filtro "${dono.nome}" — ${dono.justificativa}`;
+    const atual = contagem.get(it.grupo);
+    if (atual) atual.qtd++;
+    else contagem.set(it.grupo, { qtd: 1, filtro: dono });
+  }
+
+  const porGrupo = [...contagem.entries()]
+    .map(([grupo, { qtd, filtro }]) => ({
+      grupo, qtd, regraId: filtro.nome, justificativa: filtro.justificativa,
+    }))
+    .sort((a, b) => b.qtd - a.qtd);
+
+  return {
+    ok: true, codigo, camposPreenchidos, origem: "banco" as const,
+    itens, fontes, porGrupo,
+    total: Object.keys(itens).length,
+    filtrosAcionados: acionados.map((a) => ({ id: a.id, nome: a.nome, justificativa: a.justificativa })),
+    aplicaveis: naoAcionados.map((n) => ({ regraId: n.nome, justificativa: n.justificativa })),
+    indecisas: indecisos.map((i) => ({ regraId: i.id, nome: i.nome, camposFaltando: [i.motivo] })),
+    manuais,
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const usuario = await usuarioDaRequisicao(req);
@@ -79,6 +144,26 @@ export async function POST(req: NextRequest) {
     // e nenhuma chamada de IA acontece aqui — só releitura do que o MHD guardou por hash.
     const textosPorPapel = await carregarTextosDaPasta(codigo);
 
+    // Todo item marcado precisa ser do checklist DO SLOT 5 — sem este recorte, um grupo de nome
+    // igual em outro modelo (Regularização/Aceite) entraria na proposta.
+    const modeloId = await modeloDoSlot5();
+    if (!modeloId) {
+      return NextResponse.json({
+        ok: false, erro: "nenhum modelo de checklist cadastrado para o Slot 5",
+      }, { status: 404 });
+    }
+
+    // Filtros cadastrados na tela têm prioridade. Enquanto a migration não roda (tabela ausente)
+    // ou nenhum filtro existe, cai nas regras fixas do código — a tela nunca fica sem automação.
+    const { data: filtrosBanco } = await supabaseAdmin
+      .from("mac_slot5_filtros").select("*").eq("ativo", true).order("ordem").limit(200);
+
+    if (filtrosBanco?.length) {
+      return NextResponse.json(await propostaPorFiltrosDoBanco(
+        filtrosBanco as any, lip, textosPorPapel, codigo, camposPreenchidos, modeloId,
+      ));
+    }
+
     const { naoAplicaveis, aplicaveis, indecisas } = gruposNaoAplicaveis(lip, textosPorPapel);
 
     const gruposNA = new Set(naoAplicaveis.flatMap((v) => v.grupos));
@@ -93,9 +178,10 @@ export async function POST(req: NextRequest) {
     const { data: itensDoChecklist, error } = await supabaseAdmin
       .from("mac_checklist_itens")
       .select("id, grupo")
+      .eq("modelo_id", modeloId)
       .in("grupo", [...gruposNA])
       .eq("ativo", true)
-      .limit(1000);
+      .limit(2000);
     if (error) {
       return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     }
