@@ -501,7 +501,7 @@ export default function AnaliseAprovacaoProjeto() {
             </button>
           </div>
 
-          <div className="text-right">
+          <div className="text-right ml-auto">
             <h1 className="text-lg font-bold">🔍 MAC — Módulo de Análises e Conformidades</h1>
             <p className="text-xs text-[var(--text-muted)]">Aprovação de Projeto</p>
             {salvando
@@ -527,82 +527,105 @@ export default function AnaliseAprovacaoProjeto() {
               </p>
             )}
           </div>
+
+          {/* Monitor de preenchimento do MAC — dentro do fluxo, nunca sobre o texto */}
+          {(() => {
+            const total = itensChecklist.length;
+            const respondidos = total - totais.pendente;
+            const pct = total ? Math.round((respondidos / total) * 100) : 0;
+            const pctFiltro = total ? Math.round((origemDasRespostas.porFiltro / total) * 100) : 0;
+            const cor = pct >= 100 ? "#059669" : pct >= 60 ? "#84cc16" : pct >= 30 ? "#eab308" : "#ef4444";
+            const rExt = 34, rInt = 25;
+            return (
+              <div className="shrink-0 flex flex-col items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2">
+                <svg width="82" height="82" viewBox="0 0 82 82">
+                  <circle cx="41" cy="41" r={rExt} fill="none" stroke="var(--border)" strokeWidth="7" />
+                  <circle cx="41" cy="41" r={rExt} fill="none" stroke={cor} strokeWidth="7"
+                    strokeDasharray={`${(pct / 100) * 2 * Math.PI * rExt} ${2 * Math.PI * rExt}`}
+                    strokeLinecap="round" transform="rotate(-90 41 41)" />
+                  <circle cx="41" cy="41" r={rInt} fill="none" stroke="#2563EB" strokeWidth="5" opacity="0.45"
+                    strokeDasharray={`${(pctFiltro / 100) * 2 * Math.PI * rInt} ${2 * Math.PI * rInt}`}
+                    strokeLinecap="round" transform="rotate(-90 41 41)" />
+                  <text x="41" y="46" textAnchor="middle" fontSize="18" fontWeight="700" fill={cor}>{pct}%</text>
+                </svg>
+                <span className="text-[9px] font-bold uppercase tracking-tight text-[var(--text-muted)] text-center leading-tight w-[92px]">
+                  Monitor de<br />preenchimento do MAC
+                </span>
+                <span className="text-[10px] text-[var(--text-secondary)] font-semibold">
+                  {respondidos}/{total}
+                </span>
+                <span className="text-[10px] text-[#2563EB]">🎛️ {pctFiltro}% por filtro</span>
+              </div>
+            );
+          })()}
         </div>
 
-        {/* Monitor — quanto do MAC já está preenchido, e quanto disso veio de filtro */}
-        {(() => {
-          const total = itensChecklist.length;
-          const respondidos = total - totais.pendente;
-          const pct = total ? Math.round((respondidos / total) * 100) : 0;
-          const pctFiltro = total ? Math.round((origemDasRespostas.porFiltro / total) * 100) : 0;
-          const cor = pct >= 100 ? "#22c55e" : pct >= 60 ? "#84cc16" : pct >= 30 ? "#eab308" : "#ef4444";
-          const circ = 2 * Math.PI * 38;
-          return (
-            <div style={{ position: "fixed", top: 92, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, zIndex: 40 }}>
-              <svg width="90" height="90" viewBox="0 0 90 90">
-                <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8" />
-                {/* anel interno: a fatia que os filtros resolveram */}
-                <circle cx="45" cy="45" r="38" fill="none" stroke="#2563EB" strokeWidth="8" opacity="0.35"
-                  strokeDasharray={`${(pctFiltro / 100) * circ} ${circ}`} strokeLinecap="round"
-                  transform="rotate(-90 45 45)" />
-                <circle cx="45" cy="45" r="30" fill="none" stroke={cor} strokeWidth="7"
-                  strokeDasharray={`${(pct / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`} strokeLinecap="round"
-                  transform="rotate(-90 45 45)" />
-                <text x="45" y="49" textAnchor="middle" fontSize="19" fontWeight="bold" fill={cor}>{pct}%</text>
-              </svg>
-              <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textAlign: "center", lineHeight: 1.2, maxWidth: 96 }}>
-                MONITOR DE PREENCHIMENTO DO MAC
+        {/* ─── Painel de números: contagem por status e origem ──────────── */}
+        <div className="mt-3 mb-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+          <div className="flex flex-wrap items-stretch gap-x-6 gap-y-3">
+            {STATUS.map((s) => (
+              <div key={s} className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg border flex items-center justify-center text-sm shrink-0"
+                  style={{ background: ESTILO[s].bg, borderColor: ESTILO[s].borda }}>
+                  {ESTILO[s].icone}
+                </span>
+                <div className="leading-tight">
+                  <p className="text-base font-bold" style={{ color: ESTILO[s].texto }}>{totais[s]}</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">{ESTILO[s].rotulo}</p>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg border border-[#EA580C] bg-[#FFF7ED] flex items-center justify-center text-sm shrink-0">
+                ⏳
               </span>
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{respondidos}/{total} itens</span>
-              <span style={{ fontSize: 10, color: "#2563EB" }}>🎛️ {pctFiltro}% por filtro</span>
+              <div className="leading-tight">
+                <p className="text-base font-bold text-[#EA580C]">{totais.pendente}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Pendentes</p>
+              </div>
             </div>
-          );
-        })()}
 
-        {/* ─── Legenda ───────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-4 text-xs mt-3 mb-2">
-          {STATUS.map((s) => (
-            <span key={s} className="flex items-center gap-1">
-              <span className="px-2 py-0.5 rounded font-bold border"
-                style={{ background: ESTILO[s].bg, borderColor: ESTILO[s].borda, color: ESTILO[s].texto }}>
-                {ESTILO[s].icone}
+            <div className="w-px self-stretch bg-[var(--border)]" />
+
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg border border-[#2563EB] bg-[#EFF6FF] flex items-center justify-center text-sm shrink-0">
+                🎛️
               </span>
-              <span className="text-[var(--text-secondary)]">{ESTILO[s].rotulo}</span>
-            </span>
-          ))}
-          <a href="https://www.ilovepdf.com/pt/comprimir_pdf" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
-            🗜️ <span>Comprimir PDF</span>
-          </a>
-          <span className="text-[var(--text-muted)]">·</span>
-          {STATUS.map((s) => (
-            <span key={s} className="px-2 py-0.5 rounded-full border"
-              style={{ borderColor: ESTILO[s].borda, color: ESTILO[s].texto }}>
-              {ESTILO[s].rotulo}: {totais[s]}
-            </span>
-          ))}
-          <span className="px-2 py-0.5 rounded-full border border-[#EA580C] text-[#EA580C]">
-            Pendentes: {totais.pendente}
-          </span>
-          <span className="text-[var(--text-muted)]">de {itensChecklist.length} itens · {grupos.length} grupos</span>
-        </div>
+              <div className="leading-tight">
+                <p className="text-base font-bold text-[#2563EB]">{origemDasRespostas.porFiltro}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Retirados por filtro</p>
+              </div>
+            </div>
 
-        {/* De onde veio cada resposta — filtro automático × analista */}
-        <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b border-[var(--border)]">
-          <span className="px-2 py-0.5 rounded-full border border-[#2563EB] text-[#2563EB] font-semibold">
-            🎛️ Filtros retiraram: {origemDasRespostas.porFiltro}
-          </span>
-          <span className="px-2 py-0.5 rounded-full border border-[#7C3AED] text-[#7C3AED] font-semibold">
-            ✍️ Marcados por você: {origemDasRespostas.porAnalista}
-          </span>
-          <span className="px-2 py-0.5 rounded-full border border-[#EA580C] text-[#EA580C] font-semibold">
-            📋 Faltam no checklist: {totais.pendente}
-          </span>
-          <span className="text-[var(--text-muted)]">
-            {itensChecklist.length
-              ? `${Math.round(((origemDasRespostas.porFiltro + origemDasRespostas.porAnalista) / itensChecklist.length) * 100)}% do checklist resolvido`
-              : ""}
-          </span>
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg border border-[#7C3AED] bg-[#F5F3FF] flex items-center justify-center text-sm shrink-0">
+                ✍️
+              </span>
+              <div className="leading-tight">
+                <p className="text-base font-bold text-[#7C3AED]">{origemDasRespostas.porAnalista}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Marcados por você</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 ml-auto">
+              <div className="leading-tight text-right">
+                <p className="text-[11px] text-[var(--text-secondary)] font-semibold">
+                  {itensChecklist.length} itens · {grupos.length} grupos
+                </p>
+                <a href="https://www.ilovepdf.com/pt/comprimir_pdf" target="_blank" rel="noopener noreferrer"
+                  className="text-[10px] text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors">
+                  🗜️ Comprimir PDF
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* barra de progresso: azul = filtro · roxo = você */}
+          <div className="mt-3 h-2 w-full rounded-full bg-[var(--bg-secondary)] overflow-hidden flex">
+            <div style={{ width: `${itensChecklist.length ? (origemDasRespostas.porFiltro / itensChecklist.length) * 100 : 0}%`, background: "#2563EB" }} />
+            <div style={{ width: `${itensChecklist.length ? (origemDasRespostas.porAnalista / itensChecklist.length) * 100 : 0}%`, background: "#7C3AED" }} />
+          </div>
         </div>
 
         {toast && <p className="text-xs text-[var(--accent)] mb-2">{toast}</p>}
