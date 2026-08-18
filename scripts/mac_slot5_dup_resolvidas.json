@@ -1,0 +1,520 @@
+[
+  {
+    "desativar": {
+      "id": "69adc14b-832e-41d4-8f0f-d899441e73f9",
+      "grupo": "HABITAÇÃO SERIADA",
+      "ordem": 9088
+    },
+    "gemea": {
+      "id": "f14d741d-ae94-4dc6-b28f-08ab0214ebe1",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 5
+    },
+    "texto": "Tipo: Comércio Sem Uso Definido, Comércio Com Uso Definido; Misto Comércio Sem Uso Definido, Misto Comércio Com Uso Definido;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL\""
+  },
+  {
+    "desativar": {
+      "id": "2cbddc7e-9058-471c-8ed6-997c6de913af",
+      "grupo": "HABITAÇÃO SERIADA",
+      "ordem": 9089
+    },
+    "gemea": {
+      "id": "789bcc4c-8504-4f09-8aa4-1846997a62d5",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 6
+    },
+    "texto": "Compatibilizar Nº das ARTs e RRTs;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL\""
+  },
+  {
+    "desativar": {
+      "id": "1d51de7a-b8dd-4b58-9a13-b4e72bf08f23",
+      "grupo": "HABITAÇÃO SERIADA",
+      "ordem": 9090
+    },
+    "gemea": {
+      "id": "14603208-1887-4289-b7a1-dd173f151d34",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 7
+    },
+    "texto": "Vagas atendidas para comércio;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL\""
+  },
+  {
+    "desativar": {
+      "id": "21e42946-679e-4754-a026-80c0316bd811",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9110
+    },
+    "gemea": {
+      "id": "7c2942a4-641e-4a34-afb7-2110cbb57c2c",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 11
+    },
+    "texto": "Rever Certidão de Matrícula do imóvel;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "f4a5d3fe-028f-47b3-b7a2-fbc887242087",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9111
+    },
+    "gemea": {
+      "id": "e2958e9f-534f-4922-8186-39f2e82f0325",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 12
+    },
+    "texto": "Caso haja divergência entre planta oficial e Certidão de Matrícula em relação à dimensão e área do terreno, anexar Certidão De Limites e Confrontações para conferência;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "cab4d1a0-3e39-4fd1-a1e8-1b56ebcae4b1",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9112
+    },
+    "gemea": {
+      "id": "7d62dac8-cb0c-4168-b2c7-bd2cb1427ebf",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 13
+    },
+    "texto": "NO CASO DE LOTES REMEMBRADOS/DESMEMBRADOS/REMANEJADOS, anexar CERTIDÃO DE MATRÍCULA atualizada do imóvel averbada OU DECRETO DA PREFEITURA dentro do prazo de validade;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "2cad432a-8157-489a-b3f2-d91d11ed89ff",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9113
+    },
+    "gemea": {
+      "id": "0e6f4e5c-686c-450f-bddf-fc575cb3c7b9",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 14
+    },
+    "texto": "Anexar USO DO SOLO para APROVAÇÃO DE PROJETOS, ESPECÍFICO PARA AS ATIVIDADES PRETENDIDAS (com a indicação de todas as vias e lotes);",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "0f780806-8604-4bd7-b857-08588160ce7f",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9114
+    },
+    "gemea": {
+      "id": "69f829d5-2fbc-43b4-afef-f94ec59fdf00",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 15
+    },
+    "texto": "Anexar Certidão de Corredor Viário (caso não tenha sido apresentada junto com o Uso do Solo);",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "55950a9e-fcb9-4d37-b714-41782c3ac5f9",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9115
+    },
+    "gemea": {
+      "id": "705a01ef-3bcb-4f0f-833a-0f8c1dd98dfb",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 16
+    },
+    "texto": "Aprovação da ANAC para edificações com altura superior a 12 metros, conforme uso do solo;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "d54e3eea-b389-477d-94d2-8c862950df9d",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9117
+    },
+    "gemea": {
+      "id": "be514417-80a2-4f29-81c5-71386d857f8c",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 17
+    },
+    "texto": "Projeto de arquitetura aprovado na GOINFRA ou DNIT;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "54f19457-2949-4fdb-abee-56cc4f49125e",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9121
+    },
+    "gemea": {
+      "id": "f7d1651b-3819-47b2-85d8-1a40de6b3a12",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 21
+    },
+    "texto": "Anexar Tráfego de Elevadores (Qualquer edificação que exceda 12,00 m de altura -- Art.98 -- Cod. de Obras);",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "30d47564-867d-4b89-aa58-6ee89efd8748",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9122
+    },
+    "gemea": {
+      "id": "9458814e-0efe-4e5b-bdea-55d00d393327",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 22
+    },
+    "texto": "Anexar Alvará de Demolição;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "2a2021ae-c4a4-4216-8eff-7e78006cd413",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9123
+    },
+    "gemea": {
+      "id": "4ad98b72-c6fa-441b-b23c-d71d51339eee",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 23
+    },
+    "texto": "Anexar Outorga Onerosa. Para liberação da taxa final, será solicitada a Outorga Onerosa, que deverá ser calculada com base no quadro de áreas do projeto analisado. É de total responsabilidade do profissional autor do projeto o cálculo e preenchimento do Quadro da Outorga Onerosa. Protocolar processo específico com o assunto Outorga Onerosa e, após o deferimento, anexar a documento de outorga devidamente aprovado;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "a6b2f3a9-aece-4a23-807c-264f8591af64",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9124
+    },
+    "gemea": {
+      "id": "a036653e-7bff-48ea-b1ef-28ced00320aa",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 24
+    },
+    "texto": "Anexar Parecer de TDC, se for o caso;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "33fb1ee7-65c9-48bf-87b7-6e8185853346",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9125
+    },
+    "gemea": {
+      "id": "1807d75d-7f2b-42f0-a045-db67c13ba778",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 25
+    },
+    "texto": "Parecer final do Estudo de Impacto e Vizinhança;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "1e1045e7-33f2-466e-97c3-86ddc531799d",
+      "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+      "ordem": 9126
+    },
+    "gemea": {
+      "id": "eb8ce886-7c73-49bb-823b-5e638523f59f",
+      "grupo": "DOCUMENTAÇÃO",
+      "ordem": 26
+    },
+    "texto": "Parecer e prancha carimbada do Estudo de Impacto de Trânsito",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"DOCUMENTAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "f0d25b43-8e3e-4e83-b15d-81be61d7cb90",
+      "grupo": "PROCESSOS MODIFICAÇÃO SEM ACRÉSCIMO",
+      "ordem": 9155
+    },
+    "gemea": {
+      "id": "d034e9fb-036b-4b0a-a002-f394ffbbf285",
+      "grupo": "CARIMBO",
+      "ordem": 34
+    },
+    "texto": "Preencher o endereço corretamente, com todas as vias;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CARIMBO\""
+  },
+  {
+    "desativar": {
+      "id": "642b51ec-22f4-49dc-8f85-23e59c9f0d72",
+      "grupo": "PROCESSOS MODIFICAÇÃO SEM ACRÉSCIMO",
+      "ordem": 9156
+    },
+    "gemea": {
+      "id": "7773e229-09a2-4795-b6c7-45d8e545c708",
+      "grupo": "CARIMBO",
+      "ordem": 35
+    },
+    "texto": "Informar o número de pavimentos;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CARIMBO\""
+  },
+  {
+    "desativar": {
+      "id": "370e6c72-f445-4c0f-8a0e-bb74f6537722",
+      "grupo": "PROCESSOS MODIFICAÇÃO SEM ACRÉSCIMO",
+      "ordem": 9157
+    },
+    "gemea": {
+      "id": "d0e6f8e7-a2eb-4aa0-b69d-6c4df693b1f0",
+      "grupo": "CARIMBO",
+      "ordem": 36
+    },
+    "texto": "Informar áreas conforme o quadro de áreas do projeto e documento de propriedade do imóvel;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CARIMBO\""
+  },
+  {
+    "desativar": {
+      "id": "babc07a6-447e-4662-a956-48add6a4a780",
+      "grupo": "INDICE PAISAGÍSTICO, ÍNDICE DE PERMEABILIDADE E CAPTAÇÃO DE ÁGUA PLUVIAL",
+      "ordem": 9103
+    },
+    "gemea": {
+      "id": "e65e2631-700a-4434-a33b-953a989009d4",
+      "grupo": "PROCESSOS MODIFICAÇÃO COM ACRÉSCIMO",
+      "ordem": 66
+    },
+    "texto": "Para as edificações licenciadas anterior a dezembro/1994 NÃO SERÁ EXIGIDIDO índice paisagístico e índice de permeabilidade. (§5º)",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"PROCESSOS MODIFICAÇÃO COM ACRÉSCIMO\""
+  },
+  {
+    "desativar": {
+      "id": "ad65f11c-84ae-4a61-b4a3-dee35c3a7f64",
+      "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+      "ordem": 9072
+    },
+    "gemea": {
+      "id": "401bb29e-f51c-4575-b5ca-bdda106538de",
+      "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ordem": 93
+    },
+    "texto": "Escaninhos contíguo às áreas privativas entram no cálculo do índice de aproveitamento. (§2º)",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)\""
+  },
+  {
+    "desativar": {
+      "id": "9258178e-3271-418d-b7ff-e8b0f087ec8f",
+      "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+      "ordem": 9073
+    },
+    "gemea": {
+      "id": "7ffa5469-735d-4e6d-acb3-de8d3c8bd9f5",
+      "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ordem": 94
+    },
+    "texto": "O total da área de fruição pública (gentiliza urbana) será acrescida ao potencial construtivo do imóvel. (§3º)",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)\""
+  },
+  {
+    "desativar": {
+      "id": "2166c4b7-8bd5-4047-994c-500623761dbe",
+      "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+      "ordem": 9074
+    },
+    "gemea": {
+      "id": "488f0ae1-a596-4930-9db3-0c724193e1b9",
+      "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ordem": 95
+    },
+    "texto": "ADD = 5X Área do Terreno;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)\""
+  },
+  {
+    "desativar": {
+      "id": "1b705cd6-5c16-48d0-9bf9-16d607164f62",
+      "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+      "ordem": 9075
+    },
+    "gemea": {
+      "id": "adebbdc8-4bae-4e0c-8455-177a12cde781",
+      "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ordem": 97
+    },
+    "texto": "AA com uso de TDC = até 7,5X Área do terreno (art. 252 §6º)",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)\""
+  },
+  {
+    "desativar": {
+      "id": "0589ba8b-f6e0-4169-ae69-88d593d2f6d5",
+      "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+      "ordem": 9078
+    },
+    "gemea": {
+      "id": "dc77b6b6-66aa-490a-a4bc-07e908c2d472",
+      "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ordem": 100
+    },
+    "texto": "Apresentar polilinha do ind. De aproveitamento para conferência.",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)\""
+  },
+  {
+    "desativar": {
+      "id": "1c7afafe-2a67-4362-86fb-fca988a0b0bf",
+      "grupo": "PL. DE COBERTURA",
+      "ordem": 9141
+    },
+    "gemea": {
+      "id": "9d7def63-eb40-412b-80b0-728579bebd2b",
+      "grupo": "ALTURA DE EDIFICAÇÃO",
+      "ordem": 193
+    },
+    "texto": "Apresentar corte esquemático com níveis de piso e altura acumulada da edificação;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ALTURA DE EDIFICAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "54307970-2fbf-4ef8-9299-a1b7817088a3",
+      "grupo": "PL. DE COBERTURA",
+      "ordem": 9142
+    },
+    "gemea": {
+      "id": "564415fb-41fb-437f-8e03-18b7bb6d5824",
+      "grupo": "ALTURA DE EDIFICAÇÃO",
+      "ordem": 194
+    },
+    "texto": "Apresentar vista esquemática das 4 vistas indicando: a linha natural do terreno e cotando a distância dela em relação ao ponto mais alto na divisa do terreno. (Relação do nível natural do terreno X altura máxima com o vizinho;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ALTURA DE EDIFICAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "7fd2b0c2-1536-4ccd-870b-cba462c04b60",
+      "grupo": "PL. DE COBERTURA",
+      "ordem": 9143
+    },
+    "gemea": {
+      "id": "62a8bf93-20d3-4e1b-9b46-d04a7ad036ed",
+      "grupo": "ALTURA DE EDIFICAÇÃO",
+      "ordem": 195
+    },
+    "texto": "Compatibilizar alturas e níveis com quadro de onerosa e quadro de recuos;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"ALTURA DE EDIFICAÇÃO\""
+  },
+  {
+    "desativar": {
+      "id": "553afb7a-bf26-42d7-b6f9-abc456253f34",
+      "grupo": "ATIVIDADE ECONÔMICA",
+      "ordem": 9023
+    },
+    "gemea": {
+      "id": "6dc8efb2-8b4a-4b9f-8801-9ab3b07f091c",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 203
+    },
+    "texto": "Atender uso do solo a Obrigatoriedade de Embarque e Desembarque;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"EMBARQUE E DESEMBARQUE\""
+  },
+  {
+    "desativar": {
+      "id": "293679a6-a92d-47f0-8a44-46c9a4e57d7b",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9178
+    },
+    "gemea": {
+      "id": "c651026f-342a-48e3-b962-47bcbe6e8a4d",
+      "grupo": "CALÇADA",
+      "ordem": 305
+    },
+    "texto": "Para projetos com exigência de EIT, os rebaixos serão avaliados pela SMM; - Art.92 LC n°364/2023",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CALÇADA\""
+  },
+  {
+    "desativar": {
+      "id": "26d11c1d-eacb-4c41-9395-95d877ca06fe",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9195
+    },
+    "gemea": {
+      "id": "c651026f-342a-48e3-b962-47bcbe6e8a4d",
+      "grupo": "CALÇADA",
+      "ordem": 305
+    },
+    "texto": "Para projetos com exigência de EIT, os rebaixos serão avaliados pela SMM; - Art.92 LC n°364/2023",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CALÇADA\""
+  },
+  {
+    "desativar": {
+      "id": "0f6c04d1-76ed-4943-aced-35020b482621",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9060
+    },
+    "gemea": {
+      "id": "c651026f-342a-48e3-b962-47bcbe6e8a4d",
+      "grupo": "CALÇADA",
+      "ordem": 305
+    },
+    "texto": "Para projetos com exigência de EIT, os rebaixos serão avaliados pela SMM; - Art.92 LC n°364/2023",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"CALÇADA\""
+  },
+  {
+    "desativar": {
+      "id": "c7d5c1fe-189f-4f4b-94b4-1ae8a693e353",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9061
+    },
+    "gemea": {
+      "id": "cef1564c-4f29-4934-a5c2-430bba047161",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 307
+    },
+    "texto": "Rebaixo do meio-fio com largura máxima de 12m;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º\""
+  },
+  {
+    "desativar": {
+      "id": "dc0dfe5f-9c54-45c4-9ea6-3ee46e58d5c6",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9062
+    },
+    "gemea": {
+      "id": "257d94ba-5592-45e1-96b4-bc7a8aa6357c",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 308
+    },
+    "texto": "Para terrenos com testadas de até 50m a soma dos rebaixos poderá exceder 50% de rebaixo da testada (Obs. Somar testadas no caso de esquina);",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º\""
+  },
+  {
+    "desativar": {
+      "id": "c17ab92d-ffee-4008-af6a-9cadd6d248ad",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9063
+    },
+    "gemea": {
+      "id": "4f647ff7-bb43-4775-85f0-664577e387c1",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 309
+    },
+    "texto": "Atender anexo XIV do código de obras (observar: início do rebaixo das esquinas com mín.5,00m e entre os rebaixos mín. de 5,00m)",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º\""
+  },
+  {
+    "desativar": {
+      "id": "011ca499-1827-430d-8c8f-3214dd8d5993",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9163
+    },
+    "gemea": {
+      "id": "d6b54d7b-d462-4f2e-a867-7437dcd5bf40",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 315
+    },
+    "texto": "Testada igual ou superior a 12 m, um rebaixo a cada 6 m, desde que com espaço mínimo de 5,00 m entre eles e a soma dos rebaixos não deve exceder 50% da extensão da testada -- inciso IV;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"Rebaixo para atividades econômicas em geral §11º\""
+  },
+  {
+    "desativar": {
+      "id": "4c9b9cdd-772c-45d9-ab42-6d58bb65815a",
+      "grupo": "HABITAÇÃO SERIADA",
+      "ordem": 9094
+    },
+    "gemea": {
+      "id": "87ce5ef3-e145-42bb-86a1-a5c01d20b993",
+      "grupo": "HABITAÇÃO SERIADA E COLETIVA NÃO INTEGRANTES DE LOTEAMENTO",
+      "ordem": 402
+    },
+    "texto": "Para terrenos até 10.000 m² não integrante de loteamento aprovado atender acesso por VIA PUBLICA CONSOLIDADA com largura mín. de 13,00m. Art. 114 LC 364/2022;",
+    "motivo": "duplicata exata; a planilha do Fabio atribui este texto ao grupo \"HABITAÇÃO SERIADA E COLETIVA NÃO INTEGRANTES DE LOTEAMENTO\""
+  }
+]
