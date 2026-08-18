@@ -73,7 +73,8 @@ export default function AnaliseAprovacaoProjeto() {
   const [proposta, setProposta] = useState<Proposta | null>(null);
   // "fechar" apenas ESCONDE o painel — a proposta continua em memória e volta pelo botão
   // "Ver filtros". Descartar de vez obrigaria a reavaliar tudo de novo.
-  const [painelFiltros, setPainelFiltros] = useState(true);
+  // Começa recolhido: abrir a tela não deve empurrar a lista de itens pra baixo.
+  const [painelFiltros, setPainelFiltros] = useState(false);
   const [decisoes, setDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
   const [lendoLip, setLendoLip] = useState(false);
   const [importando, setImportando] = useState(false);
