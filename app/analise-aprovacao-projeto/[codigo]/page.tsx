@@ -954,7 +954,7 @@ export default function AnaliseAprovacaoProjeto() {
               <div className="flex items-center gap-3">
                 <button onClick={() => setAbaAtual(null)}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
-                  <span aria-hidden>📑</span> Índice
+                  <span aria-hidden>←</span> Índice
                 </button>
                 <span className="font-bold">📝 OBS</span>
               </div>
@@ -1006,7 +1006,7 @@ export default function AnaliseAprovacaoProjeto() {
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(null); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
-                  <span aria-hidden>📑</span> Índice
+                  <span aria-hidden>←</span> Índice
                 </button>
                 <span className="font-bold truncate">{abaAtual}</span>
               </div>
