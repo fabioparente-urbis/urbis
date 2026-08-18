@@ -6,7 +6,9 @@
  * daqui nunca alcança uma análise da Regularização/Aceite.
  *
  * Armazenamento é o mesmo `analises_mac` (mapa item_id → status em `itens`) — é a tabela do
- * módulo, não do Slot 1.
+ * módulo, não do Slot 1. `observacoes_por_item` (mapa item_id → texto) é a observação POR ITEM
+ * do Slot 5 — mais granular que o `observacoes_por_aba` do Slot 1 (por grupo); mesma coluna
+ * jsonb da tabela compartilhada, só que Slot 1 nunca lê/grava nela.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -89,7 +91,7 @@ export async function POST(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { codigo, itens, fontes, observacoes } = await req.json().catch(() => ({}));
+    const { codigo, itens, fontes, observacoes, observacoes_por_item } = await req.json().catch(() => ({}));
     if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
 
     const resolucao = await resolverProcessoSlot5(usuario, codigo);
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
       aceites: {},
       observacoes: observacoes ?? "",
       observacoes_por_aba: {},
+      observacoes_por_item: observacoes_por_item ?? {},
     }).select().maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
@@ -134,7 +137,7 @@ export async function PUT(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { id, itens, fontes, observacoes, status } = await req.json().catch(() => ({}));
+    const { id, itens, fontes, observacoes, observacoes_por_item, status } = await req.json().catch(() => ({}));
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatório" }, { status: 400 });
 
     // trava de escopo: só atualiza se a análise for mesmo do Slot 5
@@ -198,6 +201,7 @@ export async function PUT(req: NextRequest) {
       ...(itens !== undefined ? { itens } : {}),
       ...(fontes !== undefined ? { fontes } : {}),
       ...(observacoes !== undefined ? { observacoes } : {}),
+      ...(observacoes_por_item !== undefined ? { observacoes_por_item } : {}),
       ...(status !== undefined ? { status } : {}),
     }).eq("id", id);
 

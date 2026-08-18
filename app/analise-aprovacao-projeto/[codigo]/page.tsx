@@ -21,6 +21,7 @@ type Item = { id: string; texto: string; grupo: string; ordem: number; ref?: str
 type Analise = {
   id: string; numero_analise: number; status: string;
   itens: Record<string, Status>; fontes: Record<string, string>; observacoes: string;
+  observacoes_por_item?: Record<string, string>;
 };
 type FiltroProposto = {
   id: string; nome: string; recomendado: boolean; justificativa: string;
@@ -66,6 +67,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [marcas, setMarcas] = useState<Record<string, Status>>({});
   const [fontes, setFontes] = useState<Record<string, string>>({});
   const [observacoes, setObservacoes] = useState("");
+  const [observacoesPorItem, setObservacoesPorItem] = useState<Record<string, string>>({});
   const [abaAtual, setAbaAtual] = useState<string | null>(null); // null = índice
   const [busca, setBusca] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -151,6 +153,7 @@ export default function AnaliseAprovacaoProjeto() {
           setMarcas(marcasAtuais);
           setFontes(atual.fontes ?? {});
           setObservacoes(atual.observacoes ?? "");
+          setObservacoesPorItem(atual.observacoes_por_item ?? {});
           fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${atual.id}`,
             { credentials: "include" })
             .then((r) => r.json())
@@ -293,13 +296,17 @@ export default function AnaliseAprovacaoProjeto() {
 
   const salvar = useCallback(async (
     novasMarcas = marcas, novasFontes = fontes, novasObs = observacoes, silencioso = false,
+    novasObsPorItem = observacoesPorItem,
   ) => {
     setSalvando(true);
     try {
       const a = await garantirAnalise(novasMarcas, novasFontes);
       const r = await fetch("/api/mac/slot-05/analise", {
         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: a.id, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs }),
+        body: JSON.stringify({
+          id: a.id, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs,
+          observacoes_por_item: novasObsPorItem,
+        }),
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
@@ -316,7 +323,7 @@ export default function AnaliseAprovacaoProjeto() {
       setSalvando(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [marcas, fontes, observacoes, analise, codigo, notificar]);
+  }, [marcas, fontes, observacoes, observacoesPorItem, analise, codigo, notificar]);
 
   function marcar(itemId: string, status: Status) {
     setMarcas((prev) => {
@@ -1029,24 +1036,33 @@ export default function AnaliseAprovacaoProjeto() {
 
               <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-card)]">
                 {itensDaAba.map((it) => (
-                  <div key={it.id} className="border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex items-start gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
-                      {fontes[it.id] && (
-                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">🔎 {fontes[it.id]}</p>
-                      )}
+                  <div key={it.id} className="border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex flex-col gap-1.5">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
+                        {fontes[it.id] && (
+                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">🔎 {fontes[it.id]}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {STATUS.map((s) => (
+                          <button key={s} onClick={() => marcar(it.id, s)} title={ESTILO[s].rotulo}
+                            className="w-8 h-8 rounded border text-sm font-bold transition-colors"
+                            style={marcas[it.id] === s
+                              ? { background: ESTILO[s].borda, borderColor: ESTILO[s].borda, color: "white" }
+                              : { background: ESTILO[s].bg, borderColor: ESTILO[s].borda, color: ESTILO[s].texto, opacity: 0.45 }}>
+                            {ESTILO[s].icone}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="flex gap-1 shrink-0">
-                      {STATUS.map((s) => (
-                        <button key={s} onClick={() => marcar(it.id, s)} title={ESTILO[s].rotulo}
-                          className="w-8 h-8 rounded border text-sm font-bold transition-colors"
-                          style={marcas[it.id] === s
-                            ? { background: ESTILO[s].borda, borderColor: ESTILO[s].borda, color: "white" }
-                            : { background: ESTILO[s].bg, borderColor: ESTILO[s].borda, color: ESTILO[s].texto, opacity: 0.45 }}>
-                          {ESTILO[s].icone}
-                        </button>
-                      ))}
-                    </div>
+                    <textarea
+                      value={observacoesPorItem[it.id] ?? ""}
+                      onChange={(e) => setObservacoesPorItem((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                      placeholder="📝 Observação deste item — ex.: valores a informar, ressalvas..."
+                      rows={1}
+                      className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-y"
+                    />
                   </div>
                 ))}
               </div>
@@ -1115,6 +1131,7 @@ export default function AnaliseAprovacaoProjeto() {
                   setMarcas(existente.itens ?? {});
                   setFontes(existente.fontes ?? {});
                   setObservacoes(existente.observacoes ?? "");
+                  setObservacoesPorItem(existente.observacoes_por_item ?? {});
                   setAbaAtual(null);
                 }}
                 className={`w-full py-2 rounded-lg text-sm font-bold border transition-colors ${
