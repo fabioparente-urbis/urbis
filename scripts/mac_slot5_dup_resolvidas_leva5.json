@@ -1,0 +1,296 @@
+[
+  {
+    "desativar": {
+      "id": "a16809bf-769d-4d0d-bebd-79118a89e244",
+      "grupo": "PLANTA DE SITUAÇÃO",
+      "ordem": 72
+    },
+    "gemea": {
+      "id": "296436b7-cc8e-4001-bca8-c8489834b0cd",
+      "grupo": "PLANTA DE SITUAÇÃO",
+      "ordem": 71
+    },
+    "texto": "Apresentar planta de situação com a quadra completa;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "936266f5-5749-484f-a0ac-40ef6c2eaff7",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD COM ACRES – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 411
+    },
+    "gemea": {
+      "id": "2658a538-cae9-4a1a-a08e-d376d2a22b99",
+      "grupo": "CORREDOR VIÁRIO",
+      "ordem": 170
+    },
+    "texto": "Indicar acima do carimbo o texto: \"XX vagas locadas em um raio de 300m, conforme LC n° 10.845/2022 Art.15. Devendo ser apresentado contrato de locação das vagas para CCO e Alvará de Localização e Funcionamento. As vagas locadas serão instaladas em terreno exclusivo para este fim ou em atividade econômica de estacionamento de automóvel e anunciadas na fachada do estabelecimento locatário e no estabelecimento ou imóvel locado;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "437f8df6-59e4-47ca-bbb8-aa444999d440",
+      "grupo": "ATIVIDADE ECONÔMICA",
+      "ordem": 104
+    },
+    "gemea": {
+      "id": "b50e8599-c126-469d-9d72-6b8e5e63ca14",
+      "grupo": "ATIVIDADE ECONÔMICA",
+      "ordem": 103
+    },
+    "texto": "Verificar no uso do solo a área máxima indicada para a atividade econômica;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "c2d0e9cd-73e4-4229-9d8f-9e940cc35fc4",
+      "grupo": "EIT / EIV",
+      "ordem": 256
+    },
+    "gemea": {
+      "id": "df12a5c6-b8ee-4802-80b2-39e0a09ff12b",
+      "grupo": "EIT / EIV",
+      "ordem": 255
+    },
+    "texto": "Operação urbana e demais empreendimentos listados em LEI ESPECIFICA; inc. VIII e IX",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "81198291-8ea6-40ae-957a-065dd05f3329",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9161
+    },
+    "gemea": {
+      "id": "1191c0be-8b35-47a4-920b-b97828a773a0",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 317
+    },
+    "texto": "Largura de 5,00 m para acesso de estacionamento com manobra interna, fluxo de entrada e saída de veículos simultaneamente -- inciso II;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "3313ee01-b6c6-49bd-870d-7c8da68f4490",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9165
+    },
+    "gemea": {
+      "id": "d8ce230a-cfce-4bf5-a047-d51eacae3184",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 319
+    },
+    "texto": "Para terrenos de esquina, atender distância mínima de 10,00 m do ponto de interseção do prolongamento dos alinhamentos do terreno -- §4º;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "6071df48-c74e-4e07-8c75-90b0fb2a3e8d",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9162
+    },
+    "gemea": {
+      "id": "4e0bd9e5-d3bd-4053-bf84-018fa7337abc",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 312
+    },
+    "texto": "Terreno com testada inferior a 12,00m, admite-se apenas 1 rebaixo -- inciso III;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "032f8e26-ab00-4e34-9c53-44a1a2b7f78f",
+      "grupo": "ACESSIBILIDADE - NBR9050",
+      "ordem": 544
+    },
+    "gemea": {
+      "id": "e4d82fcc-bac1-480e-857b-8640587fe853",
+      "grupo": "ACESSIBILIDADE - NBR9050",
+      "ordem": 543
+    },
+    "texto": "Atender dimensões mínimas nas cabinas para Vestiário acessível de 1,80 x 1,80 m (ver Item 7.14, Fig. 131);",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "a2b9013c-76b2-4601-a7d8-d2c2c9fb816b",
+      "grupo": "ACESSIBILIDADE - NBR9050",
+      "ordem": 555
+    },
+    "gemea": {
+      "id": "d18e7bda-35af-4a9b-b986-58e3f41a3493",
+      "grupo": "ACESSIBILIDADE - NBR9050",
+      "ordem": 505
+    },
+    "texto": "PISCINAS, DECKS E DUCHAS deverão oferecer acessibilidade, conforme Item 10.12;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "8dfea4c2-f105-424a-8a6d-41e99d0fa519",
+      "grupo": "EIT / EIV",
+      "ordem": 269
+    },
+    "gemea": {
+      "id": "30465af1-4fcd-4d39-8bf4-e4ae2c91ee5b",
+      "grupo": "EIT / EIV",
+      "ordem": 268
+    },
+    "texto": "Anexar EIV/RIV. A edificação trata-se de Equipamento de Impacto e deve apresentar ESTUDO E RELATÓRIO DE IMPACTO DE VIZINHANÇA – EIV/RIV e ESTUDO E RELATÓRIO DE IMPACTO DE TRÂNSITO – EIT/RIT devidamente aprovados pelos órgãos competentes;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "11d47b5a-6667-4094-bf1c-6107e090f357",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9177
+    },
+    "gemea": {
+      "id": "120b290f-8a64-49b3-a531-88844ef29ce2",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9059
+    },
+    "texto": "Atender Art. 90, §2º, em relação às vagas para automóveis com acesso direto pela calçada: quando a largura da calçada for inferior a 3,00m, poderá ser compensada a medida devida no interior do lote;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "a961d8a0-9579-4532-a108-e3fed198eafe",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9194
+    },
+    "gemea": {
+      "id": "120b290f-8a64-49b3-a531-88844ef29ce2",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9059
+    },
+    "texto": "Atender Art. 90, §2º, em relação às vagas para automóveis com acesso direto pela calçada: quando a largura da calçada for inferior a 3,00m, poderá ser compensada a medida devida no interior do lote;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "49aab1c8-3142-4512-a074-6faac6eca362",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9173
+    },
+    "gemea": {
+      "id": "ec7b3e0e-b462-4a91-8ff9-42ed7c8f1fa3",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9058
+    },
+    "texto": "Para os casos de junções indicadas acima poderá EXCEDER 50% do rebaixo caso a testada possua ATÉ 50,00m -- §9º;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "a051e164-b256-46ec-8721-7cfc7a1b9d96",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9190
+    },
+    "gemea": {
+      "id": "ec7b3e0e-b462-4a91-8ff9-42ed7c8f1fa3",
+      "grupo": "EMBARQUE E DESEMBARQUE",
+      "ordem": 9058
+    },
+    "texto": "Para os casos de junções indicadas acima poderá EXCEDER 50% do rebaixo caso a testada possua ATÉ 50,00m -- §9º;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "54ecc227-b18a-4271-b5d3-5cf15c434579",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9180
+    },
+    "gemea": {
+      "id": "ea2553ea-885d-45c2-9a0e-3ae69e3898f2",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9160
+    },
+    "texto": "Largura padrão de 3,00 m a 3,50 m -- inciso I;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "1cf58918-b885-4246-a11e-d86cf766a627",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9182
+    },
+    "gemea": {
+      "id": "d4038ba1-fdd5-44e4-9ca5-e8eca174e804",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9164
+    },
+    "texto": "Para o caso de vagas no recuo frontal com manobra pela calçada, o rebaixo deve estar posicionado de maneira a dar acesso a, no máximo, 3 vagas -- §2º;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "35db6ba1-f631-4087-b7e5-cbc1413e015c",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9183
+    },
+    "gemea": {
+      "id": "404a75f3-ff73-424c-bd26-e6b3b59ed970",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9166
+    },
+    "texto": "Admite-se a junção de rebaixos contíguos, desde que resguardada a largura máxima de cada um e a soma de todos os rebaixos não ultrapasse 50% da extensão da testada -- §5º §6º;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "47576646-60dd-4f3d-b23a-ea7a7d5a3038",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9184
+    },
+    "gemea": {
+      "id": "1bb671b9-00d7-4dbd-8b8b-06aa1b248653",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9167
+    },
+    "texto": "Hab. Geminada e Seriada com acesso direta pela via pública, admite-se 1 rebaixo para cada unidade habitacional, independente da largura da testada do terreno -- §7°;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "c7ef852b-0d00-49c0-beb7-431421b5f586",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9188
+    },
+    "gemea": {
+      "id": "b4d55238-f51f-4fbd-aa35-d42fa9c085dd",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9171
+    },
+    "texto": "Embarque e desembarque;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "524f528b-4c8c-4cde-b91c-8ad5419723ac",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9191
+    },
+    "gemea": {
+      "id": "6a274e36-d08a-40a8-9db9-4bb167938561",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9174
+    },
+    "texto": "Os rebaixos de meio-fio terão dimensão suficiente par atender largura e ângulo conforme Anexos IX e X -- LC 364/2022:",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "ffbaeec1-8f14-4db1-a45e-27b0da37356f",
+      "grupo": "Rebaixo para atividades econômicas em geral §11º",
+      "ordem": 9179
+    },
+    "gemea": {
+      "id": "79534afb-7840-45ed-8cb9-39768f3abe8a",
+      "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+      "ordem": 9159
+    },
+    "texto": "Em relação aos rebaixos do meio-fio atender: (Art.89 -- LC n°364/2023):",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "desativar": {
+      "id": "a5744bca-07a7-464f-9d21-ee74b2e817d9",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD C/ ACRESCIMO – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 426
+    },
+    "gemea": {
+      "id": "2658a538-cae9-4a1a-a08e-d376d2a22b99",
+      "grupo": "CORREDOR VIÁRIO",
+      "ordem": 170
+    },
+    "texto": "Indicar acima do carimbo o texto: \"XX vagas locadas em um raio de 300m, conforme LC n° 10.845/2022 Art.15. Devendo ser apresentado contrato de locação das vagas para CCO e Alvará de Localização e Funcionamento. As vagas locadas serão instaladas em terreno exclusivo para este fim ou em atividade econômica de estacionamento de automóvel e anunciadas na fachada do estabelecimento locatário e no estabelecimento ou imóvel locado;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "5b791db4-cb42-4e1d-a1a9-8c1b4f3d54ab",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD C/ ACRESCIMO – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 424
+    },
+    "gemea": {
+      "id": "2b073d30-722f-4214-91e8-4e1bc06a9ac5",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD COM ACRES – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 409
+    },
+    "texto": "Até 25% da área edificada aprovada não será exigido vaga de estacionamento -- inciso I;",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "5b2fc8db-145d-4378-887f-ad7d5a89a269",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD C/ ACRESCIMO – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 425
+    },
+    "gemea": {
+      "id": "50e90db9-b8da-44c3-9696-9ab5134e1c86",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD COM ACRES – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 410
+    },
+    "texto": "Superior a 25% será exigido vagas e as mesmas poderão ser locadas num raio máximo de 300m, desde que instalada em terreno exclusivo para este fim. (Inc. II e III);",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  },
+  {
+    "desativar": {
+      "id": "23d03c55-ecc2-4fd0-a58a-f55aab274237",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD C/ ACRESCIMO – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 423
+    },
+    "gemea": {
+      "id": "06ca4464-14e5-403e-9863-29515d5b76af",
+      "grupo": "VAGAS PARA ATIVIDADES ECON :MOD COM ACRES – ED REG ANTEIRORES A JAN/2008 – LC nº364/2023 – Art. 118",
+      "ordem": 408
+    },
+    "texto": "Para os projetos de atividades econômicas licenciados e edificações regulares existentes antes de janeiro/2008 quando a área do acréscimo for: (art.118 LC n° 364/2023)",
+    "motivo": "duplicata exata; sobrevive a copia de menor ordem (evitando ordem>=9000 quando possivel), demais desativadas por decisao do Fabio de simplificar"
+  }
+]
