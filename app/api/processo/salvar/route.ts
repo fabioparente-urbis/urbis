@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
+import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
 
 /**
  * Retorna as chaves do objeto `dados` cujos campos estão marcados como
@@ -49,8 +50,13 @@ export async function POST(req: NextRequest) {
     const usuarioId = auth.userId;
 
     const body = await req.json();
-    const { id, dados, camposAlterados } = body;
+    const { id, dados: dadosRecebidos, camposAlterados } = body;
     const tipoProcesso: string = body.tipo ?? "regularizacao";
+    // Recalcula outorgaOnerosa a cada save do LIP do Slot 5 — nunca em outro slot. Isolado do
+    // Slot 1 por construção: só entra quando tipoProcesso === "slot_05".
+    const dados = dadosRecebidos !== undefined && tipoProcesso === "slot_05"
+      ? recalcularOutorgaOnerosa(dadosRecebidos)
+      : dadosRecebidos;
 
     if (!id) {
       return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
