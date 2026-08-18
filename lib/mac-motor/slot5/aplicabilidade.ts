@@ -21,6 +21,8 @@ export type TextosPorPapel = Record<string, string>;
 export type VeredictoGrupo = {
   regraId: string;
   grupos: string[];
+  /** Itens cujo texto cita um destes termos entram no alvo, em qualquer grupo. */
+  termosItem: string[];
   justificativa: string;
   camposUsados: string[];
 };
@@ -75,6 +77,22 @@ function semAcento(s: string): string {
 
 function escaparRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * O texto cita algum dos termos, como palavra inteira e sem acento?
+ * Usado para alcançar ITENS do checklist pelo próprio texto — é o que faz "APRO DE PROJ"
+ * pegar as linhas sobre modificação/acréscimo espalhadas em Carimbo, Corredor Viário etc.
+ */
+export function textoCitaAlgum(texto: string, termos: string[]): string | null {
+  if (!texto || !termos?.length) return null;
+  const alvo = semAcento(texto).toUpperCase();
+  for (const termo of termos) {
+    const t = semAcento(String(termo ?? "")).toUpperCase().trim();
+    if (!t) continue;
+    if (new RegExp(`(^|[^A-Z0-9])${escaparRegex(t)}([^A-Z0-9]|$)`).test(alvo)) return termo;
+  }
+  return null;
 }
 
 /** Procura a palavra INTEIRA, ignorando acento e caixa, só nos papéis informados. */
@@ -180,6 +198,8 @@ type Regra = {
   /** Rótulo curto, o mesmo vocabulário dos filtros manuais que o analista já conhece. */
   nome: string;
   grupos: string[];
+  /** Alcança itens pelo texto, em qualquer grupo (mesmo papel de `termos_item` no banco). */
+  termosItem?: string[];
   campos: string[];
   /** true = grupos não se aplicam · false = se aplicam · null = sem dado, decide o analista. */
   avaliar: (lip: DadosLip, textos: TextosPorPapel) => boolean | null;
@@ -218,6 +238,9 @@ const REGRAS: Regra[] = [
       "PROCESSOS MODIFICAÇÃO SEM ACRÉSCIMO",
       "PROCESSOS MODIFICAÇÃO COM ACRÉSCIMO",
     ],
+    // Aprovação nova também derruba as linhas de modificação/acréscimo/reforma que vivem
+    // espalhadas em outros grupos (Carimbo, Corredor Viário, Índice Paisagístico…).
+    termosItem: ["MODIFICACAO", "MODIFICACOES", "ACRESCIMO", "ACRESCIMOS", "REFORMA", "REFORMAS"],
     campos: ["tipoProcessoLip"],
     avaliar: (lip) => {
       const t = norm(lip, "tipoProcessoLip");
@@ -237,6 +260,8 @@ const REGRAS: Regra[] = [
       "QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018",
       "47.QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018 - APRESENTAR NO PROJETO",
     ],
+    // Uso comercial derruba também as linhas de residência/habitação fora desses grupos.
+    termosItem: ["HABITACIONAL", "HABITACAO", "RESIDENCIAL", "RESIDENCIA", "MORADIA", "QUITINETE", "APARTAMENTO"],
     campos: ["habitacional", "habSeriada", "habColetiva", "misto"],
     avaliar: (lip) => todosAusentes(lip, ["habitacional", "habSeriada", "habColetiva", "misto"]),
     motivo: (lip) =>
@@ -404,6 +429,7 @@ export function gruposNaoAplicaveis(lip: DadosLip, textos: TextosPorPapel = {}):
     const registro: VeredictoGrupo = {
       regraId: r.id,
       grupos: r.grupos,
+      termosItem: r.termosItem ?? [],
       justificativa: r.motivo(lip, textos),
       camposUsados: r.campos,
     };

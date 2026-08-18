@@ -25,6 +25,8 @@ export type FiltroSlot5 = {
   papeis_documento: string[];
   grupos: string[];
   itens_ids: string[];
+  /** Itens cujo TEXTO cita um destes termos entram no alvo, em qualquer grupo. */
+  termos_item?: string[] | null;
   status_alvo: "conforme" | "nao_conforme" | "nao_aplica";
 };
 
@@ -70,7 +72,7 @@ export function avaliarFiltros(
 
     // Filtro sem alvo não marca nada — avisa como pendência de configuração em vez de
     // desaparecer em silêncio (é o caso do MEDIO PORTE, que espera a lista de grupos).
-    if (!(f.grupos?.length || f.itens_ids?.length)) {
+    if (!(f.grupos?.length || f.itens_ids?.length || f.termos_item?.length)) {
       indecisos.push({ id: f.id, nome: f.nome, motivo: "filtro sem grupos nem itens definidos" });
       continue;
     }

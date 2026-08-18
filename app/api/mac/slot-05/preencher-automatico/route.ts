@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { gruposNaoAplicaveis } from "@/lib/mac-motor/slot5/aplicabilidade";
+import { gruposNaoAplicaveis, textoCitaAlgum } from "@/lib/mac-motor/slot5/aplicabilidade";
 import { avaliarFiltros, type FiltroSlot5 } from "@/lib/mac-motor/slot5/filtrosDoBanco";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
@@ -80,27 +80,21 @@ async function propostaPorFiltrosDoBanco(
   // Cada filtro carrega os PRÓPRIOS itens — o analista aceita ou recusa um por um, inclusive os
   // que o motor não recomendou (ele pode saber algo que o documento não diz).
   const porNome = new Map(filtros.map((f) => [f.nome, f]));
-  const todosGrupos = [...new Set(filtros.flatMap((f) => f.grupos ?? []))];
-  const todosItens = [...new Set(filtros.flatMap((f) => f.itens_ids ?? []))];
 
-  const catalogo: { id: string; grupo: string }[] = [];
-  if (todosGrupos.length) {
-    const { data } = await supabaseAdmin.from("mac_checklist_itens")
-      .select("id, grupo").eq("modelo_id", modeloId).in("grupo", todosGrupos).eq("ativo", true).limit(2000);
-    catalogo.push(...((data ?? []) as any[]));
-  }
-  if (todosItens.length) {
-    const { data } = await supabaseAdmin.from("mac_checklist_itens")
-      .select("id, grupo").eq("modelo_id", modeloId).in("id", todosItens).eq("ativo", true).limit(2000);
-    for (const it of (data ?? []) as any[]) if (!catalogo.some((x) => x.id === it.id)) catalogo.push(it);
-  }
+  // Catálogo COMPLETO do modelo: `termos_item` casa pelo texto do item, então o alvo de um
+  // filtro pode estar em qualquer grupo — não dá para buscar só os grupos declarados.
+  const { data: catalogoBruto } = await supabaseAdmin.from("mac_checklist_itens")
+    .select("id, grupo, texto").eq("modelo_id", modeloId).eq("ativo", true).limit(2000);
+  const catalogo = (catalogoBruto ?? []) as { id: string; grupo: string; texto: string }[];
 
   const itensDoFiltro = (nome: string) => {
     const f = porNome.get(nome);
-    if (!f) return [] as { id: string; grupo: string }[];
+    if (!f) return [] as typeof catalogo;
     const grupos = new Set(f.grupos ?? []);
     const avulsos = new Set(f.itens_ids ?? []);
-    return catalogo.filter((it) => grupos.has(it.grupo) || avulsos.has(it.id));
+    const termos = f.termos_item ?? [];
+    return catalogo.filter((it) =>
+      grupos.has(it.grupo) || avulsos.has(it.id) || !!textoCitaAlgum(it.texto ?? "", termos));
   };
 
   const montar = (nome: string, justificativa: string, recomendado: boolean) => {
@@ -187,19 +181,21 @@ export async function POST(req: NextRequest) {
     // ── Fallback: regras fixas do código, no MESMO formato por filtro ──────────
     const { naoAplicaveis, aplicaveis, indecisas } = gruposNaoAplicaveis(lip, textosPorPapel);
 
-    const todosGrupos = [...new Set([...naoAplicaveis, ...aplicaveis].flatMap((v) => v.grupos))];
-    const catalogo: { id: string; grupo: string }[] = [];
-    if (todosGrupos.length) {
-      const { data, error } = await supabaseAdmin
-        .from("mac_checklist_itens").select("id, grupo")
-        .eq("modelo_id", modeloId).in("grupo", todosGrupos).eq("ativo", true).limit(2000);
-      if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-      catalogo.push(...((data ?? []) as any[]));
-    }
+    // Catálogo completo: `termosItem` alcança item em qualquer grupo.
+    const { data: catBruto, error: erroCat } = await supabaseAdmin
+      .from("mac_checklist_itens").select("id, grupo, texto")
+      .eq("modelo_id", modeloId).eq("ativo", true).limit(2000);
+    if (erroCat) return NextResponse.json({ ok: false, erro: erroCat.message }, { status: 500 });
+    const catalogo = (catBruto ?? []) as { id: string; grupo: string; texto: string }[];
 
-    const montar = (v: { regraId: string; grupos: string[]; justificativa: string }, recomendado: boolean) => {
+    const montar = (
+      v: { regraId: string; grupos: string[]; termosItem?: string[]; justificativa: string },
+      recomendado: boolean,
+    ) => {
       const grupos = new Set(v.grupos);
-      const itens = catalogo.filter((it) => grupos.has(it.grupo));
+      const termos = v.termosItem ?? [];
+      const itens = catalogo.filter((it) =>
+        grupos.has(it.grupo) || !!textoCitaAlgum(it.texto ?? "", termos));
       const porGrupo = new Map<string, number>();
       for (const it of itens) porGrupo.set(it.grupo, (porGrupo.get(it.grupo) ?? 0) + 1);
       return {
@@ -210,8 +206,11 @@ export async function POST(req: NextRequest) {
       };
     };
 
-    const recomendados = naoAplicaveis.filter((v) => v.grupos.length).map((v) => montar(v, true));
-    const naoRecomendados = aplicaveis.filter((v) => v.grupos.length).map((v) => montar(v, false));
+    // Regra com termos de item também conta, mesmo sem grupo declarado.
+    const temAlvo = (v: { grupos: string[]; termosItem?: string[] }) =>
+      v.grupos.length > 0 || (v.termosItem?.length ?? 0) > 0;
+    const recomendados = naoAplicaveis.filter(temAlvo).map((v) => montar(v, true));
+    const naoRecomendados = aplicaveis.filter(temAlvo).map((v) => montar(v, false));
 
     return NextResponse.json({
       ok: true, codigo, camposPreenchidos, origem: "codigo" as const,

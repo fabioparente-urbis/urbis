@@ -17,6 +17,7 @@ type Filtro = {
   id?: string; nome: string; descricao: string | null; ordem: number; ativo: boolean;
   tipo_condicao: Tipo; campos_lip: string[]; valor_esperado: string | null;
   termos: string[]; papeis_documento: string[]; grupos: string[]; itens_ids: string[];
+  termos_item: string[];
   status_alvo: "conforme" | "nao_conforme" | "nao_aplica";
 };
 
@@ -36,7 +37,7 @@ const ROTULO_TIPO: Record<Tipo, string> = {
 const VAZIO: Filtro = {
   nome: "", descricao: "", ordem: 100, ativo: true, tipo_condicao: "CAMPO_LIP_AUSENTE",
   campos_lip: [], valor_esperado: null, termos: [], papeis_documento: [],
-  grupos: [], itens_ids: [], status_alvo: "nao_aplica",
+  grupos: [], itens_ids: [], termos_item: [], status_alvo: "nao_aplica",
 };
 
 const listaDeTexto = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
@@ -269,6 +270,21 @@ export default function GerenciadorFiltrosSlot5() {
               </div>
             </div>
           )}
+
+          {/* Alvo por texto do item — pega item em QUALQUER grupo */}
+          <label className="flex flex-col gap-1 mb-3">
+            <span className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
+              Também retirar todo item cujo TEXTO cite (separado por vírgula)
+            </span>
+            <input value={edicao.termos_item.join(", ")}
+              onChange={(e) => setEdicao({ ...edicao, termos_item: listaDeTexto(e.target.value) })}
+              placeholder="ex.: MODIFICACAO, ACRESCIMO, REFORMA"
+              className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1 text-sm font-mono" />
+            <span className="text-[10px] text-[var(--text-muted)]">
+              Alcança itens espalhados em outros grupos. Palavra inteira, sem acento —
+              &quot;POSTO&quot; não casa dentro de &quot;COMPOSTO&quot;. Some com os grupos abaixo.
+            </span>
+          </label>
 
           {/* Alvo: grupos que saem da análise */}
           <div className="mb-3">

@@ -71,6 +71,9 @@ export default function AnaliseAprovacaoProjeto() {
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState("");
   const [proposta, setProposta] = useState<Proposta | null>(null);
+  // "fechar" apenas ESCONDE o painel — a proposta continua em memória e volta pelo botão
+  // "Ver filtros". Descartar de vez obrigaria a reavaliar tudo de novo.
+  const [painelFiltros, setPainelFiltros] = useState(true);
   const [decisoes, setDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
   const [lendoLip, setLendoLip] = useState(false);
   const [importando, setImportando] = useState(false);
@@ -343,6 +346,7 @@ export default function AnaliseAprovacaoProjeto() {
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao ler o LIP");
       setProposta(d);
+      setPainelFiltros(true);
       setAbaAtual(null);
       if (d.total === 0) notificar("O LIP não permitiu decidir nenhum grupo sozinho.");
     } catch (e: any) {
@@ -715,13 +719,25 @@ export default function AnaliseAprovacaoProjeto() {
       {/* ─── Corpo: conteúdo + coluna de ações ──────────────────────── */}
       <div className="flex gap-4 px-6 pb-8">
         <div className="flex-1 min-w-0">
+          {/* Barra para reabrir o painel quando ele está escondido */}
+          {proposta && !painelFiltros && (
+            <button onClick={() => setPainelFiltros(true)}
+              className="w-full mb-4 flex items-center justify-between gap-3 rounded-lg border border-[#2563EB] bg-[#EFF6FF] px-4 py-2 text-left hover:bg-[#DBEAFE] transition-colors">
+              <span className="text-sm font-bold text-[#2563EB]">
+                🎛️ Filtros de aplicabilidade — {proposta.filtros.filter((f) => f.recomendado).length} aplicados ·{" "}
+                {proposta.filtros.filter((f) => !f.recomendado).length} disponíveis
+              </span>
+              <span className="text-xs font-semibold text-[#2563EB]">▼ Ver filtros</span>
+            </button>
+          )}
+
           {/* Filtros — recomendados e não recomendados, decididos um a um */}
-          {proposta && (
+          {proposta && painelFiltros && (
             <div className="border border-[#2563EB] rounded-lg p-4 mb-4 bg-[var(--bg-card)]">
               <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
                 <p className="text-sm font-bold">🎛️ Filtros de aplicabilidade</p>
-                <button onClick={() => setProposta(null)}
-                  className="text-[11px] text-[var(--text-muted)] underline">fechar</button>
+                <button onClick={() => setPainelFiltros(false)}
+                  className="text-[11px] font-semibold text-[#2563EB] hover:underline">▲ esconder</button>
               </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Lido de {proposta.camposPreenchidos} campos do LIP e do texto dos documentos da pasta.
@@ -777,6 +793,11 @@ export default function AnaliseAprovacaoProjeto() {
                               {!!f.grupos.length && (
                                 <p className="text-[10px] text-[var(--text-muted)]">
                                   {f.grupos.map((g) => `${g.qtd}× ${g.grupo}`).join(" · ")}
+                                </p>
+                              )}
+                              {f.grupos.length > 1 && (
+                                <p className="text-[10px] text-[var(--text-muted)] italic">
+                                  alcança {f.grupos.length} grupo(s) — inclui itens achados pelo texto
                                 </p>
                               )}
                             </div>
@@ -1054,11 +1075,23 @@ export default function AnaliseAprovacaoProjeto() {
             🎛️ Gerenciar Filtros
           </button>
 
-          <button onClick={preencherDoLip} disabled={lendoLip}
+          <button
+            onClick={() => {
+              if (proposta) { setPainelFiltros(true); setAbaAtual(null); notificar("Filtros abertos."); }
+              else void preencherDoLip();
+            }}
+            disabled={lendoLip}
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors"
-            title="Lê os campos do LIP e o texto dos documentos da pasta, e marca sozinho os grupos que não se aplicam">
-            {lendoLip ? "⏳ Lendo…" : "📁 PREENCHER DO LIP"}
+            title="Mostra os filtros de aplicabilidade lidos do LIP e dos documentos da pasta">
+            {lendoLip ? "⏳ Lendo…" : proposta ? "🎛️ Ver filtros" : "📁 PREENCHER DO LIP"}
           </button>
+          {proposta && (
+            <button onClick={preencherDoLip} disabled={lendoLip}
+              className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] py-1.5 rounded-lg text-xs transition-colors"
+              title="Reavalia as condições contra o LIP e os documentos">
+              🔄 Reavaliar filtros
+            </button>
+          )}
 
           <button onClick={() => salvar()} disabled={salvando}
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">

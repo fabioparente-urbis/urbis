@@ -65,6 +65,7 @@ function normalizarCorpo(b: any) {
     papeis_documento: Array.isArray(b.papeis_documento) ? b.papeis_documento.filter(Boolean) : [],
     grupos: Array.isArray(b.grupos) ? b.grupos.filter(Boolean) : [],
     itens_ids: Array.isArray(b.itens_ids) ? b.itens_ids.filter(Boolean) : [],
+    termos_item: Array.isArray(b.termos_item) ? b.termos_item.filter(Boolean) : [],
     status_alvo: STATUS.includes(b.status_alvo) ? b.status_alvo : "nao_aplica",
   };
 }
