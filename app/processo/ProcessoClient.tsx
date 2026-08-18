@@ -2410,6 +2410,15 @@ export default function ProcessoClient() {
             >
               {carregandoMhd ? "⏳ Abrindo..." : "🗂 HISTÓRICO DOCUMENTAL"}
             </button>
+            {ehSlot5 && (
+              <button
+                onClick={() => router.push(`/logradouro/${encodeURIComponent(idUrl)}`)}
+                title="Cadastro de Logradouros — largura de via, calçada e hierarquia viária"
+                className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >
+                🗺️ Via / Logradouro
+              </button>
+            )}
           </div>
         </div>
       </div>

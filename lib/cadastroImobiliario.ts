@@ -36,6 +36,12 @@ const ABREV: [RegExp, string][] = [
   [/^PQ\b\.?/, "PARQUE"], [/^RES\b\.?/, "RESIDENCIAL"], [/^CJ\b\.?/, "CONJUNTO"],
 ];
 
+/** Palavras que a normalização EXPANDE a partir de abreviação — o cadastro grava a forma
+ * abreviada, então usar uma delas como chave de ILIKE nunca casa ("RESIDENCIAL" não aparece
+ * onde o banco tem "RES"). Achado real: bairro "Residencial São Leopoldo Complemento" escolhia
+ * "RESIDENCIAL" (a mais longa) e voltava zero linhas, mesmo com o registro certo no banco. */
+const PALAVRAS_EXPANDIDAS = new Set(ABREV.map(([, cheio]) => cheio));
+
 /** "R  2" · "RUA 02" · "r.2" → "RUA 2" */
 export function normalizarVia(nome: string): string {
   let t = (nome || "").normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -64,9 +70,11 @@ export async function buscarVia(bairro: string, via: string): Promise<ViaCadastr
    * comparar em memória é barato e exato. */
   let { data } = await supabase.from("logradouros").select(COLUNAS).eq("bairro", bairro).limit(600);
 
-  // o bairro também pode estar abreviado de outro jeito: tenta pela palavra mais significativa
+  // o bairro também pode estar abreviado de outro jeito: tenta pela palavra mais significativa,
+  // pulando as que a normalização expandiu (essas o cadastro guarda abreviadas, e o ILIKE não casa)
   if (!data?.length) {
-    const palavra = alvoBairro.split(" ").sort((a, b) => b.length - a.length)[0] ?? alvoBairro;
+    const candidatas = alvoBairro.split(" ").filter((p) => !PALAVRAS_EXPANDIDAS.has(p));
+    const palavra = candidatas.sort((a, b) => b.length - a.length)[0] ?? alvoBairro;
     ({ data } = await supabase.from("logradouros").select(COLUNAS)
       .ilike("bairro", `%${palavra}%`).limit(600));
   }
