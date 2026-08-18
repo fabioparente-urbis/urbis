@@ -73,6 +73,11 @@ export default function AnaliseAprovacaoProjeto() {
   const [proposta, setProposta] = useState<Proposta | null>(null);
   const [decisoes, setDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
   const [lendoLip, setLendoLip] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [macIncompleto, setMacIncompleto] = useState(false);
+  const [salvandoIncompleto, setSalvandoIncompleto] = useState(false);
+  const [confirmarLimpar, setConfirmarLimpar] = useState(false);
+  const inputImportRef = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notificar = useCallback((m: string) => {
@@ -131,6 +136,7 @@ export default function AnaliseAprovacaoProjeto() {
         setItensChecklist(d.itens ?? []);
         setProcesso(d.processo ?? null);
         setPendenciasLip(d.pendenciasLip ?? []);
+        setMacIncompleto(d.macIncompleto === true);
         setAnalises(d.analises ?? []);
         const atual: Analise | undefined = (d.analises ?? [])[0];
         const marcasAtuais = atual?.itens ?? {};
@@ -362,6 +368,66 @@ export default function AnaliseAprovacaoProjeto() {
 
   function marcarDecidido(f: FiltroProposto, decisao: "aceito" | "recusado") {
     setDecisoes((prev) => ({ ...prev, [f.id]: decisao }));
+  }
+
+  /** Restaura a análise a partir do Excel exportado desta tela. */
+  async function importarExcel(arquivo: File) {
+    setImportando(true);
+    try {
+      const fd = new FormData();
+      fd.append("codigo", codigo);
+      fd.append("arquivo", arquivo);
+      const r = await fetch("/api/mac/slot-05/importar", { method: "POST", credentials: "include", body: fd });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao importar");
+      notificar(
+        `${d.restaurados} item(ns) restaurados na análise ${d.analise}` +
+        (d.foraDoModelo ? ` · ${d.foraDoModelo} ignorados (fora do checklist do Slot 5)` : ""),
+      );
+      window.location.reload();
+    } catch (e: any) {
+      notificar(`Erro ao importar: ${e?.message ?? e}`);
+    } finally {
+      setImportando(false);
+    }
+  }
+
+  /** Zera as respostas da análise em aberto. O histórico guarda o que existia. */
+  async function limparMac() {
+    setConfirmarLimpar(false);
+    try {
+      const r = await fetch("/api/mac/slot-05/manutencao", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, acao: "limpar" }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao limpar");
+      setMarcas({});
+      setFontes({});
+      setDecisoes({});
+      notificar(`MAC limpo — ${d.limpos} item(ns) voltaram para pendente.`);
+    } catch (e: any) {
+      notificar(`Erro ao limpar: ${e?.message ?? e}`);
+    }
+  }
+
+  async function toggleMacIncompleto() {
+    const novo = !macIncompleto;
+    setMacIncompleto(novo); // otimista — a pilha de processos é quem mais se beneficia
+    setSalvandoIncompleto(true);
+    try {
+      const r = await fetch("/api/mac/slot-05/manutencao", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, acao: "mac_incompleto", valor: novo }),
+      });
+      const d = await r.json();
+      if (!d.ok) { setMacIncompleto(!novo); notificar(`Erro: ${d.erro}`); }
+    } catch (e: any) {
+      setMacIncompleto(!novo);
+      notificar(`Erro: ${e?.message ?? e}`);
+    } finally {
+      setSalvandoIncompleto(false);
+    }
   }
 
   /**
@@ -992,8 +1058,66 @@ export default function AnaliseAprovacaoProjeto() {
             Tracejado = ainda não gera documento. Cada um será rota própria do Slot 5,
             independente do Slot 1.
           </p>
+
+          {/* ── Backup e manutenção ───────────────────────────────────── */}
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mt-3">
+            Backup
+          </p>
+          <a href={`/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}`} download
+            className="w-full text-center bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold py-2 rounded-lg text-sm transition-colors"
+            title="Baixa todos os itens com status, filtro que marcou e observações — dá para restaurar tudo">
+            📊 Exportar Excel
+          </a>
+          <button type="button" onClick={() => inputImportRef.current?.click()} disabled={importando}
+            className="w-full bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm transition-colors"
+            title="Restaura a análise a partir de um Excel exportado desta tela">
+            {importando ? "⏳ Importando…" : "📥 Importar Excel"}
+          </button>
+          <input ref={inputImportRef} type="file" accept=".xlsx" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) void importarExcel(f); e.target.value = ""; }} />
+
+          <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mt-3">
+            Manutenção
+          </p>
+          <button type="button" onClick={() => setConfirmarLimpar(true)}
+            className="w-full bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+            🗑️ Limpar MAC
+          </button>
+          <button type="button" onClick={toggleMacIncompleto} disabled={salvandoIncompleto}
+            className={`w-full px-3 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-50 ${
+              macIncompleto
+                ? "bg-[#FEF2F2] border-[#DC2626] text-[#DC2626]"
+                : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>
+            {macIncompleto ? "🔴 MAC não concluído" : "⚪ Marcar MAC não concluído"}
+          </button>
         </aside>
       </div>
+
+      {confirmarLimpar && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--error)] rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-[var(--error)] font-bold text-lg mb-3">🗑️ Limpar o MAC?</h2>
+            <p className="text-[var(--text-secondary)] text-sm mb-2">
+              Apaga as <b>{itensChecklist.length - totais.pendente} resposta(s)</b> desta análise —
+              inclusive o que os filtros marcaram. Os itens voltam todos para pendente.
+            </p>
+            <p className="text-[var(--text-muted)] text-xs mb-5">
+              A análise não é excluída e o histórico guarda o que existia. Exporte o Excel antes se
+              quiser poder restaurar exatamente como está.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={limparMac}
+                className="flex-1 bg-[var(--error)] hover:opacity-90 text-white font-bold py-2 rounded-lg text-sm">
+                Limpar mesmo assim
+              </button>
+              <button onClick={() => setConfirmarLimpar(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

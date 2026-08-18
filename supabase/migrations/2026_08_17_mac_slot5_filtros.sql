@@ -55,6 +55,14 @@ comment on column mac_slot5_filtros.tipo_condicao is
 comment on column mac_slot5_filtros.itens_ids is
   'Itens avulsos de mac_checklist_itens, para quando o filtro não cobre o grupo inteiro.';
 
+-- ── Flag "MAC não concluído" ────────────────────────────────────────────────
+-- Espelha o `lip_incompleto` que já existe: marca o processo cujo MAC ficou pela
+-- metade, para aparecer na pilha de processos. Coluna nova, ninguém mais a lê.
+alter table processos add column if not exists mac_incompleto boolean not null default false;
+
+comment on column processos.mac_incompleto is
+  'MAC marcado como não concluído pelo analista (espelha lip_incompleto, que é do LIP).';
+
 -- ── Carga inicial: as regras que hoje vivem em lib/mac-motor/slot5/aplicabilidade.ts ──
 -- Idempotente: só insere se a tabela estiver vazia, para não duplicar em re-execução.
 insert into mac_slot5_filtros (nome, descricao, ordem, tipo_condicao, campos_lip, valor_esperado, termos, papeis_documento, grupos)

@@ -40,6 +40,11 @@ export async function GET(req: NextRequest) {
       }, { status: 404 });
     }
 
+    // Flag "MAC não concluído". A coluna pode não existir ainda (migration pendente) —
+    // nesse caso a tela simplesmente mostra o botão desmarcado.
+    const { data: flag } = await supabaseAdmin
+      .from("processos").select("mac_incompleto").eq("id", resolucao.processo.id).maybeSingle();
+
     const [{ data: analises }, { data: itensChecklist }] = await Promise.all([
       supabaseAdmin.from("analises_mac")
         .select("*").eq("processo_codigo", codigo).eq("tipo_processo", TIPO)
@@ -68,6 +73,7 @@ export async function GET(req: NextRequest) {
           campo && typeof campo === "object" &&
           (!campo.valor || campo.status === "rascunho" || String(campo.valor).toLowerCase() === "x"))
         .map(([chave]) => chave),
+      macIncompleto: (flag as any)?.mac_incompleto === true,
       modeloId,
       analises: analises ?? [],
       itens: itensChecklist ?? [],
