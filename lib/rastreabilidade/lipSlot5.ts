@@ -239,21 +239,22 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     podeSerNP(k, "REQUERIMENTO", "uso comercial: a tipologia habitacional/institucional não se aplica", { depende: ["comercio", "atividadeEconomica"] })),
 
   // ═══════════════ LOTE ═══════════════
-  pendenteVisao("dimensoesDoLoteNaCertidao", "CERTIDAO", "o corpo da matrícula é imagem em todas as páginas"),
-  pendenteVisao("dimensoesDoLoteNoProjeto", "PRANCHA", "cotas da planta de situação — desenho cotado, não tabela"),
   {
-    chave: "dimensoesDoLoteConferemComA", declaracao: "BLOQUEADO", implementado: false,
-    metodos: ["COMPARACAO"], fontePrincipal: "OUTROS_CAMPOS",
+    chave: "dimensoesDoLoteConferemComA", declaracao: "PENDENTE_VISAO", implementado: false,
+    metodos: ["VISAO_LOCALIZADA"], fontePrincipal: "OUTROS_CAMPOS",
     fontesComparadas: ["CERTIDAO", "PRANCHA"],
-    depende: ["dimensoesDoLoteNaCertidao", "dimensoesDoLoteNoProjeto"],
     regras: [
-      { regra: "COMPARAR_FONTES", descricao: "dimensões da certidão × dimensões da planta de situação" },
-      { regra: "MARCAR_SEM_DADO", descricao: "conferência herda o estado da entrada não verificada" },
+      { regra: "COMPARAR_FONTES", descricao: "imagem da certidão de matrícula × imagem/cotas da planta de situação, direto" },
+      { regra: "MARCAR_SEM_DADO", descricao: "sem a leitura da imagem, fica sem dado — nunca estimado" },
     ],
-    formula: "dimensoesDoLoteNaCertidao == dimensoesDoLoteNoProjeto (com tolerância)",
-    regraSemDado: "as duas primitivas dependem de leitura de imagem (grupo C)",
-    valoresPossiveis: SIM_NAO, responsavel: "(a implementar — depende do grupo C)", preenchidoPor: "nao_preenchido",
-    usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO,
+    formula: "dimensões (frente/fundo/laterais) e área lidas na certidão == lidas na planta de situação (com tolerância)",
+    regraSemDado: "depende de leitura de imagem (grupo C) — certidão é imagem em todas as páginas, planta é desenho cotado",
+    valoresPossiveis: SIM_NAO, responsavel: "(a implementar — grupo C)", preenchidoPor: "analista",
+    usaIA: false, versao: 2, alteradoEm: "2026-08-18", testes: T_RASTREIO,
+    observacao: "v2 em 18/08/2026: dimensoesDoLoteNaCertidao/dimensoesDoLoteNoProjeto removidos do LIP — eram "
+      + "campos-fonte literais redundantes com este veredito (se o veredito é SIM/NÃO, escrever a dimensão de "
+      + "novo não agrega). Hoje o analista compara a olho e digita o veredito; quando o grupo C existir, ele lê "
+      + "as duas imagens direto e preenche este campo sozinho, sem precisar dos campos removidos.",
   },
   podeSerNP("dimensoesDoLoteConferemComRememb", "OUTROS_CAMPOS", "não há remembramento, remanejamento ou desmembramento na pasta"),
 

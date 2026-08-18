@@ -36,7 +36,7 @@ export const CAMPOS_POR_PAPEL: Record<string, string[]> = {
     "areaPermeavelProjetada", "areaImpermeabilizada", "volumeExigidoDaCaixa",
     "opcao1TotalExigidoAreaTerreno", "opcao2TotalExigidoAreaTerreno",
     "opcao2TotalExigidoAreaTerreno2", "opcao3TotalExigidoAreaTerreno",
-    "alturaDaEdificacao", "acessoVertical", "dimensoesDoLoteNoProjeto",
+    "alturaDaEdificacao", "acessoVertical", "dimensoesDoLoteConferemComA",
   ],
   uso_solo: [
     "logradouro", "quadra", "lote", "bairro", "iptu", "usoDoSoloN",
@@ -48,7 +48,7 @@ export const CAMPOS_POR_PAPEL: Record<string, string[]> = {
   art_projeto: ["numeroDeArtProjeto", "anexouArtRrtProjeto", "artDeProjetoAtendeAAcessibilidade", "areaNaArtDeProjeto"],
   art_execucao: ["numeroDeArtExecucao", "anexouArtRrtExecucao", "aArtDeExecucaoAtendeA", "areaNaArtDeExecucao"],
   art_caixa: ["numeroDeArtCaixa", "anexouArtRrtCaixa", "volumeNaArtDeCaixa"],
-  certidao_matricula: ["certidao", "dimensoesDoLoteNaCertidao"],
+  certidao_matricula: ["certidao", "dimensoesDoLoteConferemComA"],
   requerimento: ["proprietario", "comercio"],
   declaracao: [],
   documentos_pessoais: [],
