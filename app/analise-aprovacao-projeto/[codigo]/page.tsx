@@ -81,6 +81,38 @@ export default function AnaliseAprovacaoProjeto() {
     toastTimer.current = setTimeout(() => setToast(""), 4000);
   }, []);
 
+  /**
+   * Grava sem depender do state — usado na aplicação automática dos filtros, que roda dentro do
+   * carregamento, quando `analise`/`marcas` ainda não subiram para o React.
+   */
+  const salvarDireto = useCallback(async (
+    novasMarcas: Record<string, Status>, novasFontes: Record<string, string>,
+    novasObs: string, analiseAtual: Analise | null,
+  ) => {
+    try {
+      let alvo = analiseAtual;
+      if (!alvo) {
+        const r = await fetch("/api/mac/slot-05/analise", {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ codigo, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs }),
+        });
+        const d = await r.json();
+        if (!d.ok) throw new Error(d.erro ?? "falha ao criar análise");
+        setAnalise(d.analise);
+        setAnalises((prev) => [d.analise, ...prev]);
+        return;
+      }
+      const r = await fetch("/api/mac/slot-05/analise", {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: alvo.id, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+    } catch (e: any) {
+      notificar(`Erro ao gravar os filtros: ${e?.message ?? e}`);
+    }
+  }, [codigo, notificar]);
+
   useEffect(() => {
     if (!codigo) return;
     let cancelado = false;
@@ -114,8 +146,9 @@ export default function AnaliseAprovacaoProjeto() {
         }
         setCarregando(false);
 
-        // Roda os filtros sozinho. Só propõe o que ainda está em branco — se o analista já
-        // respondeu tudo o que a proposta cobriria, ela nem aparece.
+        // Roda os filtros e JÁ MARCA os recomendados como "Não se Aplica" nos itens deles.
+        // O analista não precisa aceitar um a um: chega com o checklist enxuto e desfaz o que
+        // discordar. Nunca sobrescreve item já respondido, e o que muda é gravado na hora.
         setLendoLip(true);
         const rp = await fetch("/api/mac/slot-05/preencher-automatico", {
           method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -126,11 +159,41 @@ export default function AnaliseAprovacaoProjeto() {
         if (dp.ok && dp.filtros?.length) {
           setProposta(dp);
           const recomendados = (dp.filtros as FiltroProposto[]).filter((f) => f.recomendado);
-          const ineditos = [...new Set(recomendados.flatMap((f) => f.itensIds))]
-            .filter((id) => !marcasAtuais[id]).length;
-          notificar(ineditos > 0
-            ? `${recomendados.length} filtro(s) recomendado(s) — até ${ineditos} item(ns) podem sair da análise.`
-            : "Filtros avaliados — nada novo a retirar.");
+
+          const novasMarcas: Record<string, Status> = { ...marcasAtuais };
+          const novasFontes: Record<string, string> = { ...(atual?.fontes ?? {}) };
+          const aplicadosPorFiltro: Record<string, "aceito"> = {};
+          let aplicados = 0;
+
+          for (const f of recomendados) {
+            let n = 0;
+            for (const id of f.itensIds) {
+              if (novasMarcas[id]) continue;
+              novasMarcas[id] = f.statusAlvo;
+              novasFontes[id] = `Filtro "${f.nome}" — ${f.justificativa}`;
+              n++;
+            }
+            aplicadosPorFiltro[f.id] = "aceito";
+            aplicados += n;
+          }
+
+          setDecisoes(aplicadosPorFiltro);
+
+          if (aplicados > 0) {
+            const bloco =
+              `━━━ FILTROS APLICADOS AUTOMATICAMENTE ━━━\n` +
+              `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica\n` +
+              recomendados.map((f) => `  • ${f.nome}: ${f.qtd} item(ns)\n    ↳ ${f.justificativa}`).join("\n");
+            const novasObs = (atual?.observacoes ?? "") ? `${atual!.observacoes}\n\n${bloco}` : bloco;
+
+            setMarcas(novasMarcas);
+            setFontes(novasFontes);
+            setObservacoes(novasObs);
+            await salvarDireto(novasMarcas, novasFontes, novasObs, atual ?? null);
+            notificar(`${aplicados} item(ns) já marcados como Não se Aplica por ${recomendados.length} filtro(s). Desfaça o que discordar.`);
+          } else {
+            notificar("Filtros avaliados — nada novo a retirar.");
+          }
         }
       } catch (e) {
         if (!cancelado) setErro(String(e));
@@ -297,21 +360,39 @@ export default function AnaliseAprovacaoProjeto() {
     notificar(`"${f.nome}": ${aplicados} item(ns) saíram da análise.`);
   }
 
-  /** Recusa UM filtro — os itens dele continuam na análise. Fica registrado na OBS. */
-  async function recusarFiltro(f: FiltroProposto) {
-    const bloco =
-      `━━━ FILTRO RECUSADO: ${f.nome} ━━━\n` +
-      `${new Date().toLocaleString("pt-BR")} — ${f.qtd} item(ns) permanecem na análise` +
-      `${f.recomendado ? " (o sistema recomendava aplicar)" : ""}\n↳ ${f.justificativa}`;
-    const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
-    setObservacoes(novasObs);
-    marcarDecidido(f, "recusado");
-    await salvar(marcas, fontes, novasObs, true);
-    notificar(`"${f.nome}" recusado — os itens seguem na análise.`);
-  }
-
   function marcarDecidido(f: FiltroProposto, decisao: "aceito" | "recusado") {
     setDecisoes((prev) => ({ ...prev, [f.id]: decisao }));
+  }
+
+  /**
+   * Desfaz um filtro já aplicado: devolve à análise só os itens que VIERAM DELE — reconhecidos
+   * pela fonte gravada. Item que o analista respondeu à mão nunca é limpo.
+   */
+  async function desfazerFiltro(f: FiltroProposto) {
+    const assinatura = `Filtro "${f.nome}"`;
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    let devolvidos = 0;
+    for (const id of f.itensIds) {
+      if (!(novasFontes[id] ?? "").startsWith(assinatura)) continue;
+      delete novasMarcas[id];
+      delete novasFontes[id];
+      devolvidos++;
+    }
+    if (!devolvidos) { notificar(`"${f.nome}": nada a desfazer.`); marcarDecidido(f, "recusado"); return; }
+
+    const bloco =
+      `━━━ FILTRO DESFEITO: ${f.nome} ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise\n` +
+      `↳ ${f.justificativa}`;
+    const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
+    setObservacoes(novasObs);
+    marcarDecidido(f, "recusado");
+    await salvar(novasMarcas, novasFontes, novasObs, true);
+    notificar(`"${f.nome}" desfeito — ${devolvidos} item(ns) voltaram para a análise.`);
   }
 
   const gruposFiltrados = useMemo(() => {
@@ -448,26 +529,32 @@ export default function AnaliseAprovacaoProjeto() {
           </div>
         </div>
 
-        {/* Monitor — proporção do que o filtro automático resolveu */}
+        {/* Monitor — quanto do MAC já está preenchido, e quanto disso veio de filtro */}
         {(() => {
-          const respondidos = itensChecklist.filter((i) => marcas[i.id]);
-          const automaticos = respondidos.filter((i) => (fontes[i.id] ?? "").startsWith("Filtro") || (fontes[i.id] ?? "").startsWith("LIP"));
-          const pct = respondidos.length ? Math.round((automaticos.length / respondidos.length) * 100) : 0;
-          const cor = pct >= 70 ? "#22c55e" : pct >= 40 ? "#eab308" : "#ef4444";
+          const total = itensChecklist.length;
+          const respondidos = total - totais.pendente;
+          const pct = total ? Math.round((respondidos / total) * 100) : 0;
+          const pctFiltro = total ? Math.round((origemDasRespostas.porFiltro / total) * 100) : 0;
+          const cor = pct >= 100 ? "#22c55e" : pct >= 60 ? "#84cc16" : pct >= 30 ? "#eab308" : "#ef4444";
           const circ = 2 * Math.PI * 38;
           return (
             <div style={{ position: "fixed", top: 92, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, zIndex: 40 }}>
               <svg width="90" height="90" viewBox="0 0 90 90">
                 <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8" />
-                <circle cx="45" cy="45" r="38" fill="none" stroke={cor} strokeWidth="8"
-                  strokeDasharray={`${(pct / 100) * circ} ${circ}`} strokeLinecap="round"
+                {/* anel interno: a fatia que os filtros resolveram */}
+                <circle cx="45" cy="45" r="38" fill="none" stroke="#2563EB" strokeWidth="8" opacity="0.35"
+                  strokeDasharray={`${(pctFiltro / 100) * circ} ${circ}`} strokeLinecap="round"
                   transform="rotate(-90 45 45)" />
-                <text x="45" y="49" textAnchor="middle" fontSize="20" fontWeight="bold" fill={cor}>{pct}%</text>
+                <circle cx="45" cy="45" r="30" fill="none" stroke={cor} strokeWidth="7"
+                  strokeDasharray={`${(pct / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`} strokeLinecap="round"
+                  transform="rotate(-90 45 45)" />
+                <text x="45" y="49" textAnchor="middle" fontSize="19" fontWeight="bold" fill={cor}>{pct}%</text>
               </svg>
-              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Monitor Filtros</span>
-              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
-                {automaticos.length}/{respondidos.length || 0} automáticos
+              <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textAlign: "center", lineHeight: 1.2, maxWidth: 96 }}>
+                MONITOR DE PREENCHIMENTO DO MAC
               </span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{respondidos}/{total} itens</span>
+              <span style={{ fontSize: 10, color: "#2563EB" }}>🎛️ {pctFiltro}% por filtro</span>
             </div>
           );
         })()}
@@ -534,8 +621,8 @@ export default function AnaliseAprovacaoProjeto() {
               </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Lido de {proposta.camposPreenchidos} campos do LIP e do texto dos documentos da pasta.
-                Cada filtro é decidido por você — nada é gravado sem aceitar, e item já respondido
-                nunca é sobrescrito.
+                Os <b>recomendados já marcaram Não se Aplica</b> nos itens deles — use
+                <b> Desfazer</b> no que discordar. Item que você respondeu à mão nunca é tocado.
               </p>
 
               {(["recomendados", "naoRecomendados"] as const).map((faixa) => {
@@ -548,8 +635,8 @@ export default function AnaliseAprovacaoProjeto() {
                     <p className="text-[10px] uppercase font-bold mb-1"
                       style={{ color: recomendado ? "#16A34A" : "#EA580C" }}>
                       {recomendado
-                        ? `✔ Recomendados — o processo não tem estes temas (${lista.length})`
-                        : `✖ Não recomendados — o tema aparece no processo (${lista.length})`}
+                        ? `✔ Aplicados — o processo não tem estes temas (${lista.length})`
+                        : `✖ Não recomendados — o tema aparece no processo (${lista.length}) · aplique se discordar`}
                     </p>
                     <div className="flex flex-col gap-1.5">
                       {lista.map((f) => {
@@ -571,10 +658,14 @@ export default function AnaliseAprovacaoProjeto() {
                                 <span className="text-[11px] text-[var(--text-secondary)]">
                                   {f.qtd} item(ns) → {ESTILO[f.statusAlvo].rotulo}
                                 </span>
-                                {decisao && (
-                                  <span className="text-[10px] font-bold"
-                                    style={{ color: decisao === "aceito" ? "#16A34A" : "#64748B" }}>
-                                    {decisao === "aceito" ? "✓ aplicado" : "✗ recusado"}
+                                {decisao === "aceito" && (
+                                  <span className="text-[10px] font-bold" style={{ color: "#16A34A" }}>
+                                    ✓ aplicado — itens marcados Não se Aplica
+                                  </span>
+                                )}
+                                {decisao === "recusado" && (
+                                  <span className="text-[10px] font-bold" style={{ color: "#64748B" }}>
+                                    ✗ fora — itens seguem na análise
                                   </span>
                                 )}
                               </div>
@@ -585,20 +676,21 @@ export default function AnaliseAprovacaoProjeto() {
                                 </p>
                               )}
                             </div>
-                            {!decisao && (
-                              <div className="flex gap-1 shrink-0">
+                            <div className="flex gap-1 shrink-0">
+                              {decisao === "aceito" ? (
+                                <button onClick={() => desfazerFiltro(f)}
+                                  className="px-2 py-1 rounded text-[11px] font-bold border transition-colors"
+                                  style={{ background: "#FEF2F2", borderColor: "#DC2626", color: "#DC2626" }}>
+                                  ↩ Desfazer
+                                </button>
+                              ) : (
                                 <button onClick={() => aceitarFiltro(f)} disabled={f.qtd === 0}
                                   className="px-2 py-1 rounded text-[11px] font-bold border transition-colors disabled:opacity-40"
                                   style={{ background: "#ECFDF5", borderColor: "#059669", color: "#059669" }}>
-                                  ✅ Aceitar
+                                  ⬜ Aplicar N/A
                                 </button>
-                                <button onClick={() => recusarFiltro(f)}
-                                  className="px-2 py-1 rounded text-[11px] font-bold border transition-colors"
-                                  style={{ background: "#FEF2F2", borderColor: "#DC2626", color: "#DC2626" }}>
-                                  ❌ Recusar
-                                </button>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         );
                       })}
