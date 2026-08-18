@@ -17,6 +17,25 @@ import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot
 
 export const runtime = "nodejs";
 
+/** Nomes das regras fixas no vocabulário dos botões de filtro do analista. */
+const ROTULO_REGRA: Record<string, string> = {
+  APROVACAO_NAO_E_MODIFICACAO: "APRO DE PROJ",
+  PORTE_NAO_E_GRANDE: "MEDIO PORTE",
+  SEM_USO_HABITACIONAL: "COMERCIAL",
+  SEM_OUTORGA_ONEROSA: "S/ ONEROSA",
+  SEM_POSTO_COMBUSTIVEL: "NÃO É POSTO",
+  SEM_QUITINETE_PENSAO: "NÃO É PENSÃO",
+  COM_CORREDOR_VIARIO: "S/ CORREDOR",
+  SEM_CARGA_DESCARGA: "S/ CARGA E DES",
+  SEM_SUBSOLO: "S/ SUBSOLO",
+  SEM_EIT_EIV: "S/ EIT E EIV",
+  SEM_EMBARQUE_DESEMBARQUE: "S/ EMB E DESE",
+  SEM_BAIA_DESACELERACAO: "S/ BAIA DE DES",
+  SEM_MARQUISE: "S/ MARQUISE",
+  SEM_AOS_ARAU: "FORA AOS/ARAU",
+  SEM_ZONA_AEROPORTUARIA: "S/ ZONA AEROP",
+};
+
 /**
  * Junta o texto que a leitura da pasta já extraiu, agrupado por papel de documento.
  * Só lê o que o MHD guardou (`mhd_conteudos.texto`, por hash) — não reprocessa PDF nem chama IA.
@@ -58,57 +77,58 @@ async function propostaPorFiltrosDoBanco(
 ) {
   const { acionados, naoAcionados, indecisos, manuais } = avaliarFiltros(filtros, lip, textos);
 
-  const gruposAlvo = [...new Set(acionados.flatMap((a) => a.grupos))];
-  const itensAvulsos = [...new Set(acionados.flatMap((a) => a.itensIds))];
+  // Cada filtro carrega os PRÓPRIOS itens — o analista aceita ou recusa um por um, inclusive os
+  // que o motor não recomendou (ele pode saber algo que o documento não diz).
+  const porNome = new Map(filtros.map((f) => [f.nome, f]));
+  const todosGrupos = [...new Set(filtros.flatMap((f) => f.grupos ?? []))];
+  const todosItens = [...new Set(filtros.flatMap((f) => f.itens_ids ?? []))];
 
-  const itensDoBanco: { id: string; grupo: string }[] = [];
-  if (gruposAlvo.length) {
+  const catalogo: { id: string; grupo: string }[] = [];
+  if (todosGrupos.length) {
     const { data } = await supabaseAdmin.from("mac_checklist_itens")
-      .select("id, grupo").eq("modelo_id", modeloId).in("grupo", gruposAlvo).eq("ativo", true).limit(2000);
-    itensDoBanco.push(...((data ?? []) as any[]));
+      .select("id, grupo").eq("modelo_id", modeloId).in("grupo", todosGrupos).eq("ativo", true).limit(2000);
+    catalogo.push(...((data ?? []) as any[]));
   }
-  if (itensAvulsos.length) {
+  if (todosItens.length) {
     const { data } = await supabaseAdmin.from("mac_checklist_itens")
-      .select("id, grupo").eq("modelo_id", modeloId).in("id", itensAvulsos).eq("ativo", true).limit(2000);
-    for (const it of (data ?? []) as any[]) {
-      if (!itensDoBanco.some((x) => x.id === it.id)) itensDoBanco.push(it);
-    }
+      .select("id, grupo").eq("modelo_id", modeloId).in("id", todosItens).eq("ativo", true).limit(2000);
+    for (const it of (data ?? []) as any[]) if (!catalogo.some((x) => x.id === it.id)) catalogo.push(it);
   }
 
-  // Quem decidiu cada grupo/item — o primeiro filtro acionado que o reivindica.
-  const donoDoGrupo = new Map<string, typeof acionados[number]>();
-  const donoDoItem = new Map<string, typeof acionados[number]>();
-  for (const a of acionados) {
-    for (const g of a.grupos) if (!donoDoGrupo.has(g)) donoDoGrupo.set(g, a);
-    for (const i of a.itensIds) if (!donoDoItem.has(i)) donoDoItem.set(i, a);
-  }
+  const itensDoFiltro = (nome: string) => {
+    const f = porNome.get(nome);
+    if (!f) return [] as { id: string; grupo: string }[];
+    const grupos = new Set(f.grupos ?? []);
+    const avulsos = new Set(f.itens_ids ?? []);
+    return catalogo.filter((it) => grupos.has(it.grupo) || avulsos.has(it.id));
+  };
 
-  const itens: Record<string, string> = {};
-  const fontes: Record<string, string> = {};
-  const contagem = new Map<string, { qtd: number; filtro: typeof acionados[number] }>();
+  const montar = (nome: string, justificativa: string, recomendado: boolean) => {
+    const f = porNome.get(nome);
+    const itens = itensDoFiltro(nome);
+    const porGrupo = new Map<string, number>();
+    for (const it of itens) porGrupo.set(it.grupo, (porGrupo.get(it.grupo) ?? 0) + 1);
+    return {
+      id: f?.id ?? nome,
+      nome,
+      recomendado,
+      justificativa,
+      statusAlvo: f?.status_alvo ?? "nao_aplica",
+      qtd: itens.length,
+      itensIds: itens.map((i) => i.id),
+      grupos: [...porGrupo.entries()].map(([grupo, qtd]) => ({ grupo, qtd })).sort((a, b) => b.qtd - a.qtd),
+    };
+  };
 
-  for (const it of itensDoBanco) {
-    const dono = donoDoItem.get(it.id) ?? donoDoGrupo.get(it.grupo);
-    if (!dono) continue;
-    itens[it.id] = dono.statusAlvo;
-    fontes[it.id] = `Filtro "${dono.nome}" — ${dono.justificativa}`;
-    const atual = contagem.get(it.grupo);
-    if (atual) atual.qtd++;
-    else contagem.set(it.grupo, { qtd: 1, filtro: dono });
-  }
+  const recomendados = acionados.map((a) => montar(a.nome, a.justificativa, true));
+  const naoRecomendados = naoAcionados.map((n) => montar(n.nome, n.justificativa, false));
 
-  const porGrupo = [...contagem.entries()]
-    .map(([grupo, { qtd, filtro }]) => ({
-      grupo, qtd, regraId: filtro.nome, justificativa: filtro.justificativa,
-    }))
-    .sort((a, b) => b.qtd - a.qtd);
+  const totalRecomendado = [...new Set(recomendados.flatMap((r) => r.itensIds))].length;
 
   return {
     ok: true, codigo, camposPreenchidos, origem: "banco" as const,
-    itens, fontes, porGrupo,
-    total: Object.keys(itens).length,
-    filtrosAcionados: acionados.map((a) => ({ id: a.id, nome: a.nome, justificativa: a.justificativa })),
-    aplicaveis: naoAcionados.map((n) => ({ regraId: n.nome, justificativa: n.justificativa })),
+    filtros: [...recomendados, ...naoRecomendados],
+    total: totalRecomendado,
     indecisas: indecisos.map((i) => ({ regraId: i.id, nome: i.nome, camposFaltando: [i.motivo] })),
     manuais,
   };
@@ -164,55 +184,40 @@ export async function POST(req: NextRequest) {
       ));
     }
 
+    // ── Fallback: regras fixas do código, no MESMO formato por filtro ──────────
     const { naoAplicaveis, aplicaveis, indecisas } = gruposNaoAplicaveis(lip, textosPorPapel);
 
-    const gruposNA = new Set(naoAplicaveis.flatMap((v) => v.grupos));
-    if (gruposNA.size === 0) {
-      return NextResponse.json({
-        ok: true, codigo, camposPreenchidos,
-        itens: {}, porGrupo: [], aplicaveis, indecisas,
-        total: 0,
-      });
+    const todosGrupos = [...new Set([...naoAplicaveis, ...aplicaveis].flatMap((v) => v.grupos))];
+    const catalogo: { id: string; grupo: string }[] = [];
+    if (todosGrupos.length) {
+      const { data, error } = await supabaseAdmin
+        .from("mac_checklist_itens").select("id, grupo")
+        .eq("modelo_id", modeloId).in("grupo", todosGrupos).eq("ativo", true).limit(2000);
+      if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+      catalogo.push(...((data ?? []) as any[]));
     }
 
-    const { data: itensDoChecklist, error } = await supabaseAdmin
-      .from("mac_checklist_itens")
-      .select("id, grupo")
-      .eq("modelo_id", modeloId)
-      .in("grupo", [...gruposNA])
-      .eq("ativo", true)
-      .limit(2000);
-    if (error) {
-      return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-    }
+    const montar = (v: { regraId: string; grupos: string[]; justificativa: string }, recomendado: boolean) => {
+      const grupos = new Set(v.grupos);
+      const itens = catalogo.filter((it) => grupos.has(it.grupo));
+      const porGrupo = new Map<string, number>();
+      for (const it of itens) porGrupo.set(it.grupo, (porGrupo.get(it.grupo) ?? 0) + 1);
+      return {
+        id: v.regraId, nome: ROTULO_REGRA[v.regraId] ?? v.regraId, recomendado,
+        justificativa: v.justificativa, statusAlvo: "nao_aplica" as const,
+        qtd: itens.length, itensIds: itens.map((i) => i.id),
+        grupos: [...porGrupo.entries()].map(([grupo, qtd]) => ({ grupo, qtd })).sort((a, b) => b.qtd - a.qtd),
+      };
+    };
 
-    // item_id → "nao_aplica", com a justificativa da regra que decidiu
-    const justificativaPorGrupo = new Map<string, { regraId: string; justificativa: string }>();
-    for (const v of naoAplicaveis) {
-      for (const g of v.grupos) justificativaPorGrupo.set(g, { regraId: v.regraId, justificativa: v.justificativa });
-    }
-
-    const itens: Record<string, "nao_aplica"> = {};
-    const fontes: Record<string, string> = {};
-    const contagem = new Map<string, number>();
-    for (const it of itensDoChecklist ?? []) {
-      const g = (it as any).grupo as string;
-      const just = justificativaPorGrupo.get(g);
-      itens[(it as any).id] = "nao_aplica";
-      fontes[(it as any).id] = `LIP · ${just?.regraId ?? "?"} — ${just?.justificativa ?? ""}`;
-      contagem.set(g, (contagem.get(g) ?? 0) + 1);
-    }
-
-    const porGrupo = [...contagem.entries()].map(([grupo, qtd]) => ({
-      grupo, qtd,
-      regraId: justificativaPorGrupo.get(grupo)?.regraId ?? null,
-      justificativa: justificativaPorGrupo.get(grupo)?.justificativa ?? null,
-    })).sort((a, b) => b.qtd - a.qtd);
+    const recomendados = naoAplicaveis.filter((v) => v.grupos.length).map((v) => montar(v, true));
+    const naoRecomendados = aplicaveis.filter((v) => v.grupos.length).map((v) => montar(v, false));
 
     return NextResponse.json({
-      ok: true, codigo, camposPreenchidos,
-      itens, fontes, porGrupo, aplicaveis, indecisas,
-      total: Object.keys(itens).length,
+      ok: true, codigo, camposPreenchidos, origem: "codigo" as const,
+      filtros: [...recomendados, ...naoRecomendados],
+      total: [...new Set(recomendados.flatMap((r) => r.itensIds))].length,
+      indecisas, manuais: [],
     });
   } catch (e: any) {
     console.error("[MAC/slot-05/preencher-automatico] erro:", e?.message);

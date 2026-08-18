@@ -22,11 +22,14 @@ type Analise = {
   id: string; numero_analise: number; status: string;
   itens: Record<string, Status>; fontes: Record<string, string>; observacoes: string;
 };
+type FiltroProposto = {
+  id: string; nome: string; recomendado: boolean; justificativa: string;
+  statusAlvo: Status; qtd: number; itensIds: string[];
+  grupos: { grupo: string; qtd: number }[];
+};
 type Proposta = {
   total: number; camposPreenchidos: number;
-  itens: Record<string, Status>; fontes: Record<string, string>;
-  porGrupo: { grupo: string; qtd: number; regraId: string | null; justificativa: string | null }[];
-  aplicaveis: { regraId: string; justificativa: string }[];
+  filtros: FiltroProposto[];
   indecisas: { regraId: string; nome: string; camposFaltando: string[] }[];
 };
 
@@ -39,24 +42,6 @@ const ESTILO: Record<Status, { bg: string; borda: string; texto: string; icone: 
 };
 const STATUS: Status[] = ["conforme", "nao_conforme", "nao_aplica"];
 
-/** Mesmo vocabulário dos botões de filtro rápido que o analista já usa. */
-const ROTULO_FILTRO: Record<string, string> = {
-  APROVACAO_NAO_E_MODIFICACAO: "APRO DE PROJ",
-  PORTE_NAO_E_GRANDE: "MEDIO PORTE",
-  SEM_USO_HABITACIONAL: "COMERCIAL",
-  SEM_OUTORGA_ONEROSA: "S/ ONEROSA",
-  SEM_POSTO_COMBUSTIVEL: "NÃO É POSTO",
-  SEM_QUITINETE_PENSAO: "NÃO É PENSÃO",
-  COM_CORREDOR_VIARIO: "S/ CORREDOR",
-  SEM_CARGA_DESCARGA: "S/ CARGA E DES",
-  SEM_SUBSOLO: "S/ SUBSOLO",
-  SEM_EIT_EIV: "S/ EIT E EIV",
-  SEM_EMBARQUE_DESEMBARQUE: "S/ EMB E DESE",
-  SEM_BAIA_DESACELERACAO: "S/ BAIA DE DES",
-  SEM_MARQUISE: "S/ MARQUISE",
-  SEM_AOS_ARAU: "FORA AOS/ARAU",
-  SEM_ZONA_AEROPORTUARIA: "S/ ZONA AEROP",
-};
 
 function semAcento(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -68,7 +53,13 @@ export default function AnaliseAprovacaoProjeto() {
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
-  const [proprietario, setProprietario] = useState<string | null>(null);
+  const [processo, setProcesso] = useState<{
+    proprietario: string | null; bairro: string | null; logradouro: string | null;
+    areaTotal: string | null; numeroSei: string | null;
+  } | null>(null);
+  const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
+  const [bannerAberto, setBannerAberto] = useState(false);
+  const [historico, setHistorico] = useState<any[]>([]);
   const [itensChecklist, setItensChecklist] = useState<Item[]>([]);
   const [analises, setAnalises] = useState<Analise[]>([]);
   const [analise, setAnalise] = useState<Analise | null>(null);
@@ -80,6 +71,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState("");
   const [proposta, setProposta] = useState<Proposta | null>(null);
+  const [decisoes, setDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
   const [lendoLip, setLendoLip] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -105,7 +97,8 @@ export default function AnaliseAprovacaoProjeto() {
         if (!d.ok) { setErro(d.erro); return; }
 
         setItensChecklist(d.itens ?? []);
-        setProprietario(d.processo?.proprietario ?? null);
+        setProcesso(d.processo ?? null);
+        setPendenciasLip(d.pendenciasLip ?? []);
         setAnalises(d.analises ?? []);
         const atual: Analise | undefined = (d.analises ?? [])[0];
         const marcasAtuais = atual?.itens ?? {};
@@ -114,6 +107,10 @@ export default function AnaliseAprovacaoProjeto() {
           setMarcas(marcasAtuais);
           setFontes(atual.fontes ?? {});
           setObservacoes(atual.observacoes ?? "");
+          fetch(`/api/mac/historico?analiseId=${atual.id}`, { credentials: "include" })
+            .then((r) => r.json())
+            .then((h) => { if (!cancelado) setHistorico(h.data ?? h.historico ?? []); })
+            .catch(() => null);
         }
         setCarregando(false);
 
@@ -126,12 +123,14 @@ export default function AnaliseAprovacaoProjeto() {
         });
         const dp = await rp.json();
         if (cancelado) return;
-        if (dp.ok) {
-          const inedito = Object.keys(dp.itens ?? {}).filter((id) => !marcasAtuais[id]).length;
-          if (inedito > 0) {
-            setProposta(dp);
-            notificar(`Filtros automáticos: ${inedito} item(ns) podem sair da análise — confira e aceite.`);
-          }
+        if (dp.ok && dp.filtros?.length) {
+          setProposta(dp);
+          const recomendados = (dp.filtros as FiltroProposto[]).filter((f) => f.recomendado);
+          const ineditos = [...new Set(recomendados.flatMap((f) => f.itensIds))]
+            .filter((id) => !marcasAtuais[id]).length;
+          notificar(ineditos > 0
+            ? `${recomendados.length} filtro(s) recomendado(s) — até ${ineditos} item(ns) podem sair da análise.`
+            : "Filtros avaliados — nada novo a retirar.");
         }
       } catch (e) {
         if (!cancelado) setErro(String(e));
@@ -184,6 +183,16 @@ export default function AnaliseAprovacaoProjeto() {
     }
     return acc;
   }, [itensChecklist, marcas]);
+
+  /** Quanto do checklist saiu por filtro automático e quanto o analista marcou à mão. */
+  const origemDasRespostas = useMemo(() => {
+    let porFiltro = 0, porAnalista = 0;
+    for (const i of itensChecklist) {
+      if (!marcas[i.id]) continue;
+      if ((fontes[i.id] ?? "").startsWith("Filtro")) porFiltro++; else porAnalista++;
+    }
+    return { porFiltro, porAnalista };
+  }, [itensChecklist, marcas, fontes]);
 
   async function garantirAnalise(itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>) {
     if (analise) return analise;
@@ -259,31 +268,50 @@ export default function AnaliseAprovacaoProjeto() {
     }
   }
 
-  async function aceitarProposta() {
-    if (!proposta) return;
-    // Nunca sobrescreve o que o analista já respondeu — só preenche o que está em branco.
+  /** Aplica UM filtro. Nunca sobrescreve item que o analista já respondeu. */
+  async function aceitarFiltro(f: FiltroProposto) {
     const novasMarcas = { ...marcas };
     const novasFontes = { ...fontes };
     let aplicados = 0;
-    for (const [id, status] of Object.entries(proposta.itens)) {
+    for (const id of f.itensIds) {
       if (novasMarcas[id]) continue;
-      novasMarcas[id] = status;
-      novasFontes[id] = proposta.fontes?.[id] ?? "LIP";
+      novasMarcas[id] = f.statusAlvo;
+      novasFontes[id] = `Filtro "${f.nome}" — ${f.justificativa}`;
       aplicados++;
     }
-    const linhas = proposta.porGrupo.map((g) => `  • ${g.qtd}× ${g.grupo}\n    ↳ ${g.justificativa ?? ""}`).join("\n");
+    if (!aplicados) { notificar(`"${f.nome}": todos os itens já estavam respondidos.`); marcarDecidido(f, "aceito"); return; }
+
     const bloco =
-      `━━━ PRÉ-PREENCHIMENTO PELO LIP ━━━\n` +
-      `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) marcados como Não se Aplica\n` +
-      `Lido de ${proposta.camposPreenchidos} campos do LIP e do texto dos documentos da pasta.\n${linhas}`;
+      `━━━ FILTRO APLICADO: ${f.nome} ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → ${ESTILO[f.statusAlvo].rotulo}` +
+      `${f.recomendado ? "" : " (aceito contra a recomendação do sistema)"}\n` +
+      `↳ ${f.justificativa}\n` +
+      f.grupos.map((g) => `  • ${g.qtd}× ${g.grupo}`).join("\n");
     const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
 
     setMarcas(novasMarcas);
     setFontes(novasFontes);
     setObservacoes(novasObs);
-    setProposta(null);
+    marcarDecidido(f, "aceito");
     await salvar(novasMarcas, novasFontes, novasObs);
-    notificar(`${aplicados} item(ns) preenchidos a partir do LIP.`);
+    notificar(`"${f.nome}": ${aplicados} item(ns) saíram da análise.`);
+  }
+
+  /** Recusa UM filtro — os itens dele continuam na análise. Fica registrado na OBS. */
+  async function recusarFiltro(f: FiltroProposto) {
+    const bloco =
+      `━━━ FILTRO RECUSADO: ${f.nome} ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${f.qtd} item(ns) permanecem na análise` +
+      `${f.recomendado ? " (o sistema recomendava aplicar)" : ""}\n↳ ${f.justificativa}`;
+    const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+    setObservacoes(novasObs);
+    marcarDecidido(f, "recusado");
+    await salvar(marcas, fontes, novasObs, true);
+    notificar(`"${f.nome}" recusado — os itens seguem na análise.`);
+  }
+
+  function marcarDecidido(f: FiltroProposto, decisao: "aceito" | "recusado") {
+    setDecisoes((prev) => ({ ...prev, [f.id]: decisao }));
   }
 
   const gruposFiltrados = useMemo(() => {
@@ -302,8 +330,74 @@ export default function AnaliseAprovacaoProjeto() {
 
   const itensDaAba = abaAtual && abaAtual !== ABA_OBS ? (porGrupo.get(abaAtual) ?? []) : [];
 
+  const naoRespondidos = itensChecklist.filter((i) => !marcas[i.id]);
+
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      {/* ─── Barra de pendências LIP/MAC — mesmo padrão do Slot 1 ─────── */}
+      {(pendenciasLip.length > 0 || naoRespondidos.length > 0) && (
+        <div style={{ position: "sticky", top: 0, zIndex: 100 }}>
+          <div onClick={() => setBannerAberto((v) => !v)}
+            style={{ cursor: "pointer", background: "var(--error)", color: "var(--accent-fg)",
+              padding: "10px 16px", fontSize: 13, fontWeight: 600,
+              borderBottom: "2px solid var(--border-strong)",
+              display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>
+              {pendenciasLip.length > 0 && `⚠ LIP: ${pendenciasLip.join(", ")}. `}
+              {naoRespondidos.length > 0 && `⬜ ${naoRespondidos.length} não verificado(s) no MAC. `}
+            </span>
+            <span style={{ marginLeft: 12, whiteSpace: "nowrap" }}>
+              {bannerAberto ? "▲ Fechar" : "▼ Ver itens"}
+            </span>
+          </div>
+          {bannerAberto && (
+            <div style={{ background: "#7f1d1d", borderBottom: "2px solid var(--border-strong)",
+              padding: "8px 16px 12px", maxHeight: "40vh", overflowY: "auto" }}>
+              {pendenciasLip.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <p style={{ fontSize: 11, color: "#fca5a5", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+                    Campos LIP em rascunho
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {pendenciasLip.map((p) => (
+                      <a key={p} href={`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`}
+                        style={{ fontSize: 12, color: "white", background: "rgba(255,255,255,0.2)",
+                          borderRadius: 4, padding: "3px 10px", textDecoration: "none", fontWeight: 600 }}>
+                        {p} →
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {naoRespondidos.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11, color: "#fca5a5", fontWeight: 700, marginBottom: 4, textTransform: "uppercase" }}>
+                    Não verificados no MAC — {naoRespondidos.length}
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    {naoRespondidos.slice(0, 60).map((item) => (
+                      <button key={item.id}
+                        onClick={() => { setAbaAtual(item.grupo); setBannerAberto(false); }}
+                        style={{ fontSize: 11, color: "white", textAlign: "left",
+                          background: "rgba(255,255,255,0.15)", borderRadius: 4, padding: "4px 10px",
+                          cursor: "pointer", border: "none", width: "100%" }}>
+                        ❌ <strong>[{item.grupo}]</strong>{" "}
+                        {item.texto.length > 100 ? item.texto.slice(0, 100) + "…" : item.texto}
+                      </button>
+                    ))}
+                    {naoRespondidos.length > 60 && (
+                      <p style={{ fontSize: 11, color: "#fca5a5" }}>
+                        …e mais {naoRespondidos.length - 60} item(ns).
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="px-6 pt-4">
         {/* ─── Cabeçalho ─────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -324,10 +418,6 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
-            <button onClick={() => router.push("/admin/checklists")}
-              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              ⚙️ Gerenciar Checklist
-            </button>
           </div>
 
           <div className="text-right">
@@ -339,7 +429,17 @@ export default function AnaliseAprovacaoProjeto() {
             <p className="text-sm">
               Nº do Alvará (Projeto): <span className="font-mono text-[var(--accent)]">{codigo}</span>
             </p>
-            {proprietario && <p className="text-xs text-[var(--text-muted)]">{proprietario}</p>}
+            {processo?.proprietario && (
+              <p className="text-xs text-[var(--text-muted)]">{processo.proprietario}</p>
+            )}
+            {(processo?.logradouro || processo?.bairro) && (
+              <p className="text-xs text-[var(--text-muted)]">
+                {[processo.logradouro, processo.bairro].filter(Boolean).join(" · ")}
+              </p>
+            )}
+            {processo?.areaTotal && (
+              <p className="text-xs text-[var(--text-muted)]">Área total: {processo.areaTotal} m²</p>
+            )}
             {analise && (
               <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
                 Análise {analise.numero_analise} {analise.status === "em_andamento" ? "em andamento" : `— ${analise.status}`}
@@ -347,6 +447,30 @@ export default function AnaliseAprovacaoProjeto() {
             )}
           </div>
         </div>
+
+        {/* Monitor — proporção do que o filtro automático resolveu */}
+        {(() => {
+          const respondidos = itensChecklist.filter((i) => marcas[i.id]);
+          const automaticos = respondidos.filter((i) => (fontes[i.id] ?? "").startsWith("Filtro") || (fontes[i.id] ?? "").startsWith("LIP"));
+          const pct = respondidos.length ? Math.round((automaticos.length / respondidos.length) * 100) : 0;
+          const cor = pct >= 70 ? "#22c55e" : pct >= 40 ? "#eab308" : "#ef4444";
+          const circ = 2 * Math.PI * 38;
+          return (
+            <div style={{ position: "fixed", top: 92, right: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, zIndex: 40 }}>
+              <svg width="90" height="90" viewBox="0 0 90 90">
+                <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8" />
+                <circle cx="45" cy="45" r="38" fill="none" stroke={cor} strokeWidth="8"
+                  strokeDasharray={`${(pct / 100) * circ} ${circ}`} strokeLinecap="round"
+                  transform="rotate(-90 45 45)" />
+                <text x="45" y="49" textAnchor="middle" fontSize="20" fontWeight="bold" fill={cor}>{pct}%</text>
+              </svg>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Monitor Filtros</span>
+              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                {automaticos.length}/{respondidos.length || 0} automáticos
+              </span>
+            </div>
+          );
+        })()}
 
         {/* ─── Legenda ───────────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-4 text-xs mt-3 mb-2">
@@ -376,67 +500,125 @@ export default function AnaliseAprovacaoProjeto() {
           <span className="text-[var(--text-muted)]">de {itensChecklist.length} itens · {grupos.length} grupos</span>
         </div>
 
+        {/* De onde veio cada resposta — filtro automático × analista */}
+        <div className="flex flex-wrap items-center gap-3 text-xs mb-2 pb-2 border-b border-[var(--border)]">
+          <span className="px-2 py-0.5 rounded-full border border-[#2563EB] text-[#2563EB] font-semibold">
+            🎛️ Filtros retiraram: {origemDasRespostas.porFiltro}
+          </span>
+          <span className="px-2 py-0.5 rounded-full border border-[#7C3AED] text-[#7C3AED] font-semibold">
+            ✍️ Marcados por você: {origemDasRespostas.porAnalista}
+          </span>
+          <span className="px-2 py-0.5 rounded-full border border-[#EA580C] text-[#EA580C] font-semibold">
+            📋 Faltam no checklist: {totais.pendente}
+          </span>
+          <span className="text-[var(--text-muted)]">
+            {itensChecklist.length
+              ? `${Math.round(((origemDasRespostas.porFiltro + origemDasRespostas.porAnalista) / itensChecklist.length) * 100)}% do checklist resolvido`
+              : ""}
+          </span>
+        </div>
+
         {toast && <p className="text-xs text-[var(--accent)] mb-2">{toast}</p>}
       </div>
 
       {/* ─── Corpo: conteúdo + coluna de ações ──────────────────────── */}
       <div className="flex gap-4 px-6 pb-8">
         <div className="flex-1 min-w-0">
-          {/* Proposta do LIP */}
+          {/* Filtros — recomendados e não recomendados, decididos um a um */}
           {proposta && (
             <div className="border border-[#2563EB] rounded-lg p-4 mb-4 bg-[var(--bg-card)]">
-              <p className="text-sm font-bold mb-1">
-                Filtros acionados automaticamente — {proposta.total} item(ns) saem da análise
-              </p>
-              <div className="flex flex-wrap gap-1.5 my-2">
-                {[...new Set(proposta.porGrupo.map((g) => g.regraId).filter(Boolean))].map((id) => (
-                  <span key={id as string}
-                    className="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide bg-[var(--primary)] text-white">
-                    {ROTULO_FILTRO[id as string] ?? id}
-                  </span>
-                ))}
+              <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+                <p className="text-sm font-bold">🎛️ Filtros de aplicabilidade</p>
+                <button onClick={() => setProposta(null)}
+                  className="text-[11px] text-[var(--text-muted)] underline">fechar</button>
               </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
                 Lido de {proposta.camposPreenchidos} campos do LIP e do texto dos documentos da pasta.
-                Nada é gravado até você aceitar, e nenhum item já respondido é sobrescrito.
+                Cada filtro é decidido por você — nada é gravado sem aceitar, e item já respondido
+                nunca é sobrescrito.
               </p>
-              <div className="space-y-1.5 mb-3 max-h-72 overflow-y-auto">
-                {proposta.porGrupo.map((g) => (
-                  <div key={g.grupo} className="text-xs">
-                    <span className="font-semibold">{g.qtd}×</span>{" "}
-                    <span className="text-[var(--text-secondary)]">{g.grupo}</span>
-                    <p className="text-[10px] text-[var(--text-muted)] ml-6">↳ {g.justificativa}</p>
+
+              {(["recomendados", "naoRecomendados"] as const).map((faixa) => {
+                const lista = proposta.filtros.filter((f) =>
+                  faixa === "recomendados" ? f.recomendado : !f.recomendado);
+                if (!lista.length) return null;
+                const recomendado = faixa === "recomendados";
+                return (
+                  <div key={faixa} className="mb-4">
+                    <p className="text-[10px] uppercase font-bold mb-1"
+                      style={{ color: recomendado ? "#16A34A" : "#EA580C" }}>
+                      {recomendado
+                        ? `✔ Recomendados — o processo não tem estes temas (${lista.length})`
+                        : `✖ Não recomendados — o tema aparece no processo (${lista.length})`}
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {lista.map((f) => {
+                        const decisao = decisoes[f.id];
+                        return (
+                          <div key={f.id}
+                            className="border rounded-lg px-3 py-2 flex items-start gap-3"
+                            style={{
+                              borderColor: decisao === "aceito" ? "#16A34A"
+                                : decisao === "recusado" ? "#94A3B8" : "var(--border)",
+                              opacity: decisao ? 0.65 : 1,
+                            }}>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide text-white"
+                                  style={{ background: recomendado ? "var(--primary)" : "#94A3B8" }}>
+                                  {f.nome}
+                                </span>
+                                <span className="text-[11px] text-[var(--text-secondary)]">
+                                  {f.qtd} item(ns) → {ESTILO[f.statusAlvo].rotulo}
+                                </span>
+                                {decisao && (
+                                  <span className="text-[10px] font-bold"
+                                    style={{ color: decisao === "aceito" ? "#16A34A" : "#64748B" }}>
+                                    {decisao === "aceito" ? "✓ aplicado" : "✗ recusado"}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-[var(--text-muted)] mt-0.5">↳ {f.justificativa}</p>
+                              {!!f.grupos.length && (
+                                <p className="text-[10px] text-[var(--text-muted)]">
+                                  {f.grupos.map((g) => `${g.qtd}× ${g.grupo}`).join(" · ")}
+                                </p>
+                              )}
+                            </div>
+                            {!decisao && (
+                              <div className="flex gap-1 shrink-0">
+                                <button onClick={() => aceitarFiltro(f)} disabled={f.qtd === 0}
+                                  className="px-2 py-1 rounded text-[11px] font-bold border transition-colors disabled:opacity-40"
+                                  style={{ background: "#ECFDF5", borderColor: "#059669", color: "#059669" }}>
+                                  ✅ Aceitar
+                                </button>
+                                <button onClick={() => recusarFiltro(f)}
+                                  className="px-2 py-1 rounded text-[11px] font-bold border transition-colors"
+                                  style={{ background: "#FEF2F2", borderColor: "#DC2626", color: "#DC2626" }}>
+                                  ❌ Recusar
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                ))}
-              </div>
-              {!!proposta.aplicaveis.length && (
-                <div className="mb-3">
-                  <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
-                    Confirmado que SE APLICA — fica com você
-                  </p>
-                  {proposta.aplicaveis.map((a) => (
-                    <p key={a.regraId} className="text-[10px] text-[var(--text-secondary)]">• {a.justificativa}</p>
-                  ))}
-                </div>
-              )}
+                );
+              })}
+
               {!!proposta.indecisas.length && (
-                <div className="mb-3">
-                  <p className="text-[10px] uppercase font-bold text-[#EA580C]">Sem dado para decidir</p>
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-[var(--text-muted)]">
+                    Sem dado para decidir ({proposta.indecisas.length})
+                  </p>
                   {proposta.indecisas.map((i) => (
                     <p key={i.regraId} className="text-[10px] text-[var(--text-secondary)]">
-                      • {i.nome} — falta: {i.camposFaltando.join(", ") || "—"}
+                      • {i.nome} — {i.camposFaltando.join(", ") || "—"}
                     </p>
                   ))}
                 </div>
               )}
-              <div className="flex gap-2">
-                <button onClick={aceitarProposta} disabled={proposta.total === 0}
-                  className="px-3 py-1.5 rounded text-xs font-bold bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-50">
-                  Aceitar e marcar {proposta.total} item(ns)
-                </button>
-                <button onClick={() => setProposta(null)}
-                  className="px-3 py-1.5 rounded text-xs text-[var(--text-muted)] underline">descartar</button>
-              </div>
             </div>
           )}
 
@@ -569,6 +751,36 @@ export default function AnaliseAprovacaoProjeto() {
                   className="px-3 py-1.5 rounded text-sm bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40">
                   Próximo →
                 </button>
+              </div>
+
+              {/* Histórico de alterações — mesma tabela mac_historico do Slot 1 */}
+              <div className="mt-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
+                  🕐 Histórico de alterações
+                </p>
+                {(() => {
+                  const idsDaAba = new Set(itensDaAba.map((i) => i.id));
+                  const doGrupo = historico.filter((h: any) => idsDaAba.has(h.checklist_item_id));
+                  if (!doGrupo.length) {
+                    return <p className="text-xs text-[var(--text-muted)]">Nenhuma alteração registrada ainda.</p>;
+                  }
+                  return (
+                    <div className="flex flex-col gap-1">
+                      {doGrupo.slice(0, 40).map((h: any, i: number) => (
+                        <div key={h.id ?? i} className="text-[11px] text-[var(--text-secondary)] border-l-2 border-[var(--border)] pl-2">
+                          <span className="text-[var(--text-muted)]">
+                            {h.criado_em ? new Date(h.criado_em).toLocaleString("pt-BR") : ""}
+                          </span>{" "}
+                          {h.analista_nome && <span className="font-semibold">{h.analista_nome}</span>}{" "}
+                          <span>{h.status_anterior ?? "sem resposta"} → <b>{h.status_novo}</b></span>
+                          {h.item_texto && (
+                            <p className="text-[10px] text-[var(--text-muted)] truncate">{h.item_texto}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             </>
           )}

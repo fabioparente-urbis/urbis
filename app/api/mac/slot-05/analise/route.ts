@@ -49,9 +49,25 @@ export async function GET(req: NextRequest) {
         .eq("modelo_id", modeloId).eq("ativo", true).order("ordem").limit(2000),
     ]);
 
+    const dados = (resolucao.processo.dados ?? {}) as Record<string, any>;
+
     return NextResponse.json({
       ok: true,
-      processo: { codigo, proprietario: (resolucao.processo.dados as any)?.proprietario?.valor ?? null },
+      processo: {
+        codigo,
+        proprietario: dados?.proprietario?.valor ?? null,
+        bairro: dados?.bairro?.valor ?? null,
+        logradouro: dados?.logradouro?.valor ?? null,
+        areaTotal: dados?.areaTotal?.valor ?? null,
+        numeroSei: dados?.processo?.valor ?? codigo,
+      },
+      // Campos do LIP em rascunho/vazios/"x" — alimentam a barra de pendências,
+      // mesma leitura que a tela do Slot 1 faz sobre processos.dados.
+      pendenciasLip: Object.entries(dados)
+        .filter(([, campo]: [string, any]) =>
+          campo && typeof campo === "object" &&
+          (!campo.valor || campo.status === "rascunho" || String(campo.valor).toLowerCase() === "x"))
+        .map(([chave]) => chave),
       modeloId,
       analises: analises ?? [],
       itens: itensChecklist ?? [],
@@ -125,6 +141,51 @@ export async function PUT(req: NextRequest) {
     const resolucao = await resolverProcessoSlot5(usuario, (alvo as any).processo_codigo);
     if (!resolucao.ok) {
       return NextResponse.json({ ok: false, erro: resolucao.erro }, { status: resolucao.status });
+    }
+
+    // Trilha de alterações — mesma tabela que a tela do Slot 1 alimenta, para o
+    // histórico do item aparecer igual. Só registra o que MUDOU de status.
+    if (itens) {
+      const { data: antes } = await supabaseAdmin.from("analises_mac")
+        .select("itens, analista_id").eq("id", id).maybeSingle();
+      const anteriores = ((antes as any)?.itens ?? {}) as Record<string, string>;
+      const alterados = Object.keys(itens).filter((k) => itens[k] !== anteriores[k]);
+
+      if (alterados.length) {
+        const modeloId = await modeloDoSlot5();
+        const [{ data: checkItens }, { data: analista }, { data: proc }] = await Promise.all([
+          modeloId
+            ? supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref").eq("modelo_id", modeloId)
+            : Promise.resolve({ data: [] as any[] }),
+          supabaseAdmin.from("usuarios").select("nome, gerencia").eq("id", (antes as any)?.analista_id ?? "").maybeSingle(),
+          supabaseAdmin.from("processos").select("dados").eq("codigo", (alvo as any).processo_codigo)
+            .eq("tipo_processo", TIPO).maybeSingle(),
+        ]);
+        const d = ((proc as any)?.dados ?? {}) as Record<string, any>;
+        const idx = new Map(((checkItens ?? []) as any[]).map((i: any) => [i.id, i]));
+
+        await supabaseAdmin.from("mac_historico").insert(alterados.map((itemId) => {
+          const it = idx.get(itemId) as any;
+          return {
+            analise_id: id,
+            processo_codigo: (alvo as any).processo_codigo,
+            tipo_processo: TIPO,
+            area_total: d?.areaTotal?.valor ? Number(String(d.areaTotal.valor).replace(/\./g, "").replace(",", ".")) : null,
+            analista_id: (antes as any)?.analista_id ?? usuario.id,
+            analista_nome: (analista as any)?.nome ?? null,
+            analista_gerencia: (analista as any)?.gerencia ?? null,
+            proprietario: d?.proprietario?.valor ?? null,
+            autor_projeto: d?.nome_responsavel_arq?.valor ?? null,
+            autor_levantamento: d?.nome_responsavel_eng?.valor ?? null,
+            checklist_item_id: itemId,
+            aba: it?.grupo ?? null,
+            item_texto: it?.texto ?? null,
+            referencia_legal: it?.ref ?? null,
+            status_anterior: anteriores[itemId] ?? null,
+            status_novo: itens[itemId],
+          };
+        }));
+      }
     }
 
     const { error } = await supabaseAdmin.from("analises_mac").update({
