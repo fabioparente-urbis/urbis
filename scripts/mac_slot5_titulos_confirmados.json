@@ -1,0 +1,224 @@
+[
+  {
+    "id": "e9d940e3-e909-4b63-9e5a-ff0425d4f008",
+    "grupo": "INFORMAÇÕES NO SISTEMA ALVARÁ MAIS FÁCIL",
+    "ordem": 0,
+    "texto": "Conferir os dados informados nos Dados da Obra e Complementos no Sistema Alvará Fácil, pois estas são inseridas automaticamente no Alvará de Construção:"
+  },
+  {
+    "id": "78b6f0e9-0f0e-4166-8b55-12625cb8dfb7",
+    "grupo": "DOCUMENTAÇÃO",
+    "ordem": 10,
+    "texto": "2. Verificação de documentos pertinente a DIRAAP"
+  },
+  {
+    "id": "f9969d3d-4748-4e0d-876b-045b92c1bb1b",
+    "grupo": "FRAÇÃO IDEAL (Art. 179 da LC 349/2022)",
+    "ordem": 80,
+    "texto": "7. FRAÇÃO IDEAL (Art. 179 da LC 349/2022);"
+  },
+  {
+    "id": "51ae1a3a-ba52-4a45-a8fd-858a646251f6",
+    "grupo": "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+    "ordem": 91,
+    "texto": "8. ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022): O índice de Aproveitamento é pertinente para as\náreas: ADD e AA e PDU;"
+  },
+  {
+    "id": "fe51ebe3-8856-4b41-8134-45042fb40d61",
+    "grupo": "ÍNDICE DE APROVEITAMENTO PARA ATIVIDADE ECONÔMICA",
+    "ordem": 101,
+    "texto": "9. ÍNDICE DE APROVEITAMENTO PARA ATIVIDADE ECONÔMICA;"
+  },
+  {
+    "id": "258af8e9-5f42-49ae-b730-266e2419eb49",
+    "grupo": "DESNÍVEL DO TERRENO",
+    "ordem": 107,
+    "texto": "11.DESNÍVEL DO TERRENO;"
+  },
+  {
+    "id": "276613bf-8def-416f-9c84-717d8e516f3c",
+    "grupo": "CORTE ESQUEMÁTICO E VISTA ESQUEMÁTICAS",
+    "ordem": 112,
+    "texto": "12.CORTE ESQUEMÁTICO E VISTA ESQUEMÁTICAS;"
+  },
+  {
+    "id": "32c33026-a477-4ae0-b5a2-0a596f19a71f",
+    "grupo": "SUBSOLO AFLORADO (RECUO E ALTURA)",
+    "ordem": 121,
+    "texto": "13.SUBSOLO AFLORADO (RECUO E ALTURA);"
+  },
+  {
+    "id": "6d782147-c11a-4482-8117-13eec4ed3103",
+    "grupo": "RECUOS E AFASTAMENTOS (Cód. De Obras Anexo III -LC 364/23 e Tabelas: XXI e XXII Plano Diretor- LC 349/22)",
+    "ordem": 130,
+    "texto": "14.RECUOS E AFASTAMENTOS (Cód. De Obras Anexo III -LC 364/23 e Tabelas: XXI e XXII Plano Diretor-\n LC 349/22);"
+  },
+  {
+    "id": "aa4686d7-039d-40b1-a2b6-f34a6d6d6793",
+    "grupo": "Recuos e afastamentos para todas as unidades territoriais",
+    "ordem": 144,
+    "texto": "15.Recuos e afastamentos para todas as unidades territoriais;"
+  },
+  {
+    "id": "12f01f9e-4862-42ac-8060-fa52327dd056",
+    "grupo": "CORREDOR VIÁRIO",
+    "ordem": 162,
+    "texto": "16.CORREDOR VIÁRIO;"
+  },
+  {
+    "id": "23a1bad1-7bc4-49fa-bbd0-2dda5f570477",
+    "grupo": "ALTURA DE EDIFICAÇÃO",
+    "ordem": 171,
+    "texto": "17.ALTURA DE EDIFICAÇÃO ;"
+  },
+  {
+    "id": "f0819124-cedb-490a-84bd-6d1d32db7d04",
+    "grupo": "EMBARQUE E DESEMBARQUE",
+    "ordem": 197,
+    "texto": "18.EMBARQUE E DESEMBARQUE: GERAL E/OU PARA ATIVIDADE ECONOMICA-  (LC nº10.845/2022);"
+  },
+  {
+    "id": "d05d247a-4a12-4bd9-a744-dd68755a170e",
+    "grupo": "ÍNDICE DE OCUPAÇÃO",
+    "ordem": 225,
+    "texto": "20.ÍNDICE DE OCUPAÇÃO;"
+  },
+  {
+    "id": "a58caa35-c389-428c-99e5-9c00a04607ac",
+    "grupo": "COEFICIENTE DE APROVEITAMENTO BÁSICO NÃO ONEROSO E ONEROSO Art. 242 LC N°349 /2022) E TDC",
+    "ordem": 236,
+    "texto": "21.COEFICIENTE DE APROVEITAMENTO BÁSICO NÃO ONEROSO E ONEROSO Art. 242 LC N°349 /2022)"
+  },
+  {
+    "id": "eb9a2ae1-0770-4c89-a200-e84b569f5ea3",
+    "grupo": "EIT / EIV",
+    "ordem": 251,
+    "texto": "22.EIT / EIV. Macroprojeto: empreendimento voltado ao desenvolvimento de atividades econômicas, cuja área\nocupada pela atividade ultrapasse 5.000 m² (cinco mil metros quadrados), excetuando-se deste cômputo as\náreas destinadas a carga e descarga e estacionamento exigidas em lei;"
+  },
+  {
+    "id": "9cb752fd-5cb4-43d1-a456-109d41f67ea3",
+    "grupo": "BAIA DE DESACELERAÇÃO DE VELOCIDADE",
+    "ordem": 270,
+    "texto": "23.BAIA DE DESACELERAÇÃO DE VELOCIDADE;"
+  },
+  {
+    "id": "bbde1fb6-ef63-43c3-b86b-d2cf12059538",
+    "grupo": "CALÇADA",
+    "ordem": 283,
+    "texto": "24. CALÇADA (LC324/19) e Rebaixos (Art.89 – LC n°364/2023);"
+  },
+  {
+    "id": "ae2c1c38-4025-4cf7-852f-6d40f5033353",
+    "grupo": "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+    "ordem": 306,
+    "texto": "25.Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º;"
+  },
+  {
+    "id": "45dbdf52-ad14-416c-b74f-a4676bb930f7",
+    "grupo": "Rebaixo para atividades econômicas em geral §11º",
+    "ordem": 310,
+    "texto": "26.Rebaixo para atividades econômicas em geral §11º;"
+  },
+  {
+    "id": "09686677-9117-4ec2-aa36-343b2569bfd5",
+    "grupo": "OBSERVAÇÕES GERAIS",
+    "ordem": 320,
+    "texto": "27.OBSERVAÇÕES GERAIS;"
+  },
+  {
+    "id": "db3fc028-f8ed-4a4f-9fb6-51f5b72f8f39",
+    "grupo": "ILUMINAÇÃO E VENTILAÇÃO",
+    "ordem": 335,
+    "texto": "28.ILUMINAÇÃO E VENTILAÇÃO;"
+  },
+  {
+    "id": "de79bb24-9a64-49c0-99be-850f5e2d0d7b",
+    "grupo": "MARQUISES E COBERTURAS",
+    "ordem": 342,
+    "texto": "29.MARQUISES E COBERTURAS;"
+  },
+  {
+    "id": "9bc4a846-63ca-4765-afe7-5482f5114f06",
+    "grupo": "CIRCULAÇÃO HORIZONTAL E VERTICAL",
+    "ordem": 353,
+    "texto": "30.CIRCULAÇÃO HORIZONTAL E VERTICAL;"
+  },
+  {
+    "id": "ecbe58eb-dbc5-4527-840f-18599c978e65",
+    "grupo": "ESTACIONAMENTO E AUTOMÓVEIS",
+    "ordem": 355,
+    "texto": "31.ESTACIONAMENTO E AUTOMÓVEIS;"
+  },
+  {
+    "id": "ada8ff3c-02c2-463c-9c33-f10e4418ec59",
+    "grupo": "VAGAS PARA USO HABITACIONAL",
+    "ordem": 384,
+    "texto": "32.VAGAS PARA USO HABITACIONAL;"
+  },
+  {
+    "id": "afddba27-b005-4d4a-a87e-7fa55defe909",
+    "grupo": "HABITAÇÃO SERIADA",
+    "ordem": 397,
+    "texto": "33.HABITAÇÃO SERIADA;"
+  },
+  {
+    "id": "d9c3c382-4193-4ca5-b154-539929222cbc",
+    "grupo": "HABITAÇÃO SERIADA E COLETIVA NÃO INTEGRANTES DE LOTEAMENTO",
+    "ordem": 401,
+    "texto": "34.HABITAÇÃO SERIADA E COLETIVA NÃO INTEGRANTES DE LOTEAMENTO;"
+  },
+  {
+    "id": "40a9c841-40bf-488d-abd5-f606b2e3ff78",
+    "grupo": "POSTO DE COMBUSTIVEL – LC nº364/2023 – Art. 120",
+    "ordem": 403,
+    "texto": "35.POSTO DE COMBUSTIVEL – LC nº364/2023 – Art. 120;"
+  },
+  {
+    "id": "0e55be77-8e18-4c42-9f6f-a07a29790302",
+    "grupo": "PENSAO, PENSIONATO E CASA DE ESTUDANTES – LC nº364/2023 – Art. 121",
+    "ordem": 406,
+    "texto": "36.PENSAO, PENSIONATO E CASA DE ESTUDANTES – LC nº364/2023 – Art. 121;"
+  },
+  {
+    "id": "a5659cb1-d23d-48e6-8116-c82ca3d15f69",
+    "grupo": "VAGAS PARA ATIVIDADES ECONOMICAS GERAIS",
+    "ordem": 412,
+    "texto": "38.VAGAS PARA ATIVIDADES ECONOMICAS GERAIS;"
+  },
+  {
+    "id": "fbc9427b-fde5-42a8-9656-6b5def4285d5",
+    "grupo": "EXIGENCIA DE CARGA E DESCARGA – LEI DE ATIVI N°10.8450 DE 04/11/22 e INSTRUÇÃO NORMATIVA Nº8 01/10/2023",
+    "ordem": 447,
+    "texto": "41.EXIGENCIA DE CARGA E DESCARGA – LEI DE ATIVIDADE N°10.8450 DE 04/11/22 e INSTRUÇÃO NORMATIVA\nNº8 01/10/2023;"
+  },
+  {
+    "id": "9ac3625b-6df1-4342-b6d9-7ada26c6eef9",
+    "grupo": "OBSERVAÇÕES GERAIS DA LEI DE ATIVIDADE LC n°10.845/2022)",
+    "ordem": 455,
+    "texto": "43.OBSERVAÇÕES GERAIS DA LEI DE ATIVIDADE LC n°10.845/2022);"
+  },
+  {
+    "id": "7a9d0cca-c374-480f-ad15-5932425eaa57",
+    "grupo": "CORTES",
+    "ordem": 460,
+    "texto": "44.CORTES;"
+  },
+  {
+    "id": "d228c27d-e72f-4aee-ac3a-93cfa295c4f5",
+    "grupo": "PL. DE COBERTURA",
+    "ordem": 472,
+    "texto": "45.PL. DE COBERTURA;"
+  },
+  {
+    "id": "46d034f6-9954-425b-9e39-8eaaf384e579",
+    "grupo": "QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018",
+    "ordem": 476,
+    "texto": "46.QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018\nEdifício uso privado multifamiliar: com duas ou mais unidades autônomas destinadas\nao uso residencial;"
+  },
+  {
+    "id": "3952e3a4-c095-463c-acee-c021f8de6db5",
+    "grupo": "47.QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018 - APRESENTAR NO PROJETO",
+    "ordem": 487,
+    "texto": "47.QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018 - APRESENTAR NO PROJETO;"
+  }
+]
