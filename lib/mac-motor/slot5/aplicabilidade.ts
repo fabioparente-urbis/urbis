@@ -12,6 +12,12 @@
 
 export type DadosLip = Record<string, { valor?: string | null } | undefined>;
 
+/**
+ * Texto já extraído dos PDFs da pasta, por papel de documento (`projeto`, `uso_solo`, …).
+ * Vem de `mhd_conteudos.texto`, gravado pela leitura da pasta — nenhum PDF é reprocessado aqui.
+ */
+export type TextosPorPapel = Record<string, string>;
+
 export type VeredictoGrupo = {
   regraId: string;
   grupos: string[];
@@ -58,6 +64,47 @@ function todosAusentes(lip: DadosLip, chaves: string[]): boolean | null {
   return algumDado ? true : null;
 }
 
+// ── busca textual nos documentos da pasta ────────────────────────────────────
+// Substring é armadilha: "POSTO" casa dentro de "COMPOSTO"/"DISPOSTO" e faria o filtro de posto
+// de combustível deixar de disparar num processo onde a palavra nunca apareceu de verdade.
+// Confirmado no processo 50724: substring dizia ENCONTRADO, palavra inteira diz ausente.
+
+function semAcento(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function escaparRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Procura a palavra INTEIRA, ignorando acento e caixa, só nos papéis informados. */
+function acharPalavra(
+  textos: TextosPorPapel, papeis: string[], termos: string[],
+): { achou: boolean; papel: string | null; termo: string | null; trecho: string | null } {
+  for (const papel of papeis) {
+    const bruto = textos[papel];
+    if (!bruto) continue;
+    const alvo = semAcento(bruto).toUpperCase();
+    for (const termo of termos) {
+      const re = new RegExp(`(^|[^A-Z0-9])${escaparRegex(semAcento(termo).toUpperCase())}([^A-Z0-9]|$)`);
+      const m = re.exec(alvo);
+      if (m) {
+        const i = Math.max(0, m.index - 60);
+        return {
+          achou: true, papel, termo,
+          trecho: bruto.slice(i, Math.min(bruto.length, m.index + 90)).replace(/\s+/g, " ").trim(),
+        };
+      }
+    }
+  }
+  return { achou: false, papel: null, termo: null, trecho: null };
+}
+
+/** Os papéis existem na leitura? Sem eles não dá para afirmar ausência — devolve null. */
+function temAlgumPapel(textos: TextosPorPapel, papeis: string[]): boolean {
+  return papeis.some((p) => (textos[p]?.length ?? 0) > 0);
+}
+
 type Regra = {
   id: string;
   /** Rótulo curto, o mesmo vocabulário dos filtros manuais que o analista já conhece. */
@@ -65,9 +112,33 @@ type Regra = {
   grupos: string[];
   campos: string[];
   /** true = grupos não se aplicam · false = se aplicam · null = sem dado, decide o analista. */
-  avaliar: (lip: DadosLip) => boolean | null;
-  motivo: (lip: DadosLip) => string;
+  avaliar: (lip: DadosLip, textos: TextosPorPapel) => boolean | null;
+  motivo: (lip: DadosLip, textos: TextosPorPapel) => string;
 };
+
+/**
+ * Fábrica das regras "não achei a palavra no documento → o tema não existe no projeto".
+ * Só conclui ausência quando o documento foi mesmo lido; documento faltando devolve `null`.
+ */
+function regraPorAusencia(cfg: {
+  id: string; nome: string; grupos: string[]; papeis: string[]; termos: string[];
+}): Regra {
+  return {
+    id: cfg.id,
+    nome: cfg.nome,
+    grupos: cfg.grupos,
+    campos: [],
+    avaliar: (_lip, textos) => {
+      if (!temAlgumPapel(textos, cfg.papeis)) return null;
+      return !acharPalavra(textos, cfg.papeis, cfg.termos).achou;
+    },
+    motivo: (_lip, textos) => {
+      const r = acharPalavra(textos, cfg.papeis, cfg.termos);
+      if (r.achou) return `"${r.termo}" encontrado em ${r.papel}: …${r.trecho}…`;
+      return `nenhuma ocorrência de ${cfg.termos.map((t) => `"${t}"`).join(" / ")} em ${cfg.papeis.join(", ")}`;
+    },
+  };
+}
 
 const REGRAS: Regra[] = [
   {
@@ -164,6 +235,72 @@ const REGRAS: Regra[] = [
       `alertasDoUsoDoSolo = "${bruto(lip, "alertasDoUsoDoSolo")}" · ` +
       `anexouCertidaoDeCorredorViario = "${bruto(lip, "anexouCertidaoDeCorredorViario")}"`,
   },
+
+  // ── Acionamento por ausência da palavra no documento ───────────────────────
+  // O projeto é a fonte: se o desenho não menciona o tema, ele não existe no projeto.
+  // Cada uma só conclui quando o documento foi lido de fato (senão vira pendência).
+  regraPorAusencia({
+    id: "SEM_POSTO_COMBUSTIVEL",
+    nome: "Não é posto de combustível",
+    grupos: [
+      "POSTO DE COMBUSTIVEL – LC nº364/2023 – Art. 120",
+      "Rebaixo para atividade: Posto de COMERCIO E COMBUSTÍVEL E SERVIÇOS AUTOMOTIVOS: §10º",
+    ],
+    papeis: ["projeto", "uso_solo"],
+    termos: ["POSTO", "COMBUSTIVEL", "ABASTECIMENTO"],
+  }),
+  regraPorAusencia({
+    id: "SEM_MARQUISE",
+    nome: "Sem marquise",
+    grupos: ["MARQUISES E COBERTURAS"],
+    papeis: ["projeto"],
+    termos: ["MARQUISE", "MARQUISES"],
+  }),
+  regraPorAusencia({
+    id: "SEM_SUBSOLO",
+    nome: "Sem subsolo",
+    grupos: ["SUBSOLO AFLORADO (RECUO E ALTURA)"],
+    papeis: ["projeto"],
+    termos: ["SUBSOLO"],
+  }),
+  regraPorAusencia({
+    id: "SEM_CARGA_DESCARGA",
+    nome: "Sem carga e descarga",
+    grupos: [
+      "EXIGENCIA DE CARGA E DESCARGA – LEI DE ATIVI N°10.8450 DE 04/11/22 e INSTRUÇÃO NORMATIVA Nº8 01/10/2023",
+      "SOLUÇÃO ALTERNATIVA PARA CARGA E DESCARGA EM EDIFICAÇÃO REGULAR EXISTENTE – Art. 17 LC n°10.845/2022)",
+    ],
+    papeis: ["projeto"],
+    termos: ["CARGA E DESCARGA", "C/D"],
+  }),
+  regraPorAusencia({
+    id: "SEM_EMBARQUE_DESEMBARQUE",
+    nome: "Sem embarque e desembarque",
+    grupos: ["EMBARQUE E DESEMBARQUE"],
+    papeis: ["projeto"],
+    termos: ["EMBARQUE", "DESEMBARQUE"],
+  }),
+  regraPorAusencia({
+    id: "SEM_EIT_EIV",
+    nome: "Sem EIT / EIV",
+    grupos: ["EIT / EIV"],
+    papeis: ["projeto", "uso_solo"],
+    termos: ["EIT", "EIV", "ESTUDO DE IMPACTO"],
+  }),
+
+  {
+    // Equivale ao filtro manual "MEDIO PORTE". A condição já funciona (`grandePorte` é campo do
+    // LIP); o que falta é a LISTA DE GRUPOS exclusivos de grande porte — nenhum item do checklist
+    // menciona "grande porte" no texto, então não dá para derivar do banco. Enquanto a lista
+    // estiver vazia a regra não marca nada e aparece como pendência explícita na tela, em vez de
+    // sumir silenciosamente.
+    id: "PORTE_NAO_E_GRANDE",
+    nome: "Médio porte (não é grande porte)",
+    grupos: [],
+    campos: ["grandePorte"],
+    avaliar: (lip) => ausente(lip, "grandePorte"),
+    motivo: (lip) => `grandePorte = "${bruto(lip, "grandePorte")}" — itens exclusivos de grande porte não se aplicam`,
+  },
 ];
 
 /**
@@ -173,7 +310,7 @@ const REGRAS: Regra[] = [
  * decisão. `indecisas` registra o que faltou dado para julgar — é o que a tela mostra ao
  * analista como "não deu pra decidir sozinho".
  */
-export function gruposNaoAplicaveis(lip: DadosLip): {
+export function gruposNaoAplicaveis(lip: DadosLip, textos: TextosPorPapel = {}): {
   naoAplicaveis: VeredictoGrupo[];
   aplicaveis: VeredictoGrupo[];
   indecisas: { regraId: string; nome: string; camposFaltando: string[] }[];
@@ -183,19 +320,21 @@ export function gruposNaoAplicaveis(lip: DadosLip): {
   const indecisas: { regraId: string; nome: string; camposFaltando: string[] }[] = [];
 
   for (const r of REGRAS) {
-    const veredicto = r.avaliar(lip);
+    const veredicto = r.avaliar(lip, textos);
     if (veredicto === null) {
       indecisas.push({
         regraId: r.id,
         nome: r.nome,
-        camposFaltando: r.campos.filter((c) => bruto(lip, c) === null),
+        camposFaltando: r.campos.length
+          ? r.campos.filter((c) => bruto(lip, c) === null)
+          : ["documento não lido na pasta"],
       });
       continue;
     }
     const registro: VeredictoGrupo = {
       regraId: r.id,
       grupos: r.grupos,
-      justificativa: r.motivo(lip),
+      justificativa: r.motivo(lip, textos),
       camposUsados: r.campos,
     };
     if (veredicto) naoAplicaveis.push(registro);

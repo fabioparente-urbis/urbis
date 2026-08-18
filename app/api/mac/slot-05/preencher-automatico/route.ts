@@ -15,6 +15,40 @@ import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot
 
 export const runtime = "nodejs";
 
+/**
+ * Junta o texto que a leitura da pasta já extraiu, agrupado por papel de documento.
+ * Só lê o que o MHD guardou (`mhd_conteudos.texto`, por hash) — não reprocessa PDF nem chama IA.
+ * Quando um papel tem mais de uma versão, os textos são concatenados: a busca é por presença do
+ * tema no processo, então ler versão antiga junto só torna a afirmação de ausência mais segura.
+ */
+async function carregarTextosDaPasta(codigo: string): Promise<Record<string, string>> {
+  const { data: docs } = await supabaseAdmin
+    .from("mhd_documentos").select("id, papel").eq("processo_codigo", codigo).limit(200);
+  if (!docs?.length) return {};
+
+  const papelPorDoc = new Map(docs.map((d: any) => [d.id, d.papel as string]));
+  const { data: versoes } = await supabaseAdmin
+    .from("mhd_versoes").select("documento_id, conteudo_id")
+    .in("documento_id", docs.map((d: any) => d.id)).limit(500);
+  if (!versoes?.length) return {};
+
+  const conteudoIds = [...new Set(versoes.map((v: any) => v.conteudo_id).filter(Boolean))];
+  if (!conteudoIds.length) return {};
+
+  const { data: conteudos } = await supabaseAdmin
+    .from("mhd_conteudos").select("id, texto").in("id", conteudoIds).limit(500);
+  const textoPorConteudo = new Map((conteudos ?? []).map((c: any) => [c.id, (c.texto ?? "") as string]));
+
+  const acc: Record<string, string[]> = {};
+  for (const v of versoes) {
+    const papel = papelPorDoc.get((v as any).documento_id);
+    const texto = textoPorConteudo.get((v as any).conteudo_id);
+    if (!papel || !texto) continue;
+    (acc[papel] ??= []).push(texto);
+  }
+  return Object.fromEntries(Object.entries(acc).map(([p, partes]) => [p, partes.join("\n")]));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const usuario = await usuarioDaRequisicao(req);
@@ -41,7 +75,11 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    const { naoAplicaveis, aplicaveis, indecisas } = gruposNaoAplicaveis(lip);
+    // Texto que a leitura da pasta já extraiu, por papel de documento. Nenhum PDF é reprocessado
+    // e nenhuma chamada de IA acontece aqui — só releitura do que o MHD guardou por hash.
+    const textosPorPapel = await carregarTextosDaPasta(codigo);
+
+    const { naoAplicaveis, aplicaveis, indecisas } = gruposNaoAplicaveis(lip, textosPorPapel);
 
     const gruposNA = new Set(naoAplicaveis.flatMap((v) => v.grupos));
     if (gruposNA.size === 0) {
