@@ -145,9 +145,10 @@ export default function AnaliseAprovacaoProjeto() {
           setMarcas(marcasAtuais);
           setFontes(atual.fontes ?? {});
           setObservacoes(atual.observacoes ?? "");
-          fetch(`/api/mac/historico?analiseId=${atual.id}`, { credentials: "include" })
+          fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${atual.id}`,
+            { credentials: "include" })
             .then((r) => r.json())
-            .then((h) => { if (!cancelado) setHistorico(h.data ?? h.historico ?? []); })
+            .then((h) => { if (!cancelado && h.ok) setHistorico(h.historico ?? []); })
             .catch(() => null);
         }
         setCarregando(false);
@@ -196,6 +197,14 @@ export default function AnaliseAprovacaoProjeto() {
             setFontes(novasFontes);
             setObservacoes(novasObs);
             await salvarDireto(novasMarcas, novasFontes, novasObs, atual ?? null);
+            // A gravação acabou de criar os registros da trilha — recarrega.
+            if (atual) {
+              fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${atual.id}`,
+                { credentials: "include" })
+                .then((rh) => rh.json())
+                .then((h) => { if (!cancelado && h.ok) setHistorico(h.historico ?? []); })
+                .catch(() => null);
+            }
             notificar(`${aplicados} item(ns) já marcados como Não se Aplica por ${recomendados.length} filtro(s). Desfaça o que discordar.`);
           } else {
             notificar("Filtros avaliados — nada novo a retirar.");
@@ -288,6 +297,12 @@ export default function AnaliseAprovacaoProjeto() {
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      // Recarrega a trilha: o PUT acabou de registrar as mudanças de status.
+      fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${a.id}`,
+        { credentials: "include" })
+        .then((rh) => rh.json())
+        .then((h) => { if (h.ok) setHistorico(h.historico ?? []); })
+        .catch(() => null);
       if (!silencioso) notificar("✅ Salvo.");
     } catch (e: any) {
       notificar(`Erro ao salvar: ${e?.message ?? e}`);
@@ -852,8 +867,8 @@ export default function AnaliseAprovacaoProjeto() {
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <button onClick={() => setAbaAtual(null)}
-                  className="px-3 py-1.5 rounded text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]">
-                  ← Índice
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
+                  <span aria-hidden>📑</span> Índice
                 </button>
                 <span className="font-bold">📝 OBS</span>
               </div>
@@ -864,6 +879,38 @@ export default function AnaliseAprovacaoProjeto() {
                 className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-2 rounded text-sm font-medium w-fit">
                 💾 Salvar Observações
               </button>
+
+              {/* Histórico completo da análise */}
+              <div className="mt-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-2">
+                  🕐 Histórico de alterações — {historico.length} registro(s)
+                </p>
+                {!historico.length ? (
+                  <p className="text-xs text-[var(--text-muted)]">Nenhuma alteração registrada ainda.</p>
+                ) : (
+                  <div className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[420px] overflow-y-auto">
+                    {historico.map((h: any, i: number) => (
+                      <div key={h.id ?? i}
+                        className="border-t border-[var(--border)] first:border-t-0 px-3 py-1.5 text-[11px] flex items-start gap-2">
+                        <span className="text-[var(--text-muted)] shrink-0 w-[110px]">
+                          {h.criado_em ? new Date(h.criado_em).toLocaleString("pt-BR") : "—"}
+                        </span>
+                        <span className="shrink-0 w-[150px] truncate text-[var(--text-secondary)]" title={h.aba ?? ""}>
+                          {h.aba ?? "—"}
+                        </span>
+                        <span className="flex-1 min-w-0 truncate text-[var(--text-secondary)]" title={h.item_texto ?? ""}>
+                          {h.item_texto ?? "—"}
+                        </span>
+                        <span className="shrink-0 font-semibold"
+                          style={{ color: ESTILO[h.status_novo as Status]?.texto ?? "var(--text-muted)" }}>
+                          {h.status_anterior ? `${h.status_anterior} → ` : ""}
+                          {ESTILO[h.status_novo as Status]?.rotulo ?? h.status_novo}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -872,8 +919,8 @@ export default function AnaliseAprovacaoProjeto() {
             <>
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(null); }}
-                  className="px-3 py-1.5 rounded text-sm font-medium bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]">
-                  ← Índice
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
+                  <span aria-hidden>📑</span> Índice
                 </button>
                 <span className="font-bold truncate">{abaAtual}</span>
               </div>
