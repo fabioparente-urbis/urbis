@@ -307,7 +307,12 @@ function lerTabelaDeVias(doc: DocTexto): { nome: string; classificacao: string |
   return vias;
 }
 
-const P_AREA = /\d{1,3}(?:\.\d{3})*,\d{2}\s*m?²?/i;
+/* Sem o lookbehind e a alternativa "\d+" puro, "3572,10" (sem ponto de milhar) casava a partir
+ * do 2º dígito e virava 572,10 — a regex não é ancorada, então o motor achava a MENOR
+ * terminação válida em vez da maior. Achado real: carimbo do processo 50724 escreve
+ * "ÁREA TOTAL DA CONSTRUÇÃO: 3572,10m²" sem ponto, e a conferência com a ART (3.572,10, essa
+ * com ponto) dava NÃO por causa do dígito perdido, não por divergência de verdade. */
+const P_AREA = /(?<!\d)(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\s*m?²?/i;
 const P_DATA = /^\d{2}\/\d{2}\/\d{4}$/;
 
 // ───────────────────── identificação de papéis ─────────────────────
@@ -434,6 +439,14 @@ function lerUsoDoSolo(doc: DocTexto) {
   d.areaMaxima =
     linhaPorte?.itens.map((i) => i.t).find((c) => /[áa]rea m[áa]xima ser[áa]/i.test(c))
       ?.replace(/^.*?[áa]rea m[áa]xima ser[áa]\s*/i, "").trim() || null;
+  /* Achado real (processo 50724): esse Uso do Solo não usa a frase acima — escreve "ADMITE
+   * GI-1, GI-2, GI-3, GI-4 e GI-5 SEM LIMITE DE ÁREA" na linha da tabela de CNAEs (a coluna de
+   * embarque também fica na mesma linha). Sem esse fallback, `atendeOPorteAdmitido` ficava sem
+   * dado mesmo o documento dizendo claramente que não há limite. */
+  if (!d.areaMaxima) {
+    const linhaAdmite = doc.linhas.find((l) => /ADMITE[\s\S]*SEM LIMITE DE [ÁA]REA/i.test(l.texto));
+    if (linhaAdmite) d.areaMaxima = "SEM LIMITE DE ÁREA";
+  }
 
   d.cnaes = [...t.matchAll(/\b(\d{9})\s+([A-ZÀ-Ú][^\n]{4,60}?)\s+(?:N[ÃA]O|SIM)\b/gi)].map((m) => ({
     codigo: m[1],
@@ -486,7 +499,7 @@ function lerPrancha(doc: DocTexto) {
       const v = valorPerto(doc, r, P_AREA);
       if (!v) continue;
       return {
-        area: num(v.match(/(\d{1,3}(?:\.\d{3})*,\d{2})\s*m²/i)?.[1]),
+        area: num(v.match(/(?<!\d)((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})\s*m²/i)?.[1]),
         pct: num(v.match(/(\d+,\d+)\s*%/)?.[1]),
         rotuloUsado: r,
       };
