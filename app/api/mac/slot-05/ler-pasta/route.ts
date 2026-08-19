@@ -11,9 +11,14 @@
  * Por que ler a pasta em vez do texto que o MHD já guardou: o Gemini precisa do PDF — as cotas,
  * as vagas e o quadro de áreas estão no DESENHO, não no texto extraível. E a eleição do vencedor
  * por papel evita mandar versão velha, que é o erro que o usuário apontou.
+ *
+ * Resposta em NDJSON (mesmo formato de /api/lip/ler-pasta) — uma linha "progresso" por evento
+ * (catalogando → enviando cada PDF → analisando, enquanto o Gemini processa) e a última linha
+ * "resultado" ou "erro". Pedido do usuário: a tela do MAC não mostrava andamento/tempo/% como a
+ * do LIP já mostra.
  */
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { lerPastaSlot5, extrairPdf, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
@@ -64,21 +69,52 @@ async function subirPdf(bytes: Uint8Array, apiKey: string, nome: string): Promis
   return j.file.uri as string;
 }
 
+/** NDJSON — mesmo formato do /api/lip/ler-pasta: uma linha "progresso" por evento, última linha
+ * "resultado" ou "erro". Sem isto a barra da tela só podia FINGIR progresso por tempo, travada
+ * até a resposta inteira chegar — pedido do usuário: "não mostra progressão, tempo e % como no
+ * LIP". */
+function linha(o: unknown) {
+  return new TextEncoder().encode(JSON.stringify(o) + "\n");
+}
+
 export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const fluxo = new TransformStream();
+  const escritor = fluxo.writable.getWriter();
+
+  processar(req, form, escritor).catch(async (e: any) => {
+    console.error("[MAC/slot-05/ler-pasta]", e?.message);
+    try { await escritor.write(linha({ tipo: "erro", ok: false, erro: e?.message || "erro interno" })); } catch {}
+  }).finally(() => { escritor.close().catch(() => {}); });
+
+  return new Response(fluxo.readable, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+async function processar(
+  req: NextRequest,
+  form: FormData,
+  escritor: WritableStreamDefaultWriter<Uint8Array>,
+) {
+  const enviar = (o: unknown) => escritor.write(linha(o));
   try {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return NextResponse.json({ ok: false, erro: "GEMINI_API_KEY não configurada" }, { status: 500 });
+    if (!apiKey) return enviar({ tipo: "erro", ok: false, erro: "GEMINI_API_KEY não configurada" });
 
     const usuario = await usuarioDaRequisicao(req);
-    if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
+    if (!usuario) return enviar({ tipo: "erro", ok: false, erro: "Sessão não encontrada" });
 
-    const form = await req.formData();
     const codigo = String(form.get("codigo") ?? "").trim();
-    if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
+    if (!codigo) return enviar({ tipo: "erro", ok: false, erro: "codigo obrigatório" });
 
     const resolucao = await resolverProcessoSlot5(usuario, codigo);
     if (!resolucao.ok) {
-      return NextResponse.json({ ok: false, erro: resolucao.erro }, { status: resolucao.status });
+      return enviar({ tipo: "erro", ok: false, erro: resolucao.erro });
     }
 
     // ── 1. Monta a pasta: todos os arquivos, com a rodada tirada do caminho ──────────────
@@ -95,8 +131,9 @@ export async function POST(req: NextRequest) {
       });
     }
     if (!arquivos.length) {
-      return NextResponse.json({ ok: false, erro: "nenhum arquivo recebido" }, { status: 400 });
+      return enviar({ tipo: "erro", ok: false, erro: "nenhum arquivo recebido" });
     }
+    await enviar({ tipo: "progresso", fase: "catalogando", atual: 0, total: arquivos.length, documento: `catalogando ${arquivos.length} arquivo(s)...` });
 
     // ── 2. Catalogação: identifica papel, rodada e elege o VENCEDOR de cada papel ────────
     // pdfjs (usado dentro de lerPastaSlot5) DETACHA o ArrayBuffer que recebe — sem clonar antes,
@@ -121,16 +158,16 @@ export async function POST(req: NextRequest) {
     }
 
     if (!escolhidos.length) {
-      return NextResponse.json({
-        ok: false,
+      return enviar({
+        tipo: "erro", ok: false,
         erro: "nenhum PDF útil encontrado na pasta (esperado ao menos o projeto)",
         papeisEncontrados: Object.keys(vencedorPorPapel),
-      }, { status: 400 });
+      });
     }
 
     // ── 3. Itens ainda pendentes ────────────────────────────────────────────────────────
     const modeloId = await modeloDoSlot5();
-    if (!modeloId) return NextResponse.json({ ok: false, erro: "sem modelo de checklist do Slot 5" }, { status: 404 });
+    if (!modeloId) return enviar({ tipo: "erro", ok: false, erro: "sem modelo de checklist do Slot 5" });
 
     const [{ data: itensTodos }, { data: analises }] = await Promise.all([
       supabaseAdmin.from("mac_checklist_itens").select("id, texto, grupo")
@@ -142,7 +179,7 @@ export async function POST(req: NextRequest) {
     const respondidos = ((analises?.[0] as any)?.itens ?? {}) as Record<string, string>;
     const pendentes = (itensTodos ?? []).filter((i: any) => !respondidos[i.id]);
     if (!pendentes.length) {
-      return NextResponse.json({ ok: false, erro: "nenhum item pendente no MAC" }, { status: 400 });
+      return enviar({ tipo: "erro", ok: false, erro: "nenhum item pendente no MAC" });
     }
 
     const temas: string[] = (() => {
@@ -151,11 +188,18 @@ export async function POST(req: NextRequest) {
 
     // ── 4. Uma chamada ao Gemini com TODOS os documentos vencedores ─────────────────────
     const partes: any[] = [];
+    let i = 0;
     for (const e of escolhidos) {
+      i++;
+      await enviar({ tipo: "progresso", fase: "enviando", atual: i, total: escolhidos.length, documento: `${e.papel} — ${e.nome}` });
       const uri = await subirPdf(e.bytes, apiKey, e.nome);
       partes.push({ text: `\n[DOCUMENTO: ${e.papel} — ${e.nome}]` });
       partes.push({ fileData: { mimeType: "application/pdf", fileUri: uri } });
     }
+    await enviar({
+      tipo: "progresso", fase: "analisando", atual: escolhidos.length, total: escolhidos.length,
+      documento: `Gemini avaliando ${pendentes.length} item(ns) pendentes...`,
+    });
     partes.push({
       text: PROMPT_P3_MAC_SLOT5 +
         `\n\n===== CHECKLIST MAC (${pendentes.length} itens pendentes) =====\n` +
@@ -175,14 +219,14 @@ export async function POST(req: NextRequest) {
       },
     );
     if (!resp.ok) {
-      return NextResponse.json({ ok: false, erro: `Gemini: ${resp.status} ${await resp.text()}` }, { status: 502 });
+      return enviar({ tipo: "erro", ok: false, erro: `Gemini: ${resp.status} ${await resp.text()}` });
     }
 
     const bruto = (await resp.json())?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     let json: any;
     try { json = JSON.parse(bruto); } catch {
       const m = bruto.match(/\{[\s\S]*\}/);
-      if (!m) return NextResponse.json({ ok: false, erro: "resposta do Gemini não é JSON" }, { status: 502 });
+      if (!m) return enviar({ tipo: "erro", ok: false, erro: "resposta do Gemini não é JSON" });
       json = JSON.parse(m[0]);
     }
 
@@ -198,7 +242,8 @@ export async function POST(req: NextRequest) {
       fontes[id] = `IA · ${f ? String(f).slice(0, 300) : "sem detalhe"}`;
     }
 
-    return NextResponse.json({
+    return enviar({
+      tipo: "resultado",
       ok: true,
       versaoPrompt: VERSAO_PROMPT_P3_SLOT5,
       modelo: MODELO,
@@ -213,6 +258,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     console.error("[MAC/slot-05/ler-pasta]", e?.message);
-    return NextResponse.json({ ok: false, erro: e?.message || "erro interno" }, { status: 500 });
+    return enviar({ tipo: "erro", ok: false, erro: e?.message || "erro interno" });
   }
 }

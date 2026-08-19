@@ -48,6 +48,14 @@ function semAcento(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
+/** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
+function origemDoItem(fonte: string | undefined): { icone: string; rotulo: string } | null {
+  if (!fonte) return null;
+  if (fonte.startsWith("Filtro")) return { icone: "🎛️", rotulo: fonte };
+  if (fonte.startsWith("IA")) return { icone: "🤖", rotulo: fonte };
+  return { icone: "✍️", rotulo: fonte === "manual" ? "Marcado manualmente" : fonte };
+}
+
 export default function AnaliseAprovacaoProjeto() {
   const router = useRouter();
   const codigo = decodeURIComponent(String(useParams()?.codigo ?? ""));
@@ -70,6 +78,10 @@ export default function AnaliseAprovacaoProjeto() {
   const [observacoesPorItem, setObservacoesPorItem] = useState<Record<string, string>>({});
   const [abaAtual, setAbaAtual] = useState<string | null>(null); // null = índice
   const [busca, setBusca] = useState("");
+  // Lista aberta a partir de um número clicável do painel (ex.: "Pendentes"). Clicar num item
+  // dela manda pro grupo dele e destaca — não é uma aba nova, some ao navegar pra outro lugar.
+  const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
+  const [itemFoco, setItemFoco] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState("");
   const [proposta, setProposta] = useState<Proposta | null>(null);
@@ -86,6 +98,12 @@ export default function AnaliseAprovacaoProjeto() {
   const inputImportRef = useRef<HTMLInputElement>(null);
   const inputPastaRef = useRef<HTMLInputElement>(null);
   const [lendoPasta, setLendoPasta] = useState(false);
+  // Progresso do LER PASTA (IA) — mesmo padrão do LIP: % + tempo decorrido + o que está lendo agora.
+  const [progressoPasta, setProgressoPasta] = useState(0);
+  const [tempoPasta, setTempoPasta] = useState(0);
+  const [docPasta, setDocPasta] = useState<string | null>(null);
+  const tempoPastaRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const rampaPastaRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const notificar = useCallback((m: string) => {
@@ -200,7 +218,7 @@ export default function AnaliseAprovacaoProjeto() {
               `━━━ FILTROS APLICADOS AUTOMATICAMENTE ━━━\n` +
               `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica\n` +
               recomendados.map((f) => `  • ${f.nome}: ${f.qtd} item(ns)\n    ↳ ${f.justificativa}`).join("\n");
-            const novasObs = (atual?.observacoes ?? "") ? `${atual!.observacoes}\n\n${bloco}` : bloco;
+            const novasObs = (atual?.observacoes ?? "") ? `${bloco}\n\n${atual!.observacoes}` : bloco;
 
             setMarcas(novasMarcas);
             setFontes(novasFontes);
@@ -271,15 +289,45 @@ export default function AnaliseAprovacaoProjeto() {
     return acc;
   }, [itensChecklist, marcas]);
 
-  /** Quanto do checklist saiu por filtro automático e quanto o analista marcou à mão. */
+  /** Quanto do checklist saiu por filtro automático, quanto a IA (LER PASTA) sugeriu e quanto o
+   * analista marcou à mão. */
   const origemDasRespostas = useMemo(() => {
-    let porFiltro = 0, porAnalista = 0;
+    let porFiltro = 0, porIA = 0, porAnalista = 0;
     for (const i of itensChecklist) {
       if (!marcas[i.id]) continue;
-      if ((fontes[i.id] ?? "").startsWith("Filtro")) porFiltro++; else porAnalista++;
+      const f = fontes[i.id] ?? "";
+      if (f.startsWith("Filtro")) porFiltro++;
+      else if (f.startsWith("IA")) porIA++;
+      else porAnalista++;
     }
-    return { porFiltro, porAnalista };
+    return { porFiltro, porIA, porAnalista };
   }, [itensChecklist, marcas, fontes]);
+
+  /** Constrói a lista de itens por trás de um número clicável do painel. */
+  function abrirLista(titulo: string, filtro: (i: Item) => boolean) {
+    setListaFiltrada({ titulo, itens: itensChecklist.filter(filtro) });
+  }
+
+  function irParaItem(item: Item) {
+    setListaFiltrada(null);
+    setAbaAtual(item.grupo);
+    setItemFoco(item.id);
+  }
+
+  // Rola até o item focado (aberto por um número clicável) e destaca por 2s.
+  useEffect(() => {
+    if (!itemFoco || abaAtual === null || abaAtual === ABA_OBS) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`item-${itemFoco}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-offset-1");
+      (el.style as any).setProperty("--tw-ring-color", "var(--accent)");
+      const limpa = setTimeout(() => { el.classList.remove("ring-2", "ring-offset-1"); setItemFoco(null); }, 2200);
+      return () => clearTimeout(limpa);
+    }, 50); // dá tempo do grupo renderizar antes de procurar o id
+    return () => clearTimeout(t);
+  }, [itemFoco, abaAtual]);
 
   async function garantirAnalise(itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>) {
     if (analise) return analise;
@@ -325,10 +373,18 @@ export default function AnaliseAprovacaoProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marcas, fontes, observacoes, observacoesPorItem, analise, codigo, notificar]);
 
+  /** Clique direto num botão de status — sempre tag "manual", mesmo se estava marcado por filtro/IA
+   * antes (o analista está assumindo a decisão daquele item agora). */
   function marcar(itemId: string, status: Status) {
+    const desmarcando = marcas[itemId] === status;
     setMarcas((prev) => {
       const novo = { ...prev };
       if (novo[itemId] === status) delete novo[itemId]; else novo[itemId] = status;
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      if (desmarcando) delete novo[itemId]; else novo[itemId] = "manual";
       return novo;
     });
   }
@@ -338,6 +394,11 @@ export default function AnaliseAprovacaoProjeto() {
     setMarcas((prev) => {
       const novo = { ...prev };
       for (const i of lista) { if (status) novo[i.id] = status; else delete novo[i.id]; }
+      return novo;
+    });
+    setFontes((prev) => {
+      const novo = { ...prev };
+      for (const i of lista) { if (status) novo[i.id] = "manual"; else delete novo[i.id]; }
       return novo;
     });
     notificar(status
@@ -385,7 +446,7 @@ export default function AnaliseAprovacaoProjeto() {
       `${f.recomendado ? "" : " (aceito contra a recomendação do sistema)"}\n` +
       `↳ ${f.justificativa}\n` +
       f.grupos.map((g) => `  • ${g.qtd}× ${g.grupo}`).join("\n");
-    const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
 
     setMarcas(novasMarcas);
     setFontes(novasFontes);
@@ -402,9 +463,24 @@ export default function AnaliseAprovacaoProjeto() {
   /**
    * LER PASTA (IA): manda a pasta inteira; o servidor acha o último de cada documento e o Gemini
    * avalia os itens pendentes. Nada é gravado sem o analista aceitar — a resposta vira proposta.
+   *
+   * A rota responde NDJSON (mesmo formato do /api/lip/ler-pasta): uma linha "progresso" por
+   * evento (catalogando → enviando cada PDF → analisando), última linha "resultado" ou "erro".
+   * A fase "analisando" é a chamada única ao Gemini (1-3min) — sem progresso real possível ali,
+   * então uma rampa por tempo (até 92%) preenche a espera, igual à barra do LIP.
    */
   async function lerPastaIA(arquivos: File[]) {
     setLendoPasta(true);
+    setProgressoPasta(0);
+    setTempoPasta(0);
+    setDocPasta(null);
+    if (tempoPastaRef.current) clearInterval(tempoPastaRef.current);
+    tempoPastaRef.current = setInterval(() => setTempoPasta((t) => t + 1), 1000);
+
+    const pararRampa = () => {
+      if (rampaPastaRef.current) { clearInterval(rampaPastaRef.current); rampaPastaRef.current = null; }
+    };
+
     try {
       const fd = new FormData();
       fd.append("codigo", codigo);
@@ -413,8 +489,58 @@ export default function AnaliseAprovacaoProjeto() {
         fd.append(`caminho_${i}`, (f as any).webkitRelativePath || f.name);
       });
       const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.erro ?? "falha na leitura");
+      if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
+
+      const leitor = r.body.getReader();
+      const decodificador = new TextDecoder();
+      let resto = "";
+      let d: any = null;
+      let erroFluxo: string | null = null;
+
+      const processarLinha = (bruta: string) => {
+        const l = bruta.trim();
+        if (!l) return;
+        let ev: any;
+        try { ev = JSON.parse(l); } catch { return; }
+        if (ev.tipo === "progresso") {
+          if (ev.fase === "catalogando") {
+            setProgressoPasta(3);
+            setDocPasta(ev.documento ?? null);
+          } else if (ev.fase === "enviando") {
+            const frac = ev.total > 0 ? ev.atual / ev.total : 0;
+            setProgressoPasta(Math.min(45, Math.round(5 + frac * 40)));
+            setDocPasta(ev.documento ?? null);
+          } else if (ev.fase === "analisando") {
+            setDocPasta(ev.documento ?? "Gemini analisando...");
+            pararRampa();
+            let p = 45;
+            rampaPastaRef.current = setInterval(() => {
+              p += Math.random() * 2;
+              if (p >= 92) { p = 92; pararRampa(); }
+              setProgressoPasta(Math.round(p));
+            }, 800);
+          }
+        } else if (ev.tipo === "erro") {
+          erroFluxo = ev.erro || "Falha na leitura";
+        } else if (ev.tipo === "resultado") {
+          d = ev;
+        }
+      };
+
+      while (true) {
+        const { done, value } = await leitor.read();
+        if (done) break;
+        resto += decodificador.decode(value, { stream: true });
+        const linhas = resto.split("\n");
+        resto = linhas.pop() ?? "";
+        for (const linhaBruta of linhas) processarLinha(linhaBruta);
+      }
+      if (resto.trim()) processarLinha(resto);
+
+      pararRampa();
+      if (erroFluxo) throw new Error(erroFluxo);
+      if (!d || !d.ok) throw new Error(d?.erro ?? "falha na leitura");
+      setProgressoPasta(100);
 
       const novasMarcas = { ...marcas };
       const novasFontes = { ...fontes };
@@ -432,7 +558,7 @@ export default function AnaliseAprovacaoProjeto() {
         `Arquivos na pasta: ${d.arquivosNaPasta} · modelo ${d.modelo} · prompt v${d.versaoPrompt}` +
         ((d.incompatibilidades ?? []).length
           ? `\nIncompatibilidades apontadas:\n${d.incompatibilidades.map((s: string) => `  ⚠ ${s}`).join("\n")}` : "");
-      const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+      const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
 
       setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
       await salvar(novasMarcas, novasFontes, novasObs, true);
@@ -440,7 +566,10 @@ export default function AnaliseAprovacaoProjeto() {
     } catch (e: any) {
       notificar(`Erro na leitura: ${e?.message ?? e}`);
     } finally {
+      pararRampa();
+      if (tempoPastaRef.current) { clearInterval(tempoPastaRef.current); tempoPastaRef.current = null; }
       setLendoPasta(false);
+      setTimeout(() => { setProgressoPasta(0); setDocPasta(null); }, 1500);
     }
   }
 
@@ -525,7 +654,7 @@ export default function AnaliseAprovacaoProjeto() {
       `━━━ FILTRO DESFEITO: ${f.nome} ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise\n` +
       `↳ ${f.justificativa}`;
-    const novasObs = observacoes ? `${observacoes}\n\n${bloco}` : bloco;
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
 
     setMarcas(novasMarcas);
     setFontes(novasFontes);
@@ -721,49 +850,72 @@ export default function AnaliseAprovacaoProjeto() {
         <div className="mt-3 mb-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
           <div className="flex flex-wrap items-stretch gap-x-6 gap-y-3">
             {STATUS.map((s) => (
-              <div key={s} className="flex items-center gap-2">
+              <button key={s} type="button"
+                onClick={() => abrirLista(ESTILO[s].rotulo, (i) => marcas[i.id] === s)}
+                className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
                 <span className="w-7 h-7 rounded-lg border flex items-center justify-center text-sm shrink-0"
                   style={{ background: ESTILO[s].bg, borderColor: ESTILO[s].borda }}>
                   {ESTILO[s].icone}
                 </span>
-                <div className="leading-tight">
+                <div className="leading-tight text-left">
                   <p className="text-base font-bold" style={{ color: ESTILO[s].texto }}>{totais[s]}</p>
                   <p className="text-[10px] text-[var(--text-muted)]">{ESTILO[s].rotulo}</p>
                 </div>
-              </div>
+              </button>
             ))}
 
-            <div className="flex items-center gap-2">
+            <button type="button"
+              onClick={() => abrirLista("Pendentes", (i) => !marcas[i.id])}
+              className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
               <span className="w-7 h-7 rounded-lg border border-[#EA580C] bg-[#FFF7ED] flex items-center justify-center text-sm shrink-0">
                 ⏳
               </span>
-              <div className="leading-tight">
+              <div className="leading-tight text-left">
                 <p className="text-base font-bold text-[#EA580C]">{totais.pendente}</p>
                 <p className="text-[10px] text-[var(--text-muted)]">Pendentes</p>
               </div>
-            </div>
+            </button>
 
             <div className="w-px self-stretch bg-[var(--border)]" />
 
-            <div className="flex items-center gap-2">
+            <button type="button"
+              onClick={() => abrirLista("Retirados por filtro", (i) => !!marcas[i.id] && (fontes[i.id] ?? "").startsWith("Filtro"))}
+              className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
               <span className="w-7 h-7 rounded-lg border border-[#2563EB] bg-[#EFF6FF] flex items-center justify-center text-sm shrink-0">
                 🎛️
               </span>
-              <div className="leading-tight">
+              <div className="leading-tight text-left">
                 <p className="text-base font-bold text-[#2563EB]">{origemDasRespostas.porFiltro}</p>
                 <p className="text-[10px] text-[var(--text-muted)]">Retirados por filtro</p>
               </div>
-            </div>
+            </button>
 
-            <div className="flex items-center gap-2">
+            <button type="button"
+              onClick={() => abrirLista("Sugeridos pela IA (LER PASTA)", (i) => !!marcas[i.id] && (fontes[i.id] ?? "").startsWith("IA"))}
+              className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
+              <span className="w-7 h-7 rounded-lg border border-[#059669] bg-[#ECFDF5] flex items-center justify-center text-sm shrink-0">
+                🤖
+              </span>
+              <div className="leading-tight text-left">
+                <p className="text-base font-bold text-[#059669]">{origemDasRespostas.porIA}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Sugerido por IA</p>
+              </div>
+            </button>
+
+            <button type="button"
+              onClick={() => abrirLista("Marcados por você", (i) => {
+                const f = fontes[i.id] ?? "";
+                return !!marcas[i.id] && !f.startsWith("Filtro") && !f.startsWith("IA");
+              })}
+              className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
               <span className="w-7 h-7 rounded-lg border border-[#7C3AED] bg-[#F5F3FF] flex items-center justify-center text-sm shrink-0">
                 ✍️
               </span>
-              <div className="leading-tight">
+              <div className="leading-tight text-left">
                 <p className="text-base font-bold text-[#7C3AED]">{origemDasRespostas.porAnalista}</p>
                 <p className="text-[10px] text-[var(--text-muted)]">Marcados por você</p>
               </div>
-            </div>
+            </button>
 
             <div className="flex items-center gap-2 ml-auto">
               <div className="leading-tight text-right">
@@ -778,12 +930,31 @@ export default function AnaliseAprovacaoProjeto() {
             </div>
           </div>
 
-          {/* barra de progresso: azul = filtro · roxo = você */}
+          {/* barra de progresso: azul = filtro · verde = IA · roxo = você */}
           <div className="mt-3 h-2 w-full rounded-full bg-[var(--bg-secondary)] overflow-hidden flex">
             <div style={{ width: `${itensChecklist.length ? (origemDasRespostas.porFiltro / itensChecklist.length) * 100 : 0}%`, background: "#2563EB" }} />
+            <div style={{ width: `${itensChecklist.length ? (origemDasRespostas.porIA / itensChecklist.length) * 100 : 0}%`, background: "#059669" }} />
             <div style={{ width: `${itensChecklist.length ? (origemDasRespostas.porAnalista / itensChecklist.length) * 100 : 0}%`, background: "#7C3AED" }} />
           </div>
         </div>
+
+        {/* Progresso do LER PASTA (IA) — mesmo padrão do LIP: doc lido + tempo + % */}
+        {progressoPasta > 0 && (
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-2">
+            <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
+              <span className="truncate pr-2">📁 {docPasta ?? "Lendo a pasta..."}</span>
+              <span className="flex gap-2 shrink-0">
+                <span className="text-[var(--text-muted)]">
+                  {String(Math.floor(tempoPasta / 60)).padStart(2, "0")}:{String(tempoPasta % 60).padStart(2, "0")}
+                </span>
+                <span>{progressoPasta}%</span>
+              </span>
+            </div>
+            <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
+              <div className="bg-[#2563EB] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoPasta}%` }} />
+            </div>
+          </div>
+        )}
 
         {toast && <p className="text-xs text-[var(--accent)] mb-2">{toast}</p>}
       </div>
@@ -911,8 +1082,42 @@ export default function AnaliseAprovacaoProjeto() {
             </div>
           )}
 
+          {/* LISTA aberta por um número clicável do painel — some ao entrar num grupo ou fechar */}
+          {abaAtual === null && listaFiltrada && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setListaFiltrada(null)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
+                  <span aria-hidden>←</span> Índice
+                </button>
+                <span className="font-bold">{listaFiltrada.titulo} — {listaFiltrada.itens.length} item(ns)</span>
+              </div>
+              {!listaFiltrada.itens.length ? (
+                <p className="text-sm text-[var(--text-muted)]">Nenhum item aqui.</p>
+              ) : (
+                <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-card)]">
+                  {listaFiltrada.itens.map((it) => {
+                    const origem = origemDoItem(fontes[it.id]);
+                    return (
+                      <button key={it.id} onClick={() => irParaItem(it)}
+                        className="w-full text-left border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex items-start gap-3 hover:bg-[var(--bg-card-hover)] transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">{it.grupo}</p>
+                          <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
+                        </div>
+                        {origem && (
+                          <span title={origem.rotulo} className="text-sm shrink-0">{origem.icone}</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ÍNDICE */}
-          {abaAtual === null && (
+          {abaAtual === null && !listaFiltrada && (
             <>
               <div className="flex gap-2 flex-wrap mb-3">
                 <input value={busca} onChange={(e) => setBusca(e.target.value)}
@@ -948,8 +1153,8 @@ export default function AnaliseAprovacaoProjeto() {
                 })}
                 <button onClick={() => setAbaAtual(ABA_OBS)}
                   className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
-                  <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">📝</span>
-                  <span className="flex-1 text-sm font-medium">OBS</span>
+                  <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">{grupos.length + 1}</span>
+                  <span className="flex-1 text-sm font-medium">📝 OBS</span>
                 </button>
               </div>
             </>
@@ -1035,13 +1240,18 @@ export default function AnaliseAprovacaoProjeto() {
               </div>
 
               <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-card)]">
-                {itensDaAba.map((it) => (
-                  <div key={it.id} className="border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex flex-col gap-1.5">
+                {itensDaAba.map((it) => {
+                  const origem = origemDoItem(fontes[it.id]);
+                  return (
+                  <div key={it.id} id={`item-${it.id}`}
+                    className="border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex flex-col gap-1.5 scroll-mt-4">
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
-                        {fontes[it.id] && (
-                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">🔎 {fontes[it.id]}</p>
+                        {origem && (
+                          <p title={origem.rotulo} className="text-[10px] text-[var(--text-muted)] mt-0.5">
+                            {origem.icone} {origem.rotulo}
+                          </p>
                         )}
                       </div>
                       <div className="flex gap-1 shrink-0">
@@ -1064,7 +1274,8 @@ export default function AnaliseAprovacaoProjeto() {
                       className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-y"
                     />
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Navegação entre grupos */}
@@ -1189,9 +1400,11 @@ export default function AnaliseAprovacaoProjeto() {
           <button
             onClick={async () => {
               const novas = { ...marcas };
-              for (const i of itensChecklist) if (!novas[i.id]) novas[i.id] = "conforme";
+              const novasFontes = { ...fontes };
+              for (const i of itensChecklist) if (!novas[i.id]) { novas[i.id] = "conforme"; novasFontes[i.id] = "manual"; }
               setMarcas(novas);
-              await salvar(novas, fontes, observacoes);
+              setFontes(novasFontes);
+              await salvar(novas, novasFontes, observacoes);
               notificar("Itens pendentes marcados como Conforme.");
             }}
             className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors"
