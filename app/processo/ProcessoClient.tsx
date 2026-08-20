@@ -200,6 +200,14 @@ export default function ProcessoClient() {
   // Aprovação de Projeto lê PASTA (a pasta é a rodada de análise); os outros assuntos
   // seguem escolhendo arquivos, sem nenhuma mudança de comportamento.
   const ehSlot5 = tipoUrl === "slot_05";
+  /* A tela do LIP é 1 componente só pros 15 slots (assuntos) — não há como
+   * mudar "só a tela do Slot 1". Por isso a busca de coordenadas no Mapa Fácil
+   * fica travada nos slots que o usuário autorizou explicitamente (20/08/2026):
+   * Regularização SEI e Aceite SEI. Sem essa trava, qualquer slot novo herdaria
+   * a feature de graça, sem pedido — foi o que aconteceu com o Slot 5 antes
+   * desta trava existir. Estender pra outro slot exige pedido explícito, igual
+   * a mexer no Slot 1 (ver memória urbis-tela-lip-nao-isolada-por-slot). */
+  const coordenadasMapaFacilHabilitado = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei";
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
@@ -592,6 +600,9 @@ export default function ProcessoClient() {
    * conferência.
    */
   async function buscarCoordenadas() {
+    // Defesa em profundidade: o botão já não aparece fora dos slots
+    // autorizados, mas a função não confia só nisso.
+    if (!coordenadasMapaFacilHabilitado) return;
     const iptu = (d["iptu"]?.valor ?? "").replace(/\D/g, "");
     if (!iptu) {
       mostrarToast("Preencha o IPTU antes — a coordenada é buscada por ele.", "erro");
@@ -1625,6 +1636,7 @@ export default function ProcessoClient() {
     const ehCoordenadas = campo.chave === "coordenadas";
     const temValor = val.valor.trim() !== "";
     const mostrarBotaoMaps = ehCoordenadas && temValor;
+    const mostrarBuscaCoordenadas = ehCoordenadas && coordenadasMapaFacilHabilitado;
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
@@ -1749,11 +1761,12 @@ export default function ProcessoClient() {
             }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
-            className={`w-full rounded border p-2 ${ehCoordenadas ? (temValor ? "pr-24" : "pr-10") : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
+            className={`w-full rounded border p-2 ${mostrarBuscaCoordenadas ? (temValor ? "pr-24" : "pr-10") : (mostrarBotaoMaps ? "pr-9" : "")} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
           {/* Buscar no Mapa Fácil aparece com o campo VAZIO também — é justamente
               quando o analista precisa dele. Os atalhos de mapa abaixo só fazem
-              sentido havendo coordenada. */}
-          {ehCoordenadas && (
+              sentido havendo coordenada. Só nos slots autorizados — ver
+              `coordenadasMapaFacilHabilitado`. */}
+          {mostrarBuscaCoordenadas && (
             <button
               type="button"
               onClick={buscarCoordenadas}
