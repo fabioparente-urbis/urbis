@@ -147,53 +147,80 @@ export async function POST(req: NextRequest) {
     console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars`);
 
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
+    // Igual ao S3 do LIP (app/api/lip/s3/route.ts): sob sobrecarga o Gemini
+    // devolve 503 OU 200 com prosa em vez do JSON pedido. Sem retry aqui, uma
+    // chamada síncrona só — o analista via a leitura falhar na hora, sem
+    // segunda chance, exatamente o problema que já tinha sido resolvido no
+    // LIP e nunca chegou a este endpoint.
     console.log(`[P3_MAC] Enviando para Gemini...`);
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { fileData: { mimeType: "application/pdf", fileUri } },
-                { text: promptFinal },
-              ],
-            },
-          ],
-          generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
-        }),
-      }
-    );
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("[P3_MAC] Gemini erro completo:", errText);
-      console.error("[P3_MAC] fileUri:", fileUri);
-      console.error("[P3_MAC] modelo:", GEMINI_MODEL);
-      if (res.status === 429) {
-        return NextResponse.json(
-          { ok: false, erro: "LIMITE_DIARIO_GEMINI" },
-          { status: 429 }
-        );
-      }
-      return NextResponse.json({ ok: false, erro: errText }, { status: res.status });
-    }
-    const data = await res.json();
-    const texto: string =
-      data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-    console.log("[P3_MAC] Resposta recebida:", texto.substring(0, 300));
-
-    // 4) Faz parse e normaliza valores
-    const clean = texto.replace(/```json|```/g, "").trim();
+    let texto = "";
+    let geminiOk = false;
     let dados: Record<string, any> = {};
-    try {
-      dados = JSON.parse(clean);
-    } catch (e: any) {
+    let ultimoStatus = 0;
+    let ultimoCorpo = "";
+    const MAX_TENTATIVAS = 7;
+
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      console.log(`[P3_MAC] tentativa ${tentativa}/${MAX_TENTATIVAS}`);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { fileData: { mimeType: "application/pdf", fileUri } },
+                  { text: promptFinal },
+                ],
+              },
+            ],
+            generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const candidato = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (candidato) {
+          const testeJson = candidato.replace(/```json|```/g, "").trim();
+          try {
+            dados = JSON.parse(testeJson);
+            texto = candidato;
+            geminiOk = true;
+            console.log(`[P3_MAC] OK — resposta:`, texto.substring(0, 300));
+            break;
+          } catch (e: any) {
+            ultimoStatus = 200;
+            ultimoCorpo = `JSON inválido: ${testeJson.slice(0, 300)}`;
+          }
+        } else {
+          ultimoStatus = 200;
+          ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+        }
+      } else {
+        ultimoStatus = res.status;
+        ultimoCorpo = (await res.text()).slice(0, 500);
+      }
+      console.log(`[P3_MAC] falhou (${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
+      const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
+      if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
+        await new Promise((r) => setTimeout(r, Math.min(tentativa * 5000, 30000)));
+        continue;
+      }
+      break;
+    }
+
+    if (!geminiOk) {
+      console.error("[P3_MAC] fileUri:", fileUri, "| modelo:", GEMINI_MODEL);
+      if (ultimoStatus === 429 || ultimoCorpo.toLowerCase().includes("resource_exhausted") || ultimoCorpo.toLowerCase().includes("quota")) {
+        return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
+      }
       return NextResponse.json(
-        { ok: false, erro: `Resposta do Gemini nao e JSON valido: ${e?.message}` },
-        { status: 500 }
+        { ok: false, erro: ultimoCorpo || "Falha ao ler o PDF com o Gemini" },
+        { status: ultimoStatus || 500 }
       );
     }
 

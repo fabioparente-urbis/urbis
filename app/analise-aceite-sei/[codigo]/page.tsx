@@ -50,6 +50,14 @@ export default function MacPage() {
   const [timerP2, setTimerP2] = useState(0);
   const timerP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const inputP2Ref = useRef<HTMLInputElement>(null);
+  // LER ARQUIVOS INDIVIDUAIS do MAC — mesma ideia do VCP do LIP: em vez de um
+  // PDF único (que só cabe se o processo inteiro estiver compactado), o
+  // analista escolhe os documentos já separados. Reaproveita analisandoP2/
+  // progressoP2/timerP2 de propósito — os dois botões nunca rodam ao mesmo
+  // tempo, então uma trava de "ocupado" só serve pros dois.
+  const [modalP3Individual, setModalP3Individual] = useState(false);
+  const [arquivosP3Individual, setArquivosP3Individual] = useState<File[]>([]);
+  const inputP3IndividualRef = useRef<HTMLInputElement>(null);
   const carregandoHistoricoRef = useRef(false);
   const [checklistItens, setChecklistItens] = useState<Item[]>([]);
   const [observacoes, setObservacoes] = useState("");
@@ -1017,6 +1025,121 @@ export default function MacPage() {
     } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
   }
 
+  /**
+   * LER ARQUIVOS INDIVIDUAIS do MAC — cada arquivo passa pelo mesmo `/api/mac/p3`
+   * do botão único, um de cada vez; os itens são mesclados sem sobrescrever o
+   * que o analista já respondeu (`if (prev[id] == null)`), igual ao botão
+   * único já fazia — só que agora somando o que cada documento contribui.
+   */
+  async function processarArquivosIndividuaisP3() {
+    const arquivos = arquivosP3Individual;
+    if (arquivos.length === 0) return;
+    setModalP3Individual(false);
+    const _inicio = Date.now();
+    const _dataLeitura = new Date().toLocaleString("pt-BR");
+    try {
+      setAnalisandoP2(true);
+      setTimerP2(0);
+      timerP2Ref.current = setInterval(() => setTimerP2((t) => t + 1), 1000);
+
+      const itensAcumulados: Record<string, StatusItem> = {};
+      const fontesAcumuladas: Record<string, "p2"> = {};
+      const documentosTodos: any[] = [];
+      const incompatTodas: string[] = [];
+      let totalPreenchidos = 0;
+
+      for (let i = 0; i < arquivos.length; i++) {
+        const arquivo = arquivos[i];
+        if (arquivo.size > 50 * 1024 * 1024) {
+          throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(0)}MB — limite é 50MB. Comprima o PDF antes de enviar.`);
+        }
+        setProgressoP2(Math.round((i / arquivos.length) * 90));
+        mostrarToast(`📎 Lendo ${arquivo.name} (${i + 1}/${arquivos.length})...`);
+
+        const fd = new FormData();
+        fd.append("file", arquivo);
+        fd.append("codigo", codigo);
+        fd.append("checklistItens", JSON.stringify(
+          checklistItens.map((it) => ({ id: it.id, texto: it.texto, grupo: it.grupo }))
+        ));
+        if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
+        if (assuntoId) fd.append("assunto_id", assuntoId);
+        const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          throw new Error(`${arquivo.name}: ${json?.erro || res.statusText || "falha na leitura"}`);
+        }
+
+        Object.entries(json.itens || {}).forEach(([id, status]) => {
+          if (itensAcumulados[id] == null && status != null) {
+            itensAcumulados[id] = status as StatusItem;
+            fontesAcumuladas[id] = "p2";
+          }
+        });
+        if (Array.isArray(json.documentos)) documentosTodos.push(...json.documentos);
+        if (Array.isArray(json.incompatibilidades)) incompatTodas.push(...json.incompatibilidades);
+      }
+
+      setProgressoP2(95);
+      setItens((prev) => {
+        const novo = { ...prev };
+        Object.entries(itensAcumulados).forEach(([id, status]) => {
+          if (prev[id] == null) novo[id] = status;
+        });
+        return novo;
+      });
+      setFontes((prev) => ({ ...prev, ...fontesAcumuladas }));
+      setAceites((prev) => {
+        const novo = { ...prev };
+        Object.keys(fontesAcumuladas).forEach((id) => { novo[id] = false; });
+        return novo;
+      });
+      totalPreenchidos = Object.keys(itensAcumulados).length;
+
+      const _fmtDoc = (d: any): string => {
+        if (!d) return "";
+        if (typeof d === "string") return d;
+        const nome = d.nome || d.tipo || d.documento || d.descricao || "Documento";
+        const sei = d.sei || d.numero_sei || d.numeroSei || d.numero || null;
+        const pag = d.pagina || d.paginas || d.pag || null;
+        const partes: string[] = [];
+        if (sei) partes.push(`SEI ${sei}`);
+        if (pag) partes.push(`pág. ${pag}`);
+        return partes.length ? `${nome} (${partes.join(", ")})` : String(nome);
+      };
+      const incompatUnicas = Array.from(new Set(incompatTodas.filter(Boolean).map(String)));
+      const _seg = Math.round((Date.now() - _inicio) / 1000);
+      const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const nomeArquivos = arquivos.map((a) => a.name).join(", ");
+      const _obsLeitura =
+        `━━━ LEITURA DE ARQUIVOS INDIVIDUAIS (MAC) ━━━\n` +
+        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_ss} | ${totalPreenchidos} item(ns) sugerido(s)\n` +
+        `📎 Arquivos (${arquivos.length}): ${nomeArquivos}\n` +
+        `📄 Documentos analisados (${documentosTodos.length}):\n${documentosTodos.length ? documentosTodos.map((d) => `  • ${_fmtDoc(d)}`).join("\n") : "  • (mapa de documentos não retornado pela IA)"}\n` +
+        `🔎 Incompatibilidades:\n${incompatUnicas.length ? incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA."}`;
+      setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
+      registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
+      mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s) — revise e aceite.`);
+    } catch (err: any) {
+      const _seg = Math.round((Date.now() - _inicio) / 1000);
+      const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const _obsErro =
+        `━━━ LEITURA DE ARQUIVOS INDIVIDUAIS (MAC) ━━━\n` +
+        `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_ss}\n` +
+        `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
+      setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
+      mostrarToast(`Erro: ${err?.message || "falha"}`);
+    } finally {
+      if (timerP2Ref.current) { clearInterval(timerP2Ref.current); timerP2Ref.current = null; }
+      setProgressoP2(0);
+      setTimerP2(0);
+      setAnalisandoP2(false);
+      setArquivosP3Individual([]);
+    }
+  }
+
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
@@ -1782,6 +1905,27 @@ export default function MacPage() {
             {analisandoP2 ? "⏳ Analisando..." : `📎 LER PROCESSO ${(assuntoNome || "").toUpperCase()}`.trim()}
           </button>
 
+          <button
+            type="button"
+            onClick={() => { setArquivosP3Individual([]); setModalP3Individual(true); }}
+            disabled={analisandoP2 || checklistItens.length === 0}
+            title="Escolhe vários PDFs já separados (documentos individuais) em vez de um processo inteiro"
+            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            📎 LER ARQUIVOS INDIVIDUAIS
+          </button>
+          <input
+            ref={inputP3IndividualRef}
+            type="file"
+            accept="application/pdf,.pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const fs = Array.from(e.target.files || []);
+              if (fs.length) setArquivosP3Individual((prev) => [...prev, ...fs]);
+              e.target.value = "";
+            }}
+          />
+
           <button onClick={() => salvar("em_andamento")} disabled={salvando}
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             {salvando ? "Salvando..." : "💾 Salvar"}
@@ -2001,6 +2145,58 @@ export default function MacPage() {
         </div>
       )}
       {/* Modal Limpar Análise individual */}
+      {modalP3Individual && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setModalP3Individual(false)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Ler Arquivos Individuais</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Escolha os PDFs já separados do processo. Cada um é lido pelo mesmo P3 do botão único, em sequência —
+              o que já foi respondido não é sobrescrito.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => inputP3IndividualRef.current?.click()}
+              className="w-full mb-3 border border-dashed border-[var(--border-strong)] rounded-lg py-3 text-sm text-[var(--text-secondary)] hover:border-[#2563EB] hover:text-[#2563EB] transition-colors"
+            >
+              + Escolher PDFs
+            </button>
+
+            {arquivosP3Individual.length > 0 && (
+              <div className="max-h-48 overflow-y-auto mb-4 flex flex-col gap-1">
+                {arquivosP3Individual.map((f, i) => (
+                  <div key={`${f.name}-${i}`} className="flex items-center justify-between bg-[var(--bg-secondary)] rounded px-3 py-1.5 text-xs">
+                    <span className="text-[var(--text-primary)] truncate">{f.name}</span>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      <span className="text-[var(--text-muted)]">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                      <button
+                        type="button"
+                        onClick={() => setArquivosP3Individual((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="text-red-400 hover:text-red-300"
+                        aria-label={`Remover ${f.name}`}
+                      >✕</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setModalP3Individual(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                Cancelar
+              </button>
+              <button
+                disabled={arquivosP3Individual.length === 0}
+                onClick={processarArquivosIndividuaisP3}
+                className={`px-4 py-2 rounded font-bold text-sm ${arquivosP3Individual.length === 0 ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[#2563EB] hover:bg-[#1d4fd8] text-white"}`}
+              >
+                🔍 Processar ({arquivosP3Individual.length} arquivo{arquivosP3Individual.length !== 1 ? "s" : ""})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalLimparAnalise !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
