@@ -62,6 +62,11 @@ export default function MacPage() {
   // tempo, então uma trava de "ocupado" só serve pros dois.
   const [modalP3Individual, setModalP3Individual] = useState(false);
   const [arquivosP3Individual, setArquivosP3Individual] = useState<File[]>([]);
+  // "substituir" grava por cima do que a leitura devolver, mesmo item já
+  // marcado; "sugerir" só preenche o que está em branco (mesma regra que o
+  // botão único sempre seguiu). Escolha obrigatória quando já há item
+  // marcado — mesmo mecanismo do VCP do LIP (ProcessoClient.tsx).
+  const [modoP3Individual, setModoP3Individual] = useState<"substituir" | "sugerir" | null>(null);
   const inputP3IndividualRef = useRef<HTMLInputElement>(null);
   const carregandoHistoricoRef = useRef(false);
   // Trava de concorrência: impede dois POST simultâneos de análise nova
@@ -1169,6 +1174,8 @@ export default function MacPage() {
   async function processarArquivosIndividuaisP3() {
     const arquivos = arquivosP3Individual;
     if (arquivos.length === 0) return;
+    const jaPreenchido = Object.values(itens).some((v) => v != null);
+    const modoFinal: "substituir" | "sugerir" = jaPreenchido ? (modoP3Individual ?? "sugerir") : "substituir";
     setModalP3Individual(false);
     const _inicio = Date.now();
     const _dataLeitura = new Date().toLocaleString("pt-BR");
@@ -1219,7 +1226,7 @@ export default function MacPage() {
       setItens((prev) => {
         const novo = { ...prev };
         Object.entries(itensAcumulados).forEach(([id, status]) => {
-          if (prev[id] == null) novo[id] = status;
+          if (modoFinal === "substituir" || prev[id] == null) novo[id] = status;
         });
         return novo;
       });
@@ -1249,7 +1256,7 @@ export default function MacPage() {
       const nomeArquivos = arquivos.map((a) => a.name).join(", ");
       const _obsLeitura =
         `━━━ LEITURA DE ARQUIVOS INDIVIDUAIS (MAC) ━━━\n` +
-        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_ss} | ${totalPreenchidos} item(ns) sugerido(s)\n` +
+        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modoFinal.toUpperCase()} | Duração: ${_min}:${_ss} | ${totalPreenchidos} item(ns) ${modoFinal === "substituir" ? "sobrescrito(s)" : "sugerido(s)"}\n` +
         `📎 Arquivos (${arquivos.length}): ${nomeArquivos}\n` +
         `📄 Documentos analisados (${documentosTodos.length}):\n${documentosTodos.length ? documentosTodos.map((d) => `  • ${_fmtDoc(d)}`).join("\n") : "  • (mapa de documentos não retornado pela IA)"}\n` +
         `🔎 Incompatibilidades:\n${incompatUnicas.length ? incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA."}`;
@@ -1272,6 +1279,7 @@ export default function MacPage() {
       setTimerP2(0);
       setAnalisandoP2(false);
       setArquivosP3Individual([]);
+      setModoP3Individual(null);
     }
   }
 
@@ -2154,7 +2162,7 @@ export default function MacPage() {
 
           <button
             type="button"
-            onClick={() => { setArquivosP3Individual([]); setModalP3Individual(true); }}
+            onClick={() => { setArquivosP3Individual([]); setModoP3Individual(null); setModalP3Individual(true); }}
             disabled={analisandoP2 || checklistItens.length === 0}
             title="Escolhe vários PDFs já separados (documentos individuais) em vez de um processo inteiro"
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
@@ -2182,6 +2190,7 @@ export default function MacPage() {
             className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-40 disabled:cursor-not-allowed border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ✅ Deferir
           </button>
+
 
           <button onClick={() => abrirModalDespacho("despacho")} disabled={gerandoDespacho}
             className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
@@ -2428,14 +2437,30 @@ export default function MacPage() {
               </div>
             )}
 
+            {Object.values(itens).some((v) => v != null) && (
+              <div className="mb-4 bg-[var(--bg-secondary)] rounded-xl p-3">
+                <p className="text-xs text-[var(--text-secondary)] font-semibold mb-2">Checklist já tem item marcado — o que fazer com o que a leitura sugerir?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setModoP3Individual("substituir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "substituir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
+                    🔄 Substituir tudo
+                  </button>
+                  <button onClick={() => setModoP3Individual("sugerir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "sugerir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
+                    💡 Sugerir valores
+                  </button>
+                </div>
+                {modoP3Individual === "substituir" && <p className="text-xs text-orange-400 mt-1">⚠️ Itens já marcados serão sobrescritos pela leitura.</p>}
+                {modoP3Individual === "sugerir" && <p className="text-xs text-green-400 mt-1">✅ Só item em branco é preenchido — o resto fica como está, pra você revisar.</p>}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalP3Individual(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                 Cancelar
               </button>
               <button
-                disabled={arquivosP3Individual.length === 0}
+                disabled={arquivosP3Individual.length === 0 || (Object.values(itens).some((v) => v != null) && !modoP3Individual)}
                 onClick={processarArquivosIndividuaisP3}
-                className={`px-4 py-2 rounded font-bold text-sm ${arquivosP3Individual.length === 0 ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[#2563EB] hover:bg-[#1d4fd8] text-white"}`}
+                className={`px-4 py-2 rounded font-bold text-sm ${(arquivosP3Individual.length === 0 || (Object.values(itens).some((v) => v != null) && !modoP3Individual)) ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[#2563EB] hover:bg-[#1d4fd8] text-white"}`}
               >
                 🔍 Processar ({arquivosP3Individual.length} arquivo{arquivosP3Individual.length !== 1 ? "s" : ""})
               </button>
