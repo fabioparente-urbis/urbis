@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
     const analiseId = (form.get("analiseId") as string | null) ?? null;
     const checklistItensRaw = (form.get("checklistItens") as string | null) ?? "[]";
     const assunto_id = (form.get("assunto_id") as string | null) ?? null;
+    /* "documento_isolado" = este PDF é UM documento de um conjunto que está
+     * sendo lido em várias chamadas (botão LER ARQUIVOS INDIVIDUAIS). Muda o
+     * que o modelo deve fazer com o que ele NÃO vê — ver bloco abaixo. Ausente
+     * (botão LER PROCESSO, processo inteiro num PDF só) = comportamento antigo,
+     * intocado. */
+    const documentoIsolado = (form.get("modoLeitura") as string | null) === "documento_isolado";
 
     if (!file) {
       return NextResponse.json(
@@ -143,8 +149,41 @@ export async function POST(req: NextRequest) {
       null,
       2
     )}\n---`;
-    const promptFinal = promptData.conteudo + ctxChecklist;
-    console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars`);
+    /* O prompt salvo descreve os documentos como se o processo INTEIRO
+     * estivesse no PDF. Lendo um documento por vez, o modelo interpretava "não
+     * vejo a prancha aqui" como "a prancha está ausente do processo" e
+     * respondia `nao_conforme` — e, como a mesclagem no cliente trava o item na
+     * PRIMEIRA resposta não nula, o primeiro arquivo da fila (uma ART, por
+     * ordem alfabética) fixava negativa em quase todo o checklist antes de a
+     * prancha sequer ser lida. Daí 39 "não conforme" de 54 num processo cujos
+     * documentos existiam.
+     *
+     * Este bloco vai DEPOIS do prompt do slot, sem alterar o que está salvo em
+     * `lip_prompts` (compartilhado entre slots — ver a regra de não mexer no
+     * Slot 1). Só entra quando o cliente declara leitura por documento. */
+    const blocoDocumentoIsolado = documentoIsolado
+      ? `\n\n---\n===== LEITURA POR DOCUMENTO — REGRA QUE VENCE AS ANTERIORES =====
+Este PDF é UM documento de um processo. Os demais documentos do processo
+EXISTEM, mas estão sendo enviados em outras chamadas — eles NÃO estão neste
+arquivo e você NÃO tem como vê-los agora.
+
+Por isso:
+1. NÃO conclua que um documento está ausente do processo só porque ele não
+   está neste PDF. Você não tem essa informação.
+2. Responda APENAS os itens do checklist que este documento, sozinho, permite
+   julgar. Para todos os outros, responda null — inclusive quando o item
+   depender de um documento que não está aqui.
+3. null NÃO é falha sua: é a resposta correta quando a prova está em outro
+   documento. Outra chamada vai avaliar esse item com o documento certo.
+4. NUNCA use "nao_conforme" com o sentido de "não encontrei". "nao_conforme" é
+   só para o que este documento mostra estar de fato irregular.
+5. Em "incompatibilidades", não relate ausência de documento nem falta de
+   informação que não esteja neste arquivo. Relate só divergência que você
+   consegue constatar DENTRO deste documento.
+---`
+      : "";
+    const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado;
+    console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars${documentoIsolado ? " (documento isolado)" : ""}`);
 
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
     // Igual ao S3 do LIP (app/api/lip/s3/route.ts): sob sobrecarga o Gemini

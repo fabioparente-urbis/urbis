@@ -1193,6 +1193,9 @@ export default function MacPage() {
       const fontesAcumuladas: Record<string, "p2"> = {};
       const documentosTodos: any[] = [];
       const incompatTodas: string[] = [];
+      /** Qual arquivo respondeu cada item — só para descrever conflito na OBS. */
+      const origemDoItem: Record<string, string> = {};
+      const conflitos: string[] = [];
       let totalPreenchidos = 0;
 
       for (let i = 0; i < arquivos.length; i++) {
@@ -1211,6 +1214,9 @@ export default function MacPage() {
         ));
         if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
         if (assuntoId) fd.append("assunto_id", assuntoId);
+        // Diz ao P3 que este é UM documento de um conjunto — sem isto o modelo
+        // trata "não vejo aqui" como "ausente do processo". Ver a rota.
+        fd.append("modoLeitura", "documento_isolado");
         const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
@@ -1218,9 +1224,19 @@ export default function MacPage() {
         }
 
         Object.entries(json.itens || {}).forEach(([id, status]) => {
-          if (itensAcumulados[id] == null && status != null) {
+          if (status == null) return;
+          if (itensAcumulados[id] == null) {
             itensAcumulados[id] = status as StatusItem;
             fontesAcumuladas[id] = "p2";
+            origemDoItem[id] = arquivo.name;
+          } else if (itensAcumulados[id] !== status) {
+            /* Dois documentos responderam o MESMO item de formas diferentes.
+             * Fica com o primeiro (não há como saber qual tem a prova melhor),
+             * mas isso NÃO pode ser silencioso — vai para a OBS para o analista
+             * conferir os dois documentos. */
+            conflitos.push(
+              `item respondido como "${itensAcumulados[id]}" por ${origemDoItem[id]} e como "${status}" por ${arquivo.name}`
+            );
           }
         });
         if (Array.isArray(json.documentos)) documentosTodos.push(...json.documentos);
@@ -1264,7 +1280,10 @@ export default function MacPage() {
         `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modoFinal.toUpperCase()} | Duração: ${_min}:${_ss} | ${totalPreenchidos} item(ns) ${modoFinal === "substituir" ? "sobrescrito(s)" : "sugerido(s)"}\n` +
         `📎 Arquivos (${arquivos.length}): ${nomeArquivos}\n` +
         `📄 Documentos analisados (${documentosTodos.length}):\n${documentosTodos.length ? documentosTodos.map((d) => `  • ${_fmtDoc(d)}`).join("\n") : "  • (mapa de documentos não retornado pela IA)"}\n` +
-        `🔎 Incompatibilidades:\n${incompatUnicas.length ? incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA."}`;
+        `🔎 Incompatibilidades:\n${incompatUnicas.length ? incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA."}` +
+        (conflitos.length
+          ? `\n⚖️ Itens com resposta divergente entre documentos (ficou a 1ª, confira):\n${conflitos.map((c) => `  • ${c}`).join("\n")}`
+          : "");
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
       registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
       mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s) — revise e aceite.`);
