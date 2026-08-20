@@ -202,12 +202,14 @@ export default function ProcessoClient() {
   const ehSlot5 = tipoUrl === "slot_05";
   /* A tela do LIP é 1 componente só pros 15 slots (assuntos) — não há como
    * mudar "só a tela do Slot 1". Por isso a busca de coordenadas no Mapa Fácil
-   * fica travada nos slots que o usuário autorizou explicitamente (20/08/2026):
-   * Regularização SEI e Aceite SEI. Sem essa trava, qualquer slot novo herdaria
-   * a feature de graça, sem pedido — foi o que aconteceu com o Slot 5 antes
-   * desta trava existir. Estender pra outro slot exige pedido explícito, igual
-   * a mexer no Slot 1 (ver memória urbis-tela-lip-nao-isolada-por-slot). */
-  const coordenadasMapaFacilHabilitado = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei";
+   * fica travada nos slots que o usuário autorizou explicitamente: Regularização
+   * SEI e Aceite SEI (20/08/2026), Aprovação de Projeto — Slot 5 (mesmo dia,
+   * pedido à parte, depois de ter sido excluído por engano na trava original).
+   * Sem essa trava, qualquer slot novo herdaria a feature de graça, sem pedido.
+   * Estender a outro slot exige pedido explícito, igual a mexer no Slot 1
+   * (ver memória urbis-tela-lip-nao-isolada-por-slot). */
+  const coordenadasMapaFacilHabilitado =
+    tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || ehSlot5;
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
