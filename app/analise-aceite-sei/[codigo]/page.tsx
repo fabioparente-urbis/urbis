@@ -2157,9 +2157,9 @@ export default function MacPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setModalP3Individual(false)}>
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Ler Arquivos Individuais</h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Escolha os PDFs já separados do processo. Cada um é lido pelo mesmo P3 do botão único, em sequência —
-              o que já foi respondido não é sobrescrito.
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              ⚠️ Nomeie os arquivos indicando o tipo e o número SEI do documento.<br/>
+              Exemplos: <span className="font-mono text-[#2563EB]">VISTORIA 9184440.pdf</span>, <span className="font-mono text-[#2563EB]">USO 6979846.pdf</span>, <span className="font-mono text-[#2563EB]">CHEADV 9045907.pdf</span>, <span className="font-mono text-[#2563EB]">PROJETO 8792319.pdf</span>
             </p>
 
             <button
@@ -2172,20 +2172,26 @@ export default function MacPage() {
 
             {arquivosP3Individual.length > 0 && (
               <div className="max-h-48 overflow-y-auto mb-4 flex flex-col gap-1">
-                {arquivosP3Individual.map((f, i) => (
-                  <div key={`${f.name}-${i}`} className="flex items-center justify-between bg-[var(--bg-secondary)] rounded px-3 py-1.5 text-xs">
-                    <span className="text-[var(--text-primary)] truncate">{f.name}</span>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      <span className="text-[var(--text-muted)]">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
-                      <button
-                        type="button"
-                        onClick={() => setArquivosP3Individual((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="text-red-400 hover:text-red-300"
-                        aria-label={`Remover ${f.name}`}
-                      >✕</button>
+                {arquivosP3Individual.map((f, i) => {
+                  const n = f.name.toUpperCase();
+                  const tipo = n.includes("VISTORIA")||n.includes("FISCAL") ? "VISTORIA" : n.includes("USO") ? "USO_SOLO" : n.includes("CHEADV") ? "CHEADV" : n.includes("PROJETO")||n.includes("LEVANTAMENTO") ? "PROJETO" : n.includes("CERTIDAO")||n.includes("CERTIDÃO") ? "CERTIDAO" : n.includes("ART")||n.includes("RRT") ? "ART" : n.includes("LAUDO") ? "LAUDO" : n.includes("BUSCA") ? "BUSCA" : n.includes("EMBARGO") ? "EMBARGO" : n.includes("ONEROSA") ? "ONEROSA" : "OUTRO";
+                  const sei = f.name.match(/\b(\d{7,})\b/)?.[1] ?? null;
+                  return (
+                    <div key={`${f.name}-${i}`} className="flex items-center justify-between bg-[var(--bg-secondary)] rounded px-3 py-1.5 text-xs">
+                      <span className="text-[var(--text-primary)] truncate max-w-[45%]">{f.name}</span>
+                      <span className="text-[#2563EB] font-mono ml-2">{tipo}{sei ? ` · ${sei}` : " · sem SEI"}</span>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        <span className="text-[var(--text-muted)]">{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                        <button
+                          type="button"
+                          onClick={() => setArquivosP3Individual((prev) => prev.filter((_, idx) => idx !== i))}
+                          className="text-red-400 hover:text-red-300"
+                          aria-label={`Remover ${f.name}`}
+                        >✕</button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
