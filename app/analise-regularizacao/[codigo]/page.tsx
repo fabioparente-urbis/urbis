@@ -1173,9 +1173,9 @@ export default function MacPage() {
    */
   async function processarArquivosIndividuaisP3() {
     const arquivos = arquivosP3Individual;
-    if (arquivos.length === 0) return;
-    const jaPreenchido = Object.values(itens).some((v) => v != null);
-    const modoFinal: "substituir" | "sugerir" = jaPreenchido ? (modoP3Individual ?? "sugerir") : "substituir";
+    if (arquivos.length === 0 || !modoP3Individual) return;
+    // Botão Processar só habilita com o modo escolhido — não há branch "sem escolha".
+    const modoFinal: "substituir" | "sugerir" = modoP3Individual;
     setModalP3Individual(false);
     const _inicio = Date.now();
     const _dataLeitura = new Date().toLocaleString("pt-BR");
@@ -2405,10 +2405,6 @@ export default function MacPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setModalP3Individual(false)}>
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Ler Arquivos Individuais</h2>
-            <p className="text-xs text-[var(--text-secondary)] mb-4">
-              ⚠️ Nomeie os arquivos indicando o tipo e o número SEI do documento.<br/>
-              Exemplos: <span className="font-mono text-[#2563EB]">VISTORIA 9184440.pdf</span>, <span className="font-mono text-[#2563EB]">USO 6979846.pdf</span>, <span className="font-mono text-[#2563EB]">CHEADV 9045907.pdf</span>, <span className="font-mono text-[#2563EB]">PROJETO 8792319.pdf</span>
-            </p>
 
             <button
               type="button"
@@ -2443,30 +2439,28 @@ export default function MacPage() {
               </div>
             )}
 
-            {Object.values(itens).some((v) => v != null) && (
-              <div className="mb-4 bg-[var(--bg-secondary)] rounded-xl p-3">
-                <p className="text-xs text-[var(--text-secondary)] font-semibold mb-2">Checklist já tem item marcado — o que fazer com o que a leitura sugerir?</p>
-                <div className="flex gap-2">
-                  <button onClick={() => setModoP3Individual("substituir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "substituir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
-                    🔄 Substituir tudo
-                  </button>
-                  <button onClick={() => setModoP3Individual("sugerir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "sugerir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
-                    💡 Sugerir valores
-                  </button>
-                </div>
-                {modoP3Individual === "substituir" && <p className="text-xs text-orange-400 mt-1">⚠️ Itens já marcados serão sobrescritos pela leitura.</p>}
-                {modoP3Individual === "sugerir" && <p className="text-xs text-green-400 mt-1">✅ Só item em branco é preenchido — o resto fica como está, pra você revisar.</p>}
+            <div className="mb-4 bg-[var(--bg-secondary)] rounded-xl p-3">
+              <p className="text-xs text-[var(--text-secondary)] font-semibold mb-2">O que fazer com os itens do checklist que a leitura sugerir?</p>
+              <div className="flex gap-2">
+                <button onClick={() => setModoP3Individual("substituir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "substituir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
+                  🔄 Substituir as marcações do checklist
+                </button>
+                <button onClick={() => setModoP3Individual("sugerir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${modoP3Individual === "sugerir" ? "bg-[#2563EB] text-white border-[#2563EB]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[#2563EB]"}`}>
+                  💡 Sugerir mudança do checklist
+                </button>
               </div>
-            )}
+              {modoP3Individual === "substituir" && <p className="text-xs text-orange-400 mt-1">⚠️ Itens já marcados serão sobrescritos pela leitura.</p>}
+              {modoP3Individual === "sugerir" && <p className="text-xs text-green-400 mt-1">✅ Só item em branco é preenchido — o resto fica como está, pra você revisar.</p>}
+            </div>
 
             <div className="flex justify-end gap-2">
               <button onClick={() => setModalP3Individual(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                 Cancelar
               </button>
               <button
-                disabled={arquivosP3Individual.length === 0 || (Object.values(itens).some((v) => v != null) && !modoP3Individual)}
+                disabled={arquivosP3Individual.length === 0 || !modoP3Individual}
                 onClick={processarArquivosIndividuaisP3}
-                className={`px-4 py-2 rounded font-bold text-sm ${(arquivosP3Individual.length === 0 || (Object.values(itens).some((v) => v != null) && !modoP3Individual)) ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[#2563EB] hover:bg-[#1d4fd8] text-white"}`}
+                className={`px-4 py-2 rounded font-bold text-sm ${(arquivosP3Individual.length === 0 || !modoP3Individual) ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[#2563EB] hover:bg-[#1d4fd8] text-white"}`}
               >
                 🔍 Processar ({arquivosP3Individual.length} arquivo{arquivosP3Individual.length !== 1 ? "s" : ""})
               </button>
