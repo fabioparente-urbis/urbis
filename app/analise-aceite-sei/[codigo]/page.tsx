@@ -42,6 +42,10 @@ export default function MacPage() {
   const [reemitindo, setReemitindo] = useState(false);
   const [modalItensPendentesIA, setModalItensPendentesIA] = useState(false);
   const [analisandoP2, setAnalisandoP2] = useState(false);
+  // LER PROCESSO e LER ARQUIVOS INDIVIDUAIS dividem a trava `analisandoP2`
+  // (nunca rodam ao mesmo tempo), mas cada botão precisa saber SE É ELE quem
+  // está rodando pra não mostrar "⏳ Analisando..." no botão errado.
+  const [origemLeituraP3, setOrigemLeituraP3] = useState<"processo" | "individual" | null>(null);
   const [modalLimparAnalise, setModalLimparAnalise] = useState<number | null>(null);
   const [modalExportar, setModalExportar] = useState(false);
   const [modalImportar, setModalImportar] = useState(false);
@@ -1046,6 +1050,7 @@ export default function MacPage() {
     const _dataLeitura = new Date().toLocaleString("pt-BR");
     try {
       setAnalisandoP2(true);
+      setOrigemLeituraP3("individual");
       setTimerP2(0);
       timerP2Ref.current = setInterval(() => setTimerP2((t) => t + 1), 1000);
 
@@ -1120,7 +1125,7 @@ export default function MacPage() {
       const _ss = String(_seg % 60).padStart(2, "0");
       const nomeArquivos = arquivos.map((a) => a.name).join(", ");
       const _obsLeitura =
-        `━━━ LEITURA DE ARQUIVOS INDIVIDUAIS (MAC) ━━━\n` +
+        `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
         `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modoFinal.toUpperCase()} | Duração: ${_min}:${_ss} | ${totalPreenchidos} item(ns) ${modoFinal === "substituir" ? "sobrescrito(s)" : "sugerido(s)"}\n` +
         `📎 Arquivos (${arquivos.length}): ${nomeArquivos}\n` +
         `📄 Documentos analisados (${documentosTodos.length}):\n${documentosTodos.length ? documentosTodos.map((d) => `  • ${_fmtDoc(d)}`).join("\n") : "  • (mapa de documentos não retornado pela IA)"}\n` +
@@ -1133,7 +1138,7 @@ export default function MacPage() {
       const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
       const _obsErro =
-        `━━━ LEITURA DE ARQUIVOS INDIVIDUAIS (MAC) ━━━\n` +
+        `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
         `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_ss}\n` +
         `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
@@ -1143,6 +1148,7 @@ export default function MacPage() {
       setProgressoP2(0);
       setTimerP2(0);
       setAnalisandoP2(false);
+      setOrigemLeituraP3(null);
       setArquivosP3Individual([]);
       setModoP3Individual(null);
     }
@@ -1505,6 +1511,24 @@ export default function MacPage() {
           </div>
         )}
         <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Progresso da leitura (LER PROCESSO ou LER ARQUIVOS INDIVIDUAIS) — fica
+              ACIMA das abas de propósito, porque antes vivia dentro do container que
+              some quando a aba OBS está selecionada: o analista trocava de aba durante
+              a leitura e perdia a barra inteira. Aqui é visível não importa a aba. */}
+          {progressoP2 > 0 && (
+            <div className="flex flex-col gap-1 px-6 pt-3">
+              <div className="flex justify-between text-xs text-indigo-300 font-semibold">
+                <span>🤖 {origemLeituraP3 === "individual" ? "Lendo arquivos individuais com IA..." : "Analisando PDF com IA..."}</span>
+                <span className="flex gap-2">
+                  <span>{progressoP2}%</span>
+                  <span className="text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
+                </span>
+              </div>
+              <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
+                <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
+              </div>
+            </div>
+          )}
           {/* ABAS — sempre visíveis */}
           <div className="flex flex-wrap gap-2 px-6 pt-4 pb-2 bg-[var(--bg-primary)]">
             {GRUPOS.map((grupo, idx) => {
@@ -1567,6 +1591,7 @@ export default function MacPage() {
                   const _dataLeitura = new Date().toLocaleString("pt-BR");
                   try {
                     setAnalisandoP2(true);
+                    setOrigemLeituraP3("processo");
                     setProgressoP2(0);
                     setTimerP2(0);
                     timerP2Ref.current = setInterval(() => { setTimerP2((t) => t + 1); }, 1000);
@@ -1646,26 +1671,12 @@ export default function MacPage() {
                     setProgressoP2(0);
                     setTimerP2(0);
                     setAnalisandoP2(false);
+                    setOrigemLeituraP3(null);
                     if (inputP2Ref.current) inputP2Ref.current.value = "";
                   }
                 }}
               />
             </div>
-
-            {progressoP2 > 0 && (
-              <div className="flex flex-col gap-1 px-1 py-2">
-                <div className="flex justify-between text-xs text-indigo-300 font-semibold">
-                  <span>🤖 Analisando PDF com IA...</span>
-                  <span className="flex gap-2">
-                    <span>{progressoP2}%</span>
-                    <span className="text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
-                  </span>
-                </div>
-                <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
-                  <div className="bg-[var(--primary)] h-2 rounded-full transition-all duration-300" style={{ width: `${progressoP2}%` }} />
-                </div>
-              </div>
-            )}
             {/* Legenda de status (movida do cabeçalho) — STEP 1g */}
             <div className="flex flex-wrap gap-4 text-xs px-1 py-2 border-b border-[var(--border)] mb-2">
               <span className="text-[#059669]">✅ {conformes.length} conformes</span>
@@ -1910,7 +1921,7 @@ export default function MacPage() {
             disabled={analisandoP2 || checklistItens.length === 0}
             title="Envia o PDF do processo para o Gemini analisar o checklist automaticamente"
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            {analisandoP2 ? "⏳ Analisando..." : `📎 LER PROCESSO ${(assuntoNome || "").toUpperCase()}`.trim()}
+            {analisandoP2 && origemLeituraP3 === "processo" ? "⏳ Analisando..." : `📎 LER PROCESSO ${(assuntoNome || "").toUpperCase()}`.trim()}
           </button>
 
           <button
@@ -1919,7 +1930,7 @@ export default function MacPage() {
             disabled={analisandoP2 || checklistItens.length === 0}
             title="Escolhe vários PDFs já separados (documentos individuais) em vez de um processo inteiro"
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            📎 LER ARQUIVOS INDIVIDUAIS
+            {analisandoP2 && origemLeituraP3 === "individual" ? "⏳ Lendo..." : "📎 LER ARQUIVOS INDIVIDUAIS"}
           </button>
           <input
             ref={inputP3IndividualRef}
