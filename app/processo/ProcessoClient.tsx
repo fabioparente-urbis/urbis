@@ -7,6 +7,7 @@ import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
+import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 
 /**
  * De onde veio o valor que está no formulário.
@@ -127,6 +128,21 @@ function corrigirSeiFisico(novo: Record<string, Campo>, codigo: string): void {
   }
   novo.processo = { valor: codigo, origem: "manual", fonte: "Número informado no cadastro" };
 }
+
+/** O que a busca no Mapa Fácil deixou para o analista conferir. */
+type ResultadoMapaFacil = {
+  coordenadas: string;
+  iptu: string;
+  /** false quando o IPTU casou por aproximação em vez de inscrição idêntica. */
+  exato: boolean;
+  cadastro: {
+    logradouro: string | null;
+    quadra: string | null;
+    lote: string | null;
+    bairro: string | null;
+  };
+  confrontos: Confronto[];
+};
 
 function parseCoords(val: string): string {
   const parts = val.trim().split(/[,\s]+/).map(Number).filter(n => !isNaN(n));
@@ -265,6 +281,9 @@ export default function ProcessoClient() {
   const [lipIncompleto, setLipIncompleto] = useState(false);
   const [salvandoLipIncompleto, setSalvandoLipIncompleto] = useState(false);
   const [laudoOcultos, setLaudoOcultos] = useState<string[]>([]);
+  // Busca de coordenada no Mapa Fácil pelo IPTU (ver `buscarCoordenadas`).
+  const [buscandoCoord, setBuscandoCoord] = useState(false);
+  const [conflitoMapa, setConflitoMapa] = useState<ResultadoMapaFacil | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [progresso, setProgresso] = useState(0);
@@ -555,6 +574,100 @@ export default function ProcessoClient() {
         autoSalvar(novo);
         return novo;
       });
+    }
+  }
+
+  /**
+   * Busca a coordenada do imóvel no Mapa Fácil a partir do IPTU do formulário —
+   * o mesmo caminho que o analista faz à mão no portal.
+   *
+   * Regra do analista, e ela manda no desenho desta função: a coordenada é
+   * preenchida SEMPRE que o imóvel for localizado, mesmo com o endereço
+   * divergindo. O cadastro do município costuma estar defasado, então
+   * divergência é aviso, nunca impedimento — quem decide é o analista. O que o
+   * URBIS faz é preencher, dizer o que não bateu e abrir o Mapa Fácil para
+   * conferência.
+   */
+  async function buscarCoordenadas() {
+    const iptu = (d["iptu"]?.valor ?? "").replace(/\D/g, "");
+    if (!iptu) {
+      mostrarToast("Preencha o IPTU antes — a coordenada é buscada por ele.", "erro");
+      return;
+    }
+    setBuscandoCoord(true);
+    setConflitoMapa(null);
+    try {
+      const res = await fetch(`/api/mapa/coordenadas?iptu=${encodeURIComponent(iptu)}`);
+      const json = await res.json();
+      if (!json?.ok) {
+        mostrarToast(`🗺 ${json?.erro || "Não foi possível consultar o Mapa Fácil."}`, "erro");
+        return;
+      }
+
+      const confrontos = confrontarEndereco(
+        {
+          logradouro: d["logradouro"]?.valor,
+          quadra: d["quadra"]?.valor,
+          lote: d["lote"]?.valor,
+          bairro: d["bairro"]?.valor,
+        },
+        json.cadastro,
+      );
+      const { divergentes } = resumoConfronto(confrontos);
+
+      // Preenche primeiro: é o que o analista veio buscar.
+      setD((prev) => {
+        const novo: Record<string, Campo> = {
+          ...prev,
+          coordenadas: {
+            valor: json.coordenadas,
+            origem: "urbis" as Origem,
+            fonte: `Mapa Fácil — IPTU ${json.iptuEncontrado ?? iptu}`,
+          },
+        };
+        const carimbo = new Date().toLocaleString("pt-BR");
+        const linhas = [
+          `=== COORDENADAS pelo Mapa Fácil (${carimbo}) ===`,
+          `IPTU consultado: ${iptu}${json.exato ? "" : ` — casou por aproximação com ${json.iptuEncontrado}`}`,
+          `Coordenadas: ${json.coordenadas}`,
+          ...(divergentes.length
+            ? [
+                `⚠ Endereço a conferir — o cadastro do Mapa Fácil pode estar desatualizado:`,
+                ...divergentes.map((c) => `   ${c.rotulo}: LIP "${c.lip}" × Mapa Fácil "${c.mapa}"`),
+              ]
+            : ["Endereço confere com o cadastro."]),
+        ].join("\n");
+        const obsAtual = novo["observacoes"]?.valor ?? "";
+        novo["observacoes"] = {
+          valor: obsAtual ? linhas + "\n\n" + obsAtual : linhas,
+          origem: "urbis" as Origem,
+          fonte: "Mapa Fácil",
+        };
+        autoSalvar(novo);
+        return novo;
+      });
+
+      registrar({
+        modulo: "LIP", acao: "LIP_COORDENADAS_MAPA_FACIL", processo_codigo: idUrl, origem: "IA",
+        detalhe: { iptu, coordenadas: json.coordenadas, divergencias: divergentes.map((c) => c.campo) },
+      });
+
+      if (divergentes.length > 0 || !json.exato) {
+        setConflitoMapa({
+          coordenadas: json.coordenadas,
+          iptu: json.iptuEncontrado ?? iptu,
+          exato: json.exato,
+          cadastro: json.cadastro,
+          confrontos,
+        });
+        mostrarToast(`📍 Coordenadas preenchidas — ${divergentes.length} campo(s) de endereço a conferir.`, "info");
+      } else {
+        mostrarToast("📍 Coordenadas preenchidas — endereço confere com o cadastro.", "sucesso");
+      }
+    } catch (e: any) {
+      mostrarToast(`🗺 Falha ao consultar o Mapa Fácil: ${e?.message ?? "erro inesperado"}`, "erro");
+    } finally {
+      setBuscandoCoord(false);
     }
   }
 
@@ -1596,7 +1709,20 @@ export default function ProcessoClient() {
             }}
             onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
             placeholder={campo.placeholder || campo.label}
-            className={`w-full rounded border p-2 ${mostrarBotaoMaps ? "pr-9" : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
+            className={`w-full rounded border p-2 ${ehCoordenadas ? (temValor ? "pr-24" : "pr-10") : ""} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
+          {/* Buscar no Mapa Fácil aparece com o campo VAZIO também — é justamente
+              quando o analista precisa dele. Os atalhos de mapa abaixo só fazem
+              sentido havendo coordenada. */}
+          {ehCoordenadas && (
+            <button
+              type="button"
+              onClick={buscarCoordenadas}
+              disabled={buscandoCoord}
+              title="Buscar coordenadas no Mapa Fácil pelo IPTU"
+              aria-label="Buscar coordenadas no Mapa Fácil pelo IPTU"
+              className={`absolute ${temValor ? "right-16" : "right-2"} top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50`}
+            >{buscandoCoord ? "⏳" : "🗺"}</button>
+          )}
           {mostrarBotaoMaps && (
             <>
             <a
@@ -1607,7 +1733,7 @@ export default function ProcessoClient() {
               aria-label="Abrir coordenadas no Google Maps"
               className="absolute right-8 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
             >📍</a>
-            
+
             <a
               href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(val.valor))}`}
               target="_blank"
@@ -2040,6 +2166,78 @@ export default function ProcessoClient() {
                 className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-bold">
                 Aceitar tudo ({Object.keys(propostaPasta.campos).length} campos)
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aviso de endereço divergente. NÃO bloqueia nada: a coordenada já foi
+          gravada antes deste painel aparecer. Ele existe para explicar o que
+          não bateu e levar o analista ao Mapa Fácil, que dá a palavra final. */}
+      {conflitoMapa && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setConflitoMapa(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">🗺 Coordenadas preenchidas — endereço a conferir</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              As coordenadas <strong className="text-[var(--text-primary)]">{conflitoMapa.coordenadas}</strong> já estão no
+              LIP. O que segue é só conferência: o cadastro do Mapa Fácil costuma estar desatualizado,
+              principalmente no bairro e no nome da via. A palavra final é sua.
+            </p>
+
+            {!conflitoMapa.exato && (
+              <p className="text-sm bg-orange-50 border border-orange-300 text-orange-800 rounded p-2 mb-3">
+                O IPTU informado não tem inscrição idêntica no cadastro — casou por aproximação com <strong>{conflitoMapa.iptu}</strong>.
+              </p>
+            )}
+
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <th className="text-left py-1">Campo</th>
+                  <th className="text-left py-1">No LIP (Uso do Solo)</th>
+                  <th className="text-left py-1">No Mapa Fácil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflitoMapa.confrontos.map((c) => (
+                  <tr key={c.campo} className="border-t border-[var(--border)]">
+                    <td className="py-1.5 pr-2 whitespace-nowrap">
+                      {c.situacao === "bate" ? "✅" : c.situacao === "diverge" ? "⚠️" : "—"} {c.rotulo}
+                    </td>
+                    <td className={`py-1.5 pr-2 ${c.situacao === "diverge" ? "font-bold text-orange-700" : "text-[var(--text-secondary)]"}`}>
+                      {c.lip || <span className="italic text-[var(--text-muted)]">vazio</span>}
+                    </td>
+                    <td className={`py-1.5 ${c.situacao === "diverge" ? "font-bold text-orange-700" : "text-[var(--text-secondary)]"}`}>
+                      {c.mapa || <span className="italic text-[var(--text-muted)]">vazio</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Para conferir no portal: o IPTU <strong className="text-[var(--text-primary)]">{conflitoMapa.iptu}</strong> já
+              vai copiado para a área de transferência — no Mapa Fácil, escolha “Cadastro Imobiliário (IPTU)” na
+              lupa e cole.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConflitoMapa(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >Fechar</button>
+              <a
+                href={`https://maps.google.com/?q=${encodeURIComponent(conflitoMapa.coordenadas)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="px-4 py-2 rounded font-bold text-sm bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >📍 Ver no Google Maps</a>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(conflitoMapa.iptu).catch(() => {});
+                  window.open("https://portalmapa.goiania.go.gov.br/mapafacil/", "_blank", "noopener,noreferrer");
+                }}
+                className="px-4 py-2 rounded font-bold text-sm bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"
+              >🗺 Abrir o Mapa Fácil</button>
             </div>
           </div>
         </div>
