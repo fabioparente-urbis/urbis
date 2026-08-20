@@ -136,7 +136,10 @@ async function processarJobBackground(jobId: string, params: {
     let geminiOk = false;
     let ultimoStatus = 0;
     let ultimoCorpo = "";
-    const MAX_TENTATIVAS = 4;
+    // Sob sobrecarga o Gemini tende a: (a) devolver 503, ou (b) devolver 200 com
+    // texto explicativo em vez do JSON pedido. Mais tentativas e espera mais
+    // longa cobrem picos de demanda que hoje derrubam a leitura de vez.
+    const MAX_TENTATIVAS = 7;
 
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       console.log(`[S3-bg] job=${jobId} tentativa ${tentativa}/${MAX_TENTATIVAS}`);
@@ -153,10 +156,25 @@ async function processarJobBackground(jobId: string, params: {
       );
       if (res.ok) {
         const data = await res.json();
-        texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
-        if (texto) { geminiOk = true; console.log(`[S3-bg] job=${jobId} OK`); break; }
-        ultimoStatus = 200;
-        ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+        const candidato = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (candidato) {
+          // Resposta não vazia ainda pode ser prosa em vez de JSON — testa aqui
+          // dentro do laço para poder tentar de novo em vez de desistir na hora.
+          const testeJson = candidato.replace(/```json|```/g, "").trim();
+          try {
+            JSON.parse(testeJson);
+            texto = candidato;
+            geminiOk = true;
+            console.log(`[S3-bg] job=${jobId} OK`);
+            break;
+          } catch {
+            ultimoStatus = 200;
+            ultimoCorpo = "JSON inválido: " + testeJson.slice(0, 300);
+          }
+        } else {
+          ultimoStatus = 200;
+          ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+        }
       } else {
         ultimoStatus = res.status;
         ultimoCorpo = (await res.text()).slice(0, 500);
@@ -164,7 +182,7 @@ async function processarJobBackground(jobId: string, params: {
       console.log(`[S3-bg] job=${jobId} falhou (${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
       const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
       if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
-        await new Promise((r) => setTimeout(r, tentativa * 4000));
+        await new Promise((r) => setTimeout(r, Math.min(tentativa * 5000, 30000)));
         continue;
       }
       break;
@@ -177,6 +195,7 @@ async function processarJobBackground(jobId: string, params: {
       else if (ultimoStatus === 400 && (cl.includes("invalid_argument") || cl.includes("not found"))) motivo = "MODELO_INVALIDO";
       else if (ultimoStatus === 413 || cl.includes("file_too_large") || cl.includes("too large")) motivo = "ARQUIVO_GRANDE";
       else if (ultimoStatus === 503 || cl.includes("overloaded")) motivo = "GEMINI_SOBRECARREGADO";
+      else if (ultimoStatus === 200 && cl.startsWith("json inválido")) motivo = "JSON_INVALIDO";
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
       await supabaseAdmin.from("lip_jobs").update({
         status: "erro",
