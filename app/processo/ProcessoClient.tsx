@@ -284,6 +284,9 @@ export default function ProcessoClient() {
   // Busca de coordenada no Mapa Fácil pelo IPTU (ver `buscarCoordenadas`).
   const [buscandoCoord, setBuscandoCoord] = useState(false);
   const [conflitoMapa, setConflitoMapa] = useState<ResultadoMapaFacil | null>(null);
+  /* Arquivos escolhidos no LER PROCESSO que estão esperando o analista dizer se
+   * a leitura substitui o LIP ou só sugere — ver `aoEscolherArquivosLeitura`. */
+  const [leituraPendente, setLeituraPendente] = useState<File[] | null>(null);
 
   const inputFileRef = useRef<HTMLInputElement>(null);
   const [progresso, setProgresso] = useState(0);
@@ -1125,7 +1128,25 @@ export default function ProcessoClient() {
     setDocsLocalizados({});
   }
 
-  async function lerLip(arquivos: File[]) {
+  /**
+   * Só entrega os arquivos para a leitura depois de saber o que fazer com o que
+   * já está no LIP.
+   *
+   * Antes, o LER PROCESSO gravava por cima de tudo sem avisar — inclusive de
+   * campo que o analista tinha acabado de corrigir à mão. O LER ARQUIVOS
+   * INDIVIDUAIS já perguntava; dois botões com a mesma cara e comportamentos
+   * destrutivos diferentes é armadilha, e só se descobre perdendo trabalho.
+   * Processo novo (LIP ainda vazio) segue direto: não há o que preservar.
+   */
+  function aoEscolherArquivosLeitura(arquivos: File[]) {
+    const jaPreenchido = Object.values(d).some(
+      (v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido"
+    );
+    if (jaPreenchido) setLeituraPendente(arquivos);
+    else lerLip(arquivos, "substituir");
+  }
+
+  async function lerLip(arquivos: File[], modo: "substituir" | "sugerir" = "substituir") {
     const _t0Leitura = Date.now();
     const _dataLeitura = new Date().toLocaleString("pt-BR");
     let _docsLeitura: any[] = [];
@@ -1254,18 +1275,30 @@ export default function ProcessoClient() {
         }
       }
 
-      setD((prev) => {
-        const novo = { ...prev };
+      if (modo === "sugerir") {
+        /* Nada entra no formulário: cada valor vira sugestão no seu campo, com
+         * botão de aceitar. O que o analista já tinha fica intacto. */
+        const sugestoes: Record<string, string> = {};
         Object.keys(mesclado).forEach((chave) => {
           const item = mesclado[chave];
-          if (!item?.valor) return;
-          // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
-          novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          if (item?.valor && item.valor !== "NP") sugestoes[chave] = item.valor;
         });
-        corrigirSeiFisico(novo, idUrl);
-        autoSalvar(novo);
-        return novo;
-      });
+        setVcpSugestoes(sugestoes);
+      } else {
+        setVcpSugestoes({});
+        setD((prev) => {
+          const novo = { ...prev };
+          Object.keys(mesclado).forEach((chave) => {
+            const item = mesclado[chave];
+            if (!item?.valor) return;
+            // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
+            novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          });
+          corrigirSeiFisico(novo, idUrl);
+          autoSalvar(novo);
+          return novo;
+        });
+      }
 
       const preenchidos = Object.values(mesclado).filter((v: any) => v?.valor && v.valor !== "NP").length;
 
@@ -1292,13 +1325,18 @@ export default function ProcessoClient() {
         : "";
       const _bloco =
         `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
-        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) preenchido(s)\n` +
+        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modo.toUpperCase()} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) ${modo === "sugerir" ? "sugerido(s)" : "preenchido(s)"}\n` +
         `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
         `🔎 Incompatibilidades:\n${_linhasIncompat}` +
         _linhasMarco;
       anexarObsLip(_bloco);
 
-      mostrarToast(`✅ LIP preenchido! ${preenchidos} campos extraídos.`, "sucesso");
+      mostrarToast(
+        modo === "sugerir"
+          ? `✅ ${preenchidos} sugestões nos campos — nada foi sobrescrito. Aceite uma a uma.`
+          : `✅ LIP preenchido! ${preenchidos} campos extraídos.`,
+        "sucesso",
+      );
     } catch (e: any) {
       mostrarToast("❌ Erro: " + e.message, "erro");
       const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
@@ -1650,11 +1688,13 @@ export default function ProcessoClient() {
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
           {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
-          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ VCP</span>}{badgeLaudo}
+          {/* Alimentado tanto pelo VCP quanto pela leitura em modo "sugerir" —
+              por isso o rótulo não cita mais um dos dois. */}
+          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ SUGESTÃO</span>}{badgeLaudo}
         </label>
         {temSugestaoVCP && (
           <div className="mb-1 p-2 rounded border border-yellow-400 bg-yellow-50 text-xs flex items-center gap-2">
-            <span className="text-yellow-700">⚡ Sugestão VCP: <strong>{vcpSugestoes[campo.chave]}</strong></span>
+            <span className="text-yellow-700">⚡ Sugestão da leitura: <strong>{vcpSugestoes[campo.chave]}</strong></span>
             <button onClick={() => { u(campo.chave, vcpSugestoes[campo.chave]); setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; }); }}
               className="ml-auto px-2 py-0.5 rounded bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs">Aceitar</button>
             <button onClick={() => setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; })}
@@ -2171,6 +2211,48 @@ export default function ProcessoClient() {
         </div>
       )}
 
+      {/* O LIP já tem conteúdo — perguntar antes de gravar por cima. Só aparece
+          nesse caso; processo novo vai direto para a leitura. */}
+      {leituraPendente && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setLeituraPendente(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Este LIP já está preenchido</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              {leituraPendente.length} arquivo(s) prontos para leitura. Como devo tratar o que já está no LIP —
+              inclusive o que você corrigiu à mão?
+            </p>
+
+            <div className="flex flex-col gap-2 mb-4">
+              <button
+                onClick={() => { const fs = leituraPendente; setLeituraPendente(null); lerLip(fs, "sugerir"); }}
+                className="text-left p-3 rounded border border-[var(--border)] hover:border-[var(--accent)] transition-colors"
+              >
+                <span className="block text-sm font-bold text-[var(--text-primary)]">💡 Sugerir — não sobrescreve nada</span>
+                <span className="block text-xs text-[var(--text-secondary)] mt-0.5">
+                  O que a IA ler aparece como sugestão em cada campo, com botão de aceitar. Suas correções ficam de pé.
+                </span>
+              </button>
+              <button
+                onClick={() => { const fs = leituraPendente; setLeituraPendente(null); lerLip(fs, "substituir"); }}
+                className="text-left p-3 rounded border border-[var(--border)] hover:border-orange-400 transition-colors"
+              >
+                <span className="block text-sm font-bold text-[var(--text-primary)]">🔁 Substituir — grava por cima</span>
+                <span className="block text-xs text-orange-500 mt-0.5">
+                  ⚠️ Todo campo que a IA retornar troca o valor atual, inclusive o que você digitou.
+                </span>
+              </button>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setLeituraPendente(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Aviso de endereço divergente. NÃO bloqueia nada: a coordenada já foi
           gravada antes deste painel aparecer. Ele existe para explicar o que
           não bateu e levar o analista ao Mapa Fácil, que dá a palavra final. */}
@@ -2576,7 +2658,7 @@ export default function ProcessoClient() {
                   nas subpastas e cada File chega com webkitRelativePath, de onde sai a rodada. */}
               <input ref={inputFileRef} type="file" accept={ehSlot5 ? undefined : ".pdf,image/*"} multiple className="hidden" disabled={lendoLip || lendoPasta}
                 {...(ehSlot5 ? { webkitdirectory: "", directory: "" } as any : {})}
-                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) (ehSlot5 ? lerPasta(fs) : lerLip(fs)); e.target.value = ""; }} />
+                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) (ehSlot5 ? lerPasta(fs) : aoEscolherArquivosLeitura(fs)); e.target.value = ""; }} />
             </label>
             <button
               disabled={lendoLip}
