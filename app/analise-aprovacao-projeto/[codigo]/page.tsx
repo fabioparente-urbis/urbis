@@ -203,6 +203,14 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o terreno não está em zona militar",
   },
   {
+    id: "central",
+    rotulo: "🏛️ Setor Central / Campinas",
+    tema: "terreno nos setores Central ou Campinas",
+    // "SETORES CENTRAL" cobre "Nos setores Central e Campinas"; "SETOR CENTRAL" cobre o singular.
+    termos: ["SETOR CENTRAL", "SETORES CENTRAL"],
+    explica: "o terreno não fica no Setor Central nem no Campinas",
+  },
+  {
     id: "lazer",
     rotulo: "🏊 Área de lazer",
     tema: "área de lazer no projeto (piscina, playground, quadra, salão de festas)",
