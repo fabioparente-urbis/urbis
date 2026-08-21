@@ -371,6 +371,16 @@ export default function AnaliseAprovacaoProjeto() {
     return m;
   }, [grupos, porGrupo, marcas]);
 
+  /** Numeração que o analista usa pra citar uma linha: ÍTEM = posição do grupo no índice,
+   * SUB ITEM = posição dentro do grupo. */
+  const numeroDoItem = useMemo(() => {
+    const m = new Map<string, { item: number; sub: number }>();
+    grupos.forEach((g, iG) => {
+      (porGrupo.get(g) ?? []).forEach((it, iS) => m.set(it.id, { item: iG + 1, sub: iS + 1 }));
+    });
+    return m;
+  }, [grupos, porGrupo]);
+
   const totais = useMemo(() => {
     const acc = { conforme: 0, nao_conforme: 0, nao_aplica: 0, pendente: 0 };
     for (const i of itensChecklist) {
@@ -901,7 +911,7 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
-            <button onClick={() => router.push("/admin/checklists")}
+            <button onClick={() => router.push(`/admin/checklists?tipo=slot_05&voltar=${encodeURIComponent(`/analise-aprovacao-projeto/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`)}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📋 Gerenciar MAC
             </button>
@@ -1235,7 +1245,12 @@ export default function AnaliseAprovacaoProjeto() {
                       <button key={it.id} onClick={() => irParaItem(it)}
                         className="w-full text-left border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex items-start gap-3 hover:bg-[var(--bg-card-hover)] transition-colors">
                         <div className="flex-1 min-w-0">
-                          <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">{it.grupo}</p>
+                          <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">
+                            <span className="font-mono">
+                              ÍTEM {numeroDoItem.get(it.id)?.item ?? "?"} · SUB ITEM {numeroDoItem.get(it.id)?.sub ?? "?"}
+                            </span>
+                            {" — "}{it.grupo}
+                          </p>
                           <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
                         </div>
                         {origem && (
@@ -1294,8 +1309,8 @@ export default function AnaliseAprovacaoProjeto() {
                       style={{ background: cor.bg, borderColor: cor.borda }}>
                       <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupo); }}
                         className="flex items-center gap-3 flex-1 min-w-0 text-left px-2 py-1 rounded-md hover:bg-black/5 transition-colors">
-                        <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">
-                          {grupos.indexOf(grupo) + 1}
+                        <span className="text-[10px] text-[var(--text-muted)] font-mono w-[62px] shrink-0 uppercase tracking-wide">
+                          ÍTEM {grupos.indexOf(grupo) + 1}
                         </span>
                         <span className="flex-1 text-sm font-medium truncate">{grupo}</span>
                       </button>
@@ -1335,7 +1350,7 @@ export default function AnaliseAprovacaoProjeto() {
                 })}
                 <button onClick={() => setAbaAtual(ABA_OBS)}
                   className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
-                  <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">{grupos.length + 1}</span>
+                  <span className="text-[10px] text-[var(--text-muted)] font-mono w-[62px] shrink-0 uppercase tracking-wide">ÍTEM {grupos.length + 1}</span>
                   <span className="flex-1 text-sm font-medium">📝 OBS</span>
                 </button>
               </div>
@@ -1402,7 +1417,12 @@ export default function AnaliseAprovacaoProjeto() {
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
                   <span aria-hidden>←</span> Índice
                 </button>
-                <span className="font-bold truncate">{abaAtual}</span>
+                <span className="font-bold truncate">
+                  <span className="text-[var(--text-muted)] font-mono text-xs mr-2">
+                    ÍTEM {grupos.indexOf(abaAtual) + 1}
+                  </span>
+                  {abaAtual}
+                </span>
               </div>
               <div className="flex flex-wrap gap-2 pb-2">
                 {STATUS.map((s) => (
@@ -1422,13 +1442,18 @@ export default function AnaliseAprovacaoProjeto() {
               </div>
 
               <div className="border border-[var(--border)] rounded-lg overflow-hidden bg-[var(--bg-card)]">
-                {itensDaAba.map((it) => {
+                {itensDaAba.map((it, iSub) => {
                   const origem = origemDoItem(fontes[it.id]);
                   return (
                   <div key={it.id} id={`item-${it.id}`}
                     className="border-t border-[var(--border)] first:border-t-0 px-3 py-2 flex flex-col gap-1.5 scroll-mt-4">
                     <div className="flex items-start gap-3">
                       <div className="flex-1 min-w-0">
+                        {/* Numeração do sub item dentro do ÍTEM aberto — o analista cita o item pelo
+                          * número na hora de conversar sobre o processo. */}
+                        <p className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wide mb-0.5">
+                          SUB ITEM {iSub + 1}
+                        </p>
                         <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
                         {origem && (
                           <p title={origem.rotulo} className="text-[10px] text-[var(--text-muted)] mt-0.5">

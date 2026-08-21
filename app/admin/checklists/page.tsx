@@ -27,6 +27,14 @@ const GRUPOS_PADRAO = [
   "Projeto — Desenho", "Calçada", "Corredor Viário"
 ];
 
+/** Parâmetro da URL lido na hora — a tela é compartilhada pelos slots e quem chama diz de onde
+ * veio (`voltar`/`rotulo`) e qual modelo abrir (`tipo`). Sem parâmetro nenhum, nada muda: continua
+ * caindo no primeiro modelo da lista e só no "← Home". */
+function paramDaUrl(nome: string) {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get(nome) ?? "";
+}
+
 export default function ChecklistsPage() {
   const router = useRouter();
   const [modelos, setModelos] = useState<Modelo[]>([]);
@@ -36,6 +44,9 @@ export default function ChecklistsPage() {
   const [toast, setToast] = useState("");
   const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [perfil, setPerfil] = useState<string | null>(null);
+  // Lidos no cliente (e não no render) para não divergir do HTML que veio do servidor.
+  const [voltarPara, setVoltarPara] = useState("");
+  const [rotuloVoltar, setRotuloVoltar] = useState("Voltar ao MAC");
 
   // Modal novo item
   const [modalItem, setModalItem] = useState(false);
@@ -78,7 +89,11 @@ export default function ChecklistsPage() {
     if (json.ok) {
       setModelos(json.data);
       if (json.data.length > 0 && !modeloAtual) {
-        selecionarModelo(json.data[0]);
+        // Veio de uma tela de MAC (?tipo=slot_05): abre direto o checklist daquele tipo de
+        // processo, em vez do primeiro da lista.
+        const tipo = paramDaUrl("tipo");
+        const alvo = tipo ? json.data.find((m: Modelo) => m.tipo_processo === tipo) : null;
+        selecionarModelo(alvo ?? json.data[0]);
       }
     }
     setCarregando(false);
@@ -91,6 +106,10 @@ export default function ChecklistsPage() {
     if (json.ok) setItens(json.data);
   }
 
+  useEffect(() => {
+    setVoltarPara(paramDaUrl("voltar"));
+    setRotuloVoltar(paramDaUrl("rotulo") || "Voltar ao MAC");
+  }, []);
   useEffect(() => { carregarUsuario(); }, []);
   useEffect(() => { if (usuarioId) carregarModelos(usuarioId); }, [usuarioId]);
 
@@ -564,6 +583,12 @@ export default function ChecklistsPage() {
       <div className="bg-[var(--surface)] border-b border-[var(--border)] px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {voltarPara && (
+              <button onClick={() => router.push(voltarPara)}
+                className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-3 py-1.5 rounded text-sm font-bold transition-colors">
+                ← {rotuloVoltar}
+              </button>
+            )}
             <button onClick={() => router.push("/")}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Home
