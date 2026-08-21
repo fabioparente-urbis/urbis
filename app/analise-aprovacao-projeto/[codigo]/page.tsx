@@ -127,6 +127,58 @@ function textoDeViaGeradoAqui(texto: string) {
   return /^Para [ao] .+:\s*[\d.,]+m.*;$/.test(texto.trim());
 }
 
+/* --- Filtro de UNIDADE TERRITORIAL ---------------------------------------------------------------
+ * Boa parte do checklist do Slot 5 fala de uma unidade territorial específica ("AA e ADD admite-se
+ * ...", "AAB = 90,00 m² ..."). Sabendo em qual UT o terreno está, tudo que trata SÓ de outras UTs
+ * sai da análise. As siglas abaixo foram levantadas item a item no modelo do Slot 5 (21/08/2026);
+ * a que o analista digitar também conta, mesmo fora desta lista. */
+const UNIDADES_TERRITORIAIS = ["AA", "AAB", "AAD", "ADD", "AOS", "ARAU", "APA", "APAC", "AEIS", "AEBT"];
+
+/** Sigla isolada: "AAB" casa em "AAB e AOS", mas não dentro de "ACRÉSCIMO" nem de "APAC". */
+function reUnidade(sigla: string) {
+  return new RegExp(`(?<![\\p{L}\\p{N}])${sigla}(?![\\p{L}\\p{N}])`, "u");
+}
+
+/** Extrai a sigla do que vier: "ÁREA DE ADENSAMENTO BÁSICO - AAB" → "AAB"; "aos" → "AOS". */
+function siglaDaUnidade(bruto: string) {
+  const limpo = semAcento(String(bruto ?? "")).toUpperCase().replace(/[^A-Z0-9 ]+/g, " ");
+  const tokens = limpo.split(/\s+/).filter((t) => /^[A-Z]{2,6}$/.test(t));
+  const conhecida = tokens.find((t) => UNIDADES_TERRITORIAIS.includes(t));
+  if (conhecida) return conhecida;
+  // Sigla nova (o Fábio pode digitar outra): fica a última palavra curta, que é como o Uso do Solo
+  // escreve ("... - XYZ").
+  return tokens.length ? tokens[tokens.length - 1] : "";
+}
+
+/** Siglas de UT citadas por um item. */
+function unidadesCitadas(texto: string, minha: string) {
+  const lista = [...new Set([...UNIDADES_TERRITORIAIS, ...(minha ? [minha] : [])])];
+  return lista.filter((sigla) => reUnidade(sigla).test(texto ?? ""));
+}
+
+/** "exceto AOS e ARAU" inverte a regra do item — aí o filtro não decide, é do analista.
+ * "EXCETO SETOR SUL E JAÓ" não é exceção de UT e não bloqueia nada. */
+function excecaoDeUnidade(texto: string, minha: string) {
+  const t = semAcento(texto ?? "");
+  const lista = [...new Set([...UNIDADES_TERRITORIAIS, ...(minha ? [minha] : [])])];
+  for (const m of t.matchAll(/exceto|excecao|salvo/g)) {
+    const janela = t.slice(m.index ?? 0, (m.index ?? 0) + 60);
+    if (lista.some((sigla) => reUnidade(sigla.toLowerCase()).test(janela))) return true;
+  }
+  return false;
+}
+
+/** Veredito do item para a UT informada:
+ * "outra" = fala só de outras UTs (sai da análise) · "minha" = cita a minha (fica) ·
+ * "excecao" = regra invertida, fica para o analista · null = não fala de UT nenhuma. */
+function vereditoDeUnidade(texto: string, minha: string): "outra" | "minha" | "excecao" | null {
+  if (!minha) return null;
+  const citadas = unidadesCitadas(texto, minha);
+  if (!citadas.length) return null;
+  if (excecaoDeUnidade(texto, minha)) return "excecao";
+  return citadas.includes(minha) ? "minha" : "outra";
+}
+
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
 function origemDoItem(fonte: string | undefined): { icone: string; rotulo: string } | null {
   if (!fonte) return null;
@@ -143,7 +195,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [erro, setErro] = useState("");
   const [processo, setProcesso] = useState<{
     proprietario: string | null; bairro: string | null; logradouro: string | null;
-    areaTotal: string | null; numeroSei: string | null;
+    areaTotal: string | null; numeroSei: string | null; unidadeTerritorial?: string | null;
   } | null>(null);
   const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
   const [bannerAberto, setBannerAberto] = useState(false);
@@ -157,6 +209,11 @@ export default function AnaliseAprovacaoProjeto() {
   const [observacoesPorItem, setObservacoesPorItem] = useState<Record<string, string>>({});
   const [abaAtual, setAbaAtual] = useState<string | null>(null); // null = índice
   const [busca, setBusca] = useState("");
+  // Unidade territorial do terreno: sugestão vem do Uso do Solo (LIP) e o analista pode trocar.
+  // Guardada por processo no próprio navegador — não existe coluna para ela e o valor do LIP
+  // continua sendo a origem oficial.
+  const [unidadeTerritorial, setUnidadeTerritorial] = useState("");
+  const unidadeCarregada = useRef(false);
   // Lista aberta a partir de um número clicável do painel (ex.: "Pendentes"). Clicar num item
   // dela manda pro grupo dele e destaca — não é uma aba nova, some ao navegar pra outro lugar.
   const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
@@ -528,6 +585,98 @@ export default function AnaliseAprovacaoProjeto() {
       if (desmarcando) delete novo[itemId]; else novo[itemId] = "manual";
       return novo;
     });
+  }
+
+  /* Sugestão da unidade territorial: o que o analista já escolheu neste processo vence; senão,
+   * a sigla que veio do Uso do Solo. Roda uma vez, para nunca apagar o que ele está digitando. */
+  useEffect(() => {
+    if (carregando || unidadeCarregada.current) return;
+    unidadeCarregada.current = true;
+    const guardada = typeof window !== "undefined"
+      ? window.localStorage.getItem(`mac5-ut-${codigo}`) : null;
+    const sigla = siglaDaUnidade(guardada || processo?.unidadeTerritorial || "");
+    if (sigla) setUnidadeTerritorial(sigla);
+  }, [carregando, processo, codigo]);
+
+  function trocarUnidade(valor: string) {
+    const sigla = valor.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    setUnidadeTerritorial(sigla);
+    if (typeof window !== "undefined") window.localStorage.setItem(`mac5-ut-${codigo}`, sigla);
+  }
+
+  /** O que o filtro de UT alcança com a sigla informada. */
+  const alcanceUnidade = useMemo(() => {
+    const minha = siglaDaUnidade(unidadeTerritorial);
+    const outras: Item[] = [];
+    let daMinha = 0, excecoes = 0;
+    if (minha) {
+      for (const it of itensChecklist) {
+        const v = vereditoDeUnidade(it.texto, minha);
+        if (v === "outra") outras.push(it);
+        else if (v === "minha") daMinha++;
+        else if (v === "excecao") excecoes++;
+      }
+    }
+    const pendentes = outras.filter((it) => !marcas[it.id]).length;
+    return { minha, outras, daMinha, excecoes, pendentes };
+  }, [unidadeTerritorial, itensChecklist, marcas]);
+
+  const ASSINATURA_UT = 'Filtro "UNIDADE TERRITORIAL"';
+
+  /** Aplica o filtro: tudo que trata só de outras UTs vira Não se Aplica. Mesma regra dos demais
+   * filtros — nunca por cima de item já respondido. */
+  async function aplicarFiltroUnidade() {
+    const { minha, outras, excecoes } = alcanceUnidade;
+    if (!minha) { notificar("Digite a sigla da unidade territorial (ex.: AAB, AOS, AA, ADD)."); return; }
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    let aplicados = 0;
+    for (const it of outras) {
+      if (novasMarcas[it.id]) continue;
+      novasMarcas[it.id] = "nao_aplica";
+      novasFontes[it.id] = `${ASSINATURA_UT} — o terreno é ${minha} e este item trata só de outra(s) unidade(s)`;
+      aplicados++;
+    }
+    if (!aplicados) { notificar(`Unidade ${minha}: nada novo a retirar.`); return; }
+
+    const porGrupoAlvo = new Map<string, number>();
+    for (const it of outras) porGrupoAlvo.set(it.grupo, (porGrupoAlvo.get(it.grupo) ?? 0) + 1);
+    const bloco =
+      `━━━ FILTRO APLICADO: UNIDADE TERRITORIAL (${minha}) ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica\n` +
+      `↳ itens que tratam exclusivamente de unidades territoriais diferentes de ${minha}` +
+      (excecoes ? `\n↳ ${excecoes} item(ns) com exceção de UT ("exceto ...") ficaram para conferência manual` : "") +
+      "\n" + [...porGrupoAlvo.entries()].map(([g, q]) => `  • ${q}× ${g}`).join("\n");
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
+    setObservacoes(novasObs);
+    await salvar(novasMarcas, novasFontes, novasObs);
+    notificar(`Unidade ${minha}: ${aplicados} item(ns) saíram da análise.`);
+  }
+
+  /** Devolve só o que este filtro marcou (reconhecido pela fonte), como os outros filtros fazem. */
+  async function desfazerFiltroUnidade() {
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    let devolvidos = 0;
+    for (const id of Object.keys(novasFontes)) {
+      if (!(novasFontes[id] ?? "").startsWith(ASSINATURA_UT)) continue;
+      delete novasMarcas[id];
+      delete novasFontes[id];
+      devolvidos++;
+    }
+    if (!devolvidos) { notificar("Filtro de unidade territorial: nada a desfazer."); return; }
+    const bloco =
+      `━━━ FILTRO DESFEITO: UNIDADE TERRITORIAL ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise`;
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
+    setObservacoes(novasObs);
+    await salvar(novasMarcas, novasFontes, novasObs, true);
+    notificar(`Unidade territorial desfeita — ${devolvidos} item(ns) voltaram.`);
   }
 
   /** Marca (ou limpa) o grupo inteiro de uma vez. `salvarAgora` é para quem chama do índice:
@@ -1267,6 +1416,35 @@ export default function AnaliseAprovacaoProjeto() {
           {/* ÍNDICE */}
           {abaAtual === null && !listaFiltrada && (
             <>
+              {/* FILTRO DE UNIDADE TERRITORIAL — a sigla vai na frente do filtro */}
+              <div className="mb-3 rounded-lg border px-3 py-2 flex flex-wrap items-center gap-2"
+                style={{ background: "#EFF6FF", borderColor: "#93C5FD" }}>
+                <span className="text-xs font-bold uppercase tracking-wide">🗺️ Unidade territorial</span>
+                <input value={unidadeTerritorial} onChange={(e) => trocarUnidade(e.target.value)}
+                  placeholder="AAB, AOS, AA, ADD, APA..."
+                  title="Sigla da unidade territorial do terreno — sugerida pelo Uso do Solo do LIP"
+                  className="w-40 bg-white border border-[var(--border)] rounded-md px-2 py-1 text-sm font-bold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                <button onClick={() => void aplicarFiltroUnidade()}
+                  disabled={!alcanceUnidade.minha || alcanceUnidade.pendentes === 0}
+                  className="px-2.5 py-1.5 rounded-md text-[11px] font-bold border transition-colors disabled:opacity-40"
+                  style={{ background: "#FFFFFF", borderColor: "#2563EB", color: "#2563EB" }}>
+                  ⬜ Aplicar N/A ({alcanceUnidade.pendentes})
+                </button>
+                <button onClick={() => void desfazerFiltroUnidade()}
+                  className="px-2.5 py-1.5 rounded-md text-[11px] font-bold border transition-colors"
+                  style={{ background: "#FFFFFF", borderColor: "#DC2626", color: "#DC2626" }}>
+                  ↩ Desfazer
+                </button>
+                <span className="text-[11px] text-[var(--text-secondary)]">
+                  {alcanceUnidade.minha
+                    ? `${alcanceUnidade.outras.length} item(ns) falam só de outra(s) unidade(s) · ` +
+                      `${alcanceUnidade.daMinha} citam ${alcanceUnidade.minha} e ficam` +
+                      (alcanceUnidade.excecoes
+                        ? ` · ${alcanceUnidade.excecoes} com "exceto ..." ficam para você conferir`
+                        : "")
+                    : "digite a sigla do terreno para o filtro achar os itens de outras unidades"}
+                </span>
+              </div>
               <div className="flex gap-2 flex-wrap mb-3">
                 <input value={busca} onChange={(e) => setBusca(e.target.value)}
                   placeholder="Procurar no checklist — ex.: recuo, acessibilidade, calçada"

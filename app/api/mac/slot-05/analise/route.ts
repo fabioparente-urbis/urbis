@@ -67,6 +67,8 @@ export async function GET(req: NextRequest) {
         logradouro: dados?.logradouro?.valor ?? null,
         areaTotal: dados?.areaTotal?.valor ?? null,
         numeroSei: dados?.processo?.valor ?? codigo,
+        // Unidade territorial vinda do Uso do Solo — o filtro de UT da tela usa como sugestão.
+        unidadeTerritorial: dados?.unidadeTerritorialDoUsoDoSolo?.valor ?? null,
       },
       // Campos do LIP em rascunho/vazios/"x" — alimentam a barra de pendências,
       // mesma leitura que a tela do Slot 1 faz sobre processos.dados.
