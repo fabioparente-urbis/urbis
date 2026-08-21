@@ -195,7 +195,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [erro, setErro] = useState("");
   const [processo, setProcesso] = useState<{
     proprietario: string | null; bairro: string | null; logradouro: string | null;
-    areaTotal: string | null; numeroSei: string | null; unidadeTerritorial?: string | null;
+    areaTotal: string | null; numeroSei: string | null;
   } | null>(null);
   const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
   const [bannerAberto, setBannerAberto] = useState(false);
@@ -587,16 +587,18 @@ export default function AnaliseAprovacaoProjeto() {
     });
   }
 
-  /* Sugestão da unidade territorial: o que o analista já escolheu neste processo vence; senão,
-   * a sigla que veio do Uso do Solo. Roda uma vez, para nunca apagar o que ele está digitando. */
+  /* MAC novo começa com a unidade territorial EM BRANCO (decisão do Fábio): o campo só se preenche
+   * quando uma leitura de documento (pasta ou arquivo avulso) enxergar a sigla no Uso do Solo — o
+   * valor do LIP não vale como preenchimento automático. O que já foi lido/digitado neste processo
+   * volta do navegador; roda uma vez, para nunca apagar o que ele está digitando. */
   useEffect(() => {
     if (carregando || unidadeCarregada.current) return;
     unidadeCarregada.current = true;
     const guardada = typeof window !== "undefined"
       ? window.localStorage.getItem(`mac5-ut-${codigo}`) : null;
-    const sigla = siglaDaUnidade(guardada || processo?.unidadeTerritorial || "");
+    const sigla = siglaDaUnidade(guardada || "");
     if (sigla) setUnidadeTerritorial(sigla);
-  }, [carregando, processo, codigo]);
+  }, [carregando, codigo]);
 
   function trocarUnidade(valor: string) {
     const sigla = valor.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
@@ -854,7 +856,19 @@ export default function AnaliseAprovacaoProjeto() {
 
       setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
       await salvar(novasMarcas, novasFontes, novasObs, true);
-      notificar(`IA sugeriu ${aplicados} item(ns) — confira: a fonte de cada um está no item.`);
+
+      // Unidade territorial lida no Uso DO SOLO desta pasta — é assim, e só assim, que o campo do
+      // filtro se preenche sozinho.
+      const utLida = siglaDaUnidade(String(d.unidadeTerritorial ?? ""));
+      if (utLida) {
+        trocarUnidade(utLida);
+        notificar(`IA sugeriu ${aplicados} item(ns) · unidade territorial lida no Uso do Solo: ${utLida}.`);
+      } else {
+        notificar(
+          `IA sugeriu ${aplicados} item(ns) — confira: a fonte de cada um está no item.` +
+          (d.usoDoSoloLido === false ? " O Uso do Solo não estava na pasta: informe a unidade territorial à mão." : ""),
+        );
+      }
     } catch (e: any) {
       notificar(`Erro na leitura: ${e?.message ?? e}`);
     } finally {
@@ -1422,7 +1436,7 @@ export default function AnaliseAprovacaoProjeto() {
                 <span className="text-xs font-bold uppercase tracking-wide">🗺️ Unidade territorial</span>
                 <input value={unidadeTerritorial} onChange={(e) => trocarUnidade(e.target.value)}
                   placeholder="AAB, AOS, AA, ADD, APA..."
-                  title="Sigla da unidade territorial do terreno — sugerida pelo Uso do Solo do LIP"
+                  title="Sigla da unidade territorial do terreno — preenchida sozinha quando a leitura da pasta enxerga o Uso do Solo"
                   className="w-40 bg-white border border-[var(--border)] rounded-md px-2 py-1 text-sm font-bold uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
                 <button onClick={() => void aplicarFiltroUnidade()}
                   disabled={!alcanceUnidade.minha || alcanceUnidade.pendentes === 0}
@@ -1442,7 +1456,7 @@ export default function AnaliseAprovacaoProjeto() {
                       (alcanceUnidade.excecoes
                         ? ` · ${alcanceUnidade.excecoes} com "exceto ..." ficam para você conferir`
                         : "")
-                    : "digite a sigla do terreno para o filtro achar os itens de outras unidades"}
+                    : "vazio até a leitura da pasta ler o Uso do Solo — ou digite a sigla à mão"}
                 </span>
               </div>
               <div className="flex gap-2 flex-wrap mb-3">

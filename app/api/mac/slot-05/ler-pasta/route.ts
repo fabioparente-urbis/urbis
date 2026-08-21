@@ -242,9 +242,18 @@ async function processar(
       fontes[id] = `IA · ${f ? String(f).slice(0, 300) : "sem detalhe"}`;
     }
 
+    /* Unidade territorial lida no Uso do Solo desta pasta. O campo da tela nasce vazio e só é
+     * preenchido por uma leitura de documento — nunca pelo LIP, a pedido do Fábio: o que vale é o
+     * que ESTA leitura viu. Sigla só: 2 a 6 letras, sem acento. */
+    const utBruta = String(json?.unidadeTerritorial ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+    const unidadeTerritorial = /^[A-Z]{2,6}$/.test(utBruta) ? utBruta : null;
+    const usoDoSoloLido = escolhidos.some((e) => e.papel === "uso_solo");
+
     return enviar({
       tipo: "resultado",
       ok: true,
+      unidadeTerritorial,
+      usoDoSoloLido,
       versaoPrompt: VERSAO_PROMPT_P3_SLOT5,
       modelo: MODELO,
       documentosLidos: escolhidos.map((e) => ({ papel: e.papel, arquivo: e.nome })),

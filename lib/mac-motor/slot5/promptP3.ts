@@ -85,9 +85,17 @@ PROJETO, olhando o desenho — não a menção da palavra. Exemplos da diferenç
 - "habitacional": só se houver unidade de moradia (apartamento, casa, quitinete) na planta.
 Responda "sim", "nao" ou "incerto". Use "incerto" quando o PDF não permitir afirmar — nunca chute.
 
+===== UNIDADE TERRITORIAL (leia no USO DO SOLO) =====
+No documento de Uso do Solo está escrita a unidade territorial do terreno — ex.: "ÁREA DE
+ADENSAMENTO BÁSICO (AAB)", "ÁREA DE OCUPAÇÃO SUSTENTÁVEL - AOS", "ÁREA ADENSÁVEL (AA)",
+"ÁREA DE DESACELERAÇÃO DA DENSIDADE (ADD)", "ARAU", "APA", "APAC", "AEIS".
+Responda a SIGLA em maiúsculas ("AAB", "AOS", ...). Se o documento não estiver na pasta, ou a
+unidade não estiver escrita nele, responda null — não deduza pelo bairro nem pelo endereço.
+
 ===== SAÍDA =====
 Responda SOMENTE com JSON válido, sem texto antes ou depois, no formato:
 {"itens":{"<id>":"conforme|nao_conforme|nao_aplica|null"},
+ "unidadeTerritorial":"AAB (sigla lida no Uso do Solo) ou null",
  "fontes":{"<id>":"onde você viu — ex.: 'planta pav. térreo: 34 vagas cotadas' ou 'carimbo: nota ausente'"},
  "temas":{"<tema>":{"existe":"sim|nao|incerto","evidencia":"o que você viu, e onde"}},
  "documentos":[{"nome":"...","tipo":"..."}],
@@ -97,4 +105,4 @@ Inclua em "fontes" APENAS os itens que você classificou (não os null). A fonte
 vai conferir: diga a prancha/pavimento e o que leu, não repita o texto do item.`;
 
 /** Versão do prompt — sobe junto com mudança de conteúdo, para rastrear execuções. */
-export const VERSAO_PROMPT_P3_SLOT5 = 2;
+export const VERSAO_PROMPT_P3_SLOT5 = 3;

@@ -147,8 +147,13 @@ export async function POST(req: NextRequest) {
       fontes[id] = `IA · ${f ? String(f).slice(0, 300) : "sem detalhe"}`;
     }
 
+    // Mesma leitura da rota da pasta: se o PDF enviado for (ou contiver) o Uso do Solo, a sigla da
+    // unidade territorial volta para preencher o campo da tela.
+    const utBruta = String(json?.unidadeTerritorial ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+
     return NextResponse.json({
       ok: true,
+      unidadeTerritorial: /^[A-Z]{2,6}$/.test(utBruta) ? utBruta : null,
       versaoPrompt: VERSAO_PROMPT_P3_SLOT5,
       modelo: MODELO,
       avaliados: pendentes.length,
