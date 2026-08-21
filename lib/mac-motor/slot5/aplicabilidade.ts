@@ -263,6 +263,10 @@ const REGRAS: Regra[] = [
       "HABITAÇÃO SERIADA E COLETIVA NÃO INTEGRANTES DE LOTEAMENTO",
       "QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018",
       "47.QUANTO À APLICAÇÃO DO DF Nº 9.451, DE 26/07/2018 - APRESENTAR NO PROJETO",
+      // Os dois grupos de índice de aproveitamento saem junto com o uso habitacional (decisão do
+      // Fábio em 21/08/2026, pedida item a item na tela).
+      "ÍNDICE DE APROVEITAMENTO (Art. 196 da LC 349/2022)",
+      "ÍNDICE DE APROVEITAMENTO PARA ATIVIDADE ECONÔMICA",
     ],
     // Uso comercial derruba também as linhas de residência/habitação fora desses grupos.
     termosItem: ["HABITACIONAL", "HABITACAO", "RESIDENCIAL", "RESIDENCIA", "MORADIA", "QUITINETE", "APARTAMENTO"],

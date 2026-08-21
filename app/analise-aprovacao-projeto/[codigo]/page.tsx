@@ -43,9 +43,88 @@ const ESTILO: Record<Status, { bg: string; borda: string; texto: string; icone: 
 };
 const STATUS: Status[] = ["conforme", "nao_conforme", "nao_aplica"];
 
+/** Cor do box de cada grupo no índice — resume, sem precisar abrir, o que está marcado lá dentro.
+ * Vermelho ganha de todos (um item não conforme já reprova o grupo); azul só quando o grupo inteiro
+ * é "não se aplica"; verde quando está todo respondido e sem erro; branco enquanto faltar resposta.
+ * Tons claros, para o texto continuar legível por cima. */
+const ESTADO_GRUPO: Record<EstadoGrupo, { bg: string; borda: string; rotulo: string }> = {
+  vermelho: { bg: "#FEF2F2", borda: "#FCA5A5", rotulo: "tem item não conforme" },
+  verde: { bg: "#ECFDF5", borda: "#6EE7B7", rotulo: "tudo conforme" },
+  azul: { bg: "#EFF6FF", borda: "#93C5FD", rotulo: "não se aplica" },
+  neutro: { bg: "var(--bg-card)", borda: "var(--border)", rotulo: "" },
+};
+type EstadoGrupo = "vermelho" | "verde" | "azul" | "neutro";
+
 
 function semAcento(s: string) {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+type ViaSalva = { nome_logradouro?: string | null; bairro?: string | null; largura_via?: number | string | null };
+
+/* --- Largura de via → texto da observação -------------------------------------------------------
+ * O item "Rever largura da rua na planta de situação, de acordo com consulta ao Cadastro de
+ * Logradouros: ____m;" pede um VALOR digitado, não um status. Quem já consultou as vias em
+ * "Via / Logradouros" não precisa redigitar: o texto se monta no padrão que o analista escrevia à
+ * mão — "Para a Av Anapolis: 28,5m, para a R RSL3: 13m e para a R RSL12: 16m;". */
+const VIA_MASCULINA = new Set([
+  "ANEL", "BECO", "CAMINHO", "CONDOMINIO", "CONTORNO", "CORREDOR", "EIXO", "JARDIM", "LARGO",
+  "PARQUE", "SETOR", "TERMINAL", "TRECHO", "VIADUTO", "VD",
+]);
+const VIA_MINUSCULAS = new Set(["DE", "DA", "DO", "DAS", "DOS", "E"]);
+
+/** "AV  ANAPOLIS" → "Av Anapolis". Token com número fica intacto ("R RSL13").
+ * Acento não volta: o Cadastro de Logradouros guarda os nomes sem acento. */
+function nomeDaVia(bruto: string) {
+  return String(bruto ?? "").trim().split(/\s+/).filter(Boolean).map((t) => {
+    if (/\d/.test(t)) return t;
+    if (VIA_MINUSCULAS.has(t.toUpperCase())) return t.toLowerCase();
+    return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  }).join(" ");
+}
+
+/** Artigo do primeiro token — Rua/Avenida/Alameda são femininas (padrão), Anel/Viaduto masculinos. */
+function artigoDaVia(nome: string) {
+  const primeiro = semAcento(nome).trim().split(/\s+/)[0]?.toUpperCase() ?? "";
+  return VIA_MASCULINA.has(primeiro) ? "o" : "a";
+}
+
+/** 28.5 → "28,5m"; 13 → "13m". Zero ou vazio não vira medida. */
+function medidaDaVia(v: number | string | null | undefined) {
+  if (v === null || v === undefined || v === "") return null;
+  const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return `${String(n).replace(".", ",")}m`;
+}
+
+/** Monta o texto com as vias salvas, na ordem dos cards da tela de logradouros. */
+function textoLarguraDeVias(vias: ViaSalva[]): string | null {
+  const partes: string[] = [];
+  for (const v of vias ?? []) {
+    const nome = nomeDaVia(String(v?.nome_logradouro ?? ""));
+    const larg = medidaDaVia(v?.largura_via);
+    if (!nome || !larg) continue;
+    const trecho = `${artigoDaVia(nome)} ${nome}: ${larg}`;
+    if (!partes.includes(trecho)) partes.push(trecho);
+  }
+  if (!partes.length) return null;
+  const cabeca = `Para ${partes[0]}`;
+  if (partes.length === 1) return `${cabeca};`;
+  const resto = partes.slice(1);
+  const ultimo = resto.pop()!;
+  return `${[cabeca, ...resto.map((t) => `para ${t}`)].join(", ")} e para ${ultimo};`;
+}
+
+/** O item do checklist que pede a largura conferida no Cadastro de Logradouros. */
+function itemDeLarguraDeVia(texto: string) {
+  const t = semAcento(texto);
+  return t.includes("cadastro de logradouros") && t.includes("largura");
+}
+
+/** Reconhece um texto escrito por este mesmo gerador — só ele pode ser atualizado numa consulta
+ * nova. Texto do analista nunca é sobrescrito (regra 6 do Slot 5). */
+function textoDeViaGeradoAqui(texto: string) {
+  return /^Para [ao] .+:\s*[\d.,]+m.*;$/.test(texto.trim());
 }
 
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
@@ -267,13 +346,25 @@ export default function AnaliseAprovacaoProjeto() {
   }, [itensChecklist]);
 
   const stats = useMemo(() => {
-    const m: Record<string, { total: number; respondidos: number; temErro: boolean; busca: string }> = {};
+    const m: Record<string, {
+      total: number; respondidos: number; temErro: boolean; busca: string;
+      conformes: number; naoAplicas: number; estado: EstadoGrupo;
+    }> = {};
     for (const g of grupos) {
       const lista = porGrupo.get(g) ?? [];
+      const total = lista.length;
+      const respondidos = lista.filter((i) => marcas[i.id]).length;
+      const temErro = lista.some((i) => marcas[i.id] === "nao_conforme");
+      const conformes = lista.filter((i) => marcas[i.id] === "conforme").length;
+      const naoAplicas = lista.filter((i) => marcas[i.id] === "nao_aplica").length;
+      const completo = total > 0 && respondidos === total;
+      const estado: EstadoGrupo =
+        temErro ? "vermelho"
+        : !completo ? "neutro"
+        : naoAplicas === total ? "azul"
+        : "verde";
       m[g] = {
-        total: lista.length,
-        respondidos: lista.filter((i) => marcas[i.id]).length,
-        temErro: lista.some((i) => marcas[i.id] === "nao_conforme"),
+        total, respondidos, temErro, conformes, naoAplicas, estado,
         busca: semAcento(g + " " + lista.map((i) => i.texto).join(" ")),
       };
     }
@@ -373,6 +464,46 @@ export default function AnaliseAprovacaoProjeto() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marcas, fontes, observacoes, observacoesPorItem, analise, codigo, notificar]);
 
+  /* Volta de "Via / Logradouros": as vias salvas viram a observação do item da largura de rua e o
+   * MAC é gravado na hora — o analista não precisa nem digitar nem lembrar de salvar. Roda depois
+   * do carregamento (senão salvaria por cima do que o carregamento ainda vai trazer) e uma única
+   * vez por abertura da tela. */
+  const viasAplicadas = useRef(false);
+  useEffect(() => {
+    if (carregando || viasAplicadas.current || itensChecklist.length === 0) return;
+    viasAplicadas.current = true;
+    let cancelado = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/processo/logradouro?codigo=${encodeURIComponent(codigo)}`,
+          { credentials: "include" });
+        const j = await r.json();
+        if (cancelado || !j?.ok) return;
+        const texto = textoLarguraDeVias(j.data ?? []);
+        if (!texto) return;
+        const alvos = itensChecklist.filter((i) => itemDeLarguraDeVia(i.texto));
+        if (!alvos.length) return;
+        const novas = { ...observacoesPorItem };
+        let mudou = false;
+        for (const it of alvos) {
+          const atual = (novas[it.id] ?? "").trim();
+          if (atual === texto) continue;
+          if (atual && !textoDeViaGeradoAqui(atual)) continue; // texto do analista fica de pé
+          novas[it.id] = texto;
+          mudou = true;
+        }
+        if (!mudou || cancelado) return;
+        setObservacoesPorItem(novas);
+        await salvar(marcas, fontes, observacoes, true, novas);
+        notificar("📏 Largura de via preenchida pela consulta ao Cadastro de Logradouros — MAC salvo.");
+      } catch {
+        /* conveniência: se a consulta falhar, o analista digita como sempre fez */
+      }
+    })();
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregando, itensChecklist]);
+
   /** Clique direto num botão de status — sempre tag "manual", mesmo se estava marcado por filtro/IA
    * antes (o analista está assumindo a decisão daquele item agora). */
   function marcar(itemId: string, status: Status) {
@@ -389,21 +520,23 @@ export default function AnaliseAprovacaoProjeto() {
     });
   }
 
-  function marcarGrupo(grupo: string, status: Status | null) {
+  /** Marca (ou limpa) o grupo inteiro de uma vez. `salvarAgora` é para quem chama do índice:
+   * lá não existe a ida-e-volta de aba que grava sozinha, então a marcação precisa persistir na
+   * hora, senão o analista sai da tela achando que salvou. */
+  function marcarGrupo(grupo: string, status: Status | null, salvarAgora = false) {
     const lista = porGrupo.get(grupo) ?? [];
-    setMarcas((prev) => {
-      const novo = { ...prev };
-      for (const i of lista) { if (status) novo[i.id] = status; else delete novo[i.id]; }
-      return novo;
-    });
-    setFontes((prev) => {
-      const novo = { ...prev };
-      for (const i of lista) { if (status) novo[i.id] = "manual"; else delete novo[i.id]; }
-      return novo;
-    });
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    for (const i of lista) {
+      if (status) { novasMarcas[i.id] = status; novasFontes[i.id] = "manual"; }
+      else { delete novasMarcas[i.id]; delete novasFontes[i.id]; }
+    }
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
     notificar(status
-      ? `${lista.length} item(ns) → ${ESTILO[status].rotulo}.`
-      : `${lista.length} item(ns) limpos.`);
+      ? `${grupo}: ${lista.length} item(ns) → ${ESTILO[status].rotulo}.`
+      : `${grupo}: ${lista.length} item(ns) limpos.`);
+    if (salvarAgora) void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
   async function preencherDoLip() {
@@ -1130,25 +1263,74 @@ export default function AnaliseAprovacaoProjeto() {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-3">
+              <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1.5">
                 Itens do checklist — {gruposFiltrados.length} de {grupos.length} grupos
               </p>
+              {/* Legenda das cores do box: o que está marcado dentro do grupo, sem precisar abrir. */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)] mb-3">
+                {([
+                  ["verde", "tudo conforme"],
+                  ["vermelho", "algum item não conforme"],
+                  ["azul", "tudo não se aplica"],
+                  ["neutro", "falta responder"],
+                ] as [EstadoGrupo, string][]).map(([e, txt]) => (
+                  <span key={e} className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded-sm border inline-block"
+                      style={{ background: ESTADO_GRUPO[e].bg, borderColor: ESTADO_GRUPO[e].borda }} />
+                    {txt}
+                  </span>
+                ))}
+              </div>
               <div className="flex flex-col gap-1.5">
                 {gruposFiltrados.map((grupo) => {
-                  const st = stats[grupo] ?? { total: 0, respondidos: 0, temErro: false };
-                  const completo = st.respondidos === st.total && st.total > 0;
+                  const st = stats[grupo];
+                  const estado: EstadoGrupo = st?.estado ?? "neutro";
+                  const cor = ESTADO_GRUPO[estado];
+                  const completo = !!st && st.total > 0 && st.respondidos === st.total;
                   return (
-                    <button key={grupo} onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupo); }}
-                      className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
-                      <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">
-                        {grupos.indexOf(grupo) + 1}
+                    <div key={grupo}
+                      title={cor.rotulo ? `${grupo} — ${cor.rotulo}` : grupo}
+                      className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors"
+                      style={{ background: cor.bg, borderColor: cor.borda }}>
+                      <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupo); }}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left px-2 py-1 rounded-md hover:bg-black/5 transition-colors">
+                        <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">
+                          {grupos.indexOf(grupo) + 1}
+                        </span>
+                        <span className="flex-1 text-sm font-medium truncate">{grupo}</span>
+                      </button>
+                      {/* Marcação do grupo inteiro sem abrir — os mesmos três status de dentro. */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {STATUS.map((sg) => {
+                          const ativo =
+                            (sg === "conforme" && estado === "verde") ||
+                            (sg === "nao_conforme" && estado === "vermelho") ||
+                            (sg === "nao_aplica" && estado === "azul");
+                          return (
+                            <button key={sg} onClick={() => marcarGrupo(grupo, sg, true)}
+                              title={`${grupo}: todos ${ESTILO[sg].rotulo}`}
+                              aria-label={`${grupo}: marcar todos como ${ESTILO[sg].rotulo}`}
+                              className="w-7 h-7 rounded-md border text-xs flex items-center justify-center transition-colors hover:brightness-95"
+                              style={{
+                                background: ativo ? ESTILO[sg].bg : "#FFFFFF",
+                                borderColor: ativo ? ESTILO[sg].texto : "var(--border)",
+                                opacity: ativo ? 1 : 0.75,
+                              }}>
+                              {ESTILO[sg].icone}
+                            </button>
+                          );
+                        })}
+                        <button onClick={() => marcarGrupo(grupo, null, true)}
+                          title={`${grupo}: limpar todas as marcações`}
+                          aria-label={`${grupo}: limpar todas as marcações`}
+                          className="w-7 h-7 rounded-md border border-[var(--border)] bg-white text-xs flex items-center justify-center opacity-75 transition-colors hover:brightness-95">
+                          🧹
+                        </button>
+                      </div>
+                      <span className={`text-xs shrink-0 w-12 text-right ${completo ? "text-[#059669]" : "text-[var(--text-muted)]"}`}>
+                        {st?.respondidos ?? 0}/{st?.total ?? 0}
                       </span>
-                      <span className="flex-1 text-sm font-medium">{grupo}</span>
-                      {st.temErro && <span className="w-2.5 h-2.5 bg-[var(--error)] rounded-full shrink-0" />}
-                      <span className={`text-xs shrink-0 ${completo ? "text-[#059669]" : "text-[var(--text-muted)]"}`}>
-                        {st.respondidos}/{st.total}
-                      </span>
-                    </button>
+                    </div>
                   );
                 })}
                 <button onClick={() => setAbaAtual(ABA_OBS)}
