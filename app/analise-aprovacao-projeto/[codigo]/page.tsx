@@ -179,6 +179,50 @@ function vereditoDeUnidade(texto: string, minha: string): "outra" | "minha" | "e
   return citadas.includes(minha) ? "minha" : "outra";
 }
 
+/* --- Filtros de tema (marcados pelo analista ou diagnosticados na leitura) ----------------------
+ * Cada um responde a uma pergunta de sim/não sobre o processo. Marcado = o tema NÃO existe aqui,
+ * então todo item do checklist que trata dele sai da análise (Não se Aplica, azul).
+ * Os termos casam por palavra inteira e sem acento — "MILITAR" sozinho não entra na lista porque
+ * casaria com "CORPO DE BOMBEIROS MILITAR", que é nota de carimbo de todo projeto. */
+type FiltroTema = { id: string; rotulo: string; tema: string; termos: string[]; explica: string };
+
+const FILTROS_TEMA: FiltroTema[] = [
+  {
+    id: "aeroportuaria",
+    rotulo: "🛫 Zona aeroportuária",
+    tema: "terreno em zona aeroportuária (exige De Acordo da COMAER / ICA / ANAC)",
+    termos: ["COMAER", "AERONAUTICA", "AEROPORTUARIA", "AEROPORTUARIAS", "AEROPORTO", "ANAC", "AERODROMO", "ICA"],
+    explica: "o terreno não está em zona aeroportuária — cai o que depende de COMAER/ICA/ANAC",
+  },
+  {
+    id: "militar",
+    rotulo: "🎖️ Zona militar",
+    tema: "terreno em zona militar / área de organização militar",
+    termos: ["ZONA MILITAR", "AREA MILITAR", "ORGANIZACAO MILITAR", "EXERCITO", "QUARTEL",
+             "FORCAS ARMADAS", "MINISTERIO DA DEFESA"],
+    explica: "o terreno não está em zona militar",
+  },
+  {
+    id: "lazer",
+    rotulo: "🏊 Área de lazer",
+    tema: "área de lazer no projeto (piscina, playground, quadra, salão de festas)",
+    termos: ["LAZER", "RECREACAO", "PLAYGROUND", "PISCINA", "PISCINAS", "DECKS", "DUCHAS",
+             "QUADRA ESPORTIVA", "SALAO DE FESTAS", "ESPORTES"],
+    explica: "o projeto não tem área de lazer",
+  },
+];
+
+/** Termo casado por palavra inteira, sem acento — aceita termo de mais de uma palavra. */
+function itemCitaTermo(texto: string, termo: string) {
+  const t = semAcento(texto ?? "");
+  const alvo = semAcento(termo);
+  return new RegExp(`(?<![\\p{L}\\p{N}])${alvo.replace(/\s+/g, "\\s+")}(?![\\p{L}\\p{N}])`, "u").test(t);
+}
+
+function itensDoTema(itens: Item[], f: FiltroTema) {
+  return itens.filter((it) => f.termos.some((termo) => itemCitaTermo(it.texto, termo)));
+}
+
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
 function origemDoItem(fonte: string | undefined): { icone: string; rotulo: string } | null {
   if (!fonte) return null;
@@ -572,19 +616,18 @@ export default function AnaliseAprovacaoProjeto() {
   }, [carregando, itensChecklist]);
 
   /** Clique direto num botão de status — sempre tag "manual", mesmo se estava marcado por filtro/IA
-   * antes (o analista está assumindo a decisão daquele item agora). */
+   * antes (o analista está assumindo a decisão daquele item agora).
+   * GRAVA NA HORA (pedido do Fábio): qualquer marcação de item salva o MAC, para ninguém perder
+   * trabalho por sair da tela sem clicar em Salvar. */
   function marcar(itemId: string, status: Status) {
     const desmarcando = marcas[itemId] === status;
-    setMarcas((prev) => {
-      const novo = { ...prev };
-      if (novo[itemId] === status) delete novo[itemId]; else novo[itemId] = status;
-      return novo;
-    });
-    setFontes((prev) => {
-      const novo = { ...prev };
-      if (desmarcando) delete novo[itemId]; else novo[itemId] = "manual";
-      return novo;
-    });
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    if (desmarcando) { delete novasMarcas[itemId]; delete novasFontes[itemId]; }
+    else { novasMarcas[itemId] = status; novasFontes[itemId] = "manual"; }
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
+    void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
   /* MAC novo começa com a unidade territorial EM BRANCO (decisão do Fábio): o campo só se preenche
@@ -681,10 +724,66 @@ export default function AnaliseAprovacaoProjeto() {
     notificar(`Unidade territorial desfeita — ${devolvidos} item(ns) voltaram.`);
   }
 
-  /** Marca (ou limpa) o grupo inteiro de uma vez. `salvarAgora` é para quem chama do índice:
-   * lá não existe a ida-e-volta de aba que grava sozinha, então a marcação precisa persistir na
-   * hora, senão o analista sai da tela achando que salvou. */
-  function marcarGrupo(grupo: string, status: Status | null, salvarAgora = false) {
+  /** Itens que cada filtro de tema alcança, contados uma vez só. */
+  const alcanceTemas = useMemo(() => {
+    const m: Record<string, { itens: Item[]; pendentes: number; aplicado: boolean }> = {};
+    for (const f of FILTROS_TEMA) {
+      const itens = itensDoTema(itensChecklist, f);
+      m[f.id] = {
+        itens,
+        pendentes: itens.filter((it) => !marcas[it.id]).length,
+        aplicado: itens.some((it) => (fontes[it.id] ?? "").startsWith(`Filtro "${f.rotulo}"`)),
+      };
+    }
+    return m;
+  }, [itensChecklist, marcas, fontes]);
+
+  /** Marca como Não se Aplica tudo que fala do tema. Mesma regra dos outros filtros: não passa por
+   * cima de item já respondido e a fonte fica gravada para o "Desfazer" reconhecer. */
+  async function aplicarFiltroTema(f: FiltroTema, motivo = "marcado por você") {
+    const alvos = alcanceTemas[f.id]?.itens ?? [];
+    if (!alvos.length) { notificar(`${f.rotulo}: o checklist não tem item sobre isso.`); return; }
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    let aplicados = 0;
+    for (const it of alvos) {
+      if (novasMarcas[it.id]) continue;
+      novasMarcas[it.id] = "nao_aplica";
+      novasFontes[it.id] = `Filtro "${f.rotulo}" — ${f.explica} (${motivo})`;
+      aplicados++;
+    }
+    if (!aplicados) { notificar(`${f.rotulo}: todos os itens já estavam respondidos.`); return; }
+    const bloco =
+      `━━━ FILTRO APLICADO: ${f.rotulo} ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica (${motivo})\n` +
+      `↳ ${f.explica}`;
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+    await salvar(novasMarcas, novasFontes, novasObs, true);
+    notificar(`${f.rotulo}: ${aplicados} item(ns) saíram da análise.`);
+  }
+
+  async function desfazerFiltroTema(f: FiltroTema) {
+    const assinatura = `Filtro "${f.rotulo}"`;
+    const novasMarcas = { ...marcas };
+    const novasFontes = { ...fontes };
+    let devolvidos = 0;
+    for (const id of Object.keys(novasFontes)) {
+      if (!(novasFontes[id] ?? "").startsWith(assinatura)) continue;
+      delete novasMarcas[id]; delete novasFontes[id]; devolvidos++;
+    }
+    if (!devolvidos) { notificar(`${f.rotulo}: nada a desfazer.`); return; }
+    const bloco =
+      `━━━ FILTRO DESFEITO: ${f.rotulo} ━━━\n` +
+      `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise`;
+    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+    await salvar(novasMarcas, novasFontes, novasObs, true);
+    notificar(`${f.rotulo} desfeito — ${devolvidos} item(ns) voltaram.`);
+  }
+
+  /** Marca (ou limpa) o grupo inteiro de uma vez — grava sempre, como qualquer marcação de item. */
+  function marcarGrupo(grupo: string, status: Status | null, salvarAgora = true) {
     const lista = porGrupo.get(grupo) ?? [];
     const novasMarcas = { ...marcas };
     const novasFontes = { ...fontes };
@@ -778,6 +877,9 @@ export default function AnaliseAprovacaoProjeto() {
     try {
       const fd = new FormData();
       fd.append("codigo", codigo);
+      // Pergunta ao Gemini, junto com o checklist, se cada tema existe neste processo — é assim que
+      // zona aeroportuária / militar / área de lazer se resolvem sozinhas em outros processos.
+      fd.append("temas", JSON.stringify(FILTROS_TEMA.map((f) => f.tema)));
       arquivos.forEach((f, i) => {
         fd.append(`arquivo_${i}`, f);
         fd.append(`caminho_${i}`, (f as any).webkitRelativePath || f.name);
@@ -856,6 +958,15 @@ export default function AnaliseAprovacaoProjeto() {
 
       setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
       await salvar(novasMarcas, novasFontes, novasObs, true);
+
+      /* Temas: "existe: nao" = o tema não está neste processo, então o que fala dele sai da análise.
+       * "sim" mantém tudo, "incerto" não decide nada — o analista marca o botão se quiser. */
+      for (const f of FILTROS_TEMA) {
+        const resposta = (d.temas ?? {})[f.tema];
+        if (!resposta || String(resposta.existe ?? "").toLowerCase() !== "nao") continue;
+        if (!(alcanceTemas[f.id]?.itens ?? []).length) continue;
+        await aplicarFiltroTema(f, `leitura da pasta: ${String(resposta.evidencia ?? "sem detalhe").slice(0, 120)}`);
+      }
 
       // Unidade territorial lida no Uso DO SOLO desta pasta — é assim, e só assim, que o campo do
       // filtro se preenche sozinho.
@@ -1457,6 +1568,30 @@ export default function AnaliseAprovacaoProjeto() {
                         ? ` · ${alcanceUnidade.excecoes} com "exceto ..." ficam para você conferir`
                         : "")
                     : "vazio até a leitura da pasta ler o Uso do Solo — ou digite a sigla à mão"}
+                </span>
+              </div>
+              {/* FILTROS DE TEMA — marcar = o tema não existe neste processo, e o que fala dele sai */}
+              <div className="mb-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wide">🚫 Não se aplica a este processo</span>
+                {FILTROS_TEMA.map((f) => {
+                  const a = alcanceTemas[f.id] ?? { itens: [], pendentes: 0, aplicado: false };
+                  return (
+                    <button key={f.id}
+                      onClick={() => void (a.aplicado ? desfazerFiltroTema(f) : aplicarFiltroTema(f))}
+                      disabled={!a.itens.length}
+                      title={a.itens.length
+                        ? `${f.explica} — ${a.itens.length} item(ns) do checklist`
+                        : "o checklist não tem item sobre este tema"}
+                      className="px-2.5 py-1.5 rounded-md text-[11px] font-bold border transition-colors disabled:opacity-40"
+                      style={a.aplicado
+                        ? { background: "#EFF6FF", borderColor: "#2563EB", color: "#2563EB" }
+                        : { background: "#FFFFFF", borderColor: "var(--border)", color: "var(--text-secondary)" }}>
+                      {a.aplicado ? "✓ " : "☐ "}{f.rotulo} ({a.itens.length})
+                    </button>
+                  );
+                })}
+                <span className="text-[11px] text-[var(--text-muted)]">
+                  marcado = azul (Não se Aplica) · a leitura da pasta marca sozinha o que enxergar
                 </span>
               </div>
               <div className="flex gap-2 flex-wrap mb-3">
