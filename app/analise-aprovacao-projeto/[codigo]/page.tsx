@@ -15,6 +15,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import {
+  avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
+  type DadosEstudos, type Veredito,
+} from "@/lib/mac-motor/slot5/estudosExigencias";
 
 type Status = "conforme" | "nao_conforme" | "nao_aplica";
 type Item = { id: string; texto: string; grupo: string; ordem: number; ref?: string | null };
@@ -211,6 +215,37 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o terreno não fica no Setor Central nem no Campinas",
   },
   {
+    id: "eit",
+    rotulo: "🚦 EIT",
+    tema: "empreendimento sujeito a Estudo de Impacto de Trânsito (EIT/RIT)",
+    termos: ["EIT", "RIT", "IMPACTO DE TRANSITO"],
+    explica: "o empreendimento não é polo gerador de tráfego pelos limites da Lei 10.977/2023",
+  },
+  {
+    id: "eiv",
+    rotulo: "🏘️ EIV",
+    tema: "empreendimento sujeito a Estudo de Impacto de Vizinhança (EIV/RIV)",
+    termos: ["EIV", "RIV", "IMPACTO DE VIZINHANCA"],
+    explica: "o empreendimento não atinge os limites do art. 262 da LC 349/2022",
+  },
+  {
+    id: "carga",
+    rotulo: "🚚 Carga e descarga",
+    tema: "pátio de carga e descarga exigido para o empreendimento",
+    termos: ["CARGA E DESCARGA", "CARGA/DESCARGA", "DOCA", "DOCAS"],
+    explica: "o empreendimento não é obrigado a ter pátio de carga e descarga",
+  },
+  {
+    id: "rampa",
+    rotulo: "🪜 Rampa",
+    // Um tema só, como o Fábio pediu: a resposta é "não" quando o projeto não tem rampa NENHUMA —
+    // nem de veículos (garagem) nem de acessibilidade. Dos 15 itens alcançados, 6 são de
+    // estacionamento e 6 da NBR 9050, então a distinção importa antes de marcar.
+    tema: "rampa desenhada no projeto — de veículos (garagem) ou de acessibilidade",
+    termos: ["RAMPA", "RAMPAS"],
+    explica: "o projeto não tem rampa",
+  },
+  {
     id: "lazer",
     rotulo: "🏊 Área de lazer",
     tema: "área de lazer no projeto (piscina, playground, quadra, salão de festas)",
@@ -266,6 +301,14 @@ export default function AnaliseAprovacaoProjeto() {
   // continua sendo a origem oficial.
   const [unidadeTerritorial, setUnidadeTerritorial] = useState("");
   const unidadeCarregada = useRef(false);
+  /* EIT · EIV · carga e descarga: números do LIP + os que só o analista tem (depósito/produção,
+   * pátio desenhado, capacidade de reunião, alunos por turno). Os manuais ficam por processo no
+   * navegador, como a unidade territorial. */
+  const [lipEstudos, setLipEstudos] = useState<DadosEstudos | null>(null);
+  const [manuais, setManuais] = useState<{
+    areaDepositoProducao: string; areaPatioProjetada: string; atividadeAnexoI: boolean;
+    capacidadeReuniao: string; alunosPorTurno: string;
+  }>({ areaDepositoProducao: "", areaPatioProjetada: "", atividadeAnexoI: false, capacidadeReuniao: "", alunosPorTurno: "" });
   // Lista aberta a partir de um número clicável do painel (ex.: "Pendentes"). Clicar num item
   // dela manda pro grupo dele e destaca — não é uma aba nova, some ao navegar pra outro lugar.
   const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
@@ -651,6 +694,89 @@ export default function AnaliseAprovacaoProjeto() {
     if (sigla) setUnidadeTerritorial(sigla);
   }, [carregando, codigo]);
 
+  useEffect(() => {
+    if (carregando) return;
+    try {
+      const bruto = window.localStorage.getItem(`mac5-estudos-${codigo}`);
+      if (bruto) setManuais((p) => ({ ...p, ...JSON.parse(bruto) }));
+    } catch { /* preferência local corrompida não pode derrubar a tela */ }
+    fetch(`/api/mac/slot-05/estudos?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d?.ok) setLipEstudos(d.lip as DadosEstudos); })
+      .catch(() => null);
+  }, [carregando, codigo]);
+
+  function trocarManual(patch: Partial<typeof manuais>) {
+    setManuais((prev) => {
+      const novo = { ...prev, ...patch };
+      try { window.localStorage.setItem(`mac5-estudos-${codigo}`, JSON.stringify(novo)); } catch { /* ok */ }
+      return novo;
+    });
+  }
+
+  /** Tudo que os três motores precisam: o que o LIP trouxe + o que o analista digitou. */
+  const dadosEstudos: DadosEstudos = useMemo(() => ({
+    ...(lipEstudos ?? {}),
+    areaDepositoProducao: comoNumero(manuais.areaDepositoProducao),
+    areaPatioProjetada: comoNumero(manuais.areaPatioProjetada),
+    atividadeAnexoI: manuais.atividadeAnexoI,
+    capacidadeReuniao: comoNumero(manuais.capacidadeReuniao),
+    alunosPorTurno: comoNumero(manuais.alunosPorTurno),
+  }), [lipEstudos, manuais]);
+
+  const gatilhos = useMemo(() => avaliarEstudos(dadosEstudos), [dadosEstudos]);
+  const eit = useMemo(() => vereditoDoEstudo(gatilhos, "EIT"), [gatilhos]);
+  const eiv = useMemo(() => vereditoDoEstudo(gatilhos, "EIV"), [gatilhos]);
+  const carga = useMemo(() => avaliarCargaDescarga(dadosEstudos), [dadosEstudos]);
+
+  /* EIT e EIV se resolvem sozinhos com o que o LIP já tem: atividade (CNAE), área ocupada pela
+   * atividade e vagas. Dispensado pela conta → o filtro correspondente se aplica sozinho, com os
+   * dois números na fonte. Exigido → nada é marcado; a conta vai para a observação de cada item e
+   * a decisão continua sendo do analista (regra 7 do Slot 5).
+   * O item que cita OS DOIS estudos ("apresentar EIV/RIV e EIT/RIT aprovados") só sai quando os
+   * dois estiverem dispensados. */
+  const estudosAplicados = useRef(false);
+  useEffect(() => {
+    if (carregando || !lipEstudos || estudosAplicados.current || itensChecklist.length === 0) return;
+    estudosAplicados.current = true;
+    (async () => {
+      for (const [id, v] of [["eit", eit], ["eiv", eiv]] as const) {
+        const f = FILTROS_TEMA.find((x) => x.id === id);
+        if (!f) continue;
+        const outro = id === "eit" ? FILTROS_TEMA.find((x) => x.id === "eiv") : FILTROS_TEMA.find((x) => x.id === "eit");
+        const doOutro = new Set((outro ? itensDoTema(itensChecklist, outro) : []).map((i) => i.id));
+        const vOutro = id === "eit" ? eiv : eit;
+        const meus = itensDoTema(itensChecklist, f)
+          .filter((it) => !doOutro.has(it.id) || vOutro.veredito === "dispensado");
+        if (!meus.length) continue;
+
+        if (v.veredito === "dispensado") {
+          await aplicarFiltroTema(f, `LIP: ${v.porQue}`, meus);
+        } else if (v.veredito === "exigido") {
+          await escreverNosItens(`${f.rotulo.replace(/^\S+\s/, "")} EXIGIDO`, meus, v.porQue);
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregando, lipEstudos, itensChecklist]);
+
+  /** Escreve a conta na observação de cada item, sem marcar status nenhum. */
+  async function escreverNosItens(titulo: string, itens: Item[], porQue: string) {
+    const texto = `${titulo} — ${porQue}`;
+    const novas = { ...observacoesPorItem };
+    let n = 0;
+    for (const it of itens) {
+      const atual = (novas[it.id] ?? "").trim();
+      if (atual.startsWith(titulo)) continue;         // já escrito numa rodada anterior
+      novas[it.id] = atual ? `${texto}\n${atual}` : texto;
+      n++;
+    }
+    if (!n) return;
+    setObservacoesPorItem(novas);
+    await salvar(marcas, fontes, observacoes, true, novas);
+    notificar(`${titulo}: conta escrita em ${n} item(ns) — a decisão é sua.`);
+  }
+
   function trocarUnidade(valor: string) {
     const sigla = valor.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
     setUnidadeTerritorial(sigla);
@@ -748,8 +874,8 @@ export default function AnaliseAprovacaoProjeto() {
 
   /** Marca como Não se Aplica tudo que fala do tema. Mesma regra dos outros filtros: não passa por
    * cima de item já respondido e a fonte fica gravada para o "Desfazer" reconhecer. */
-  async function aplicarFiltroTema(f: FiltroTema, motivo = "marcado por você") {
-    const alvos = alcanceTemas[f.id]?.itens ?? [];
+  async function aplicarFiltroTema(f: FiltroTema, motivo = "marcado por você", itensAlvo?: Item[]) {
+    const alvos = itensAlvo ?? alcanceTemas[f.id]?.itens ?? [];
     if (!alvos.length) { notificar(`${f.rotulo}: o checklist não tem item sobre isso.`); return; }
     const novasMarcas = { ...marcas };
     const novasFontes = { ...fontes };
