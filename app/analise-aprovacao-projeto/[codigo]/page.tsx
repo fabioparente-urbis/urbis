@@ -448,6 +448,9 @@ export default function AnaliseAprovacaoProjeto() {
   const [dataDespacho, setDataDespacho] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
   const [emitindoDespacho, setEmitindoDespacho] = useState(false);
+  /* Reemissão: mesma regra do Slot 1 — reaproveita o número já gravado na análise, sem consultar a
+   * série nem consumir número novo. `analise.numero_despacho` já é a fonte de verdade disso. */
+  const [reemitindo, setReemitindo] = useState(false);
   /* Despacho Interno — idêntico ao Slot 1: mesma rota (/api/despacho-interno, que já é agnóstica
    * de slot), mesmo gerador, mesma SÉRIE de numeração (tipo=despacho, documento=despacho_interno,
    * que ocupa coluna própria na análise), mesmos destinatários e mesmo e-mail ao responsável. */
@@ -1053,8 +1056,19 @@ export default function AnaliseAprovacaoProjeto() {
   async function abrirModalDespacho() {
     if (!analise) { notificar("Salve a análise antes de emitir o despacho."); return; }
     setNumeracaoBloqueio(null);
-    setNumeroDespacho("");
     setDataDespacho(new Date().toLocaleDateString("pt-BR"));
+
+    // Reemissão: reaproveita o número já gravado na análise, não consulta a série nem consome
+    // número novo — mesma regra do Slot 1 (prepararNumeracao).
+    if (analise.numero_despacho) {
+      setReemitindo(true);
+      setNumeroDespacho(String(analise.numero_despacho));
+      setModalDespacho(true);
+      return;
+    }
+
+    setReemitindo(false);
+    setNumeroDespacho("");
     setModalDespacho(true);
     try {
       const r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`,
@@ -1100,21 +1114,25 @@ export default function AnaliseAprovacaoProjeto() {
       a.click();
       URL.revokeObjectURL(url);
 
-      // Documento na mão: agora sim consome o número e grava data/número na análise.
-      const rc = await fetch(
-        `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
-        + `&numero=${encodeURIComponent(numeroDespacho.trim())}&data=${encodeURIComponent(dataDespacho)}`
-        + `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}`,
-        { credentials: "include" },
-      );
-      const dc = await rc.json();
+      // Documento na mão: agora sim consome o número e grava data/número na análise — MAS NUNCA na
+      // reemissão, onde o número já foi consumido na primeira vez (mesma regra do Slot 1).
+      let dc: { ok: boolean; numero?: number; detalhe?: string; motivo?: string } | null = null;
+      if (!reemitindo) {
+        const rc = await fetch(
+          `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
+          + `&numero=${encodeURIComponent(numeroDespacho.trim())}&data=${encodeURIComponent(dataDespacho)}`
+          + `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}`,
+          { credentials: "include" },
+        );
+        dc = await rc.json();
 
-      if (dc.ok) {
-        const atualizada: Analise = {
-          ...analise, numero_despacho: String(dc.numero), data_despacho: dataDespacho,
-        };
-        setAnalise(atualizada);
-        setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
+        if (dc && dc.ok) {
+          const atualizada: Analise = {
+            ...analise, numero_despacho: String(dc.numero), data_despacho: dataDespacho,
+          };
+          setAnalise(atualizada);
+          setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
+        }
       }
 
       await registrarNosSatelites(numeroDespacho.trim(), dataDespacho, analise);
@@ -1122,7 +1140,7 @@ export default function AnaliseAprovacaoProjeto() {
       notificar(
         `Despacho nº ${numeroDespacho.trim()} baixado com ${exigencias} exigência(s).`
         + (perdidas ? ` ⚠ ${perdidas} não conforme ficou de fora (item desativado no checklist).` : "")
-        + (dc.ok ? "" : ` ⚠ O número NÃO foi registrado: ${dc.detalhe ?? dc.motivo ?? "falha na numeração"}.`),
+        + (dc && !dc.ok ? ` ⚠ O número NÃO foi registrado: ${dc.detalhe ?? dc.motivo ?? "falha na numeração"}.` : ""),
       );
     } catch (e: any) {
       notificar(`Erro ao emitir despacho: ${e?.message ?? e}`);
@@ -3205,11 +3223,21 @@ export default function AnaliseAprovacaoProjeto() {
       {modalDespacho && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[#2563EB] rounded-xl p-6 w-full max-w-md shadow-2xl">
-            <h2 className="text-[#2563EB] font-bold text-lg mb-1">📄 Emitir Despacho</h2>
+            <h2 className="text-[#2563EB] font-bold text-lg mb-1">
+              {reemitindo ? "🔄 Reemitir Despacho" : "📄 Emitir Despacho"}
+            </h2>
             <p className="text-[var(--text-muted)] text-xs mb-4">
               Análise {analise?.numero_analise} · {totais.nao_conforme} não conformidade(s) vão
               para o documento, agrupadas por ítem do checklist.
             </p>
+
+            {reemitindo && (
+              <div className="rounded-lg border border-[#2563EB] bg-[var(--bg-secondary)] px-3 py-2 text-xs text-[var(--text-secondary)] mb-4">
+                Reemissão da <strong className="text-[var(--text-primary)]">Análise {analise?.numero_analise}</strong>: o
+                número não muda e a numeração não avança. O documento sai com o
+                checklist <strong className="text-[var(--text-primary)]">como está agora</strong>.
+              </div>
+            )}
 
             {numeracaoBloqueio ? (
               <p className="text-[var(--error)] text-sm mb-4">{numeracaoBloqueio}</p>
@@ -3222,8 +3250,9 @@ export default function AnaliseAprovacaoProjeto() {
                   placeholder="buscando o próximo da faixa…"
                   className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-1 focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
                 <p className="text-[10px] text-[var(--text-muted)] mb-3">
-                  Mesma série de numeração dos outros slots. O número só é consumido depois que o
-                  documento é gerado.
+                  {reemitindo
+                    ? "Reaproveitado da 1ª emissão desta análise — não consome número novo."
+                    : "Mesma série de numeração dos outros slots. O número só é consumido depois que o documento é gerado."}
                 </p>
 
                 <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
