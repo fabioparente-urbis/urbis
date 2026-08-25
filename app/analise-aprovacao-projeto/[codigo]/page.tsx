@@ -435,6 +435,14 @@ export default function AnaliseAprovacaoProjeto() {
   // Número da análise iniciada mas ainda não gravada (a linha só nasce no primeiro salvamento).
   const [numeroAnaliseNova, setNumeroAnaliseNova] = useState(1);
   const [modalZerarAnalise, setModalZerarAnalise] = useState<number | null>(null);
+  /* Emissão do despacho. O número vem da MESMA série dos Slots 1 e 2 (/api/numeracao/proximo):
+   * `peek` só espia, `commit` consome — o commit só acontece depois do documento ficar pronto,
+   * pra um erro na geração não queimar um número da faixa. */
+  const [modalDespacho, setModalDespacho] = useState(false);
+  const [numeroDespacho, setNumeroDespacho] = useState("");
+  const [dataDespacho, setDataDespacho] = useState(() => new Date().toLocaleDateString("pt-BR"));
+  const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
+  const [emitindoDespacho, setEmitindoDespacho] = useState(false);
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [marcas, setMarcas] = useState<Record<string, Status>>({});
   const [fontes, setFontes] = useState<Record<string, string>>({});
@@ -829,6 +837,88 @@ export default function AnaliseAprovacaoProjeto() {
 
   /** Número mostrado no cabeçalho: a análise gravada ou a que acabou de ser iniciada. */
   const numeroAnaliseEmAndamento = analise?.numero_analise ?? numeroAnaliseNova;
+
+  /* ── Emissão do Despacho ao Interessado ───────────────────────────────────── */
+
+  /** Espia o próximo número da faixa sem consumir, e abre o modal. */
+  async function abrirModalDespacho() {
+    if (!analise) { notificar("Salve a análise antes de emitir o despacho."); return; }
+    setNumeracaoBloqueio(null);
+    setNumeroDespacho("");
+    setDataDespacho(new Date().toLocaleDateString("pt-BR"));
+    setModalDespacho(true);
+    try {
+      const r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`,
+        { credentials: "include" });
+      const d = await r.json();
+      if (d.ok) setNumeroDespacho(String(d.numero).padStart(3, "0"));
+      else setNumeracaoBloqueio(d.esgotado
+        ? "Faixa de numeração esgotada. Acesse Configurações → Numeração."
+        : "Nenhuma faixa de numeração cadastrada. Acesse Configurações → Numeração.");
+    } catch {
+      setNumeracaoBloqueio("Erro ao buscar o próximo número.");
+    }
+  }
+
+  /**
+   * Gera o .docx PRIMEIRO e só depois consome o número da faixa. Se a geração falhar, nenhum
+   * número é queimado — a faixa é finita e um buraco nela não tem como ser recuperado.
+   */
+  async function emitirDespacho() {
+    if (!analise || !numeroDespacho.trim()) return;
+    setEmitindoDespacho(true);
+    try {
+      await salvar(marcas, fontes, observacoes, true);
+
+      const r = await fetch("/api/mac/slot-05/despacho", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo, numeroDespacho: numeroDespacho.trim(), dataEmissao: dataDespacho, analiseId: analise.id,
+        }),
+      });
+      if (!r.ok) {
+        const erro = await r.json().catch(() => ({}));
+        throw new Error(erro?.erro ?? `falha ao gerar (HTTP ${r.status})`);
+      }
+      const exigencias = r.headers.get("X-Exigencias") ?? "?";
+      const perdidas = Number(r.headers.get("X-Exigencias-Perdidas") ?? 0);
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `despacho_${codigo}_${numeroDespacho.trim()}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      // Documento na mão: agora sim consome o número e grava data/número na análise.
+      const rc = await fetch(
+        `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
+        + `&numero=${encodeURIComponent(numeroDespacho.trim())}&data=${encodeURIComponent(dataDespacho)}`
+        + `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}`,
+        { credentials: "include" },
+      );
+      const dc = await rc.json();
+
+      if (dc.ok) {
+        const atualizada: Analise = {
+          ...analise, numero_despacho: String(dc.numero), data_despacho: dataDespacho,
+        };
+        setAnalise(atualizada);
+        setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
+      }
+      setModalDespacho(false);
+      notificar(
+        `Despacho nº ${numeroDespacho.trim()} baixado com ${exigencias} exigência(s).`
+        + (perdidas ? ` ⚠ ${perdidas} não conforme ficou de fora (item desativado no checklist).` : "")
+        + (dc.ok ? "" : ` ⚠ O número NÃO foi registrado: ${dc.detalhe ?? dc.motivo ?? "falha na numeração"}.`),
+      );
+    } catch (e: any) {
+      notificar(`Erro ao emitir despacho: ${e?.message ?? e}`);
+    } finally {
+      setEmitindoDespacho(false);
+    }
+  }
 
   const salvar = useCallback(async (
     novasMarcas = marcas, novasFontes = fontes, novasObs = observacoes, silencioso = false,
@@ -2739,9 +2829,16 @@ export default function AnaliseAprovacaoProjeto() {
             Documentos
           </p>
 
+          <button onClick={abrirModalDespacho} disabled={emitindoDespacho || !analise}
+            title={analise
+              ? "Gera o Despacho ao Interessado com as não conformidades desta análise"
+              : "Salve a análise antes de emitir o despacho"}
+            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            {emitindoDespacho ? "⏳ Gerando…" : "📄 Despacho"}
+          </button>
+
           {[
             { rotulo: "📨 Despacho Interno", cor: "#2563EB" },
-            { rotulo: "📄 Despacho", cor: "#2563EB" },
             { rotulo: "📑 Laudo", cor: "#059669" },
             { rotulo: "⛔ Indeferimento", cor: "#DC2626" },
           ].map((b) => (
@@ -2797,6 +2894,55 @@ export default function AnaliseAprovacaoProjeto() {
                 Limpar mesmo assim
               </button>
               <button onClick={() => setConfirmarLimpar(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalDespacho && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[#2563EB] rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-[#2563EB] font-bold text-lg mb-1">📄 Emitir Despacho</h2>
+            <p className="text-[var(--text-muted)] text-xs mb-4">
+              Análise {analise?.numero_analise} · {totais.nao_conforme} não conformidade(s) vão
+              para o documento, agrupadas por ítem do checklist.
+            </p>
+
+            {numeracaoBloqueio ? (
+              <p className="text-[var(--error)] text-sm mb-4">{numeracaoBloqueio}</p>
+            ) : (
+              <>
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  Número do despacho
+                </label>
+                <input value={numeroDespacho} onChange={(e) => setNumeroDespacho(e.target.value)}
+                  placeholder="buscando o próximo da faixa…"
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-1 focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
+                <p className="text-[10px] text-[var(--text-muted)] mb-3">
+                  Mesma série de numeração dos outros slots. O número só é consumido depois que o
+                  documento é gerado.
+                </p>
+
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+                  Data de emissão
+                </label>
+                <input value={dataDespacho} onChange={(e) => setDataDespacho(e.target.value)}
+                  placeholder="dd/mm/aaaa"
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-4 focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
+              </>
+            )}
+
+            <div className="flex gap-3">
+              <button onClick={emitirDespacho}
+                disabled={emitindoDespacho || !!numeracaoBloqueio || !numeroDespacho.trim()
+                  || !/^\d{2}\/\d{2}\/\d{4}$/.test(dataDespacho)}
+                className="flex-1 bg-[#2563EB] hover:opacity-90 disabled:opacity-40 text-white font-bold py-2 rounded-lg text-sm">
+                {emitindoDespacho ? "Gerando…" : "Gerar e baixar"}
+              </button>
+              <button onClick={() => setModalDespacho(false)} disabled={emitindoDespacho}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
