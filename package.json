@@ -21,6 +21,7 @@
     "fabric": "^7.4.0",
     "fflate": "^0.8.3",
     "lucide-react": "^1.8.0",
+    "marked": "^18.0.11",
     "mupdf": "^1.28.0",
     "next": "16.1.6",
     "node-unrar-js": "^2.0.2",

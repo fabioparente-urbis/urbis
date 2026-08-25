@@ -2711,6 +2711,15 @@ export default function ProcessoClient() {
                 🗺️ Via / Logradouro
               </button>
             )}
+            {ehSlot5 && (
+              <button
+                onClick={() => router.push(`/manuais/slot5?doc=lip&voltar=${encodeURIComponent(`/processo/${idUrl}?tipo=${tipoUrl}`)}&rotulo=${encodeURIComponent("Voltar ao LIP")}`)}
+                title="Manual de referência do LIP — Slot 5 (leitura na tela)"
+                className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >
+                📘 Manual do LIP
+              </button>
+            )}
           </div>
         </div>
       </div>

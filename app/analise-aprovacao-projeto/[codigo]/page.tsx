@@ -3005,6 +3005,11 @@ export default function AnaliseAprovacaoProjeto() {
             title="Criar e editar os filtros que tiram itens da análise">
             🎛️ Gerenciar Filtros
           </button>
+          <button onClick={() => router.push(`/manuais/slot5?doc=mac&voltar=${encodeURIComponent(`/analise-aprovacao-projeto/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`)}
+            className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors"
+            title="Manual de referência do MAC — Slot 5 (leitura na tela)">
+            📗 Manual do MAC
+          </button>
 
           <button
             onClick={() => {
