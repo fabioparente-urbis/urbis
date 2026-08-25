@@ -15,6 +15,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import type {
+  RelatorioImportado as RelatorioContraConferencia,
+  AchadoImportado,
+} from "@/lib/mac-motor/slot5/contraConferencia";
 import {
   avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
   type DadosEstudos, type Veredito,
@@ -436,6 +440,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [buscaBipCarregando, setBuscaBipCarregando] = useState(false);
   const [abaAtual, setAbaAtual] = useState<string | null>(null); // null = índice
   const [busca, setBusca] = useState("");
+  const [ocultarResolvidos, setOcultarResolvidos] = useState(false);
   // Unidade territorial do terreno: sugestão vem do Uso do Solo (LIP) e o analista pode trocar.
   // Guardada por processo no próprio navegador — não existe coluna para ela e o valor do LIP
   // continua sendo a origem oficial.
@@ -455,6 +460,18 @@ export default function AnaliseAprovacaoProjeto() {
   const [itemFoco, setItemFoco] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState("");
+  /* Contra-conferência: o analista gera um prompt, leva numa IA de fora junto com os PDFs, e traz
+   * o relatório de volta. O que volta é PROPOSTA — nenhum achado marca nada sozinho. */
+  const [ccGerando, setCcGerando] = useState(false);
+  const [ccPrompt, setCcPrompt] = useState<{ texto: string; caracteres: number; itens: number } | null>(null);
+  const [ccInstrucoesAberto, setCcInstrucoesAberto] = useState(false);
+  const [ccColarAberto, setCcColarAberto] = useState(false);
+  const [ccTexto, setCcTexto] = useState("");
+  const [ccImportando, setCcImportando] = useState(false);
+  const [ccRelatorio, setCcRelatorio] = useState<RelatorioContraConferencia | null>(null);
+  const [ccPainel, setCcPainel] = useState(false);
+  const [ccDecisoes, setCcDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
+
   const [proposta, setProposta] = useState<Proposta | null>(null);
   // "fechar" apenas ESCONDE o painel — a proposta continua em memória e volta pelo botão
   // "Ver filtros". Descartar de vez obrigaria a reavaliar tudo de novo.
@@ -916,6 +933,98 @@ export default function AnaliseAprovacaoProjeto() {
     const d = await r.json();
     if (!d.ok) { notificar(`Erro ao desvincular: ${d.erro ?? "falha"}`); return; }
     setVinculosBip((prev) => ({ ...prev, [itemId]: (prev[itemId] ?? []).filter((v) => v.id !== vinculoId) }));
+  }
+
+  /* ── Contra-conferência ────────────────────────────────────────────────────
+   * Gera o prompt, o analista leva numa IA de fora com os PDFs, e cola o relatório de volta. */
+
+  /** Gera o prompt e abre o painel com as instruções — copiar e baixar ficam lá. */
+  async function gerarContraConferencia() {
+    setCcGerando(true);
+    try {
+      const r = await fetch(`/api/mac/slot-05/contra-conferencia?codigo=${encodeURIComponent(codigo)}`,
+        { credentials: "include" });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao gerar");
+      setCcPrompt({ texto: d.prompt, caracteres: d.caracteres, itens: d.itens });
+      setCcInstrucoesAberto(true);
+    } catch (e: any) {
+      notificar(`Erro ao gerar contra-conferência: ${e?.message ?? e}`);
+    } finally {
+      setCcGerando(false);
+    }
+  }
+
+  async function copiarPrompt() {
+    if (!ccPrompt) return;
+    try {
+      await navigator.clipboard.writeText(ccPrompt.texto);
+      notificar("Prompt copiado — cole na IA junto com os documentos.");
+    } catch {
+      notificar("O navegador bloqueou a cópia. Use “Baixar .txt” e copie de lá.");
+    }
+  }
+
+  function baixarPrompt() {
+    if (!ccPrompt) return;
+    const blob = new Blob([ccPrompt.texto], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `contra-conferencia-${codigo}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importarContraConferencia() {
+    if (ccTexto.trim().length < 20) { notificar("Cole a resposta da IA."); return; }
+    setCcImportando(true);
+    try {
+      const r = await fetch("/api/mac/slot-05/contra-conferencia", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, relatorio: ccTexto }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao importar");
+
+      setCcRelatorio(d.relatorio);
+      setCcDecisoes({});
+      setCcColarAberto(false);
+      setCcPainel(true);
+      setAbaAtual(null);
+      setCcTexto("");
+
+      const n = d.relatorio.achados.length;
+      const graves = d.relatorio.achados.filter((a: AchadoImportado) => a.gravidade === "GRAVE").length;
+      notificar(
+        n
+          ? `${n} achado(s) importado(s) — ${graves} grave(s). Nada foi marcado ainda: decida um a um.`
+          : "Relatório importado: a IA não contestou nenhum item.",
+      );
+    } catch (e: any) {
+      notificar(`Erro ao importar: ${e?.message ?? e}`);
+    } finally {
+      setCcImportando(false);
+    }
+  }
+
+  /** Aceitar = marcar o item com o que a IA propôs, guardando a evidência na fonte. */
+  async function aceitarAchado(a: AchadoImportado) {
+    if (!a.itemId || !a.aplicavel) return;
+    const novasMarcas = { ...marcas, [a.itemId]: a.euDigo as Status };
+    const novasFontes = {
+      ...fontes,
+      [a.itemId]: `Contra-conferência · ${ccRelatorio?.ia ?? "IA externa"} · ${a.evidencia}`.slice(0, 400),
+    };
+    setMarcas(novasMarcas);
+    setFontes(novasFontes);
+    setCcDecisoes((p) => ({ ...p, [a.item]: "aceito" }));
+    await salvar(novasMarcas, novasFontes, observacoes, true);
+    notificar(`Item ${a.item} → ${ESTILO[a.euDigo as Status].rotulo}.`);
+  }
+
+  function recusarAchado(a: AchadoImportado) {
+    setCcDecisoes((p) => ({ ...p, [a.item]: "recusado" }));
   }
 
   /** Tudo que os três motores precisam: o que o LIP trouxe + o que o analista digitou. */
@@ -1436,9 +1545,23 @@ export default function AnaliseAprovacaoProjeto() {
 
   const gruposFiltrados = useMemo(() => {
     const q = semAcento(busca.trim());
-    if (!q) return grupos;
-    return grupos.filter((g) => (stats[g]?.busca ?? "").includes(q));
-  }, [grupos, busca, stats]);
+    let lista = q ? grupos.filter((g) => (stats[g]?.busca ?? "").includes(q)) : grupos;
+    // "Resolvido" = grupo fechado e sem erro: tudo conforme (verde) ou tudo não se aplica (azul).
+    // Some da lista pra sobrar na tela só o que ainda pede atenção.
+    if (ocultarResolvidos) {
+      lista = lista.filter((g) => {
+        const e = stats[g]?.estado;
+        return e !== "verde" && e !== "azul";
+      });
+    }
+    return lista;
+  }, [grupos, busca, stats, ocultarResolvidos]);
+
+  /** Quantos grupos o botão "ocultar resolvidos" tira da tela. */
+  const gruposResolvidos = useMemo(
+    () => grupos.filter((g) => stats[g]?.estado === "verde" || stats[g]?.estado === "azul").length,
+    [grupos, stats],
+  );
 
   if (carregando) return <p className="p-6 text-sm text-[var(--text-muted)]">carregando…</p>;
   if (erro) return (
@@ -1852,6 +1975,146 @@ export default function AnaliseAprovacaoProjeto() {
             </div>
           )}
 
+          {/* Contra-conferência recolhida */}
+          {ccRelatorio && !ccPainel && (
+            <button onClick={() => { setCcPainel(true); setAbaAtual(null); }}
+              className="w-full mb-4 flex items-center justify-between gap-3 rounded-lg border border-[#7C3AED] bg-[#F5F3FF] px-4 py-2 text-left hover:bg-[#EDE9FE] transition-colors">
+              <span className="text-sm font-bold text-[#6D28D9]">
+                🔍 Contra-conferência ({ccRelatorio.ia}) — {ccRelatorio.achados.length} achado(s) ·{" "}
+                {ccRelatorio.achados.filter((a) => !ccDecisoes[a.item]).length} sem decisão
+              </span>
+              <span className="text-xs font-semibold text-[#6D28D9]">▼ Ver achados</span>
+            </button>
+          )}
+
+          {/* Contra-conferência — achados de uma IA de fora, decididos um a um */}
+          {ccRelatorio && ccPainel && (
+            <div className="border border-[#7C3AED] rounded-lg p-4 mb-4 bg-[var(--bg-card)]">
+              <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+                <p className="text-sm font-bold">🔍 Contra-conferência — {ccRelatorio.ia}</p>
+                <div className="flex gap-3">
+                  <button onClick={() => { setCcRelatorio(null); setCcDecisoes({}); }}
+                    className="text-[11px] font-semibold text-[var(--text-muted)] hover:underline">descartar</button>
+                  <button onClick={() => setCcPainel(false)}
+                    className="text-[11px] font-semibold text-[#6D28D9] hover:underline">▲ esconder</button>
+                </div>
+              </div>
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
+                Auditoria feita por uma IA <b>de fora</b>, com os documentos da pasta na mão.
+                É opinião, não veredito — <b>nada foi marcado</b>. Aceite só o que a evidência convencer.
+              </p>
+
+              {!ccRelatorio.achados.length && (
+                <p className="text-xs text-[var(--text-secondary)] mb-3">
+                  A IA não contestou nenhum item do checklist.
+                </p>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                {ccRelatorio.achados.map((a) => {
+                  const decisao = ccDecisoes[a.item];
+                  const cor = a.gravidade === "GRAVE" ? "#DC2626"
+                    : a.gravidade === "MEDIO" ? "#EA580C" : "#64748B";
+                  return (
+                    <div key={a.item}
+                      className="border rounded-lg px-3 py-2"
+                      style={{
+                        borderColor: decisao === "aceito" ? "#16A34A"
+                          : decisao === "recusado" ? "#94A3B8" : "var(--border)",
+                        opacity: decisao ? 0.65 : 1,
+                      }}>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide text-white"
+                              style={{ background: cor }}>
+                              {a.gravidade}
+                            </span>
+                            <span className="font-mono text-[11px] font-bold">{a.item}</span>
+                            <span className="text-[11px] text-[var(--text-secondary)]">
+                              {ESTILO[a.statusAtual as Status]?.rotulo ?? "Em branco"}
+                              {" → "}
+                              {a.aplicavel ? ESTILO[a.euDigo as Status].rotulo : "não verificável"}
+                            </span>
+                            {decisao === "aceito" && (
+                              <span className="text-[10px] font-bold" style={{ color: "#16A34A" }}>✓ aceito</span>
+                            )}
+                            {decisao === "recusado" && (
+                              <span className="text-[10px] font-bold" style={{ color: "#64748B" }}>✗ recusado</span>
+                            )}
+                          </div>
+                          <p className="text-[11px] mt-1">{a.textoItem}</p>
+                          <p className="text-[10px] text-[var(--text-muted)] mt-0.5">↳ {a.evidencia}</p>
+                          {a.problema && (
+                            <p className="text-[10px] font-semibold mt-0.5" style={{ color: "#EA580C" }}>
+                              ⚠ {a.problema}
+                            </p>
+                          )}
+                        </div>
+                        {!decisao && (
+                          <div className="flex gap-1 shrink-0">
+                            {a.aplicavel && !a.problema?.startsWith("a resposta proposta") && (
+                              <button onClick={() => void aceitarAchado(a)}
+                                className="px-2 py-1 rounded text-[10px] font-bold border"
+                                style={{ borderColor: "#16A34A", color: "#16A34A" }}>
+                                Aceitar
+                              </button>
+                            )}
+                            <button onClick={() => recusarAchado(a)}
+                              className="px-2 py-1 rounded text-[10px] font-bold border border-[var(--border)] text-[var(--text-muted)]">
+                              {a.aplicavel ? "Recusar" : "Ciente"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!!ccRelatorio.errosFicha.length && (
+                <div className="mt-3">
+                  <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1">
+                    Erros apontados na ficha do LIP ({ccRelatorio.errosFicha.length}) — corrija no LIP, não aqui
+                  </p>
+                  {ccRelatorio.errosFicha.map((e, i) => (
+                    <p key={i} className="text-[10px] text-[var(--text-secondary)]">
+                      • <b>{e.campo}</b>: consta &quot;{e.sistemaAnotou}&quot; · correto seria &quot;{e.correto}&quot; — {e.evidencia}
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {!!ccRelatorio.faltaNaPasta.length && (
+                <div className="mt-3">
+                  <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] mb-1">
+                    Falta na pasta ({ccRelatorio.faltaNaPasta.length})
+                  </p>
+                  {ccRelatorio.faltaNaPasta.map((f, i) => (
+                    <p key={i} className="text-[10px] text-[var(--text-secondary)]">• {f}</p>
+                  ))}
+                </div>
+              )}
+
+              {!!ccRelatorio.descartados.length && (
+                <div className="mt-3">
+                  <p className="text-[10px] uppercase font-bold mb-1" style={{ color: "#EA580C" }}>
+                    Descartados na importação ({ccRelatorio.descartados.length})
+                  </p>
+                  {ccRelatorio.descartados.map((d, i) => (
+                    <p key={i} className="text-[10px] text-[var(--text-secondary)]">• {d.item}: {d.motivo}</p>
+                  ))}
+                </div>
+              )}
+
+              {!!ccRelatorio.confianca && (
+                <p className="text-[10px] text-[var(--text-muted)] italic mt-3">
+                  Grau de confiança declarado pela IA: {ccRelatorio.confianca}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* LISTA aberta por um número clicável do painel — some ao entrar num grupo ou fechar */}
           {abaAtual === null && listaFiltrada && (
             <div className="flex flex-col gap-3">
@@ -1957,6 +2220,16 @@ export default function AnaliseAprovacaoProjeto() {
                     Limpar
                   </button>
                 )}
+                <button onClick={() => setOcultarResolvidos((v) => !v)} disabled={!gruposResolvidos}
+                  title="Some com os grupos fechados sem erro — tudo conforme ou tudo não se aplica"
+                  className="px-3 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-40"
+                  style={{
+                    background: ocultarResolvidos ? "#16A34A" : "var(--bg-secondary)",
+                    borderColor: ocultarResolvidos ? "#16A34A" : "var(--border)",
+                    color: ocultarResolvidos ? "#fff" : "var(--text-secondary)",
+                  }}>
+                  {ocultarResolvidos ? `👁️ Mostrar todos (${gruposResolvidos} ocultos)` : `🙈 Ocultar resolvidos (${gruposResolvidos})`}
+                </button>
               </div>
               <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1.5">
                 Itens do checklist — {gruposFiltrados.length} de {grupos.length} grupos
@@ -2323,6 +2596,26 @@ export default function AnaliseAprovacaoProjeto() {
             webkitdirectory="" directory=""
             onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) void lerPastaIA(fs); e.target.value = ""; }} />
 
+          {/* Contra-conferência: sai daqui pra uma IA de fora e volta pelo botão de importar. */}
+          <button onClick={() => { if (ccPrompt) setCcInstrucoesAberto(true); else void gerarContraConferencia(); }}
+            disabled={ccGerando}
+            className="w-full bg-[#F5F3FF] hover:bg-[#7C3AED] hover:text-white disabled:opacity-50 border border-[#7C3AED] text-[#6D28D9] font-bold py-2.5 rounded-lg text-sm transition-colors"
+            title="Gera o prompt de auditoria para colar no Gemini/ChatGPT junto com os PDFs da pasta">
+            {ccGerando ? "⏳ Gerando…" : ccPrompt ? "🔍 Ver contra-conferência" : "🔍 Gerar contra-conferência"}
+          </button>
+          {ccPrompt && (
+            <button onClick={gerarContraConferencia} disabled={ccGerando}
+              className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] py-1.5 rounded-lg text-xs transition-colors"
+              title="Regera o prompt com as marcações mais recentes">
+              🔄 Regerar com o estado atual
+            </button>
+          )}
+          <button onClick={() => setCcColarAberto(true)}
+            className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] py-1.5 rounded-lg text-xs transition-colors"
+            title="Cole aqui a resposta da IA para virar proposta de correção">
+            📥 Importar relatório da IA
+          </button>
+
           <button onClick={() => salvar()} disabled={salvando}
             className="w-full bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
             {salvando ? "Salvando…" : "💾 Salvar"}
@@ -2409,6 +2702,99 @@ export default function AnaliseAprovacaoProjeto() {
                 Limpar mesmo assim
               </button>
               <button onClick={() => setConfirmarLimpar(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {ccInstrucoesAberto && ccPrompt && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[#7C3AED] rounded-xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-[#6D28D9] font-bold text-lg mb-1">🔍 Contra-conferência pronta</h2>
+            <p className="text-[var(--text-muted)] text-xs mb-4">
+              {Math.round(ccPrompt.caracteres / 1000)} mil caracteres · {ccPrompt.itens} itens do checklist ·
+              cabe no Gemini e no ChatGPT.
+            </p>
+
+            <div className="flex gap-2 mb-4">
+              <button onClick={copiarPrompt}
+                className="flex-1 bg-[#7C3AED] hover:opacity-90 text-white font-bold py-2 rounded-lg text-sm">
+                📋 Copiar prompt
+              </button>
+              <button onClick={baixarPrompt}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                ⬇️ Baixar .txt
+              </button>
+            </div>
+
+            <p className="text-xs font-bold uppercase tracking-wide text-[var(--text-muted)] mb-2">
+              Como usar
+            </p>
+            <ol className="text-xs text-[var(--text-secondary)] flex flex-col gap-2 mb-4 list-decimal pl-4">
+              <li>
+                Abra uma <b>conversa nova</b> no Gemini ou no ChatGPT. Conversa nova importa: o
+                histórico de outro processo contamina a análise.
+              </li>
+              <li>
+                <b>Anexe os documentos</b> da pasta na mesma mensagem: prancha do projeto,
+                <b> print da tela do ATENDIMENTO</b>, Uso do Solo, Certidão de Matrícula, ARTs,
+                certidão de corredor viário, despachos, declarações e o que mais existir.
+                Arquivos <code>.rar</code> não são lidos — extraia antes.
+              </li>
+              <li><b>Cole o prompt</b> junto com os anexos e envie.</li>
+              <li>
+                A IA responde com um <b>inventário</b> do que recebeu e <b>pede o que faltar</b>.
+                Anexe o que ela pedir, ou diga que não existe — aí ela segue e marca aqueles itens
+                como não verificáveis.
+              </li>
+              <li>
+                Ela trabalha em <b>lotes de 40 itens</b>. A cada lote, responda apenas
+                <b> CONTINUA</b>. São 15 rodadas.
+              </li>
+              <li>Ao terminar o último lote, digite <b>RELATÓRIO FINAL</b>.</li>
+              <li>
+                <b>Copie a resposta inteira</b> (incluindo o bloco <code>json</code> do final) e volte
+                aqui em <b>“Importar relatório da IA”</b>.
+              </li>
+            </ol>
+
+            <p className="text-[11px] text-[var(--text-muted)] mb-4">
+              O Gemini enxerga o desenho da prancha (cota, corte). O ChatGPT às vezes só lê o texto de
+              PDF pesado de CAD — se ele nunca citar uma cota, é isso. Vale rodar nos dois: onde os
+              dois apontarem a mesma coisa, é forte indício de erro real.
+            </p>
+
+            <button onClick={() => setCcInstrucoesAberto(false)}
+              className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {ccColarAberto && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[#7C3AED] rounded-xl p-6 w-full max-w-2xl shadow-2xl">
+            <h2 className="text-[#6D28D9] font-bold text-lg mb-2">📥 Importar contra-conferência</h2>
+            <p className="text-[var(--text-secondary)] text-sm mb-1">
+              Cole a resposta <b>inteira</b> da IA, incluindo o bloco <code>json</code> do final —
+              é dele que saem os achados.
+            </p>
+            <p className="text-[var(--text-muted)] text-xs mb-3">
+              Nada é marcado na importação: cada achado vira uma proposta que você aceita ou recusa.
+            </p>
+            <textarea value={ccTexto} onChange={(e) => setCcTexto(e.target.value)} autoFocus rows={12}
+              placeholder="Cole aqui o RELATÓRIO FINAL que a IA devolveu…"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#7C3AED] mb-4" />
+            <div className="flex gap-3">
+              <button onClick={importarContraConferencia} disabled={ccImportando || ccTexto.trim().length < 20}
+                className="flex-1 bg-[#7C3AED] hover:opacity-90 disabled:opacity-40 text-white font-bold py-2 rounded-lg text-sm">
+                {ccImportando ? "Lendo…" : "Importar achados"}
+              </button>
+              <button onClick={() => { setCcColarAberto(false); setCcTexto(""); }}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
