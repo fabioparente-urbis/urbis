@@ -1105,12 +1105,13 @@ export default function AnaliseAprovacaoProjeto() {
       // Unidade territorial lida no Uso DO SOLO desta pasta — é assim, e só assim, que o campo do
       // filtro se preenche sozinho.
       const utLida = siglaDaUnidade(String(d.unidadeTerritorial ?? ""));
+      const notaNbr = d.nbrAcessibilidadeUsada ? " · ÍTEM 48 avaliado com o texto oficial da NBR 9050." : "";
       if (utLida) {
         trocarUnidade(utLida);
-        notificar(`IA sugeriu ${aplicados} item(ns) · unidade territorial lida no Uso do Solo: ${utLida}.`);
+        notificar(`IA sugeriu ${aplicados} item(ns) · unidade territorial lida no Uso do Solo: ${utLida}.${notaNbr}`);
       } else {
         notificar(
-          `IA sugeriu ${aplicados} item(ns) — confira: a fonte de cada um está no item.` +
+          `IA sugeriu ${aplicados} item(ns) — confira: a fonte de cada um está no item.${notaNbr}` +
           (d.usoDoSoloLido === false ? " O Uso do Solo não estava na pasta: informe a unidade territorial à mão." : ""),
         );
       }

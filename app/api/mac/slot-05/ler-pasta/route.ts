@@ -23,6 +23,7 @@ import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { lerPastaSlot5, extrairPdf, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
+import { contextoNbrAcessibilidade } from "@/lib/mac-motor/slot5/contextoAcessibilidade";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { PROMPT_P3_MAC_SLOT5, VERSAO_PROMPT_P3_SLOT5 } from "@/lib/mac-motor/slot5/promptP3";
 import { TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
@@ -196,12 +197,16 @@ async function processar(
       partes.push({ text: `\n[DOCUMENTO: ${e.papel} — ${e.nome}]` });
       partes.push({ fileData: { mimeType: "application/pdf", fileUri: uri } });
     }
+    // ÍTEM 48 (ACESSIBILIDADE - NBR9050): a norma inteira, não a memória do modelo dela.
+    const nbrAcessibilidade = await contextoNbrAcessibilidade(pendentes as any);
+
     await enviar({
       tipo: "progresso", fase: "analisando", atual: escolhidos.length, total: escolhidos.length,
       documento: `Gemini avaliando ${pendentes.length} item(ns) pendentes...`,
     });
     partes.push({
       text: PROMPT_P3_MAC_SLOT5 +
+        (nbrAcessibilidade ? `\n\n${nbrAcessibilidade}` : "") +
         `\n\n===== CHECKLIST MAC (${pendentes.length} itens pendentes) =====\n` +
         JSON.stringify(pendentes.map((i: any) => ({ id: i.id, texto: i.texto, grupo: i.grupo }))) +
         (temas.length ? `\n\n===== TEMAS =====\n${JSON.stringify(temas)}` : ""),
@@ -254,6 +259,7 @@ async function processar(
       ok: true,
       unidadeTerritorial,
       usoDoSoloLido,
+      nbrAcessibilidadeUsada: !!nbrAcessibilidade,
       versaoPrompt: VERSAO_PROMPT_P3_SLOT5,
       modelo: MODELO,
       documentosLidos: escolhidos.map((e) => ({ papel: e.papel, arquivo: e.nome })),

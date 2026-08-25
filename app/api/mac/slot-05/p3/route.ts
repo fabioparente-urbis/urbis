@@ -21,6 +21,7 @@ import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { validarPdf } from "@/lib/mac-motor/slot5/validacaoDocumento";
 import { PROMPT_P3_MAC_SLOT5, VERSAO_PROMPT_P3_SLOT5 } from "@/lib/mac-motor/slot5/promptP3";
 import { TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
+import { contextoNbrAcessibilidade } from "@/lib/mac-motor/slot5/contextoAcessibilidade";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -99,7 +100,11 @@ export async function POST(req: NextRequest) {
 
     const fileUri = await subirPdf(bytes, apiKey, arquivo.name);
 
+    // ÍTEM 48 (ACESSIBILIDADE - NBR9050): a norma inteira, não a memória do modelo dela.
+    const nbrAcessibilidade = await contextoNbrAcessibilidade(pendentes as any);
+
     const contexto =
+      (nbrAcessibilidade ? `\n\n${nbrAcessibilidade}` : "") +
       `\n\n===== CHECKLIST MAC (${pendentes.length} itens pendentes) =====\n` +
       JSON.stringify(pendentes.map((i: any) => ({ id: i.id, texto: i.texto, grupo: i.grupo }))) +
       (temas.length ? `\n\n===== TEMAS =====\n${JSON.stringify(temas)}` : "");
@@ -154,6 +159,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       unidadeTerritorial: /^[A-Z]{2,6}$/.test(utBruta) ? utBruta : null,
+      nbrAcessibilidadeUsada: !!nbrAcessibilidade,
       versaoPrompt: VERSAO_PROMPT_P3_SLOT5,
       modelo: MODELO,
       avaliados: pendentes.length,
