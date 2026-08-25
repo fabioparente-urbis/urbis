@@ -448,6 +448,17 @@ export default function AnaliseAprovacaoProjeto() {
   const [dataDespacho, setDataDespacho] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
   const [emitindoDespacho, setEmitindoDespacho] = useState(false);
+  /* Despacho Interno — idêntico ao Slot 1: mesma rota (/api/despacho-interno, que já é agnóstica
+   * de slot), mesmo gerador, mesma SÉRIE de numeração (tipo=despacho, documento=despacho_interno,
+   * que ocupa coluna própria na análise), mesmos destinatários e mesmo e-mail ao responsável. */
+  const [modalDI, setModalDI] = useState(false);
+  const [numDI, setNumDI] = useState("");
+  const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
+  const [destinoDI, setDestinoDI] = useState("");
+  const [destinoCustomDI, setDestinoCustomDI] = useState("");
+  const [corpoDI, setCorpoDI] = useState("");
+  const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
+  const [gerandoDI, setGerandoDI] = useState(false);
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [marcas, setMarcas] = useState<Record<string, Status>>({});
   const [fontes, setFontes] = useState<Record<string, string>>({});
@@ -846,6 +857,107 @@ export default function AnaliseAprovacaoProjeto() {
 
   /** Número mostrado no cabeçalho: a análise gravada ou a que acabou de ser iniciada. */
   const numeroAnaliseEmAndamento = analise?.numero_analise ?? numeroAnaliseNova;
+
+  /* ── Despacho Interno ─────────────────────────────────────────────────────── */
+
+  async function abrirModalDI() {
+    setNumDIBloqueio(null);
+    setNumDI("");
+    setDataDI(new Date().toLocaleDateString("pt-BR"));
+    setModalDI(true);
+    try {
+      const r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`,
+        { credentials: "include" });
+      const d = await r.json();
+      if (d.ok) setNumDI(String(d.numero).padStart(3, "0"));
+      else setNumDIBloqueio(d.esgotado
+        ? "Faixa esgotada. Acesse Configurações → Numeração."
+        : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração.");
+    } catch {
+      setNumDIBloqueio("Erro ao buscar número de despacho.");
+    }
+  }
+
+  async function gerarDespachoInterno() {
+    setGerandoDI(true);
+    try {
+      const r = await fetch("/api/despacho-interno", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo, tipoProcesso: TIPO_PROCESSO_SLOT5, numeroDespacho: numDI, data: dataDI,
+          destino: destinoDI === "outro" ? destinoCustomDI : destinoDI,
+          corpo: corpoDI, assunto_id: ASSUNTO_ID_SLOT5,
+          pendencias_lip: pendenciasLip, numero_analise: analise?.numero_analise,
+        }),
+      });
+      if (!r.ok) throw new Error(`falha ao gerar (HTTP ${r.status})`);
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `DespachoInterno_${codigo}_${numDI}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setModalDI(false);
+
+      registrar({
+        modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo,
+        detalhe: { numero: numDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI },
+      });
+
+      // Consome o número só depois do download. `documento=despacho_interno` faz o número cair na
+      // coluna própria da análise — despacho ao interessado e interno saem da MESMA série, e sem
+      // esse discriminante um sobrescreveria o número do outro.
+      const numero = parseInt(numDI, 10);
+      if (numero > 0) {
+        let commitOk = false;
+        for (let t = 1; t <= 3 && !commitOk; t++) {
+          try {
+            const rc = await fetch(
+              `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
+              + `&numero=${encodeURIComponent(numero)}&documento=despacho_interno`
+              + (analise ? `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}` : ""),
+              { credentials: "include" },
+            );
+            if (rc.ok || rc.status === 409) { commitOk = true; break; }
+          } catch { /* rede — tenta de novo */ }
+          if (t < 3) await new Promise((res) => setTimeout(res, t * 800));
+        }
+        if (!commitOk) {
+          notificar("⚠ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
+        }
+        if (analise) {
+          const atualizada: Analise = { ...analise, numero_despacho_interno: numDI };
+          setAnalise(atualizada);
+          setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
+        }
+      }
+
+      // MRP — o despacho interno também conta como produção, igual ao Slot 1.
+      fetch("/api/mrp/registros", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          tipo_despacho: "DESPACHO_INTERNO",
+          numero_despacho: numDI,
+          area_construida: areaParaNumero(processo?.areaTotal),
+          interessado: processo?.proprietario ?? null,
+          bairro: processo?.bairro ?? null,
+          numero_sei: processo?.numeroSei ?? codigo,
+          assunto_id: ASSUNTO_ID_SLOT5,
+          tipo_processo: TIPO_PROCESSO_SLOT5,
+          auto_gerado: true,
+        }),
+      }).catch(() => null);
+
+      notificar(`Despacho interno nº ${numDI} baixado.`);
+    } catch (e: any) {
+      notificar(`Erro ao gerar despacho interno: ${e?.message ?? e}`);
+    } finally {
+      setGerandoDI(false);
+    }
+  }
 
   /* ── Emissão do Despacho ao Interessado ───────────────────────────────────── */
 
@@ -1751,6 +1863,7 @@ export default function AnaliseAprovacaoProjeto() {
       });
       notificar(
         `${d.restaurados} item(ns) restaurados na análise ${d.analise}` +
+        (d.observacoesItem ? ` · ${d.observacoesItem} observação(ões) de item` : "") +
         (d.foraDoModelo ? ` · ${d.foraDoModelo} ignorados (fora do checklist do Slot 5)` : ""),
       );
       window.location.reload();
@@ -2957,8 +3070,13 @@ export default function AnaliseAprovacaoProjeto() {
             {emitindoDespacho ? "⏳ Gerando…" : "📄 Despacho"}
           </button>
 
+          <button onClick={abrirModalDI} disabled={gerandoDI}
+            title="Comunicação interna a outra gerência, com o número da mesma série de despachos"
+            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            {gerandoDI ? "⏳ Gerando…" : "📨 Despacho Interno"}
+          </button>
+
           {[
-            { rotulo: "📨 Despacho Interno", cor: "#2563EB" },
             { rotulo: "📑 Laudo", cor: "#059669" },
             { rotulo: "⛔ Indeferimento", cor: "#DC2626" },
           ].map((b) => (
@@ -3015,6 +3133,69 @@ export default function AnaliseAprovacaoProjeto() {
               </button>
               <button onClick={() => setConfirmarLimpar(false)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalDI && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
+              <button onClick={() => setModalDI(false)}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
+            </div>
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
+                  {numDIBloqueio ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700 font-medium">⚠ {numDIBloqueio}</div>
+                  ) : (
+                    <div className="bg-[var(--bg-secondary)] border border-[var(--accent)] rounded-lg px-3 py-2 text-sm font-bold text-[var(--text-primary)]">{numDI || "—"}</div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
+                  <input value={dataDI} onChange={(e) => setDataDI(e.target.value)}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Destinatário</label>
+                <select value={destinoDI} onChange={(e) => setDestinoDI(e.target.value)}
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Selecione...</option>
+                  <option value="GERECCO">GERECCO</option>
+                  <option value="GERAED">GERAED</option>
+                  <option value="GERAGP">GERAGP</option>
+                  <option value="DIRAAP">DIRAAP</option>
+                  <option value="outro">Outro...</option>
+                </select>
+                {destinoDI === "outro" && (
+                  <input value={destinoCustomDI} onChange={(e) => setDestinoCustomDI(e.target.value)}
+                    placeholder="Informe o destinatário"
+                    className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                <textarea value={corpoDI} onChange={(e) => setCorpoDI(e.target.value)} rows={5}
+                  placeholder="Redija o conteúdo do despacho interno..."
+                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={gerarDespachoInterno}
+                disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
+                className="flex-1 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
+              </button>
+              <button onClick={() => setModalDI(false)}
+                className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
                 Cancelar
               </button>
             </div>

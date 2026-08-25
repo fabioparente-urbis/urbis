@@ -23,8 +23,11 @@ import { TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
 
 export const runtime = "nodejs";
 
-/** Muda junto com o formato das colunas — a importação recusa arquivo de versão desconhecida. */
-export const VERSAO_FORMATO = "slot5-mac-1";
+/** Muda junto com o formato das colunas — a importação recusa arquivo de versão desconhecida.
+ * v2 (25/08/2026): ganhou "Observação do item" (restaurável) e "Lei/artigo (BIP)" (só leitura). */
+export const VERSAO_FORMATO = "slot5-mac-2";
+/** Formatos antigos que a importação ainda lê — planilha exportada ontem tem que continuar valendo. */
+export const FORMATOS_ACEITOS = ["slot5-mac-1", "slot5-mac-2"];
 
 const ROTULO: Record<string, string> = {
   conforme: "✅ Conforme",
@@ -65,6 +68,26 @@ export async function GET(req: NextRequest) {
 
     const marcas = (analise?.itens ?? {}) as Record<string, string>;
     const fontes = (analise?.fontes ?? {}) as Record<string, string>;
+    const obsPorItem = (analise?.observacoes_por_item ?? {}) as Record<string, string>;
+
+    // Vínculos com lei/artigo do BIP. São do MODELO (valem para todo processo que usa este
+    // checklist), então não são restaurados na importação — vão na planilha como referência de
+    // leitura, para o analista ver a lei junto do item.
+    const { data: vinculos } = await supabaseAdmin
+      .from("mac_bip_vinculos").select("mac_item_id, bip_fragmento_id").limit(5000);
+    const fragmentoIds = [...new Set((vinculos ?? []).map((v: any) => v.bip_fragmento_id))];
+    const { data: fragmentos } = fragmentoIds.length
+      ? await supabaseAdmin.from("bdi_lei_fragmentos").select("id, referencia").in("id", fragmentoIds)
+      : { data: [] as any[] };
+    const refPorFragmento = new Map((fragmentos ?? []).map((f: any) => [f.id, f.referencia ?? ""]));
+    const leisPorItem = new Map<string, string[]>();
+    for (const v of vinculos ?? []) {
+      const ref = refPorFragmento.get((v as any).bip_fragmento_id);
+      if (!ref) continue;
+      const lista = leisPorItem.get((v as any).mac_item_id) ?? [];
+      lista.push(ref);
+      leisPorItem.set((v as any).mac_item_id, lista);
+    }
 
     const linhas = (itens ?? []).map((it: any) => {
       const fonte = fontes[it.id] ?? "";
@@ -78,6 +101,8 @@ export async function GET(req: NextRequest) {
         "status_valor": marcas[it.id] ?? "",
         "Marcado por": filtro ? `Filtro: ${filtro}` : (marcas[it.id] ? "Analista" : ""),
         "fonte_completa": fonte,
+        "Observação do item": obsPorItem[it.id] ?? "",
+        "Lei/artigo (BIP)": (leisPorItem.get(it.id) ?? []).join(" · "),
       };
     });
 
@@ -85,6 +110,7 @@ export async function GET(req: NextRequest) {
     wsMac["!cols"] = [
       { wch: 38 }, { wch: 34 }, { wch: 80 }, { wch: 18 },
       { wch: 18 }, { wch: 14 }, { wch: 26 }, { wch: 70 },
+      { wch: 60 }, { wch: 30 },
     ];
 
     const wsObs = XLSX.utils.json_to_sheet(

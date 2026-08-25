@@ -16,7 +16,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
-import { VERSAO_FORMATO } from "../exportar/route";
+import { VERSAO_FORMATO, FORMATOS_ACEITOS } from "../exportar/route";
 
 export const runtime = "nodejs";
 
@@ -58,9 +58,12 @@ export async function POST(req: NextRequest) {
         if (l?.Campo) meta[String(l.Campo)] = String(l.Valor ?? "");
       }
     }
-    if (meta.formato && meta.formato !== VERSAO_FORMATO) {
+    // Aceita os formatos anteriores: quem exportou ontem tem que conseguir restaurar hoje. A
+    // planilha antiga simplesmente não traz a coluna de observação por item.
+    if (meta.formato && !FORMATOS_ACEITOS.includes(meta.formato)) {
       return NextResponse.json({
-        ok: false, erro: `planilha de formato "${meta.formato}"; esta versão lê "${VERSAO_FORMATO}"`,
+        ok: false,
+        erro: `planilha de formato "${meta.formato}"; esta versão lê ${FORMATOS_ACEITOS.join(" ou ")}`,
       }, { status: 400 });
     }
     if (meta.processo_codigo && meta.processo_codigo !== codigo) {
@@ -84,12 +87,19 @@ export async function POST(req: NextRequest) {
 
     const itens: Record<string, string> = {};
     const fontes: Record<string, string> = {};
+    const obsPorItem: Record<string, string> = {};
     let semStatus = 0, foraDoModelo = 0;
 
     for (const linha of XLSX.utils.sheet_to_json<any>(wb.Sheets["MAC"])) {
       const id = String(linha["ID do Item"] ?? "").trim();
       if (!id) continue;
       if (!validos.has(id)) { foraDoModelo++; continue; }
+
+      // A observação do item é independente do status: um item ainda pendente pode ter uma nota
+      // do analista, e ela não pode se perder só porque a linha não tinha resposta.
+      const obs = String(linha["Observação do item"] ?? "").trim();
+      if (obs) obsPorItem[id] = obs;
+
       const status = normalizarStatus(linha["status_valor"], linha["Status"]);
       if (!status) { semStatus++; continue; }
       itens[id] = status;
@@ -115,12 +125,19 @@ export async function POST(req: NextRequest) {
       .order("numero_analise", { ascending: false }).limit(1);
     const alvo = (existentes ?? [])[0] as any;
 
+    const temObs = Object.keys(obsPorItem).length;
+
     if (alvo) {
       const { error } = await supabaseAdmin.from("analises_mac")
-        .update({ itens, fontes, ...(observacoes ? { observacoes } : {}) }).eq("id", alvo.id);
+        .update({
+          itens, fontes,
+          ...(observacoes ? { observacoes } : {}),
+          ...(temObs ? { observacoes_por_item: obsPorItem } : {}),
+        }).eq("id", alvo.id);
       if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
       return NextResponse.json({
         ok: true, restaurados: Object.keys(itens).length, foraDoModelo, semStatus,
+        observacoesItem: temObs,
         analise: alvo.numero_analise, criouAnalise: false,
       });
     }
@@ -133,12 +150,13 @@ export async function POST(req: NextRequest) {
       numero_analise: 1,
       status: "em_andamento",
       itens, fontes, aceites: {},
-      observacoes, observacoes_por_aba: {},
+      observacoes, observacoes_por_aba: {}, observacoes_por_item: obsPorItem,
     }).select().maybeSingle();
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
     return NextResponse.json({
       ok: true, restaurados: Object.keys(itens).length, foraDoModelo, semStatus,
+      observacoesItem: temObs,
       analise: (nova as any)?.numero_analise ?? 1, criouAnalise: true,
     });
   } catch (e: any) {
