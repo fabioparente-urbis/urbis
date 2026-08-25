@@ -229,6 +229,13 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o empreendimento não atinge os limites do art. 262 da LC 349/2022",
   },
   {
+    id: "macroprojeto",
+    rotulo: "🏗️ Não é macroprojeto",
+    tema: "empreendimento classificado como macroprojeto",
+    termos: ["MACROPROJETO", "MACROPROJETOS"],
+    explica: "o empreendimento não é macroprojeto",
+  },
+  {
     id: "carga",
     rotulo: "🚚 Carga e descarga",
     tema: "pátio de carga e descarga exigido para o empreendimento",
@@ -524,7 +531,8 @@ export default function AnaliseAprovacaoProjeto() {
   }, [grupos, porGrupo, marcas]);
 
   /** Numeração que o analista usa pra citar uma linha: ÍTEM = posição do grupo no índice,
-   * SUB ITEM = posição dentro do grupo. */
+   * O rótulo na tela é "N.M" (ex.: 19.5), igual à numeração do Excel do Fábio — sem a palavra
+   * "SUB ITEM". */
   const numeroDoItem = useMemo(() => {
     const m = new Map<string, { item: number; sub: number }>();
     grupos.forEach((g, iG) => {
@@ -1656,7 +1664,7 @@ export default function AnaliseAprovacaoProjeto() {
                         <div className="flex-1 min-w-0">
                           <p className="text-[10px] text-[var(--text-muted)] font-semibold uppercase tracking-wide">
                             <span className="font-mono">
-                              ÍTEM {numeroDoItem.get(it.id)?.item ?? "?"} · SUB ITEM {numeroDoItem.get(it.id)?.sub ?? "?"}
+                              {numeroDoItem.get(it.id)?.item ?? "?"}.{numeroDoItem.get(it.id)?.sub ?? "?"}
                             </span>
                             {" — "}{it.grupo}
                           </p>
@@ -1914,7 +1922,7 @@ export default function AnaliseAprovacaoProjeto() {
                         {/* Numeração do sub item dentro do ÍTEM aberto — o analista cita o item pelo
                           * número na hora de conversar sobre o processo. */}
                         <p className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wide mb-0.5">
-                          SUB ITEM {iSub + 1}
+                          {grupos.indexOf(abaAtual) + 1}.{iSub + 1}
                         </p>
                         <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
                         {origem && (
