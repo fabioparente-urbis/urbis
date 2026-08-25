@@ -397,6 +397,14 @@ export default function AnaliseAprovacaoProjeto() {
   const [fontes, setFontes] = useState<Record<string, string>>({});
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorItem, setObservacoesPorItem] = useState<Record<string, string>>({});
+  /* Vínculo de cada subitem com lei/artigo do BIP — é do ITEM DO CHECKLIST (modelo), não do
+   * processo: a lei que um item cita não muda de processo pra processo, então carrega uma vez só
+   * e vale pra qualquer analista que abrir esse mesmo checklist. */
+  const [vinculosBip, setVinculosBip] = useState<Record<string, { id: string; fragmentoId: string; referencia: string; lei: string }[]>>({});
+  const [buscaBipAberta, setBuscaBipAberta] = useState<string | null>(null); // itemId com a busca aberta
+  const [buscaBipQuery, setBuscaBipQuery] = useState("");
+  const [buscaBipResultados, setBuscaBipResultados] = useState<{ id: string; referencia: string; lei: string; trecho: string }[]>([]);
+  const [buscaBipCarregando, setBuscaBipCarregando] = useState(false);
   const [abaAtual, setAbaAtual] = useState<string | null>(null); // null = índice
   const [busca, setBusca] = useState("");
   // Unidade territorial do terreno: sugestão vem do Uso do Solo (LIP) e o analista pode trocar.
@@ -816,6 +824,69 @@ export default function AnaliseAprovacaoProjeto() {
       try { window.localStorage.setItem(`mac5-estudos-${codigo}`, JSON.stringify(novo)); } catch { /* ok */ }
       return novo;
     });
+  }
+
+  /* Vínculo com lei/artigo do BIP — carrega uma vez, quando o checklist termina de carregar. */
+  useEffect(() => {
+    if (carregando || itensChecklist.length === 0) return;
+    fetch("/api/mac/slot-05/bip-vinculos", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.ok) return;
+        const porItem: typeof vinculosBip = {};
+        for (const v of d.vinculos as { id: string; itemId: string; fragmentoId: string; referencia: string; lei: string }[]) {
+          (porItem[v.itemId] ??= []).push({ id: v.id, fragmentoId: v.fragmentoId, referencia: v.referencia, lei: v.lei });
+        }
+        setVinculosBip(porItem);
+      })
+      .catch(() => null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carregando, itensChecklist.length]);
+
+  function abrirBuscaBip(itemId: string) {
+    setBuscaBipAberta((atual) => (atual === itemId ? null : itemId));
+    setBuscaBipQuery("");
+    setBuscaBipResultados([]);
+  }
+
+  useEffect(() => {
+    if (!buscaBipAberta) return;
+    const q = buscaBipQuery.trim();
+    if (q.length < 2) { setBuscaBipResultados([]); return; }
+    setBuscaBipCarregando(true);
+    const t = setTimeout(() => {
+      fetch(`/api/mac/slot-05/bip-busca?q=${encodeURIComponent(q)}`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((d) => setBuscaBipResultados(d?.ok ? d.resultados : []))
+        .catch(() => setBuscaBipResultados([]))
+        .finally(() => setBuscaBipCarregando(false));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [buscaBipQuery, buscaBipAberta]);
+
+  async function vincularBip(itemId: string, fragmentoId: string, referencia: string, lei: string) {
+    const r = await fetch("/api/mac/slot-05/bip-vinculos", {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, fragmentoId }),
+    });
+    const d = await r.json();
+    if (!d.ok) { notificar(`Erro ao vincular: ${d.erro ?? "falha"}`); return; }
+    setVinculosBip((prev) => {
+      const lista = prev[itemId] ?? [];
+      if (lista.some((v) => v.fragmentoId === fragmentoId)) return prev;
+      return { ...prev, [itemId]: [...lista, { id: d.id, fragmentoId, referencia, lei }] };
+    });
+    setBuscaBipAberta(null);
+    notificar(`Vinculado: ${referencia}`);
+  }
+
+  async function desvincularBip(itemId: string, vinculoId: string) {
+    const r = await fetch(`/api/mac/slot-05/bip-vinculos?id=${encodeURIComponent(vinculoId)}`, {
+      method: "DELETE", credentials: "include",
+    });
+    const d = await r.json();
+    if (!d.ok) { notificar(`Erro ao desvincular: ${d.erro ?? "falha"}`); return; }
+    setVinculosBip((prev) => ({ ...prev, [itemId]: (prev[itemId] ?? []).filter((v) => v.id !== vinculoId) }));
   }
 
   /** Tudo que os três motores precisam: o que o LIP trouxe + o que o analista digitou. */
@@ -2060,6 +2131,49 @@ export default function AnaliseAprovacaoProjeto() {
                       rows={1}
                       className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-y"
                     />
+
+                    {/* Vínculo com lei/artigo do BIP — do item do checklist (modelo), vale pra
+                      * qualquer processo que use este mesmo checklist. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(vinculosBip[it.id] ?? []).map((v) => (
+                        <span key={v.id}
+                          className="flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border"
+                          style={{ background: "#EFF6FF", borderColor: "#93C5FD", color: "#1D4ED8" }}
+                          title={v.lei || undefined}>
+                          ⚖️ {v.referencia || "sem referência"}{v.lei ? ` — ${v.lei}` : ""}
+                          <button onClick={() => desvincularBip(it.id, v.id)} title="Desvincular"
+                            className="text-[#1D4ED8] hover:text-red-600 font-bold leading-none">×</button>
+                        </span>
+                      ))}
+                      <button onClick={() => abrirBuscaBip(it.id)}
+                        className="text-[10px] px-1.5 py-0.5 rounded border border-dashed border-[var(--border)] text-[var(--text-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]">
+                        + vincular lei/artigo
+                      </button>
+                    </div>
+
+                    {buscaBipAberta === it.id && (
+                      <div className="border border-[var(--border)] rounded-md bg-[var(--bg-card)] p-2 flex flex-col gap-1.5">
+                        <input autoFocus value={buscaBipQuery} onChange={(e) => setBuscaBipQuery(e.target.value)}
+                          placeholder="Buscar por número de artigo, lei ou palavra (ex.: Art. 90, NBR 9050)..."
+                          className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-[11px] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                        {buscaBipCarregando && <p className="text-[10px] text-[var(--text-muted)]">Buscando…</p>}
+                        {!buscaBipCarregando && buscaBipQuery.trim().length >= 2 && buscaBipResultados.length === 0 && (
+                          <p className="text-[10px] text-[var(--text-muted)]">Nada encontrado no BIP.</p>
+                        )}
+                        {buscaBipResultados.map((r) => (
+                          <button key={r.id} onClick={() => vincularBip(it.id, r.id, r.referencia, r.lei)}
+                            className="text-left px-2 py-1 rounded hover:bg-[var(--bg-card-hover)] border border-transparent hover:border-[var(--border)]">
+                            <p className="text-[10px] font-mono font-semibold text-[#1D4ED8]">{r.referencia}</p>
+                            {r.lei && <p className="text-[10px] text-[var(--text-muted)]">{r.lei}</p>}
+                            <p className="text-[10px] text-[var(--text-secondary)]">{r.trecho}</p>
+                          </button>
+                        ))}
+                        <button onClick={() => setBuscaBipAberta(null)}
+                          className="self-start text-[10px] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                          Fechar
+                        </button>
+                      </div>
+                    )}
                   </div>
                   );
                 })}
