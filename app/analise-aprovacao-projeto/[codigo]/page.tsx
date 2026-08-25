@@ -19,6 +19,8 @@ import type {
   RelatorioImportado as RelatorioContraConferencia,
   AchadoImportado,
 } from "@/lib/mac-motor/slot5/contraConferencia";
+import { useAuditoria } from "@/hooks/useAuditoria";
+import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
 import {
   avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
   type DadosEstudos, type Veredito,
@@ -420,6 +422,9 @@ function origemDoItem(fonte: string | undefined): { icone: string; rotulo: strin
 export default function AnaliseAprovacaoProjeto() {
   const router = useRouter();
   const codigo = decodeURIComponent(String(useParams()?.codigo ?? ""));
+  // Auditoria alimenta o MAP. O Slot 5 não registrava nada — o módulo enxergava
+  // Regularização/Aceite e um buraco no lugar da Aprovação de Projeto.
+  const { registrar } = useAuditoria();
 
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
@@ -840,6 +845,92 @@ export default function AnaliseAprovacaoProjeto() {
 
   /* ── Emissão do Despacho ao Interessado ───────────────────────────────────── */
 
+  /** "dd/mm/aaaa" → "aaaa-mm-dd" (o MRP guarda data ISO). */
+  function dataBRparaISO(d: string): string | null {
+    const m = String(d ?? "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+  }
+
+  /** "3.572,10" → 3572.1 */
+  function areaParaNumero(v: unknown): number | null {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(String(v).replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  /**
+   * Depois de emitir, os módulos satélites precisam saber — mesmas regras do Slot 1:
+   *   · auditoria  → alimenta o MAP (produtividade e auditoria);
+   *   · MRP        → pontuação e produção do analista;
+   *   · MDP        → registro do que SAIU; é dele que os 16 campos de documento emitido do LIP
+   *                  se preenchem sozinhos (ver lib/lipDocumentosEmitidos.ts), o que fecha a
+   *                  rastreabilidade desses campos;
+   *   · tag        → aparece na pilha de processos.
+   *
+   * Tudo best-effort: o despacho já está na mão do analista, e satélite fora do ar não pode
+   * desfazer isso. O que falhar é reportado, nunca engolido em silêncio.
+   */
+  async function registrarNosSatelites(numero: string, data: string, alvo: Analise) {
+    const falhas: string[] = [];
+
+    registrar({
+      modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo,
+      detalhe: { tipo: "despacho", numero, numero_analise: alvo.numero_analise },
+    });
+
+    const naoConformes = itensChecklist.filter((i) => marcas[i.id] === "nao_conforme");
+
+    const resultados = await Promise.allSettled([
+      fetch("/api/mrp/registros", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          tipo_despacho: "despacho",
+          numero_despacho: numero,
+          numero_analise: alvo.numero_analise,
+          area_construida: areaParaNumero(processo?.areaTotal),
+          interessado: processo?.proprietario ?? null,
+          bairro: processo?.bairro ?? null,
+          numero_sei: processo?.numeroSei ?? codigo,
+          assunto_id: ASSUNTO_ID_SLOT5,
+          tipo_processo: TIPO_PROCESSO_SLOT5,
+          data_despacho: dataBRparaISO(data),
+          auto_gerado: true,
+        }),
+      }),
+      fetch("/api/mdp", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          processo_codigo: codigo,
+          assunto_id: ASSUNTO_ID_SLOT5,
+          tipo: "despacho",
+          numero,
+          destinatario: null,
+          data_despacho: data,
+          conteudo: {
+            pendencias_mac: naoConformes.map((i) => ({ grupo: i.grupo, texto: i.texto })),
+            pendencias_lip: pendenciasLip,
+            observacoes: observacoes || "",
+            observacoes_por_item: observacoesPorItem || {},
+          },
+        }),
+      }),
+      fetch("/api/processo/tag", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo,
+          tag: { tipo: "despacho", numero_analise: alvo.numero_analise, numero_despacho: numero, data },
+        }),
+      }),
+    ]);
+
+    const nomes = ["MRP", "MDP", "tag do processo"];
+    resultados.forEach((r, i) => {
+      if (r.status === "rejected" || !r.value.ok) falhas.push(nomes[i]);
+    });
+    if (falhas.length) notificar(`⚠ Despacho emitido, mas falhou registrar em: ${falhas.join(", ")}.`);
+  }
+
   /** Espia o próximo número da faixa sem consumir, e abre o modal. */
   async function abrirModalDespacho() {
     if (!analise) { notificar("Salve a análise antes de emitir o despacho."); return; }
@@ -907,6 +998,8 @@ export default function AnaliseAprovacaoProjeto() {
         setAnalise(atualizada);
         setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
       }
+
+      await registrarNosSatelites(numeroDespacho.trim(), dataDespacho, analise);
       setModalDespacho(false);
       notificar(
         `Despacho nº ${numeroDespacho.trim()} baixado com ${exigencias} exigência(s).`
