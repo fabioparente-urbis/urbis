@@ -1529,10 +1529,21 @@ export default function ProcessoClient() {
   async function handleDespachoInterno() {
     setGerandoDI(true);
     try {
-      const res = await fetch("/api/despacho-interno", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current }),
-      });
+      // O Slot 5 tem despacho interno PRÓPRIO (rota, gerador e cabeçalho dele) — decisão do
+      // Fábio: o ato é da Aprovação de Projeto e não pode depender do da Regularização. Os demais
+      // slots seguem na rota compartilhada, sem mudança de comportamento.
+      const res = tipoUrl === "slot_05"
+        ? await fetch("/api/mac/slot-05/despacho-interno", {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              codigo: idUrl, numeroDespacho: numDI, data: dataDI,
+              destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI,
+            }),
+          })
+        : await fetch("/api/despacho-interno", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current }),
+          });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

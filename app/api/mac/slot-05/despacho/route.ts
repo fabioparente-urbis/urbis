@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     // Todas as análises do processo: a atual (para as exigências) e as demais (para a tabela de etapas).
     const { data: analises } = await supabaseAdmin
       .from("analises_mac")
-      .select("id, numero_analise, itens, data_despacho")
+      .select("id, numero_analise, itens, data_despacho, observacoes_por_item")
       .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
       .is("excluido_em", null).order("numero_analise", { ascending: true }).limit(10);
     if (!analises?.length) {
@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
     // Exigências = itens NÃO CONFORME, na ordem do checklist. Só itens ATIVOS: uma marca presa a
     // item desativado sumiria calada do despacho, então é melhor não existir do que enganar.
     const marcas = ((alvo as any).itens ?? {}) as Record<string, string>;
+    const obsPorItem = ((alvo as any).observacoes_por_item ?? {}) as Record<string, string>;
     const idsNaoConformes = Object.keys(marcas).filter((k) => marcas[k] === "nao_conforme");
 
     let naoConformes: ItemNaoConforme[] = [];
@@ -82,6 +83,8 @@ export async function POST(req: NextRequest) {
         .in("id", idsNaoConformes).order("ordem", { ascending: true }).limit(2000);
       naoConformes = (itens ?? []).map((i: any) => ({
         texto: String(i.texto ?? ""), grupo: String(i.grupo ?? ""), ordem: Number(i.ordem ?? 0),
+        // A observação do analista naquele item sai logo abaixo da exigência no documento.
+        observacao: obsPorItem[i.id] ?? null,
       }));
     }
     const perdidos = idsNaoConformes.length - naoConformes.length;

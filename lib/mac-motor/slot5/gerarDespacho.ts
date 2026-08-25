@@ -25,7 +25,12 @@ import JSZip from "jszip";
 import fs from "fs/promises";
 import path from "path";
 
-export type ItemNaoConforme = { texto: string; grupo: string; ordem: number };
+export type ItemNaoConforme = {
+  texto: string; grupo: string; ordem: number;
+  /** Observação que o analista escreveu NESTE item. Sai logo abaixo da exigência, recuada — é
+   * o complemento dele para aquele item, não uma exigência nova, então não consome número. */
+  observacao?: string | null;
+};
 
 export type DadosDespacho = {
   codigo: string;
@@ -61,7 +66,7 @@ function paragrafoGrupo(titulo: string): string {
 /** Exigência — estilo `Lista` com a numeração automática `numId=6`, a mesma lista 1..N do modelo.
  * O número não é escrito no texto: quem numera é o Word, então a sequência sai contínua entre os
  * grupos sem o gerador ter que contar. */
-function paragrafoItem(texto: string): string {
+function paragrafoItem(texto: string, observacao?: string | null): string {
   const linhas = String(texto ?? "").split("\n").filter((l) => l.trim() !== "");
   if (!linhas.length) return "";
   const rPr = `<w:rPr><w:rFonts w:eastAsia="Batang" w:cstheme="minorHAnsi"/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
@@ -73,9 +78,22 @@ function paragrafoItem(texto: string): string {
   const pPrContinuacao = `<w:pPr><w:pStyle w:val="Lista"/><w:suppressAutoHyphens w:val="0"/>`
     + `<w:spacing w:before="0" w:after="0"/><w:ind w:left="357"/><w:jc w:val="both"/></w:pPr>`;
 
-  return linhas.map((linha, i) =>
+  let saida = linhas.map((linha, i) =>
     `<w:p>${i === 0 ? pPrNumerado : pPrContinuacao}<w:r>${rPr}<w:t xml:space="preserve">${esc(linha.trim())}</w:t></w:r></w:p>`,
   ).join("");
+
+  // Observação do analista: entra LOGO ABAIXO da exigência, recuada e em itálico, fora da lista
+  // numerada — é complemento daquele item, não uma exigência a mais.
+  const obs = String(observacao ?? "").trim();
+  if (obs) {
+    const rPrObs = `<w:rPr><w:rFonts w:eastAsia="Batang" w:cstheme="minorHAnsi"/><w:i/><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr>`;
+    const pPrObs = `<w:pPr><w:pStyle w:val="Lista"/><w:suppressAutoHyphens w:val="0"/>`
+      + `<w:spacing w:before="40" w:after="0"/><w:ind w:left="640"/><w:jc w:val="both"/></w:pPr>`;
+    saida += obs.split("\n").filter((l) => l.trim() !== "").map((linha, i) =>
+      `<w:p>${pPrObs}<w:r>${rPrObs}<w:t xml:space="preserve">${esc(i === 0 ? `Obs.: ${linha.trim()}` : linha.trim())}</w:t></w:r></w:p>`,
+    ).join("");
+  }
+  return saida;
 }
 
 function paragrafoSimples(texto: string, opts: { negrito?: boolean; centralizado?: boolean; antes?: number } = {}): string {
@@ -103,7 +121,9 @@ function montarExigencias(itens: ItemNaoConforme[]): string {
     buckets[g].push(it);
   }
   return ordemGrupos.map((g) =>
-    paragrafoGrupo(g) + buckets[g].sort((a, b) => a.ordem - b.ordem).map((it) => paragrafoItem(it.texto)).join(""),
+    paragrafoGrupo(g)
+    + buckets[g].sort((a, b) => a.ordem - b.ordem)
+      .map((it) => paragrafoItem(it.texto, it.observacao)).join(""),
   ).join("");
 }
 

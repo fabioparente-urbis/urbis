@@ -881,16 +881,18 @@ export default function AnaliseAprovacaoProjeto() {
   async function gerarDespachoInterno() {
     setGerandoDI(true);
     try {
-      const r = await fetch("/api/despacho-interno", {
+      const r = await fetch("/api/mac/slot-05/despacho-interno", {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          codigo, tipoProcesso: TIPO_PROCESSO_SLOT5, numeroDespacho: numDI, data: dataDI,
+          codigo, numeroDespacho: numDI, data: dataDI,
           destino: destinoDI === "outro" ? destinoCustomDI : destinoDI,
-          corpo: corpoDI, assunto_id: ASSUNTO_ID_SLOT5,
-          pendencias_lip: pendenciasLip, numero_analise: analise?.numero_analise,
+          corpo: corpoDI, numero_analise: analise?.numero_analise,
         }),
       });
-      if (!r.ok) throw new Error(`falha ao gerar (HTTP ${r.status})`);
+      if (!r.ok) {
+        const erro = await r.json().catch(() => ({}));
+        throw new Error(erro?.erro ?? `falha ao gerar (HTTP ${r.status})`);
+      }
 
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
