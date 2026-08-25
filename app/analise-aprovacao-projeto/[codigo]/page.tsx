@@ -290,6 +290,13 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o projeto não tem manobrista",
   },
   {
+    id: "planta_popular",
+    rotulo: "🏠 Não é Planta Popular",
+    tema: "projeto de Planta Popular",
+    termos: ["PLANTA POPULAR"],
+    explica: "o projeto não é de Planta Popular",
+  },
+  {
     id: "rampa",
     rotulo: "🪜 Rampa",
     // Um tema só, como o Fábio pediu: a resposta é "não" quando o projeto não tem rampa NENHUMA —
