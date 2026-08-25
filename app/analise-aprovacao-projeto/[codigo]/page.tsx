@@ -3042,18 +3042,11 @@ export default function AnaliseAprovacaoProjeto() {
           </button>
 
           <button
-            onClick={async () => {
-              const novas = { ...marcas };
-              const novasFontes = { ...fontes };
-              for (const i of itensChecklist) if (!novas[i.id]) { novas[i.id] = "conforme"; novasFontes[i.id] = "manual"; }
-              setMarcas(novas);
-              setFontes(novasFontes);
-              await salvar(novas, novasFontes, observacoes);
-              notificar("Itens pendentes marcados como Conforme.");
-            }}
-            className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors"
-            title="Marca como Conforme todo item ainda sem resposta">
-            ✅ Concluir pendentes
+            onClick={() => { setBannerAberto(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            disabled={naoRespondidos.length === 0}
+            className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-50 disabled:cursor-default disabled:hover:bg-[#ECFDF5] disabled:hover:text-[#059669] border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors"
+            title={naoRespondidos.length === 0 ? "Não há itens pendentes" : "Mostra a pilha de itens ainda sem marcação"}>
+            {naoRespondidos.length === 0 ? "TODOS ITENS MARCADOS" : `✅ Concluir pendentes (${naoRespondidos.length})`}
           </button>
 
           {/* ── Documentos do Slot 5 ────────────────────────────────────
@@ -3066,10 +3059,14 @@ export default function AnaliseAprovacaoProjeto() {
 
           <button onClick={abrirModalDespacho} disabled={emitindoDespacho || !analise}
             title={analise
-              ? "Gera o Despacho ao Interessado com as não conformidades desta análise"
+              ? (analise.numero_despacho
+                ? "Gera de novo o mesmo Despacho, com o texto atual da análise"
+                : "Gera o Despacho ao Interessado com as não conformidades desta análise")
               : "Salve a análise antes de emitir o despacho"}
-            className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            {emitindoDespacho ? "⏳ Gerando…" : "📄 Despacho"}
+            className="w-full bg-[var(--ia-bg)] hover:bg-[var(--ia)] hover:text-white disabled:opacity-50 border border-[var(--ia)] text-[var(--ia)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2">
+            {emitindoDespacho
+              ? "⏳ Gerando..."
+              : analise?.numero_despacho ? `🔄 Reemitir Despacho nº ${analise.numero_despacho}` : "📄 Gerar Despacho"}
           </button>
 
           <button onClick={abrirModalDI} disabled={gerandoDI}

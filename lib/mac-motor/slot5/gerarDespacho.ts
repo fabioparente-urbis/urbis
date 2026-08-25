@@ -3,9 +3,11 @@
  *
  * NÃO desenha o documento do zero. Parte de `public/templates/despacho-slot5-base.docx`, que é o
  * próprio "Despacho Geral - Aprovacao.docx" do Fábio com o miolo recortado (ver
- * scripts/montar-template-despacho.py). Assim o despacho emitido sai visualmente IDÊNTICO ao
- * modelo oficial — mesma fonte, mesmos estilos, mesmo cabeçalho com logo, mesmo rodapé, mesma
- * numeração automática — porque é literalmente o mesmo arquivo.
+ * scripts/montar-template-despacho.py). Assim o despacho emitido sai visualmente igual ao modelo
+ * oficial — mesma fonte, mesmos estilos, mesma numeração automática das exigências — com duas
+ * correções feitas por cima do template (o arquivo original, herdado de outra pessoa, não tinha
+ * nem uma nem outra): a logo do Slot 1 (`public/logo_prefeitura.png`, a do template original nunca
+ * apareceu nem nele) e a numeração de página "X/Y" no rodapé (campos `PAGE`/`NUMPAGES`).
  *
  * O que muda por processo:
  *   · cabeçalho: OS / PROJETO Nº / INTERESSADO / ASSUNTO / DESPACHO Nº — tudo vindo do LIP;
@@ -69,28 +71,40 @@ function paragrafoGrupo(titulo: string): string {
 function paragrafoItem(texto: string, observacao?: string | null): string {
   const linhas = String(texto ?? "").split("\n").filter((l) => l.trim() !== "");
   if (!linhas.length) return "";
+  const linhasObs = String(observacao ?? "").trim()
+    ? String(observacao).trim().split("\n").filter((l) => l.trim() !== "")
+    : [];
+  // Um item inteiro (exigência + continuações + observação) não pode ficar partido entre duas
+  // páginas — metade numa folha, metade na outra. `keepNext` em todo parágrafo do item, exceto o
+  // último, gruda todos eles: se não couber inteiro no que resta da página, o Word empurra o bloco
+  // todo pra próxima. `keepLines` evita órfã/viúva dentro de um parágrafo que quebre em mais de
+  // uma linha visual.
+  const totalParagrafos = linhas.length + linhasObs.length;
+  let indice = 0;
+  const keep = () => { indice++; return indice < totalParagrafos ? `<w:keepNext/><w:keepLines/>` : `<w:keepLines/>`; };
+
   const rPr = `<w:rPr><w:rFonts w:eastAsia="Batang" w:cstheme="minorHAnsi"/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>`;
-  const pPrNumerado = `<w:pPr><w:pStyle w:val="Lista"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="6"/></w:numPr>`
+  // `keepNext`/`keepLines` têm posição fixa no schema: logo após `pStyle`, antes de `numPr`.
+  const pPrNumerado = (k: string) => `<w:pPr><w:pStyle w:val="Lista"/>${k}<w:numPr><w:ilvl w:val="0"/><w:numId w:val="6"/></w:numPr>`
     + `<w:suppressAutoHyphens w:val="0"/><w:spacing w:before="120" w:after="0"/>`
     + `<w:ind w:left="0" w:hanging="357"/><w:jc w:val="both"/>`
     + `<w:rPr><w:rFonts w:asciiTheme="minorHAnsi" w:hAnsiTheme="minorHAnsi" w:cstheme="minorHAnsi"/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:pPr>`;
   // Continuação de um item com quebra de linha: mesma margem, sem consumir outro número da lista.
-  const pPrContinuacao = `<w:pPr><w:pStyle w:val="Lista"/><w:suppressAutoHyphens w:val="0"/>`
+  const pPrContinuacao = (k: string) => `<w:pPr><w:pStyle w:val="Lista"/>${k}<w:suppressAutoHyphens w:val="0"/>`
     + `<w:spacing w:before="0" w:after="0"/><w:ind w:left="357"/><w:jc w:val="both"/></w:pPr>`;
 
   let saida = linhas.map((linha, i) =>
-    `<w:p>${i === 0 ? pPrNumerado : pPrContinuacao}<w:r>${rPr}<w:t xml:space="preserve">${esc(linha.trim())}</w:t></w:r></w:p>`,
+    `<w:p>${i === 0 ? pPrNumerado(keep()) : pPrContinuacao(keep())}<w:r>${rPr}<w:t xml:space="preserve">${esc(linha.trim())}</w:t></w:r></w:p>`,
   ).join("");
 
   // Observação do analista: entra LOGO ABAIXO da exigência, recuada e em itálico, fora da lista
   // numerada — é complemento daquele item, não uma exigência a mais.
-  const obs = String(observacao ?? "").trim();
-  if (obs) {
+  if (linhasObs.length) {
     const rPrObs = `<w:rPr><w:rFonts w:eastAsia="Batang" w:cstheme="minorHAnsi"/><w:i/><w:sz w:val="19"/><w:szCs w:val="19"/></w:rPr>`;
-    const pPrObs = `<w:pPr><w:pStyle w:val="Lista"/><w:suppressAutoHyphens w:val="0"/>`
+    const pPrObs = (k: string) => `<w:pPr><w:pStyle w:val="Lista"/>${k}<w:suppressAutoHyphens w:val="0"/>`
       + `<w:spacing w:before="40" w:after="0"/><w:ind w:left="640"/><w:jc w:val="both"/></w:pPr>`;
-    saida += obs.split("\n").filter((l) => l.trim() !== "").map((linha, i) =>
-      `<w:p>${pPrObs}<w:r>${rPrObs}<w:t xml:space="preserve">${esc(i === 0 ? `Obs.: ${linha.trim()}` : linha.trim())}</w:t></w:r></w:p>`,
+    saida += linhasObs.map((linha, i) =>
+      `<w:p>${pPrObs(keep())}<w:r>${rPrObs}<w:t xml:space="preserve">${esc(i === 0 ? `Obs.: ${linha.trim()}` : linha.trim())}</w:t></w:r></w:p>`,
     ).join("");
   }
   return saida;
@@ -146,6 +160,51 @@ function trocarTexto(xml: string, de: string, para: string): string {
   return xml.slice(0, i) + `>${esc(para)}<` + xml.slice(i + alvo.length);
 }
 
+let logoCache: Buffer | null | undefined;
+/** A logo do Slot 1 (`public/logo_prefeitura.png`) — mesma imagem, mesmo arquivo. O template do
+ * Slot 5 trouxe sua própria logo embutida como imagem FLUTUANTE (anchor, atrás do texto), herdada
+ * do "Despacho Geral - Aprovacao.docx" original — mas o Fábio confirmou que ELE TAMBÉM não mostra a
+ * logo ao abrir puro no Word, então o defeito é do arquivo-fonte, não desta geração. Em vez de
+ * tentar consertar um posicionamento flutuante que não dá pra renderizar aqui pra conferir, a logo
+ * do Slot 1 é inserida do zero, do jeito que já se sabe que funciona: imagem INLINE (corre no
+ * texto, sem posição/z-order ambígua), a exemplo de `lib/geradores.ts`. */
+async function logoPrefeitura(): Promise<Buffer | null> {
+  if (logoCache !== undefined) return logoCache;
+  try { logoCache = await fs.readFile(path.join(process.cwd(), "public", "logo_prefeitura.png")); }
+  catch { logoCache = null; }
+  return logoCache;
+}
+
+/** Substitui o parágrafo que hoje só contém a imagem flutuante quebrada por um parágrafo novo,
+ * alinhado à esquerda (mesmo lado da logo no Slot 1), com a logo do Slot 1 inline. Não mexe em
+ * mais nada do cabeçalho — se não achar `<w:drawing>`, não faz nada. */
+function trocarLogoPorInline(h: string, rId: string): string {
+  const idxDrawing = h.indexOf("<w:drawing>");
+  if (idxDrawing === -1) return h;
+  const idxPStart = Math.max(h.lastIndexOf("<w:p ", idxDrawing), h.lastIndexOf("<w:p>", idxDrawing));
+  const fimTag = h.indexOf("</w:p>", idxDrawing);
+  const idxPEnd = fimTag === -1 ? -1 : fimTag + "</w:p>".length;
+  if (idxPStart === -1 || idxPEnd === -1) return h;
+
+  const LARGURA = 2286000; // 240px a 9525 EMU/px — mesma proporção do Slot 1 (lib/geradores.ts)
+  const ALTURA = 1123950; // 118px
+  const novoParagrafo =
+    `<w:p><w:pPr><w:pStyle w:val="Cabealho"/><w:jc w:val="left"/></w:pPr>`
+    + `<w:r><w:rPr><w:noProof/></w:rPr><w:drawing>`
+    + `<wp:inline distT="0" distB="0" distL="0" distR="0">`
+    + `<wp:extent cx="${LARGURA}" cy="${ALTURA}"/>`
+    + `<wp:effectExtent l="0" t="0" r="0" b="0"/>`
+    + `<wp:docPr id="9001" name="LogoSlot5"/>`
+    + `<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>`
+    + `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">`
+    + `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">`
+    + `<pic:nvPicPr><pic:cNvPr id="9001" name="LogoSlot5"/><pic:cNvPicPr><a:picLocks noChangeAspect="1" noChangeArrowheads="1"/></pic:cNvPicPr></pic:nvPicPr>`
+    + `<pic:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+    + `<pic:spPr bwMode="auto"><a:xfrm><a:off x="0" y="0"/><a:ext cx="${LARGURA}" cy="${ALTURA}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`
+    + `</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+  return h.slice(0, idxPStart) + novoParagrafo + h.slice(idxPEnd);
+}
+
 /** Troca a n-ésima ocorrência de `__/__/____` (as 5 linhas da tabela de Controle de Etapas). */
 function trocarDatasEtapas(xml: string, datas: (string | null)[]): string {
   let saida = "";
@@ -164,6 +223,7 @@ export async function gerarDespachoAprovacaoProjeto(dados: DadosDespacho): Promi
   const zip = await JSZip.loadAsync(await fs.readFile(CAMINHO_TEMPLATE));
 
   // ── Cabeçalho (repete em toda página): vem do LIP ─────────────────────────
+  const logo = await logoPrefeitura();
   for (const nome of Object.keys(zip.files).filter((n) => /^word\/header\d+\.xml$/.test(n))) {
     let h = await zip.file(nome)!.async("string");
     if (!h.includes("DESPACHO Nº")) continue;
@@ -173,7 +233,37 @@ export async function gerarDespachoAprovacaoProjeto(dados: DadosDespacho): Promi
     h = trocarTexto(h, "ASSUNTO: ________", `ASSUNTO: ${dados.assunto}`);
     h = trocarTexto(h, "DESPACHO Nº ____ | 2026",
       `DESPACHO Nº ${dados.numeroDespacho} | ${dados.dataEmissao.slice(-4)}`);
+
+    if (logo) {
+      const RID_LOGO = "rIdLogoSlot5";
+      zip.file("word/media/logoSlot5Aprovacao.png", logo);
+      const relsPath = nome.replace("word/", "word/_rels/") + ".rels";
+      let rels = (await zip.file(relsPath)?.async("string"))
+        ?? `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+      if (!rels.includes(RID_LOGO)) {
+        rels = rels.replace("</Relationships>",
+          `<Relationship Id="${RID_LOGO}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logoSlot5Aprovacao.png"/></Relationships>`);
+      }
+      zip.file(relsPath, rels);
+      h = trocarLogoPorInline(h, RID_LOGO);
+    }
+
     zip.file(nome, h);
+  }
+
+  // ── Rodapé: numeração de página compacta "X/Y" (o template não trazia nenhuma) ─
+  for (const nome of Object.keys(zip.files).filter((n) => /^word\/footer\d+\.xml$/.test(n))) {
+    let f = await zip.file(nome)!.async("string");
+    if (!f.includes("diraap.goiania@gmail.com")) continue;
+    const rPr = `<w:rPr><w:b/><w:bCs/><w:color w:val="999999"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`;
+    const numeroPagina =
+      `<w:p><w:pPr><w:pStyle w:val="Rodap"/><w:jc w:val="right"/></w:pPr>`
+      + `<w:fldSimple w:instr=" PAGE "><w:r>${rPr}<w:t>1</w:t></w:r></w:fldSimple>`
+      + `<w:r>${rPr}<w:t>/</w:t></w:r>`
+      + `<w:fldSimple w:instr=" NUMPAGES "><w:r>${rPr}<w:t>1</w:t></w:r></w:fldSimple>`
+      + `</w:p>`;
+    f = f.replace("</w:ftr>", numeroPagina + "</w:ftr>");
+    zip.file(nome, f);
   }
 
   // ── Corpo ─────────────────────────────────────────────────────────────────
