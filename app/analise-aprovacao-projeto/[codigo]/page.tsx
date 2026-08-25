@@ -30,6 +30,13 @@ type Analise = {
   id: string; numero_analise: number; status: string;
   itens: Record<string, Status>; fontes: Record<string, string>; observacoes: string;
   observacoes_por_item?: Record<string, string>;
+  // Números emitidos. Séries distintas: a mesma análise pode sair com despacho E parecer.
+  // A fonte de numeração é a MESMA dos Slots 1 e 2 (/api/numeracao/proximo) — decisão do Fábio:
+  // todos os slots consomem a mesma série, com as mesmas regras.
+  numero_despacho?: string | null;
+  numero_despacho_interno?: string | null;
+  numero_parecer?: string | null;
+  data_despacho?: string | null;
 };
 type FiltroProposto = {
   id: string; nome: string; recomendado: boolean; justificativa: string;
@@ -425,6 +432,9 @@ export default function AnaliseAprovacaoProjeto() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [itensChecklist, setItensChecklist] = useState<Item[]>([]);
   const [analises, setAnalises] = useState<Analise[]>([]);
+  // Número da análise iniciada mas ainda não gravada (a linha só nasce no primeiro salvamento).
+  const [numeroAnaliseNova, setNumeroAnaliseNova] = useState(1);
+  const [modalZerarAnalise, setModalZerarAnalise] = useState<number | null>(null);
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [marcas, setMarcas] = useState<Record<string, Status>>({});
   const [fontes, setFontes] = useState<Record<string, string>>({});
@@ -752,6 +762,73 @@ export default function AnaliseAprovacaoProjeto() {
     setAnalises((prev) => [d.analise, ...prev]);
     return d.analise as Analise;
   }
+
+  /* ── Gerenciamento das 5 análises — mesmas regras do Slot 1/2 ──────────────
+   * Liberação sequencial (a análise N só abre depois que a N-1 existe), no máximo 5, e a nova
+   * NASCE COPIANDO a anterior: reanálise é conferir o que o requerente corrigiu, não recomeçar
+   * do zero. A criação no banco é preguiçosa (garantirAnalise no primeiro salvamento) — igual ao
+   * resto da tela. */
+
+  function selecionarAnalise(a: Analise) {
+    setAnalise(a);
+    setMarcas(a.itens ?? {});
+    setFontes(a.fontes ?? {});
+    setObservacoes(a.observacoes ?? "");
+    setObservacoesPorItem(a.observacoes_por_item ?? {});
+    setAbaAtual(null);
+    setListaFiltrada(null);
+  }
+
+  function iniciarNovaAnalise(n: number) {
+    if (analises.length >= 5) { notificar("Limite de 5 análises atingido."); return; }
+    // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a cópia
+    // independente da ordenação da API.
+    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    setAnalise(null);
+    setMarcas(ultima?.itens ?? {});
+    setFontes(ultima?.fontes ?? {});
+    setObservacoes(ultima?.observacoes ?? "");
+    setObservacoesPorItem(ultima?.observacoes_por_item ?? {});
+    setNumeroAnaliseNova(n);
+    setAbaAtual(null);
+    setListaFiltrada(null);
+    notificar(`Análise ${n} iniciada — copiada da anterior. Salve para gravar.`);
+  }
+
+  function selecionarOuCriarAnalise(n: number) {
+    const existente = analises.find((a) => a.numero_analise === n);
+    if (existente) selecionarAnalise(existente);
+    else iniciarNovaAnalise(n);
+  }
+
+  /** Zera a análise sem excluí-la: os itens voltam a pendente e o número da análise é preservado
+   * (o histórico em `mac_historico` guarda o que existia). */
+  async function zerarAnalise(n: number) {
+    const alvo = analises.find((a) => a.numero_analise === n);
+    if (!alvo) return;
+    setModalZerarAnalise(null);
+    try {
+      const r = await fetch("/api/mac/slot-05/analise", {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: alvo.id, itens: {}, fontes: {}, observacoes: "", observacoes_por_item: {},
+          status: "em_andamento",
+        }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao zerar");
+
+      const zerada: Analise = { ...alvo, itens: {}, fontes: {}, observacoes: "", observacoes_por_item: {}, status: "em_andamento" };
+      setAnalises((prev) => prev.map((a) => (a.id === alvo.id ? zerada : a)));
+      if (analise?.id === alvo.id) selecionarAnalise(zerada);
+      notificar(`Análise ${n} zerada.`);
+    } catch (e: any) {
+      notificar(`Erro ao zerar: ${e?.message ?? e}`);
+    }
+  }
+
+  /** Número mostrado no cabeçalho: a análise gravada ou a que acabou de ser iniciada. */
+  const numeroAnaliseEmAndamento = analise?.numero_analise ?? numeroAnaliseNova;
 
   const salvar = useCallback(async (
     novasMarcas = marcas, novasFontes = fontes, novasObs = observacoes, silencioso = false,
@@ -1700,11 +1777,23 @@ export default function AnaliseAprovacaoProjeto() {
             {processo?.areaTotal && (
               <p className="text-xs text-[var(--text-muted)]">Área total: {processo.areaTotal} m²</p>
             )}
-            {analise && (
-              <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
-                Análise {analise.numero_analise} {analise.status === "em_andamento" ? "em andamento" : `— ${analise.status}`}
-              </p>
-            )}
+            {/* Uma análise pode ter emitido despacho E parecer — são séries distintas. */}
+            {(() => {
+              const emitidos = [
+                analise?.numero_despacho ? `Despacho nº ${analise.numero_despacho}` : null,
+                analise?.numero_despacho_interno ? `Despacho Interno nº ${analise.numero_despacho_interno}` : null,
+                analise?.numero_parecer ? `Parecer nº ${analise.numero_parecer}` : null,
+              ].filter(Boolean);
+              return emitidos.length ? (
+                <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+                  Análise {numeroAnaliseEmAndamento} concluída — {emitidos.join(" e ")}
+                </p>
+              ) : (
+                <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
+                  Análise {numeroAnaliseEmAndamento} em andamento{analise ? "" : " (não salva)"}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Monitor de preenchimento do MAC — dentro do fluxo, nunca sobre o texto */}
@@ -2535,26 +2624,32 @@ export default function AnaliseAprovacaoProjeto() {
         <aside className="w-56 shrink-0 flex flex-col gap-2">
           <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Ações</p>
 
+          {/* Análises 1-5 — mesma regra do Slot 1/2: a N só libera quando a N-1 existe. */}
           {[1, 2, 3, 4, 5].map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
-            const ativa = analise?.numero_analise === n;
+            const jaEmitida = !!(existente?.numero_despacho || existente?.numero_parecer);
+            const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
+            const ativa = numeroAnaliseEmAndamento === n;
             return (
-              <button key={n}
-                onClick={() => {
-                  if (!existente) { notificar(`Análise ${n} ainda não existe.`); return; }
-                  setAnalise(existente);
-                  setMarcas(existente.itens ?? {});
-                  setFontes(existente.fontes ?? {});
-                  setObservacoes(existente.observacoes ?? "");
-                  setObservacoesPorItem(existente.observacoes_por_item ?? {});
-                  setAbaAtual(null);
-                }}
-                className={`w-full py-2 rounded-lg text-sm font-bold border transition-colors ${
-                  ativa ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
-                    : existente ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)] hover:bg-[var(--bg-card-hover)]"
-                      : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border-dashed border-[var(--border)]"}`}>
-                📋 Análise {n}
-              </button>
+              <div key={n} className="flex gap-1 items-stretch">
+                <button
+                  disabled={!liberada && !existente}
+                  onClick={() => selecionarOuCriarAnalise(n)}
+                  title={existente ? `Abrir Análise ${n}` : liberada ? `Iniciar Análise ${n} (copia a anterior)` : `Conclua a Análise ${n - 1} primeiro`}
+                  className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
+                    ativa ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
+                      : jaEmitida ? "bg-[var(--success-bg)] text-[var(--text-primary)] border-[var(--border-strong)]"
+                        : existente || liberada ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)] hover:bg-[var(--bg-card-hover)]"
+                          : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border-dashed border-[var(--border)] cursor-not-allowed opacity-50"}`}>
+                  {jaEmitida ? "✅" : "📋"} Análise {n}
+                </button>
+                {existente && (
+                  <button onClick={() => setModalZerarAnalise(n)} title={`Zerar Análise ${n}`}
+                    className="px-2 rounded-lg text-xs border border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white transition-colors">
+                    🗑️
+                  </button>
+                )}
+              </div>
             );
           })}
 
@@ -2702,6 +2797,32 @@ export default function AnaliseAprovacaoProjeto() {
                 Limpar mesmo assim
               </button>
               <button onClick={() => setConfirmarLimpar(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalZerarAnalise !== null && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--error)] rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-[var(--error)] font-bold text-lg mb-3">⚠️ Zerar Análise {modalZerarAnalise}?</h2>
+            <p className="text-[var(--text-secondary)] text-sm mb-2">
+              Apaga os itens, fontes e observações da <b>Análise {modalZerarAnalise}</b> — inclusive
+              o que os filtros marcaram. Os itens voltam todos para pendente.
+            </p>
+            <p className="text-[var(--text-muted)] text-xs mb-5">
+              A análise não é excluída e continua sendo a nº {modalZerarAnalise}; o histórico guarda
+              o que existia. Exporte o Excel antes se quiser poder restaurar.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => void zerarAnalise(modalZerarAnalise)}
+                className="flex-1 bg-[var(--error)] hover:opacity-90 text-white font-bold py-2 rounded-lg text-sm">
+                Zerar Análise {modalZerarAnalise}
+              </button>
+              <button onClick={() => setModalZerarAnalise(null)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
