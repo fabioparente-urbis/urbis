@@ -199,14 +199,14 @@ type FiltroTema = {
 const FILTROS_TEMA: FiltroTema[] = [
   {
     id: "aeroportuaria",
-    rotulo: "🛫 Zona aeroportuária",
+    rotulo: "🛫 Sem zona aeroportuária",
     tema: "terreno em zona aeroportuária (exige De Acordo da COMAER / ICA / ANAC)",
     termos: ["COMAER", "AERONAUTICA", "AEROPORTUARIA", "AEROPORTUARIAS", "AEROPORTO", "ANAC", "AERODROMO", "ICA"],
     explica: "o terreno não está em zona aeroportuária — cai o que depende de COMAER/ICA/ANAC",
   },
   {
     id: "militar",
-    rotulo: "🎖️ Zona militar",
+    rotulo: "🎖️ Sem zona militar",
     tema: "terreno em zona militar / área de organização militar",
     termos: ["ZONA MILITAR", "AREA MILITAR", "ORGANIZACAO MILITAR", "EXERCITO", "QUARTEL",
              "FORCAS ARMADAS", "MINISTERIO DA DEFESA"],
@@ -214,22 +214,41 @@ const FILTROS_TEMA: FiltroTema[] = [
   },
   {
     id: "central",
-    rotulo: "🏛️ Setor Central / Campinas",
-    tema: "terreno nos setores Central ou Campinas",
+    rotulo: "🏛️ Não é Setor Central",
+    tema: "terreno no Setor Central",
     // "SETORES CENTRAL" cobre "Nos setores Central e Campinas"; "SETOR CENTRAL" cobre o singular.
     termos: ["SETOR CENTRAL", "SETORES CENTRAL"],
-    explica: "o terreno não fica no Setor Central nem no Campinas",
+    explica: "o terreno não fica no Setor Central",
+  },
+  {
+    id: "campinas",
+    rotulo: "🏛️ Não é Setor Campinas",
+    tema: "terreno no Setor Campinas",
+    termos: ["CAMPINAS"],
+    explica: "o terreno não fica no Setor Campinas",
+  },
+  {
+    // "Setor Sul" no checklist aparece nos DOIS sentidos: ord=174 é a regra QUE VALE pra quem
+    // está no Setor Sul; ord=119/120/186 são regras que valem pra quem NÃO ESTÁ ("EXCETO SETOR
+    // SUL") — um filtro por palavra pegaria os quatro e inverteria o sentido dos três últimos.
+    // Por isso só o item certo, por id.
+    id: "sul",
+    rotulo: "🏛️ Não é Setor Sul",
+    tema: "terreno no Setor Sul",
+    termos: [],
+    idsExplicitos: ["ccdad59c-b515-4164-9ce9-c3f70e415630"],
+    explica: "o terreno não fica no Setor Sul",
   },
   {
     id: "eit",
-    rotulo: "🚦 EIT",
+    rotulo: "🚦 Sem EIT",
     tema: "empreendimento sujeito a Estudo de Impacto de Trânsito (EIT/RIT)",
     termos: ["EIT", "RIT", "IMPACTO DE TRANSITO"],
     explica: "o empreendimento não é polo gerador de tráfego pelos limites da Lei 10.977/2023",
   },
   {
     id: "eiv",
-    rotulo: "🏘️ EIV",
+    rotulo: "🏘️ Sem EIV",
     tema: "empreendimento sujeito a Estudo de Impacto de Vizinhança (EIV/RIV)",
     termos: ["EIV", "RIV", "IMPACTO DE VIZINHANCA"],
     explica: "o empreendimento não atinge os limites do art. 262 da LC 349/2022",
@@ -270,7 +289,7 @@ const FILTROS_TEMA: FiltroTema[] = [
   },
   {
     id: "carga",
-    rotulo: "🚚 Carga e descarga",
+    rotulo: "🚚 Sem carga e descarga",
     tema: "pátio de carga e descarga exigido para o empreendimento",
     termos: ["CARGA E DESCARGA", "CARGA/DESCARGA", "DOCA", "DOCAS"],
     explica: "o empreendimento não é obrigado a ter pátio de carga e descarga",
@@ -298,7 +317,7 @@ const FILTROS_TEMA: FiltroTema[] = [
   },
   {
     id: "rampa",
-    rotulo: "🪜 Rampa",
+    rotulo: "🪜 Sem rampa",
     // Um tema só, como o Fábio pediu: a resposta é "não" quando o projeto não tem rampa NENHUMA —
     // nem de veículos (garagem) nem de acessibilidade. Dos 15 itens alcançados, 6 são de
     // estacionamento e 6 da NBR 9050, então a distinção importa antes de marcar.
@@ -308,7 +327,7 @@ const FILTROS_TEMA: FiltroTema[] = [
   },
   {
     id: "lazer",
-    rotulo: "🏊 Área de lazer",
+    rotulo: "🏊 Sem área de lazer",
     tema: "área de lazer no projeto (piscina, playground, quadra, salão de festas)",
     termos: ["LAZER", "RECREACAO", "PLAYGROUND", "PISCINA", "PISCINAS", "DECKS", "DUCHAS",
              "QUADRA ESPORTIVA", "SALAO DE FESTAS", "ESPORTES"],
@@ -323,6 +342,22 @@ function itemCitaTermo(texto: string, termo: string) {
   return new RegExp(`(?<![\\p{L}\\p{N}])${alvo.replace(/\s+/g, "\\s+")}(?![\\p{L}\\p{N}])`, "u").test(t);
 }
 
+/** Embute o que o item tinha ANTES de um filtro marcar por cima, pra "Desfazer" devolver
+ * exatamente aquilo (inclusive uma marcação manual) em vez de só limpar. */
+function embutirRestauracao(fonteNova: string, statusAnterior?: Status, fonteAnterior?: string) {
+  if (!statusAnterior) return fonteNova;
+  const payload = encodeURIComponent(JSON.stringify({ s: statusAnterior, f: fonteAnterior ?? "" }));
+  return `${fonteNova} §R:${payload}`;
+}
+function extrairRestauracao(fonte: string | undefined): { status: Status; fonte: string } | null {
+  const m = (fonte ?? "").match(/ §R:(.+)$/);
+  if (!m) return null;
+  try {
+    const obj = JSON.parse(decodeURIComponent(m[1]));
+    return { status: obj.s as Status, fonte: String(obj.f ?? "") };
+  } catch { return null; }
+}
+
 function itensDoTema(itens: Item[], f: FiltroTema) {
   if (f.idsExplicitos) {
     const alvo = new Set(f.idsExplicitos);
@@ -334,9 +369,12 @@ function itensDoTema(itens: Item[], f: FiltroTema) {
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
 function origemDoItem(fonte: string | undefined): { icone: string; rotulo: string } | null {
   if (!fonte) return null;
-  if (fonte.startsWith("Filtro")) return { icone: "🎛️", rotulo: fonte };
-  if (fonte.startsWith("IA")) return { icone: "🤖", rotulo: fonte };
-  return { icone: "✍️", rotulo: fonte === "manual" ? "Marcado manualmente" : fonte };
+  // "§R:..." é o que "Desfazer" precisa pra devolver a marcação de antes — nunca aparece pro
+  // analista, só o texto legível na frente dele.
+  const legivel = fonte.replace(/ §R:.+$/, "");
+  if (legivel.startsWith("Filtro")) return { icone: "🎛️", rotulo: legivel };
+  if (legivel.startsWith("IA")) return { icone: "🤖", rotulo: legivel };
+  return { icone: "✍️", rotulo: legivel === "manual" ? "Marcado manualmente" : legivel };
 }
 
 export default function AnaliseAprovacaoProjeto() {
@@ -945,14 +983,16 @@ export default function AnaliseAprovacaoProjeto() {
     if (!alvos.length) { notificar(`${f.rotulo}: o checklist não tem item sobre isso.`); return; }
     const novasMarcas = { ...marcas };
     const novasFontes = { ...fontes };
-    let aplicados = 0;
+    let aplicados = 0, substituidos = 0;
     for (const it of alvos) {
-      if (novasMarcas[it.id]) continue;
+      const statusAnterior = novasMarcas[it.id];
+      if (statusAnterior === "nao_aplica" && (novasFontes[it.id] ?? "").startsWith(`Filtro "${f.rotulo}"`)) continue; // já é deste filtro
+      if (statusAnterior) substituidos++;
       novasMarcas[it.id] = "nao_aplica";
-      novasFontes[it.id] = `Filtro "${f.rotulo}" — ${f.explica} (${motivo})`;
+      novasFontes[it.id] = embutirRestauracao(`Filtro "${f.rotulo}" — ${f.explica} (${motivo})`, statusAnterior, novasFontes[it.id]);
       aplicados++;
     }
-    if (!aplicados) { notificar(`${f.rotulo}: todos os itens já estavam respondidos.`); return; }
+    if (!aplicados) { notificar(`${f.rotulo}: todos os itens já estavam marcados por este filtro.`); return; }
     const bloco =
       `━━━ FILTRO APLICADO: ${f.rotulo} ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica (${motivo})\n` +
@@ -960,26 +1000,38 @@ export default function AnaliseAprovacaoProjeto() {
     const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
     setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
     await salvar(novasMarcas, novasFontes, novasObs, true);
-    notificar(`${f.rotulo}: ${aplicados} item(ns) saíram da análise.`);
+    notificar(`${f.rotulo}: ${aplicados} item(ns) marcados` + (substituidos ? ` (${substituidos} substituindo marcação anterior — "Desfazer" devolve).` : "."));
   }
 
+  /** Desfaz um filtro: item que não tinha nada antes volta a ficar em branco; item que tinha uma
+   * marcação (manual ou de outro filtro) recebe exatamente aquela marcação de volta. */
   async function desfazerFiltroTema(f: FiltroTema) {
     const assinatura = `Filtro "${f.rotulo}"`;
     const novasMarcas = { ...marcas };
     const novasFontes = { ...fontes };
-    let devolvidos = 0;
+    let devolvidos = 0, restaurados = 0;
     for (const id of Object.keys(novasFontes)) {
       if (!(novasFontes[id] ?? "").startsWith(assinatura)) continue;
-      delete novasMarcas[id]; delete novasFontes[id]; devolvidos++;
+      const restauro = extrairRestauracao(novasFontes[id]);
+      if (restauro) {
+        novasMarcas[id] = restauro.status;
+        novasFontes[id] = restauro.fonte;
+        restaurados++;
+      } else {
+        delete novasMarcas[id];
+        delete novasFontes[id];
+      }
+      devolvidos++;
     }
     if (!devolvidos) { notificar(`${f.rotulo}: nada a desfazer.`); return; }
     const bloco =
       `━━━ FILTRO DESFEITO: ${f.rotulo} ━━━\n` +
-      `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise`;
+      `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise` +
+      (restaurados ? ` (${restaurados} com a marcação de antes restaurada)` : "");
     const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
     setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
     await salvar(novasMarcas, novasFontes, novasObs, true);
-    notificar(`${f.rotulo} desfeito — ${devolvidos} item(ns) voltaram.`);
+    notificar(`${f.rotulo} desfeito — ${devolvidos} item(ns) voltaram${restaurados ? `, ${restaurados} com a marcação de antes` : ""}.`);
   }
 
   /** Marca (ou limpa) o grupo inteiro de uma vez — grava sempre, como qualquer marcação de item. */
