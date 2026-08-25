@@ -243,6 +243,20 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o empreendimento não é obrigado a ter pátio de carga e descarga",
   },
   {
+    id: "gaveta",
+    rotulo: "🅿️ Não tem vaga de gaveta",
+    tema: "vaga de gaveta (vaga atrás de outra, dependente de manobra) no projeto",
+    termos: ["GAVETA", "GAVETAS"],
+    explica: "o projeto não tem vaga de gaveta",
+  },
+  {
+    id: "manobrista",
+    rotulo: "🧑‍✈️ Sem manobrista",
+    tema: "manobrista no projeto",
+    termos: ["MANOBRISTA", "MANOBRISTAS"],
+    explica: "o projeto não tem manobrista",
+  },
+  {
     id: "rampa",
     rotulo: "🪜 Rampa",
     // Um tema só, como o Fábio pediu: a resposta é "não" quando o projeto não tem rampa NENHUMA —

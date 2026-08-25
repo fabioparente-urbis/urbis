@@ -365,6 +365,9 @@ const REGRAS: Regra[] = [
     grupos: ["SUBSOLO AFLORADO (RECUO E ALTURA)"],
     papeis: ["projeto"],
     termos: ["SUBSOLO"],
+    // + 2 itens avulsos fora do grupo (CORREDOR VIÁRIO, RECUOS) — só existem hoje na linha
+    // "S/ SUBSOLO" de mac_slot5_filtros (itens_ids), que é a fonte viva; este fallback não
+    // tem esse mecanismo por item avulso, só por grupo/termo (pedido do Fábio, 25/08/2026).
   }),
   regraPorAusencia({
     id: "SEM_CARGA_DESCARGA",
