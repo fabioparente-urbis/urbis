@@ -188,7 +188,13 @@ function vereditoDeUnidade(texto: string, minha: string): "outra" | "minha" | "e
  * então todo item do checklist que trata dele sai da análise (Não se Aplica, azul).
  * Os termos casam por palavra inteira e sem acento — "MILITAR" sozinho não entra na lista porque
  * casaria com "CORPO DE BOMBEIROS MILITAR", que é nota de carimbo de todo projeto. */
-type FiltroTema = { id: string; rotulo: string; tema: string; termos: string[]; explica: string };
+type FiltroTema = {
+  id: string; rotulo: string; tema: string; termos: string[]; explica: string;
+  /** Quando presente, ignora `termos` e usa exatamente estes ids — para os casos em que o texto
+   * sozinho não separa um item do outro (ex.: os três itens de "Opção 1/2/3" do índice
+   * paisagístico citam Art. 192 duas vezes; casar por palavra pegaria os dois). */
+  idsExplicitos?: string[];
+};
 
 const FILTROS_TEMA: FiltroTema[] = [
   {
@@ -234,6 +240,33 @@ const FILTROS_TEMA: FiltroTema[] = [
     tema: "empreendimento classificado como macroprojeto",
     termos: ["MACROPROJETO", "MACROPROJETOS"],
     explica: "o empreendimento não é macroprojeto",
+  },
+  {
+    // Os 3 itens de "Opção 1/2/3" do índice paisagístico (ÍTEM 19) — a lei dá três caminhos pra
+    // atender o mesmo requisito, o projeto só precisa atender UM. Marcar a opção usada tira as
+    // outras duas da análise. Por id, não por texto: os três citam Art. 192/85 em comum.
+    id: "ip_opcao_1",
+    rotulo: "🌿 IP Opção 1",
+    tema: 'índice paisagístico atendido pela Opção 1 (Art. 192 LC 349/2022 — 15% permeável)',
+    termos: [],
+    idsExplicitos: ["32451fec-cde2-4a00-81e7-e41bebea0a42", "04085d11-3204-4795-93c5-0e64f0423ff9"],
+    explica: "atendido pela Opção 1 — as opções 2 e 3 não se aplicam",
+  },
+  {
+    id: "ip_opcao_2",
+    rotulo: "🌿 IP Opção 2",
+    tema: 'índice paisagístico atendido pela Opção 2 (Art. 192 LC 349/2022 — 15%/10%/não permeável)',
+    termos: [],
+    idsExplicitos: ["7f6ae634-2db2-4e10-9ad5-dd9fe70256c2", "04085d11-3204-4795-93c5-0e64f0423ff9"],
+    explica: "atendido pela Opção 2 — as opções 1 e 3 não se aplicam",
+  },
+  {
+    id: "ip_opcao_3",
+    rotulo: "🌿 IP Opção 3",
+    tema: 'índice paisagístico atendido pela Opção 3 (Art.85 LC 364/2023 — 25% não permeável)',
+    termos: [],
+    idsExplicitos: ["7f6ae634-2db2-4e10-9ad5-dd9fe70256c2", "32451fec-cde2-4a00-81e7-e41bebea0a42"],
+    explica: "atendido pela Opção 3 — as opções 1 e 2 não se aplicam",
   },
   {
     id: "carga",
@@ -284,6 +317,10 @@ function itemCitaTermo(texto: string, termo: string) {
 }
 
 function itensDoTema(itens: Item[], f: FiltroTema) {
+  if (f.idsExplicitos) {
+    const alvo = new Set(f.idsExplicitos);
+    return itens.filter((it) => alvo.has(it.id));
+  }
   return itens.filter((it) => f.termos.some((termo) => itemCitaTermo(it.texto, termo)));
 }
 
