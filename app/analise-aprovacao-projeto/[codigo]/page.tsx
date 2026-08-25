@@ -773,6 +773,10 @@ export default function AnaliseAprovacaoProjeto() {
     if (!d.ok) throw new Error(d.erro ?? "falha ao criar análise");
     setAnalise(d.analise);
     setAnalises((prev) => [d.analise, ...prev]);
+    registrar({
+      modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo,
+      detalhe: { numero_analise: d.analise?.numero_analise },
+    });
     return d.analise as Analise;
   }
 
@@ -1029,6 +1033,14 @@ export default function AnaliseAprovacaoProjeto() {
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      // Só o salvamento explícito vira evento: o silencioso dispara a cada clique de item e
+      // encheria a auditoria de ruído (o item em si já é registrado em MAC_ITEM_MARCADO).
+      if (!silencioso) {
+        registrar({
+          modulo: "MAC", acao: "MAC_ANALISE_SALVA", processo_codigo: codigo,
+          detalhe: { analise_id: a.id, respondidos: Object.keys(novasMarcas).length },
+        });
+      }
       // Recarrega a trilha: o PUT acabou de registrar as mudanças de status.
       fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${a.id}`,
         { credentials: "include" })
@@ -1096,6 +1108,10 @@ export default function AnaliseAprovacaoProjeto() {
     else { novasMarcas[itemId] = status; novasFontes[itemId] = "manual"; }
     setMarcas(novasMarcas);
     setFontes(novasFontes);
+    registrar({
+      modulo: "MAC", acao: "MAC_ITEM_MARCADO", processo_codigo: codigo,
+      detalhe: { item_id: itemId, status: desmarcando ? null : status },
+    });
     void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
@@ -1678,6 +1694,13 @@ export default function AnaliseAprovacaoProjeto() {
       const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
 
       setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+      registrar({
+        modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo,
+        detalhe: {
+          origem: "ler_pasta", aplicados, avaliados: d.avaliados,
+          modelo: d.modelo, versao_prompt: d.versaoPrompt, arquivos: d.arquivosNaPasta,
+        },
+      });
       await salvar(novasMarcas, novasFontes, novasObs, true);
 
       /* Temas: "existe: nao" = o tema não está neste processo, então o que fala dele sai da análise.
@@ -1722,6 +1745,10 @@ export default function AnaliseAprovacaoProjeto() {
       const r = await fetch("/api/mac/slot-05/importar", { method: "POST", credentials: "include", body: fd });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao importar");
+      registrar({
+        modulo: "MAC", acao: "MAC_EXCEL_IMPORTADO", processo_codigo: codigo,
+        detalhe: { restaurados: d.restaurados, analise: d.analise, fora_do_modelo: d.foraDoModelo ?? 0 },
+      });
       notificar(
         `${d.restaurados} item(ns) restaurados na análise ${d.analise}` +
         (d.foraDoModelo ? ` · ${d.foraDoModelo} ignorados (fora do checklist do Slot 5)` : ""),
