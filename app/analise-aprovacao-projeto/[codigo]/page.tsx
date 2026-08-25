@@ -13,7 +13,7 @@
  * do LIP + texto dos PDFs guardado no MHD) e marca sozinho os grupos que não se aplicam.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
@@ -205,14 +205,6 @@ const FILTROS_TEMA: FiltroTema[] = [
     explica: "o terreno não está em zona aeroportuária — cai o que depende de COMAER/ICA/ANAC",
   },
   {
-    id: "militar",
-    rotulo: "🎖️ Sem zona militar",
-    tema: "terreno em zona militar / área de organização militar",
-    termos: ["ZONA MILITAR", "AREA MILITAR", "ORGANIZACAO MILITAR", "EXERCITO", "QUARTEL",
-             "FORCAS ARMADAS", "MINISTERIO DA DEFESA"],
-    explica: "o terreno não está em zona militar",
-  },
-  {
     id: "central",
     rotulo: "🏛️ Não é Setor Central",
     tema: "terreno no Setor Central",
@@ -333,7 +325,44 @@ const FILTROS_TEMA: FiltroTema[] = [
              "QUADRA ESPORTIVA", "SALAO DE FESTAS", "ESPORTES"],
     explica: "o projeto não tem área de lazer",
   },
+  {
+    id: "baia_desaceleracao",
+    rotulo: "🚗 Sem baia de desaceleração",
+    tema: "baia de desaceleração de velocidade exigida no acesso ao terreno",
+    termos: ["BAIA", "BAIAS"],
+    explica: "o projeto não tem baia de desaceleração",
+  },
+  {
+    id: "saliencia",
+    rotulo: "🧱 Sem saliência",
+    tema: "saliência acessória sobre o recuo (brise, floreira, balcão, beiral...)",
+    termos: ["SALIENCIA", "SALIENCIAS"],
+    explica: "o projeto não tem saliência sobre o recuo",
+  },
 ];
+
+/** Destaca no texto do item onde a busca bateu — compara sem acento/caixa (igual ao filtro dos
+ * grupos), mas devolve o texto ORIGINAL com só o trecho achado em fundo amarelo. */
+function destacarBusca(texto: string, queryBruta: string): ReactNode {
+  const q = semAcento(queryBruta.trim());
+  if (!q) return texto;
+  const alvo = semAcento(texto);
+  if (alvo.length !== texto.length) return texto; // normalização mudou o tamanho — não arrisca destacar errado
+  const partes: ReactNode[] = [];
+  let cursor = 0;
+  let pos = alvo.indexOf(q, cursor);
+  if (pos === -1) return texto;
+  while (pos !== -1) {
+    if (pos > cursor) partes.push(texto.slice(cursor, pos));
+    partes.push(
+      <mark key={pos} style={{ background: "#FDE047", color: "#1a1a1a" }}>{texto.slice(pos, pos + q.length)}</mark>
+    );
+    cursor = pos + q.length;
+    pos = alvo.indexOf(q, cursor);
+  }
+  if (cursor < texto.length) partes.push(texto.slice(cursor));
+  return partes;
+}
 
 /** Termo casado por palavra inteira, sem acento — aceita termo de mais de uma palavra. */
 function itemCitaTermo(texto: string, termo: string) {
@@ -1931,6 +1960,7 @@ export default function AnaliseAprovacaoProjeto() {
               </div>
               <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1.5">
                 Itens do checklist — {gruposFiltrados.length} de {grupos.length} grupos
+                {" · "}{itensChecklist.length - totais.pendente} de {itensChecklist.length} subitens marcados
               </p>
               {/* Legenda das cores do box: o que está marcado dentro do grupo, sem precisar abrir. */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)] mb-3">
@@ -2105,7 +2135,7 @@ export default function AnaliseAprovacaoProjeto() {
                         <p className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wide mb-0.5">
                           {grupos.indexOf(abaAtual) + 1}.{iSub + 1}
                         </p>
-                        <p className="text-xs whitespace-pre-wrap">{it.texto}</p>
+                        <p className="text-xs whitespace-pre-wrap">{destacarBusca(it.texto, busca)}</p>
                         {origem && (
                           <p title={origem.rotulo} className="text-[10px] text-[var(--text-muted)] mt-0.5">
                             {origem.icone} {origem.rotulo}
