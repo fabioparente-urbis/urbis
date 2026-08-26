@@ -13,9 +13,13 @@ interface Props {
   // Callback opcional disparado APÓS o download bem-sucedido do laudo.
   // Usado, por exemplo, para gravar uma tag permanente no processo.
   onSuccess?: () => void;
+  // Portão de pendências do slot que hospeda o botão. Devolve false para
+  // desistir da emissão. Opcional de propósito: quem não passa (Slot 2)
+  // continua com o comportamento antigo, sem pergunta nenhuma.
+  onAntesDeGerar?: () => Promise<boolean>;
 }
 
-export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData }: Props) {
+export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData, onAntesDeGerar }: Props) {
   const [gerando, setGerando] = useState(false);
   // Só é preenchido quando o backend recusa gerar (409) por área
   // divergente — Slot 1 (Regularização SEI). Ver lib/compatibilidadeArea.ts.
@@ -23,6 +27,9 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData }: Pr
 
   async function handleGerar(confirmarDivergenciaArea = false) {
     if (!processoId || gerando) return;
+    // Só na primeira tentativa: `confirmarDivergenciaArea` marca o retorno
+    // depois do alerta de área, e aí a pendência já foi perguntada.
+    if (!confirmarDivergenciaArea && onAntesDeGerar && !(await onAntesDeGerar())) return;
     setGerando(true);
     try {
       const res = await fetch("/api/mac/gerar-laudo", {
