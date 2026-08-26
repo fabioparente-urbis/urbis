@@ -103,7 +103,8 @@ export type Declaracao =
 /**
  * RESULTADO — o que aconteceu NAQUELE processo. Vive no MHD, nunca na matriz.
  *
- * Todo campo termina com um destes. Nenhum desaparece: a soma dos resultados fecha em 136.
+ * Todo campo termina com um destes. Nenhum desaparece: a soma dos resultados fecha no total de
+ * campos da matriz (117 no LIP do Slot 5, ver `lipSlot5.ts`).
  */
 export type Resultado =
   | "ENCONTRADO"        // o valor estava lá e foi lido

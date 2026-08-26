@@ -52,7 +52,7 @@ unidades habitacionais. NÃO aplique LC 181/2008 nem LC 314/2018 — são de reg
 - CERTIDÃO DE MATRÍCULA: proprietário, nº da matrícula, área e dimensões do terreno.
 - ART/RRT: nº, profissional, e se a área declarada bate com a do projeto.
 - ATENDIMENTO (print da tela "Analisar projeto" do sistema Alvará Mais Fácil, quando presente):
-  Licença Prévia, Data de Pagamento da Taxa Inicial, área do terreno, área a construir, nº de
+  Data de Pagamento da Taxa Inicial, área do terreno, área a construir, nº de
   pavimentos, nº das ARTs de execução/caixa/projeto, vagas atendidas, responsável técnico. É a
   fonte principal do item 1 do checklist ("Conferir os dados informados... no Sistema Alvará
   Fácil") — compare o que está aqui contra o carimbo/projeto e aponte divergência com os dois

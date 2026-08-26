@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.7
+**Versão:** 1.8
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -909,6 +909,7 @@ continua podendo trocar a sigla depois, normalmente.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.8 | 2026-08-26 | Sem mudança de comportamento no MAC — o campo `licencaPrevia` foi removido do LIP (ver seção 14 do `MANUAL_SLOT5_LIP.md`) e o único ponto tocado no MAC foi o texto do prompt P3 (`promptP3.ts`), que citava o campo como referência descritiva ao apoiar o ITEM 1; nenhum item do checklist nem filtro dependia dele |
 | 1.7 | 2026-08-26 | Seção 3.5 e 14.9: unidade territorial do LIP volta a valer como preenchimento automático do filtro do MAC (como último fallback, atrás da análise salva e do navegador) — segunda reversão dessa regra, achado ao vivo no 48533 |
 | 1.6 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data, que reordenou os campos da aba INÍCIO (Interessado, Projeto Nº, Ordem de Serviço Nº, Data Pagto. Taxa inicial pro topo; ver seção 13 do `MANUAL_SLOT5_LIP.md`). Reordenação de campo não muda leitura nem checklist |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |

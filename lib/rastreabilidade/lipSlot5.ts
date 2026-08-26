@@ -1,13 +1,18 @@
 /**
  * lib/rastreabilidade/lipSlot5.ts — matriz de rastreabilidade do LIP do slot 5.
  *
- * Contrato técnico: para cada um dos 136 campos, como o URBIS decide o valor.
+ * Contrato técnico: para cada um dos 117 campos, como o URBIS decide o valor. (O "136" que
+ * aparecia aqui antes já estava desatualizado — a contagem real de `CAMPOS_LIP_SLOT5.length`
+ * é 117 desde antes de 26/08/2026; ninguém tinha corrigido o comentário.)
  * Ver `tipos.ts` para o significado de método, regra, versão e hash.
  *
  * NOME EXIBIDO E SEÇÃO não estão aqui — vêm de `lip_campos` e `lip_abas`. A tela junta pela chave.
  *
  * Os construtores abaixo existem para que o PADRÃO fique visível: 33 campos fecham em NP pelo mesmo
- * motivo estrutural, 16 aguardam o mesmo fato. Repetir 136 blocos escondia isso.
+ * motivo estrutural, 16 aguardam o mesmo fato. Repetir 117 blocos escondia isso.
+ *
+ * 118 → 117 em 26/08/2026: `licencaPrevia` removido (0 uso em checklist/filtros/laudo/despacho —
+ * pedido do Fábio, achado ao pesquisar antes de apagar; ver seção 13 do `MANUAL_SLOT5_LIP.md`).
  */
 
 import type { CampoRastreado, Fonte, Metodo, AplicacaoRegra } from "./tipos";
@@ -167,13 +172,6 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     regraSemDado: "processos.numero_os está null em todos os processos",
     responsavel: "(digitação no cadastro do processo)", usaIA: false, versao: 1, alteradoEm: HOJE, preenchidoPor: "analista",
     testes: T_RASTREIO,
-  },
-  {
-    chave: "licencaPrevia", declaracao: "DOCUMENTO_AUSENTE", implementado: false,
-    metodos: ["DOCUMENTO_AUSENTE"], fontePrincipal: "SEM_FONTE",
-    regras: [{ regra: "MARCAR_SEM_DADO", descricao: "não há documento de licença prévia na pasta do processo" }],
-    regraSemDado: "documento não integra os 10 obrigatórios do SEI",
-    responsavel: "—", usaIA: false, versao: 1, alteradoEm: HOJE, testes: T_RASTREIO, preenchidoPor: "nao_preenchido",
   },
   {
     chave: "cheadvN", declaracao: "DOCUMENTO_AUSENTE", implementado: false,

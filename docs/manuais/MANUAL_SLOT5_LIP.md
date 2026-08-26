@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.6
+**Versão:** 1.7
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -772,8 +772,38 @@ processo do Slot 5 sem precisar de deploy. Ordem nova da aba INÍCIO:
 2. `processo` — Projeto Nº
 3. `processoFisico` — Ordem de Serviço Nº
 4. `dataPagtoTaxaInicial` — Data Pagto. Taxa inicial
-5. em diante — Via 1–4, frentes, quadra, lote, bairro, Licença Prévia, Cheadv Nº, IPTU, ARQ/CAU,
-   ENG/CREA, Coordenadas GPS (ordem relativa inalterada)
+5. em diante — Via 1–4, frentes, quadra, lote, bairro, Cheadv Nº, IPTU, ARQ/CAU,
+   ENG/CREA, Coordenadas GPS (ordem relativa inalterada; `licencaPrevia`, que estava aqui, foi
+   removido no mesmo dia — ver seção 14)
+
+---
+
+## 14. Campo removido: `licencaPrevia` (26/08/2026)
+
+Pedido do Fábio: *"Licença Prévia Nº" não tem utilidade alguma, pode ser excluído do LIP* —
+mas só depois de pesquisar as consequências em todos os módulos, não só apagar.
+
+**O que a pesquisa achou:** o campo tinha uma única fonte (regex sobre o print do ATENDIMENTO,
+"Consulta Alvará NNNN NNNN" — o segundo número), passava pelo motor de cruzamento como fonte
+única (nunca gerava divergência nem exigência) e **não era citado em nenhum lugar que importa**:
+nenhum dos 768 itens do checklist do MAC (nem os 10 subitens do ITEM 1, "Alvará Fácil", o mais
+próximo do tema), nenhum filtro em `mac_slot5_filtros`, nenhum gerador de laudo/despacho, nenhum
+satélite (MDP/MHD). A única menção fora do próprio LIP era descritiva, no prompt P3 do MAC
+(`promptP3.ts`), como um dos campos que a IA podia citar ao conferir o ITEM 1 — removida junto.
+
+**O que foi feito:**
+- Apagado o registro em `lip_campos` (linha da aba INÍCIO, `ordem=12`).
+- Removida a chamada `emCascata("licencaPrevia", ...)` e o parser que a alimentava
+  (`lerPastaSlot5.ts`) — o LIP não gasta mais ciclo escrevendo um campo que não existe na tela.
+- Removida a entrada da Matriz de Rastreabilidade (`lipSlot5.ts`) e regenerado
+  `versoes.lock.json` (`--atualizar-lock`) para tirar a chave órfã.
+- `scripts/testar_rastreabilidade.mts` confirma banco↔matriz consistentes: 117 campos dos dois
+  lados. **O "136" da seção 4 já estava desatualizado antes desta mudança** — a contagem viva
+  (`CAMPOS_LIP_SLOT5.length`) era 118 antes de hoje, é 117 agora; a seção 4 é uma foto de 27+ dias
+  atrás e não foi refeita aqui (fora do escopo deste pedido).
+
+Nenhum processo já analisado perde dado: o que já estava gravado em `dados.licencaPrevia` continua
+no JSON do processo, só para de aparecer na tela e de ser escrito em leituras novas.
 
 ---
 
@@ -783,6 +813,7 @@ processo do Slot 5 sem precisar de deploy. Ordem nova da aba INÍCIO:
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.7 | 2026-08-26 | Seção 14: campo `licencaPrevia` removido do LIP (0 uso em checklist/filtros/laudo/despacho, achado ao pesquisar antes de apagar) — banco, cruzamento, matriz de rastreabilidade e lock de versões atualizados juntos |
 | 1.6 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data, que passou a ler `unidadeTerritorialDoUsoDoSolo` do LIP como fallback do filtro de Unidade Territorial (ver seção 14.9 do `MANUAL_SLOT5_MAC.md`). O LIP não ganhou campo nem mudou de comportamento |
 | 1.5 | 2026-08-26 | Seção 13: Interessado, Projeto Nº, Ordem de Serviço Nº e Data Pagto. Taxa inicial movidos para o topo da aba INÍCIO (só reordenação, sem campo novo) |
 | 1.4 | 2026-08-26 | Seção 12.5: "Limpar LIP" passa a gravar de verdade (antes só zerava a tela) e a exigir confirmação por digitação |

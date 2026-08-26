@@ -811,9 +811,6 @@ function lerAtendimento(doc: DocTexto) {
   d.vagasExigidas = vagas("Exigidas");
   d.vagasAtendidas = vagas("Atendidas");
 
-  // "Consulta Alvará 48533 49221" — o segundo número é a licença prévia
-  d.licencaPrevia = (t.match(/Alvar[áa]\s+\d{4,}\s+(\d{4,})/i) || [])[1]
-    || (t.match(/^\s*(\d{4,6})\s+(\d{4,6})\s/m) || [])[2] || null;
   d.dataPagtoTaxa = (t.match(/Data\s+Pagamento\s+Taxa\s+Inicial\s+(\d{2}\/\d{2}\/\d{4})/i) || [])[1]
     || (t.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,40}Data\s+Pagamento\s+Taxa/i) || [])[1] || null;
 
@@ -1444,9 +1441,6 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   ]);
 
   /* Declarados na tela e que o LIP não tinha fonte nenhuma até hoje. */
-  emCascata("licencaPrevia", "LICENÇA PRÉVIA", [
-    { valor: at.licencaPrevia, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
-  ]);
   emCascata("dataPagtoTaxaInicial", "DATA DE PAGAMENTO DA TAXA", [
     { valor: at.dataPagtoTaxa, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
   ]);
