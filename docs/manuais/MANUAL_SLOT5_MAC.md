@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.3
+**Versão:** 1.4
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -838,7 +838,21 @@ Varredura da tela, das 16 rotas, do motor e do estado real do banco. O que foi c
     **dispensado** e os filtros retirariam 16 itens do checklist sozinhos. Código só de zeros
     agora vale **sem dado** — pendência não vira dispensa (`cnaeEhPlaceholder`).
 
-### 14.6 Sinalizado, não alterado
+### 14.6 Monitor de preenchimento — dois anéis lado a lado (26/08/2026)
+
+Os anéis concêntricos escondiam qual número era qual. Agora são dois círculos iguais, lado a
+lado, no mesmo padrão do Monitor IA do LIP:
+
+- **marcado** — respondidos ÷ itens do checklist
+- **por filtro** (azul) — quantos saíram sem o analista marcar
+
+**Pendente, pedido do Fábio na mesma noite e não implementado:** separar um terceiro número, para
+distinguir o que veio dos **filtros do banco** (`mac_slot5_filtros`, calculados a partir dos campos
+do LIP — `COMERCIAL`, `APRO DE PROJ`, `S/ SUBSOLO`…) do que veio dos **filtros de tema**
+(`FILTROS_TEMA`, com emoji, marcados pelo analista ou pela leitura da pasta — `🚦 Sem EIT`,
+`🛫 Sem zona aeroportuária`…). A distinção existe e é visível na fonte gravada de cada item.
+
+### 14.7 Sinalizado, não alterado
 
 - `app/api/mac/slot-05/p3/route.ts` está **sem chamador** desde que `ler-pasta` assumiu; ficou de
   pé com aviso no cabeçalho. Quem for mexer no motor de leitura mexe em `ler-pasta`.
@@ -861,4 +875,5 @@ Varredura da tela, das 16 rotas, do motor e do estado real do banco. O que foi c
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |
 | 1.1 | 2026-08-25 | Auditoria geral do Slot 5 (seção 14): gravação encadeada, escopo por análise, filtro recusado que não volta, observação que se salva sozinha, painel de EIT/EIV/carga, retry do Gemini, trilha de desmarcação, ordem dos grupos no despacho |
 | 1.2 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md` do repositório |
+| 1.4 | 2026-08-26 | Seção 14.6: monitor com dois anéis lado a lado, no padrão do LIP. Conferido contra o motor de cruzamento do LIP da mesma noite (seção 12 do `MANUAL_SLOT5_LIP.md`), que passa a produzir `divergenciasEntreDocumentos` e `declaradoMasNaoEntregue` — a matéria-prima do laço LIP→MAC, ainda não construído |
 | 1.3 | 2026-08-26 | Seção 14.5: sigla da unidade territorial deixa de ser inventada quando o Uso do Solo escreve o nome por extenso, e CNAE de preenchimento (`000000008`) passa a valer "sem dado" em vez de dispensar EIT/EIV sozinho. Conferido contra os defeitos de leitura do LIP da mesma noite (seção 11 do `MANUAL_SLOT5_LIP.md`) |

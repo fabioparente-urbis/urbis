@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.2
+**Versão:** 1.3
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -689,10 +689,68 @@ O log da OBS registra os dois casos junto com a leitura.
 
 ---
 
+## 12. O motor de cruzamento — declarado × entregue (26/08/2026, madrugada)
+
+### 12.1 A regra
+
+Ditada pelo Fábio: *"o ATENDIMENTO tem tudo mas tem que cruzar, pra saber se o ATENDIMENTO tá
+errado ou se os documentos do processo tão errados e cobrar no MAC"*.
+
+O **ATENDIMENTO** (print da tela do Alvará Mais Fácil) é o que o requerente **declarou**. Os
+documentos da pasta são o que ele **entregou**. Analista de projeto confere se batem.
+
+O modelo anterior — cascata de fontes, "se a prancha falhar pega do ATENDIMENTO" — estava errado
+em espírito e foi corrigido: ele pegava a primeira fonte e calava, **escondendo justamente a
+divergência que é a exigência**.
+
+### 12.2 Como funciona
+
+Cada campo coleta TODAS as fontes que o têm e compara, normalizando acento, plural e formatação
+de número (`PARTICIPAÇÕES` = `PARTICIPACOES`; `327,80` = `327.8`). Dois campos novos aparecem na
+ficha quando há o que cobrar:
+
+- **`divergenciasEntreDocumentos`** — as fontes discordam
+- **`declaradoMasNaoEntregue`** — consta na declaração e falta no documento obrigado a trazer
+
+O sistema **não decide quem errou**: mostra "prancha diz 327,80 · ATENDIMENTO declara 345,05" e
+manda cobrar. A decisão é do analista; o que não pode é passar batido.
+
+Achados reais na primeira execução (processo 48535): área construída divergindo em 17 m² entre a
+prancha e a declaração, contratante da ART sendo **outra empresa** (`FARMÁCIA YANOMELO LTDA`
+contra o requerente `OMEGA PARTICIPAÇÕES`), e número de ART declarado diferente do entregue.
+
+### 12.3 O que tornou o cruzamento possível
+
+**Texto corrido.** `extrairPdf` passou a devolver, além do texto agrupado por linha, o texto na
+**ordem em que o PDF emite os itens**. Tabela separa rótulo e valor em células: no ATENDIMENTO o
+cabeçalho "ART" fica numa linha e os números noutra; na ART do CREA o "ART Obra ou serviço" e o
+número caem em células diferentes. A regex não casava com o dado **presente** no documento. Custo
+zero — é o mesmo array de itens. Atenção: **não reordenar** por posição, é a ordem de emissão que
+mantém rótulo e valor juntos.
+
+**Leitor do ATENDIMENTO** (`lerAtendimento`). Traz proprietário, endereço (com quadra e lote),
+IPTU, área do terreno, área a construir, responsável técnico, CAE, situação, licença prévia, data
+de pagamento da taxa, números de ART declarados e vagas exigidas/atendidas com PCD.
+
+**ART** passou a entregar profissional, título, contratante e proprietário — e o número no formato
+do CREA (`ART Obra ou serviço 1020260027990`).
+
+### 12.4 Monitor IA — dois anéis lado a lado
+
+O anel único respondia "do que está preenchido, quanto veio do sistema" — e marcava 100% com
+metade da ficha vazia. Agora são dois círculos iguais, lado a lado:
+
+- **do preenchido** — quanto do que está preenchido veio do sistema
+- **eficiência** (azul) — **campos lidos ÷ campos que o LIP tem**. É o número que mostra se a
+  leitura melhora de um processo para o outro. No 48533, depois desta noite: **81%**.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.3 | 2026-08-26 | Seção 12: motor de cruzamento (declarado no ATENDIMENTO × entregue nos documentos), leitor do ATENDIMENTO, texto corrido no extrator, número da ART no formato do CREA, e o Monitor IA com dois anéis — incluindo a eficiência da leitura |
 | 1.2 | 2026-08-26 | Seção 11: os defeitos de leitura achados nos processos 48533/48535 — `m2` sem expoente derrubando o carimbo inteiro, `proprietario` sem fonte possível, autor do projeto em outro formato — e os dois avisos novos que impedem a leitura de voltar pobre em silêncio |
