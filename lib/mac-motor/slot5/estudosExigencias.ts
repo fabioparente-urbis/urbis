@@ -60,9 +60,24 @@ function soDigitos(v?: string | null) {
   return String(v ?? "").replace(/\D/g, "");
 }
 
+/* O Uso do Solo nem sempre traz um CNAE de verdade. Quando a atividade ainda não foi definida
+ * ele imprime um código de preenchimento — "000000008 · Comércio sem uso definido" é o que veio
+ * nos processos 48533 e 48535 (26/08/2026). Esse código não é uma atividade: tratá-lo como CNAE
+ * real fazia todo gatilho de EIT/EIV responder "dispensado" (não é abastecimento, não é ensino,
+ * não é terminal...), transformando FALTA DE DADO em dispensa automática — exatamente o que a
+ * regra do Slot 5 proíbe. Placeholder agora vale o mesmo que CNAE ausente: "sem dado". */
+export function cnaeEhPlaceholder(cnae: string | null | undefined) {
+  const d = soDigitos(cnae);
+  if (!d) return false;
+  // Só zeros, ou zeros seguidos de um único dígito (000000008, 00000000, 0...) — nenhum CNAE real
+  // começa com zero: a seção A da CNAE começa em 01.
+  return /^0+\d?$/.test(d);
+}
+
 function ehAtividade(cnae: string | null | undefined, prefixos: string[]) {
   const d = soDigitos(cnae);
-  if (!d) return null; // sem CNAE não dá para afirmar nem negar
+  if (!d) return null;                       // sem CNAE não dá para afirmar nem negar
+  if (cnaeEhPlaceholder(cnae)) return null;  // código de preenchimento também não afirma nem nega
   return prefixos.some((p) => d.startsWith(p));
 }
 
@@ -162,14 +177,22 @@ export function avaliarEstudos(d: DadosEstudos): Gatilho[] {
     id: "EIT_TERMINAL", estudo: "EIT", lei: "Lei 10.977/2023, art. 5º, VI e VII",
     descricao: "terminal de cargas ou passageiros, estação férrea ou metrô",
     veredito: terminal === null ? "sem_dado" : terminal ? "exigido" : "dispensado",
-    conta: terminal === null ? "falta o CNAE no Uso do Solo" : `CNAE ${soDigitos(d.cnae) || "—"}`,
+    conta: terminal === null
+      ? (cnaeEhPlaceholder(d.cnae)
+        ? `o Uso do Solo não define a atividade (código ${soDigitos(d.cnae)} — "sem uso definido")`
+        : "falta o CNAE no Uso do Solo")
+      : `CNAE ${soDigitos(d.cnae) || "—"}`,
   });
 
   g.push({
     id: "EIT_AERODROMO", estudo: "EIT", lei: "Lei 10.977/2023, art. 5º, VII",
     descricao: "aeródromo, heliporto ou heliponto",
     veredito: aerodromo === null ? "sem_dado" : aerodromo ? "exigido" : "dispensado",
-    conta: aerodromo === null ? "falta o CNAE no Uso do Solo" : `CNAE ${soDigitos(d.cnae) || "—"}`,
+    conta: aerodromo === null
+      ? (cnaeEhPlaceholder(d.cnae)
+        ? `o Uso do Solo não define a atividade (código ${soDigitos(d.cnae)} — "sem uso definido")`
+        : "falta o CNAE no Uso do Solo")
+      : `CNAE ${soDigitos(d.cnae) || "—"}`,
   });
 
   // ── EIV — LC 349/2022, art. 262 e Lei 11.127/2024, art. 5º ────────────────────────────────

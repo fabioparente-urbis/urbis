@@ -16,7 +16,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
-import { VERSAO_FORMATO, FORMATOS_ACEITOS } from "../exportar/route";
+import { FORMATOS_ACEITOS } from "../exportar/route";
 
 export const runtime = "nodejs";
 
@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const codigo = String(form.get("codigo") ?? "").trim();
     const arquivo = form.get("arquivo") as File | null;
+    // A análise que a tela está mostrando. Sem isto a restauração caía sempre na de maior número.
+    const analiseId = String(form.get("analiseId") ?? "").trim();
     if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
     if (!arquivo) return NextResponse.json({ ok: false, erro: "arquivo obrigatório" }, { status: 400 });
 
@@ -118,12 +120,19 @@ export async function POST(req: NextRequest) {
       ? XLSX.utils.sheet_to_json<any>(wb.Sheets["OBS"]).map((l) => String(l["Observações"] ?? "")).join("\n").trim()
       : "";
 
-    // Grava na análise em aberto; se não houver, cria uma nova com o conteúdo restaurado.
-    const { data: existentes } = await supabaseAdmin.from("analises_mac")
+    // Grava na análise indicada pela tela; sem indicação, na mais recente; se não houver
+    // nenhuma, cria uma nova com o conteúdo restaurado.
+    let qAlvo = supabaseAdmin.from("analises_mac")
       .select("id, numero_analise").eq("processo_codigo", codigo)
-      .eq("tipo_processo", TIPO_PROCESSO_SLOT5).is("excluido_em", null)
-      .order("numero_analise", { ascending: false }).limit(1);
+      .eq("tipo_processo", TIPO_PROCESSO_SLOT5).is("excluido_em", null);
+    if (analiseId) qAlvo = qAlvo.eq("id", analiseId);
+    const { data: existentes } = await qAlvo.order("numero_analise", { ascending: false }).limit(1);
     const alvo = (existentes ?? [])[0] as any;
+    if (analiseId && !alvo) {
+      return NextResponse.json({
+        ok: false, erro: "a análise aberta não foi encontrada neste processo do Slot 5",
+      }, { status: 404 });
+    }
 
     const temObs = Object.keys(obsPorItem).length;
 

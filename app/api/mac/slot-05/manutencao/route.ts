@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { codigo, acao, valor } = await req.json().catch(() => ({}));
+    const { codigo, acao, valor, analiseId } = await req.json().catch(() => ({}));
     if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
 
     const resolucao = await resolverProcessoSlot5(usuario, codigo);
@@ -49,12 +49,23 @@ export async function POST(req: NextRequest) {
 
     // ── Limpar MAC ───────────────────────────────────────────────────────────
     if (acao === "limpar") {
-      const { data: analises } = await supabaseAdmin.from("analises_mac")
-        .select("id, numero_analise, itens, analista_id")
+      // A análise que a TELA está mostrando. Sem `analiseId` a rota limpava sempre a de maior
+      // número — quem estivesse na Análise 1 via a 1 zerar na tela e a 3 zerar no banco.
+      let q = supabaseAdmin.from("analises_mac")
+        .select("id, numero_analise, itens, analista_id, aceites")
         .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
-        .is("excluido_em", null).order("numero_analise", { ascending: false }).limit(1);
+        .is("excluido_em", null);
+      if (analiseId) q = q.eq("id", analiseId);
+      const { data: analises } = await q.order("numero_analise", { ascending: false }).limit(1);
       const alvo = (analises ?? [])[0] as any;
-      if (!alvo) return NextResponse.json({ ok: false, erro: "nenhuma análise para limpar" }, { status: 404 });
+      if (!alvo) {
+        return NextResponse.json({
+          ok: false,
+          erro: analiseId
+            ? "a análise informada não existe neste processo do Slot 5"
+            : "nenhuma análise para limpar",
+        }, { status: 404 });
+      }
 
       const anteriores = (alvo.itens ?? {}) as Record<string, string>;
       const limpos = Object.keys(anteriores).length;
@@ -75,7 +86,7 @@ export async function POST(req: NextRequest) {
               analise_id: alvo.id,
               processo_codigo: codigo,
               tipo_processo: TIPO_PROCESSO_SLOT5,
-              analista_id: alvo.analista_id ?? usuario.id,
+              analista_id: usuario.id,   // quem limpou, não o dono da análise
               checklist_item_id: itemId,
               aba: it?.grupo ?? null,
               item_texto: it?.texto ?? null,
@@ -87,8 +98,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      /* "Limpar" apaga RESPOSTAS. Dentro de `aceites`, só `filtros` é resposta (quais o analista
+       * aceitou/recusou); a sigla da unidade territorial e os números que ele informou à mão
+       * (depósito/produção, pátio, capacidade, alunos) são dado do processo e ficam de pé — zerar
+       * junto obrigaria a redigitar tudo depois de um "Limpar MAC". */
+      const aceitesAntes = (alvo.aceites ?? {}) as Record<string, unknown>;
+      const aceitesDepois = { ...aceitesAntes, filtros: {} };
+
       const { error } = await supabaseAdmin.from("analises_mac")
-        .update({ itens: {}, fontes: {}, aceites: {} }).eq("id", alvo.id);
+        .update({ itens: {}, fontes: {}, aceites: aceitesDepois }).eq("id", alvo.id);
       if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
       return NextResponse.json({ ok: true, limpos, analise: alvo.numero_analise });

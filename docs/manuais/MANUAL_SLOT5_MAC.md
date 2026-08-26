@@ -1,9 +1,26 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.0
-**Data:** 2026-08-25
+**Versão:** 1.3
+**Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
+
+---
+
+> ## ⛔ REGRA SUPREMA DO SLOT 5 — manuais versionados
+>
+> **Toda modificação, ampliação, alteração ou expansão do Slot 5 obriga a atualizar, versionar e
+> datar OS DOIS manuais** — este e o seu par (`MANUAL_SLOT5_LIP.md` e `MANUAL_SLOT5_MAC.md`).
+> Não é opcional e não depende de o trabalho ter tocado só um dos módulos: o manual do módulo que
+> não mudou registra, na mesma data, que foi conferido e o que mudou do outro lado.
+>
+> Ordem obrigatória, antes de encerrar qualquer tarefa do Slot 5:
+> 1. escrever o que mudou na seção certa do manual (não só no histórico);
+> 2. acrescentar a linha nova em **Histórico de versões**, com versão e data;
+> 3. subir o `**Versão:**` e o `**Data:**` do cabeçalho;
+> 4. repetir 1-3 no outro manual.
+>
+> Regra declarada pelo Fábio em 2026-08-25. Registrada também no `CLAUDE.md` do repositório.
 
 ---
 
@@ -99,7 +116,11 @@ rampa por tempo cobre visualmente até 92% enquanto espera.
 **Filtros do banco** (`mac_slot5_filtros`, tabela com 13 filtros cadastrados hoje): filtro acionado
 JÁ marca os itens correspondentes como Não se Aplica; os recomendados aplicam sozinhos ao abrir a
 tela. Botão vira "Desfazer", que devolve só o que veio daquele filtro específico (reconhecido pela
-fonte gravada). Alcançam item pelo **texto** (`termos_item`), não só por grupo — foi assim que o
+fonte gravada). **Desfazer é definitivo** (corrigido em 25/08/2026): a decisão fica gravada em
+`analises_mac.aceites.filtros`, então a aplicação automática da próxima abertura pula o filtro
+recusado. Antes disso, cada visita à tela remarcava exatamente o que o analista tinha desfeito.
+O painel também diz de onde as regras vieram — dos filtros cadastrados ou, se nenhum estiver ativo,
+das regras fixas do código (fallback). Alcançam item pelo **texto** (`termos_item`), não só por grupo — foi assim que o
 filtro "APRO DE PROJ" foi de 25 para 65 itens alcançados e "COMERCIAL" de 60 para 78 (depois de um
 ajuste que também passou a derrubar os dois grupos de índice de aproveitamento).
 
@@ -127,6 +148,15 @@ SEM DADO (pendência nunca vira dispensa automática). Ao abrir o MAC, "dispensa
 o filtro sozinho com os números na fonte; "exigido" não marca nada, só escreve a conta na
 observação de cada item envolvido.
 
+**Painel "🧮 EIT · EIV · Carga e descarga"** (25/08/2026): no índice, recolhido, com um selo de
+veredito para cada um dos três. É onde entram os números que o LIP não tem — área de
+depósito/produção, pátio de carga desenhado, capacidade de reunião, alunos por turno e a marcação
+"atividade do Anexo I da IN 008/2023". Sem esses campos na tela, `avaliarCargaDescarga` nunca saía
+de "sem dado" e o resultado era calculado e jogado fora. O botão "Levar a conta para os N itens"
+aplica o mesmo tratamento do EIT/EIV: **dispensado** retira os itens de carga e descarga da análise
+com a conta na fonte; **exigido** só escreve a conta (e se o pátio desenhado atende o mínimo) na
+observação de cada item — a decisão continua sendo do analista.
+
 ### 3.5 Filtro de Unidade Territorial
 
 Campo no topo do índice, com a sigla escolhida pelo analista (sugestão vem de
@@ -138,6 +168,12 @@ item que trata só de outras Unidades Territoriais. Escolha fica em `localStorag
 APA, APAC, AEIS, AEBT. Casamento por fronteira Unicode (para "AAB" não bater dentro de "ACRÉSCIMO")
 e com regra de exceção: item que cita "exceto AOS e ARAU" nunca é marcado automaticamente (a regra
 ali é invertida, marcar por semelhança daria o resultado errado).
+
+A sigla passou a viver **na análise** (`analises_mac.aceites.unidadeTerritorial`), com o
+`localStorage` só como fallback do que já estava gravado antes — o mesmo vale para os números do
+painel de estudos (`aceites.estudos`). Enquanto morava só no navegador, abrir o processo em outro
+computador (ou limpar o navegador) apagava tudo sem aviso. "Limpar MAC" **não** apaga esses dois:
+eles não são resposta de item.
 
 ### 3.6 Auxílio de "Via / Logradouro"
 
@@ -589,6 +625,11 @@ Formato `slot5-mac-2` (compatível com `-1` da planilha antiga — a importaçã
 fora `observacoes_por_item` — um ciclo backup → limpar MAC → reimportar perdia todas as observações
 por item em silêncio.
 
+**Escopo por análise** (25/08/2026): exportar, importar, "Limpar MAC" e LER PASTA agora recebem o
+`analiseId` da tela. Antes todos agiam na análise de MAIOR NÚMERO — quem estivesse conferindo a
+Análise 1 baixava a planilha da 3, limpava a 3 achando que limpava a 1, e mandava ao Gemini a lista
+de pendências da 3.
+
 **Marcas órfãs**: a análise do 50724 tem marcas apontando para itens que a reconciliação (seção 7)
 desativou — descartadas corretamente no Excel e no despacho, mas ainda inflam o registro bruto.
 Limpeza pendente, nunca pedida explicitamente.
@@ -633,8 +674,13 @@ Confirmado por script rodando a mesma lógica da rota contra os arquivos reais d
 6 PDFs ao Gemini funciona (os 2 bugs acima não travam mais), mas a chamada final `generateContent`
 bateu em **503 (sobrecarga do servidor do Google) 4 vezes seguidas** — não é bug de código, é
 externo, mesmo padrão já visto no teste histórico do 44353 (seção 5). **Ninguém nunca viu o
-resultado classificado de verdade.** Retomar rodando fora do horário de pico do Gemini, ou trocando
-temporariamente o modelo.
+resultado classificado de verdade.**
+
+Mitigação de 25/08/2026: a rota repete a chamada final até 3 vezes em 429/500/502/503/504, com
+espera crescente e o motivo visível na barra de progresso — um 503 não joga mais fora a pasta
+inteira que acabou de subir. `maxOutputTokens` passou a ser explícito e, quando o Gemini devolve
+resposta vazia, o erro diz o `finishReason` (MAX_TOKENS, bloqueio…) em vez do genérico "resposta do
+Gemini não é JSON". Ainda vale rodar fora do horário de pico.
 
 ---
 
@@ -733,8 +779,86 @@ método/regra, MHD, BIP como módulo satélite), ver `MANUAL_SLOT5_LIP.md`, seç
 
 ---
 
+## 14. Auditoria geral do Slot 5 — 25/08/2026
+
+Varredura da tela, das 16 rotas, do motor e do estado real do banco. O que foi corrigido:
+
+### 14.1 Perda de dados
+
+1. **Gravação encadeada apagava a anterior.** Toda ação que grava (`marcar`, filtros, LER PASTA,
+   EIT/EIV) montava seu mapa a partir do `marcas` da renderização em que a função nasceu. Numa
+   sequência dentro do mesmo clique — LER PASTA aplica os itens da IA e, logo depois, cada filtro
+   de tema que a leitura confirmou — a segunda gravação salvava por cima da primeira e **apagava
+   do banco as sugestões da IA que acabaram de ser gravadas**. Corrigido com um estado
+   autoritativo em `useRef` (`estadoRef`): quem MUTA lê do ref, que é atualizado de forma
+   síncrona; quem só EXIBE continua lendo o state.
+2. **Observação por item e OBS geral só iam para o banco por acaso.** Digitar e fechar a aba
+   perdia o texto. Agora salvam ao sair do campo (`onBlur`) e 1,5s depois da última tecla.
+3. **Duas análises criadas por dois cliques rápidos.** Como qualquer marcação grava na hora, dois
+   cliques num MAC ainda sem linha no banco entravam ao mesmo tempo em `garantirAnalise` e criavam
+   duas. Agora a criação em voo fica num ref e o segundo clique espera a mesma promessa.
+
+### 14.2 Ação na análise errada
+
+4. **Exportar / Importar / Limpar MAC / LER PASTA** agiam sempre na análise de maior número, e
+   não na que estava aberta. Todos passaram a receber o `analiseId` da tela; a rota devolve 404
+   quando o id não pertence ao processo.
+5. **O histórico não trocava junto com a análise.** Selecionar a Análise 1 mostrava a trilha da 3.
+
+### 14.3 Trabalho refeito
+
+6. **Filtro desfeito voltava a cada abertura** (ver 3.4).
+7. **Unidade territorial e números de estudo só no navegador** (ver 3.5).
+8. **Toast a cada abertura** ("Filtros avaliados — nada novo a retirar") removido; o registro de
+   filtros na OBS passou a contar o que REALMENTE foi marcado, não o alcance total do filtro.
+
+### 14.4 Trilha e documento
+
+9. **Desmarcar não entrava no histórico.** A comparação só percorria as chaves do mapa novo; item
+   devolvido para pendente some do mapa e ficava fora da trilha. Agora a comparação é sobre a
+   união das chaves e a saída é registrada com `status_novo = "limpo"` — o mesmo rótulo que
+   "Limpar MAC" já usava.
+10. **A trilha creditava o dono da análise, não quem alterou.** Corrigido: `mac_historico` grava o
+    usuário logado.
+11. **Ordem dos grupos no despacho podia divergir da tela.** Onze grupos do Slot 5 têm itens
+    acrescentados depois, com `ordem` na casa dos 9000; um grupo cuja única não conformidade
+    estivesse num deles descia para o fim do documento. O despacho passou a ordenar os grupos pela
+    MENOR ordem do grupo no checklist — a mesma posição do "ÍTEM N" do índice.
+
+### 14.5 Achados na noite de 26/08, com processo real na mão
+
+12. **A sigla da unidade territorial era inventada.** O Uso do Solo do 48535 escreve
+    `ÁREA DE ADENSAMENTO BÁSICO` sem a sigla; `siglaDaUnidade` pescava "a última palavra curta" e
+    adotava **`BASICO`** (no 48533, `AREA`; em "ÁREA DE OCUPAÇÃO SUSTENTÁVEL", **`DE`**). Agora usa
+    a tabela de nomes por extenso que o próprio `promptP3.ts` já declara — `AAB`, `AA`, `AOS`,
+    `ADD` — e, quando não reconhece, deixa **em branco** em vez de chutar.
+13. **CNAE de preenchimento tratado como atividade real.** O Uso do Solo dos dois traz
+    `000000008 — Comércio sem uso definido`. A IA lia certo, mas o motor tratava o código como uma
+    atividade conhecida que simplesmente não era nenhuma das listadas: EIT e EIV iam para
+    **dispensado** e os filtros retirariam 16 itens do checklist sozinhos. Código só de zeros
+    agora vale **sem dado** — pendência não vira dispensa (`cnaeEhPlaceholder`).
+
+### 14.6 Sinalizado, não alterado
+
+- `app/api/mac/slot-05/p3/route.ts` está **sem chamador** desde que `ler-pasta` assumiu; ficou de
+  pé com aviso no cabeçalho. Quem for mexer no motor de leitura mexe em `ler-pasta`.
+- `app/api/mac/slot-05/executar-piloto/route.ts` também não tem chamador de tela — é exercitada
+  pelo `scripts/testar_mac_motor_slot5.mts`.
+- `aplicabilidade.ts` (482 linhas) é **fallback**: com 13 filtros ativos em `mac_slot5_filtros`,
+  ele nunca roda. O painel de filtros agora diz qual dos dois está no ar.
+- Dois itens ativos do checklist compartilham `ordem = 52` (grupos CARIMBO e PROCESSOS
+  MODIFICAÇÃO SEM ACRÉSCIMO). Não afeta a numeração da tela porque são de grupos diferentes, mas
+  é candidato à próxima reconciliação.
+- O filtro **MEDIO PORTE** está cadastrado sem grupos, itens nem termos: alcança zero itens e
+  aparece corretamente em "Sem dado para decidir". Falta configurá-lo em Gerenciar Filtros.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |
+| 1.1 | 2026-08-25 | Auditoria geral do Slot 5 (seção 14): gravação encadeada, escopo por análise, filtro recusado que não volta, observação que se salva sozinha, painel de EIT/EIV/carga, retry do Gemini, trilha de desmarcação, ordem dos grupos no despacho |
+| 1.2 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md` do repositório |
+| 1.3 | 2026-08-26 | Seção 14.5: sigla da unidade territorial deixa de ser inventada quando o Uso do Solo escreve o nome por extenso, e CNAE de preenchimento (`000000008`) passa a valer "sem dado" em vez de dispensar EIT/EIV sozinho. Conferido contra os defeitos de leitura do LIP da mesma noite (seção 11 do `MANUAL_SLOT5_LIP.md`) |

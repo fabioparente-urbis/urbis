@@ -137,7 +137,7 @@ export async function PUT(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { id, itens, fontes, observacoes, observacoes_por_item, status } = await req.json().catch(() => ({}));
+    const { id, itens, fontes, observacoes, observacoes_por_item, status, aceites } = await req.json().catch(() => ({}));
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatório" }, { status: 400 });
 
     // trava de escopo: só atualiza se a análise for mesmo do Slot 5
@@ -158,15 +158,21 @@ export async function PUT(req: NextRequest) {
       const { data: antes } = await supabaseAdmin.from("analises_mac")
         .select("itens, analista_id").eq("id", id).maybeSingle();
       const anteriores = ((antes as any)?.itens ?? {}) as Record<string, string>;
-      const alterados = Object.keys(itens).filter((k) => itens[k] !== anteriores[k]);
+      // A união das duas chaves: um item DESMARCADO some do mapa novo, então comparar só as
+      // chaves de `itens` deixava toda limpeza/desfazer fora da trilha — o histórico mostrava a
+      // marcação aparecendo e nunca sumindo (regra do CLAUDE.md: nada some em silêncio).
+      const alterados = [...new Set([...Object.keys(itens), ...Object.keys(anteriores)])]
+        .filter((k) => (itens[k] ?? null) !== (anteriores[k] ?? null));
 
       if (alterados.length) {
         const modeloId = await modeloDoSlot5();
+        // Quem ASSINA a mudança é quem está mexendo agora, não o dono da análise: a trilha
+        // responde "quem alterou", e creditar outro analista falsifica a auditoria do MAP.
         const [{ data: checkItens }, { data: analista }, { data: proc }] = await Promise.all([
           modeloId
             ? supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref").eq("modelo_id", modeloId)
             : Promise.resolve({ data: [] as any[] }),
-          supabaseAdmin.from("usuarios").select("nome, gerencia").eq("id", (antes as any)?.analista_id ?? "").maybeSingle(),
+          supabaseAdmin.from("usuarios").select("nome, gerencia").eq("id", usuario.id).maybeSingle(),
           supabaseAdmin.from("processos").select("dados").eq("codigo", (alvo as any).processo_codigo)
             .eq("tipo_processo", TIPO).maybeSingle(),
         ]);
@@ -180,7 +186,7 @@ export async function PUT(req: NextRequest) {
             processo_codigo: (alvo as any).processo_codigo,
             tipo_processo: TIPO,
             area_total: d?.areaTotal?.valor ? Number(String(d.areaTotal.valor).replace(/\./g, "").replace(",", ".")) : null,
-            analista_id: (antes as any)?.analista_id ?? usuario.id,
+            analista_id: usuario.id,
             analista_nome: (analista as any)?.nome ?? null,
             analista_gerencia: (analista as any)?.gerencia ?? null,
             proprietario: d?.proprietario?.valor ?? null,
@@ -191,7 +197,9 @@ export async function PUT(req: NextRequest) {
             item_texto: it?.texto ?? null,
             referencia_legal: it?.ref ?? null,
             status_anterior: anteriores[itemId] ?? null,
-            status_novo: itens[itemId],
+            // Sem resposta nova = o item foi devolvido para pendente. "limpo" é o mesmo rótulo
+            // que a rota de manutenção já usa, para o histórico falar uma língua só.
+            status_novo: itens[itemId] ?? "limpo",
           };
         }));
       }
@@ -202,6 +210,7 @@ export async function PUT(req: NextRequest) {
       ...(fontes !== undefined ? { fontes } : {}),
       ...(observacoes !== undefined ? { observacoes } : {}),
       ...(observacoes_por_item !== undefined ? { observacoes_por_item } : {}),
+      ...(aceites !== undefined ? { aceites } : {}),
       ...(status !== undefined ? { status } : {}),
     }).eq("id", id);
 

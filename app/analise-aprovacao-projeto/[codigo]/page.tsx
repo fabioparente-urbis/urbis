@@ -23,7 +23,7 @@ import { useAuditoria } from "@/hooks/useAuditoria";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
 import {
   avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
-  type DadosEstudos, type Veredito,
+  type DadosEstudos,
 } from "@/lib/mac-motor/slot5/estudosExigencias";
 
 type Status = "conforme" | "nao_conforme" | "nao_aplica";
@@ -39,6 +39,13 @@ type Analise = {
   numero_despacho_interno?: string | null;
   numero_parecer?: string | null;
   data_despacho?: string | null;
+  /* Tudo que o analista decide e NÃO é resposta de item. Vive na análise, não no navegador:
+   *   · `filtros`  — quais ele já aceitou/recusou. Sem isto, a aplicação automática da abertura
+   *                  remarcava, a cada visita, exatamente o que ele tinha desfeito;
+   *   · `unidadeTerritorial` e `estudos` — a sigla da UT e os números que o LIP não tem
+   *                  (depósito/produção, pátio desenhado, capacidade, alunos). Ficavam só no
+   *                  localStorage: trocar de computador, ou limpar o navegador, apagava tudo. */
+  aceites?: Aceites | null;
 };
 type FiltroProposto = {
   id: string; nome: string; recomendado: boolean; justificativa: string;
@@ -47,11 +54,26 @@ type FiltroProposto = {
 };
 type Proposta = {
   total: number; camposPreenchidos: number;
+  /** "banco" = filtros cadastrados em Gerenciar Filtros · "codigo" = regras fixas de fallback. */
+  origem?: "banco" | "codigo";
   filtros: FiltroProposto[];
   indecisas: { regraId: string; nome: string; camposFaltando: string[] }[];
 };
 
 const ABA_OBS = "__OBS__";
+
+/** Decisões da análise que não são resposta de item. Gravadas em `analises_mac.aceites`. */
+type Aceites = {
+  filtros?: Record<string, "aceito" | "recusado">;
+  unidadeTerritorial?: string;
+  estudos?: Partial<ManuaisEstudos>;
+};
+
+/** Números que o LIP não tem e o analista informa — EIT/EIV e carga e descarga dependem deles. */
+type ManuaisEstudos = {
+  areaDepositoProducao: string; areaPatioProjetada: string; atividadeAnexoI: boolean;
+  capacidadeReuniao: string; alunosPorTurno: string;
+};
 
 const ESTILO: Record<Status, { bg: string; borda: string; texto: string; icone: string; rotulo: string }> = {
   conforme: { bg: "#ECFDF5", borda: "#059669", texto: "#059669", icone: "✅", rotulo: "Conforme" },
@@ -156,15 +178,37 @@ function reUnidade(sigla: string) {
   return new RegExp(`(?<![\\p{L}\\p{N}])${sigla}(?![\\p{L}\\p{N}])`, "u");
 }
 
-/** Extrai a sigla do que vier: "ÁREA DE ADENSAMENTO BÁSICO - AAB" → "AAB"; "aos" → "AOS". */
+/* Nome por extenso → sigla. Nem todo Uso do Solo escreve a sigla entre parênteses: o do 50724
+ * termina em "- AAB", mas o do 48535 escreve só "ÁREA DE ADENSAMENTO BÁSICO" e o do 48533 só
+ * "ÁREA ADENSÁVEL". A tabela abaixo é a MESMA que o prompt do Slot 5 já declara em
+ * `lib/mac-motor/slot5/promptP3.ts` — não é dedução minha sobre a lei. */
+const NOME_DA_UNIDADE: { termo: string; sigla: string }[] = [
+  { termo: "ADENSAMENTO BASICO", sigla: "AAB" },
+  { termo: "DESACELERACAO DA DENSIDADE", sigla: "ADD" },
+  { termo: "DESACELERACAO DE DENSIDADE", sigla: "ADD" },
+  { termo: "OCUPACAO SUSTENTAVEL", sigla: "AOS" },
+  { termo: "AREA ADENSAVEL", sigla: "AA" },
+];
+
+/** Extrai a sigla do que vier: "ÁREA DE ADENSAMENTO BÁSICO - AAB" → "AAB"; "aos" → "AOS";
+ * "ÁREA DE ADENSAMENTO BÁSICO" (sem a sigla escrita) → "AAB", pela tabela acima.
+ *
+ * O que NÃO faz mais: inventar sigla. A versão anterior devolvia "a última palavra curta", então
+ * "ÁREA DE ADENSAMENTO BÁSICO" virava "BASICO" e "ÁREA DE OCUPAÇÃO SUSTENTÁVEL" virava "DE" —
+ * lixo que ia parar no campo da tela como se fosse unidade territorial. Sem reconhecer, devolve
+ * vazio e o analista digita: melhor em branco do que errado (regra do Slot 5, nunca chutar). */
 function siglaDaUnidade(bruto: string) {
-  const limpo = semAcento(String(bruto ?? "")).toUpperCase().replace(/[^A-Z0-9 ]+/g, " ");
-  const tokens = limpo.split(/\s+/).filter((t) => /^[A-Z]{2,6}$/.test(t));
+  const limpo = semAcento(String(bruto ?? "")).toUpperCase().replace(/[^A-Z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!limpo) return "";
+  const tokens = limpo.split(" ").filter((t) => /^[A-Z]{2,6}$/.test(t));
   const conhecida = tokens.find((t) => UNIDADES_TERRITORIAIS.includes(t));
   if (conhecida) return conhecida;
-  // Sigla nova (o Fábio pode digitar outra): fica a última palavra curta, que é como o Uso do Solo
-  // escreve ("... - XYZ").
-  return tokens.length ? tokens[tokens.length - 1] : "";
+  const porNome = NOME_DA_UNIDADE.find((n) => limpo.includes(n.termo));
+  if (porNome) return porNome.sigla;
+  // Sigla curta digitada à mão pelo analista (inclusive uma nova, fora da lista): só quando o
+  // texto inteiro É a sigla — não quando é uma frase da qual se pescaria uma palavra qualquer.
+  if (/^[A-Z]{2,6}$/.test(limpo)) return limpo;
+  return "";
 }
 
 /** Siglas de UT citadas por um item. */
@@ -467,6 +511,33 @@ export default function AnaliseAprovacaoProjeto() {
   const [fontes, setFontes] = useState<Record<string, string>>({});
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorItem, setObservacoesPorItem] = useState<Record<string, string>>({});
+
+  /* ── Estado autoritativo da análise ────────────────────────────────────────────────────────
+   * O state do React só chega na PRÓXIMA renderização. Várias ações do MAC encadeiam gravações
+   * dentro de um mesmo clique — LER PASTA aplica os itens da IA e, logo em seguida, cada filtro
+   * de tema que a leitura confirmou; o mesmo vale para EIT/EIV. Cada uma dessas funções nasceu
+   * na MESMA renderização, então todas enxergariam o `marcas` de ANTES: a segunda gravação salva
+   * por cima da primeira e apaga o que ela acabou de marcar (bug real: as sugestões da IA sumiam
+   * do banco assim que um filtro de tema era aplicado na sequência).
+   *
+   * Este ref é a versão que vale AGORA. Toda mutação passa por `aplicarEstado`, que atualiza o
+   * ref na hora (síncrono) e o state para a tela. Quem for MUTAR lê de `estadoRef.current`;
+   * quem for só EXIBIR continua lendo o state. */
+  const estadoRef = useRef<{
+    marcas: Record<string, Status>; fontes: Record<string, string>;
+    observacoes: string; observacoesPorItem: Record<string, string>;
+  }>({ marcas: {}, fontes: {}, observacoes: "", observacoesPorItem: {} });
+
+  const aplicarEstado = useCallback((p: {
+    marcas?: Record<string, Status>; fontes?: Record<string, string>;
+    observacoes?: string; observacoesPorItem?: Record<string, string>;
+  }) => {
+    estadoRef.current = { ...estadoRef.current, ...p };
+    if (p.marcas) setMarcas(p.marcas);
+    if (p.fontes) setFontes(p.fontes);
+    if (p.observacoes !== undefined) setObservacoes(p.observacoes);
+    if (p.observacoesPorItem) setObservacoesPorItem(p.observacoesPorItem);
+  }, []);
   /* Vínculo de cada subitem com lei/artigo do BIP — é do ITEM DO CHECKLIST (modelo), não do
    * processo: a lei que um item cita não muda de processo pra processo, então carrega uma vez só
    * e vale pra qualquer analista que abrir esse mesmo checklist. */
@@ -487,10 +558,8 @@ export default function AnaliseAprovacaoProjeto() {
    * pátio desenhado, capacidade de reunião, alunos por turno). Os manuais ficam por processo no
    * navegador, como a unidade territorial. */
   const [lipEstudos, setLipEstudos] = useState<DadosEstudos | null>(null);
-  const [manuais, setManuais] = useState<{
-    areaDepositoProducao: string; areaPatioProjetada: string; atividadeAnexoI: boolean;
-    capacidadeReuniao: string; alunosPorTurno: string;
-  }>({ areaDepositoProducao: "", areaPatioProjetada: "", atividadeAnexoI: false, capacidadeReuniao: "", alunosPorTurno: "" });
+  const [manuais, setManuais] = useState<ManuaisEstudos>(
+    { areaDepositoProducao: "", areaPatioProjetada: "", atividadeAnexoI: false, capacidadeReuniao: "", alunosPorTurno: "" });
   // Lista aberta a partir de um número clicável do painel (ex.: "Pendentes"). Clicar num item
   // dela manda pro grupo dele e destaca — não é uma aba nova, some ao navegar pra outro lugar.
   const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
@@ -515,6 +584,9 @@ export default function AnaliseAprovacaoProjeto() {
   // Começa recolhido: abrir a tela não deve empurrar a lista de itens pra baixo.
   const [painelFiltros, setPainelFiltros] = useState(false);
   const [decisoes, setDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
+  /* Espelho síncrono de `decisoes`: decidir dois filtros seguidos (aceitar um, desfazer o outro)
+   * acontece antes do React re-renderizar, e a segunda decisão precisa enxergar a primeira. */
+  const decisoesRef = useRef<Record<string, "aceito" | "recusado">>({});
   const [lendoLip, setLendoLip] = useState(false);
   const [importando, setImportando] = useState(false);
   const [macIncompleto, setMacIncompleto] = useState(false);
@@ -531,6 +603,16 @@ export default function AnaliseAprovacaoProjeto() {
   const rampaPastaRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  /* Autosave da observação digitada: 1,5s depois da última tecla. Complementa o `onBlur` — quem
+   * escreve e fecha a aba sem tirar o foco do campo não perde o texto. */
+  const obsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const salvarObsRef = useRef<() => void>(() => {});
+  const agendarSalvarObs = useCallback(() => {
+    if (obsTimer.current) clearTimeout(obsTimer.current);
+    obsTimer.current = setTimeout(() => { salvarObsRef.current(); }, 1500);
+  }, []);
+  useEffect(() => () => { if (obsTimer.current) clearTimeout(obsTimer.current); }, []);
+
   const notificar = useCallback((m: string) => {
     setToast(m);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -546,7 +628,7 @@ export default function AnaliseAprovacaoProjeto() {
     novasObs: string, analiseAtual: Analise | null,
   ) => {
     try {
-      let alvo = analiseAtual;
+      const alvo = analiseAtual;
       if (!alvo) {
         const r = await fetch("/api/mac/slot-05/analise", {
           method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -591,12 +673,20 @@ export default function AnaliseAprovacaoProjeto() {
         setAnalises(d.analises ?? []);
         const atual: Analise | undefined = (d.analises ?? [])[0];
         const marcasAtuais = atual?.itens ?? {};
+        aceitesRef.current = (atual?.aceites ?? {}) as Aceites;
+        const decisoesSalvas: Record<string, "aceito" | "recusado"> =
+          (aceitesRef.current.filtros ?? {}) as Record<string, "aceito" | "recusado">;
         if (atual) {
           setAnalise(atual);
-          setMarcas(marcasAtuais);
-          setFontes(atual.fontes ?? {});
-          setObservacoes(atual.observacoes ?? "");
-          setObservacoesPorItem(atual.observacoes_por_item ?? {});
+          analiseRef.current = atual;
+          aplicarEstado({
+            marcas: marcasAtuais,
+            fontes: atual.fontes ?? {},
+            observacoes: atual.observacoes ?? "",
+            observacoesPorItem: atual.observacoes_por_item ?? {},
+          });
+          decisoesRef.current = decisoesSalvas;
+          setDecisoes(decisoesSalvas);
           fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${atual.id}`,
             { credentials: "include" })
             .then((r) => r.json())
@@ -617,11 +707,15 @@ export default function AnaliseAprovacaoProjeto() {
         if (cancelado) return;
         if (dp.ok && dp.filtros?.length) {
           setProposta(dp);
-          const recomendados = (dp.filtros as FiltroProposto[]).filter((f) => f.recomendado);
+          // Filtro que o analista já desfez NÃO volta sozinho. Sem esta linha, cada abertura da
+          // tela remarcava exatamente o que ele tinha acabado de devolver para a análise.
+          const recomendados = (dp.filtros as FiltroProposto[])
+            .filter((f) => f.recomendado && decisoesSalvas[f.id] !== "recusado");
 
           const novasMarcas: Record<string, Status> = { ...marcasAtuais };
           const novasFontes: Record<string, string> = { ...(atual?.fontes ?? {}) };
           const aplicadosPorFiltro: Record<string, "aceito"> = {};
+          const quantosPorFiltro = new Map<string, number>();
           let aplicados = 0;
 
           for (const f of recomendados) {
@@ -633,21 +727,26 @@ export default function AnaliseAprovacaoProjeto() {
               n++;
             }
             aplicadosPorFiltro[f.id] = "aceito";
+            quantosPorFiltro.set(f.id, n);
             aplicados += n;
           }
 
-          setDecisoes(aplicadosPorFiltro);
+          decisoesRef.current = { ...decisoesSalvas, ...aplicadosPorFiltro };
+          setDecisoes(decisoesRef.current);
 
           if (aplicados > 0) {
             const bloco =
               `━━━ FILTROS APLICADOS AUTOMATICAMENTE ━━━\n` +
               `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica\n` +
-              recomendados.map((f) => `  • ${f.nome}: ${f.qtd} item(ns)\n    ↳ ${f.justificativa}`).join("\n");
+              // Só quem realmente marcou algo agora entra no registro — antes a lista mostrava o
+              // alcance total do filtro, mesmo quando ele não tinha nada novo a retirar.
+              recomendados
+                .filter((f) => (quantosPorFiltro.get(f.id) ?? 0) > 0)
+                .map((f) => `  • ${f.nome}: ${quantosPorFiltro.get(f.id)} item(ns)\n    ↳ ${f.justificativa}`)
+                .join("\n");
             const novasObs = (atual?.observacoes ?? "") ? `${bloco}\n\n${atual!.observacoes}` : bloco;
 
-            setMarcas(novasMarcas);
-            setFontes(novasFontes);
-            setObservacoes(novasObs);
+            aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
             await salvarDireto(novasMarcas, novasFontes, novasObs, atual ?? null);
             // A gravação acabou de criar os registros da trilha — recarrega.
             if (atual) {
@@ -658,9 +757,9 @@ export default function AnaliseAprovacaoProjeto() {
                 .catch(() => null);
             }
             notificar(`${aplicados} item(ns) já marcados como Não se Aplica por ${recomendados.length} filtro(s). Desfaça o que discordar.`);
-          } else {
-            notificar("Filtros avaliados — nada novo a retirar.");
           }
+          // Sem aviso quando nada mudou: abrir a tela não pode gerar um toast toda vez. O painel
+          // "🎛️ Ver filtros" continua mostrando o que foi avaliado.
         }
       } catch (e) {
         if (!cancelado) setErro(String(e));
@@ -777,22 +876,77 @@ export default function AnaliseAprovacaoProjeto() {
     return () => clearTimeout(t);
   }, [itemFoco, abaAtual]);
 
+  /* MAC novo: a linha da análise só nasce no primeiro salvamento. Como QUALQUER marcação de item
+   * grava na hora, dois cliques rápidos entravam aqui ao mesmo tempo (o `analise` do state ainda
+   * era null nos dois) e criavam DUAS análises no banco. O ref guarda a criação em voo para o
+   * segundo clique esperar a mesma promessa em vez de abrir outra. */
+  const analiseRef = useRef<Analise | null>(null);
+  const criandoAnalise = useRef<Promise<Analise> | null>(null);
+
   async function garantirAnalise(itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>) {
-    if (analise) return analise;
-    const r = await fetch("/api/mac/slot-05/analise", {
-      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ codigo, itens: itensIniciais ?? {}, fontes: fontesIniciais ?? {} }),
-    });
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.erro ?? "falha ao criar análise");
-    setAnalise(d.analise);
-    setAnalises((prev) => [d.analise, ...prev]);
-    registrar({
-      modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo,
-      detalhe: { numero_analise: d.analise?.numero_analise },
-    });
-    return d.analise as Analise;
+    const jaTem = analise ?? analiseRef.current;
+    if (jaTem) return jaTem;
+    if (criandoAnalise.current) return criandoAnalise.current;
+
+    criandoAnalise.current = (async () => {
+      const r = await fetch("/api/mac/slot-05/analise", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo, itens: itensIniciais ?? {}, fontes: fontesIniciais ?? {} }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao criar análise");
+      analiseRef.current = d.analise as Analise;
+      setAnalise(d.analise);
+      setAnalises((prev) => [d.analise, ...prev]);
+      // A UT e os números informados antes de a análise existir só moravam no navegador —
+      // agora que existe uma linha, vão para o banco junto.
+      if (Object.keys(aceitesRef.current).length) salvarAceites({});
+      registrar({
+        modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo,
+        detalhe: { numero_analise: d.analise?.numero_analise },
+      });
+      return d.analise as Analise;
+    })();
+    try {
+      return await criandoAnalise.current;
+    } catch (e) {
+      criandoAnalise.current = null; // deixa tentar de novo no próximo salvamento
+      throw e;
+    }
   }
+
+  /** Recarrega a trilha da análise informada — a tela mostra o histórico DELA, não o da última. */
+  const carregarHistorico = useCallback((analiseId: string | null) => {
+    if (!analiseId) { setHistorico([]); return; }
+    fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${analiseId}`,
+      { credentials: "include" })
+      .then((r) => r.json())
+      .then((h) => { if (h.ok) setHistorico(h.historico ?? []); })
+      .catch(() => null);
+  }, [codigo]);
+
+  /* Saco de decisões da análise (ver o tipo `Aceites`). O ref é a versão que vale agora; a
+   * gravação é adiada 800ms para digitar a sigla da UT não virar uma requisição por tecla. */
+  const aceitesRef = useRef<Aceites>({});
+  const aceitesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const salvarAceites = useCallback((patch: Aceites) => {
+    aceitesRef.current = { ...aceitesRef.current, ...patch };
+    if (aceitesTimer.current) clearTimeout(aceitesTimer.current);
+    const gravar = async () => {
+      const alvo = analiseRef.current;
+      if (!alvo) return;   // MAC ainda não gravado: o primeiro salvamento leva junto
+      try {
+        await fetch("/api/mac/slot-05/analise", {
+          method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: alvo.id, aceites: aceitesRef.current }),
+        });
+      } catch { /* conveniência: falhar aqui não pode derrubar a análise */ }
+    };
+    aceitesTimer.current = setTimeout(() => { void gravar(); }, 800);
+  }, []);
+
+  useEffect(() => () => { if (aceitesTimer.current) clearTimeout(aceitesTimer.current); }, []);
 
   /* ── Gerenciamento das 5 análises — mesmas regras do Slot 1/2 ──────────────
    * Liberação sequencial (a análise N só abre depois que a N-1 existe), no máximo 5, e a nova
@@ -802,12 +956,20 @@ export default function AnaliseAprovacaoProjeto() {
 
   function selecionarAnalise(a: Analise) {
     setAnalise(a);
-    setMarcas(a.itens ?? {});
-    setFontes(a.fontes ?? {});
-    setObservacoes(a.observacoes ?? "");
-    setObservacoesPorItem(a.observacoes_por_item ?? {});
+    analiseRef.current = a;
+    aplicarEstado({
+      marcas: a.itens ?? {}, fontes: a.fontes ?? {},
+      observacoes: a.observacoes ?? "", observacoesPorItem: a.observacoes_por_item ?? {},
+    });
+    aceitesRef.current = (a.aceites ?? {}) as Aceites;
+    decisoesRef.current = (aceitesRef.current.filtros ?? {}) as Record<string, "aceito" | "recusado">;
+    setDecisoes(decisoesRef.current);
+    if (aceitesRef.current.unidadeTerritorial !== undefined) setUnidadeTerritorial(aceitesRef.current.unidadeTerritorial);
+    if (aceitesRef.current.estudos) setManuais((p) => ({ ...p, ...aceitesRef.current.estudos }));
     setAbaAtual(null);
     setListaFiltrada(null);
+    // A trilha é POR ANÁLISE: sem recarregar, a tela seguia mostrando o histórico da anterior.
+    carregarHistorico(a.id);
   }
 
   function iniciarNovaAnalise(n: number) {
@@ -816,10 +978,16 @@ export default function AnaliseAprovacaoProjeto() {
     // independente da ordenação da API.
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setAnalise(null);
-    setMarcas(ultima?.itens ?? {});
-    setFontes(ultima?.fontes ?? {});
-    setObservacoes(ultima?.observacoes ?? "");
-    setObservacoesPorItem(ultima?.observacoes_por_item ?? {});
+    analiseRef.current = null;
+    criandoAnalise.current = null;
+    aplicarEstado({
+      marcas: ultima?.itens ?? {}, fontes: ultima?.fontes ?? {},
+      observacoes: ultima?.observacoes ?? "", observacoesPorItem: ultima?.observacoes_por_item ?? {},
+    });
+    aceitesRef.current = (ultima?.aceites ?? {}) as Aceites;
+    decisoesRef.current = (aceitesRef.current.filtros ?? {}) as Record<string, "aceito" | "recusado">;
+    setDecisoes(decisoesRef.current);
+    setHistorico([]);
     setNumeroAnaliseNova(n);
     setAbaAtual(null);
     setListaFiltrada(null);
@@ -1091,7 +1259,7 @@ export default function AnaliseAprovacaoProjeto() {
     if (!analise || !numeroDespacho.trim()) return;
     setEmitindoDespacho(true);
     try {
-      await salvar(marcas, fontes, observacoes, true);
+      await salvar(undefined, undefined, undefined, true);
 
       const r = await fetch("/api/mac/slot-05/despacho", {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
@@ -1150,8 +1318,9 @@ export default function AnaliseAprovacaoProjeto() {
   }
 
   const salvar = useCallback(async (
-    novasMarcas = marcas, novasFontes = fontes, novasObs = observacoes, silencioso = false,
-    novasObsPorItem = observacoesPorItem,
+    novasMarcas = estadoRef.current.marcas, novasFontes = estadoRef.current.fontes,
+    novasObs = estadoRef.current.observacoes, silencioso = false,
+    novasObsPorItem = estadoRef.current.observacoesPorItem,
   ) => {
     setSalvando(true);
     try {
@@ -1174,11 +1343,7 @@ export default function AnaliseAprovacaoProjeto() {
         });
       }
       // Recarrega a trilha: o PUT acabou de registrar as mudanças de status.
-      fetch(`/api/mac/slot-05/historico?codigo=${encodeURIComponent(codigo)}&analiseId=${a.id}`,
-        { credentials: "include" })
-        .then((rh) => rh.json())
-        .then((h) => { if (h.ok) setHistorico(h.historico ?? []); })
-        .catch(() => null);
+      carregarHistorico(a.id);
       if (!silencioso) notificar("✅ Salvo.");
     } catch (e: any) {
       notificar(`Erro ao salvar: ${e?.message ?? e}`);
@@ -1187,6 +1352,9 @@ export default function AnaliseAprovacaoProjeto() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marcas, fontes, observacoes, observacoesPorItem, analise, codigo, notificar]);
+
+  // Liga o autosave da observação ao `salvar` desta renderização.
+  salvarObsRef.current = () => { void salvar(undefined, undefined, undefined, true); };
 
   /* Volta de "Via / Logradouros": as vias salvas viram a observação do item da largura de rua e o
    * MAC é gravado na hora — o analista não precisa nem digitar nem lembrar de salvar. Roda depois
@@ -1207,7 +1375,7 @@ export default function AnaliseAprovacaoProjeto() {
         if (!texto) return;
         const alvos = itensChecklist.filter((i) => itemDeLarguraDeVia(i.texto));
         if (!alvos.length) return;
-        const novas = { ...observacoesPorItem };
+        const novas = { ...estadoRef.current.observacoesPorItem };
         let mudou = false;
         for (const it of alvos) {
           const atual = (novas[it.id] ?? "").trim();
@@ -1217,8 +1385,8 @@ export default function AnaliseAprovacaoProjeto() {
           mudou = true;
         }
         if (!mudou || cancelado) return;
-        setObservacoesPorItem(novas);
-        await salvar(marcas, fontes, observacoes, true, novas);
+        aplicarEstado({ observacoesPorItem: novas });
+        await salvar(undefined, undefined, undefined, true, novas);
         notificar("📏 Largura de via preenchida pela consulta ao Cadastro de Logradouros — MAC salvo.");
       } catch {
         /* conveniência: se a consulta falhar, o analista digita como sempre fez */
@@ -1233,13 +1401,13 @@ export default function AnaliseAprovacaoProjeto() {
    * GRAVA NA HORA (pedido do Fábio): qualquer marcação de item salva o MAC, para ninguém perder
    * trabalho por sair da tela sem clicar em Salvar. */
   function marcar(itemId: string, status: Status) {
-    const desmarcando = marcas[itemId] === status;
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const { marcas: base, fontes: baseFontes } = estadoRef.current;
+    const desmarcando = base[itemId] === status;
+    const novasMarcas = { ...base };
+    const novasFontes = { ...baseFontes };
     if (desmarcando) { delete novasMarcas[itemId]; delete novasFontes[itemId]; }
     else { novasMarcas[itemId] = status; novasFontes[itemId] = "manual"; }
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes });
     registrar({
       modulo: "MAC", acao: "MAC_ITEM_MARCADO", processo_codigo: codigo,
       detalhe: { item_id: itemId, status: desmarcando ? null : status },
@@ -1254,8 +1422,9 @@ export default function AnaliseAprovacaoProjeto() {
   useEffect(() => {
     if (carregando || unidadeCarregada.current) return;
     unidadeCarregada.current = true;
-    const guardada = typeof window !== "undefined"
-      ? window.localStorage.getItem(`mac5-ut-${codigo}`) : null;
+    // A análise manda; o navegador é só o fallback de quem informou a sigla antes desta mudança.
+    const guardada = aceitesRef.current.unidadeTerritorial
+      ?? (typeof window !== "undefined" ? window.localStorage.getItem(`mac5-ut-${codigo}`) : null);
     const sigla = siglaDaUnidade(guardada || "");
     if (sigla) setUnidadeTerritorial(sigla);
   }, [carregando, codigo]);
@@ -1263,8 +1432,11 @@ export default function AnaliseAprovacaoProjeto() {
   useEffect(() => {
     if (carregando) return;
     try {
+      // A análise manda; o navegador é só o fallback de quem digitou antes desta mudança.
+      const doBanco = aceitesRef.current.estudos;
       const bruto = window.localStorage.getItem(`mac5-estudos-${codigo}`);
-      if (bruto) setManuais((p) => ({ ...p, ...JSON.parse(bruto) }));
+      if (doBanco) setManuais((p) => ({ ...p, ...doBanco }));
+      else if (bruto) setManuais((p) => ({ ...p, ...JSON.parse(bruto) }));
     } catch { /* preferência local corrompida não pode derrubar a tela */ }
     fetch(`/api/mac/slot-05/estudos?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
       .then((r) => r.json())
@@ -1272,12 +1444,15 @@ export default function AnaliseAprovacaoProjeto() {
       .catch(() => null);
   }, [carregando, codigo]);
 
-  function trocarManual(patch: Partial<typeof manuais>) {
-    setManuais((prev) => {
-      const novo = { ...prev, ...patch };
-      try { window.localStorage.setItem(`mac5-estudos-${codigo}`, JSON.stringify(novo)); } catch { /* ok */ }
-      return novo;
-    });
+  const manuaisRef = useRef<ManuaisEstudos>(manuais);
+  manuaisRef.current = manuais;
+
+  function trocarManual(patch: Partial<ManuaisEstudos>) {
+    const novo = { ...manuaisRef.current, ...patch };
+    manuaisRef.current = novo;
+    setManuais(novo);
+    salvarAceites({ estudos: novo });
+    try { window.localStorage.setItem(`mac5-estudos-${codigo}`, JSON.stringify(novo)); } catch { /* ok */ }
   }
 
   /* Vínculo com lei/artigo do BIP — carrega uma vez, quando o checklist termina de carregar. */
@@ -1294,7 +1469,6 @@ export default function AnaliseAprovacaoProjeto() {
         setVinculosBip(porItem);
       })
       .catch(() => null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carregando, itensChecklist.length]);
 
   function abrirBuscaBip(itemId: string) {
@@ -1419,15 +1593,14 @@ export default function AnaliseAprovacaoProjeto() {
   /** Aceitar = marcar o item com o que a IA propôs, guardando a evidência na fonte. */
   async function aceitarAchado(a: AchadoImportado) {
     if (!a.itemId || !a.aplicavel) return;
-    const novasMarcas = { ...marcas, [a.itemId]: a.euDigo as Status };
+    const novasMarcas = { ...estadoRef.current.marcas, [a.itemId]: a.euDigo as Status };
     const novasFontes = {
-      ...fontes,
+      ...estadoRef.current.fontes,
       [a.itemId]: `Contra-conferência · ${ccRelatorio?.ia ?? "IA externa"} · ${a.evidencia}`.slice(0, 400),
     };
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes });
     setCcDecisoes((p) => ({ ...p, [a.item]: "aceito" }));
-    await salvar(novasMarcas, novasFontes, observacoes, true);
+    await salvar(novasMarcas, novasFontes, undefined, true);
     notificar(`Item ${a.item} → ${ESTILO[a.euDigo as Status].rotulo}.`);
   }
 
@@ -1484,7 +1657,7 @@ export default function AnaliseAprovacaoProjeto() {
   /** Escreve a conta na observação de cada item, sem marcar status nenhum. */
   async function escreverNosItens(titulo: string, itens: Item[], porQue: string) {
     const texto = `${titulo} — ${porQue}`;
-    const novas = { ...observacoesPorItem };
+    const novas = { ...estadoRef.current.observacoesPorItem };
     let n = 0;
     for (const it of itens) {
       const atual = (novas[it.id] ?? "").trim();
@@ -1493,14 +1666,43 @@ export default function AnaliseAprovacaoProjeto() {
       n++;
     }
     if (!n) return;
-    setObservacoesPorItem(novas);
-    await salvar(marcas, fontes, observacoes, true, novas);
+    aplicarEstado({ observacoesPorItem: novas });
+    await salvar(undefined, undefined, undefined, true, novas);
     notificar(`${titulo}: conta escrita em ${n} item(ns) — a decisão é sua.`);
+  }
+
+  /* Itens do checklist que tratam de carga e descarga — o mesmo alcance do botão "🚚 Sem carga e
+   * descarga", reaproveitado pelo painel da conta. */
+  const itensCarga = useMemo(() => {
+    const f = FILTROS_TEMA.find((x) => x.id === "carga");
+    return f ? itensDoTema(itensChecklist, f) : [];
+  }, [itensChecklist]);
+
+  /** Leva o veredito de carga e descarga para o checklist: dispensado retira os itens (com a
+   * conta na fonte); exigido escreve a conta na observação de cada um e deixa a decisão com o
+   * analista — a mesma regra do EIT/EIV. */
+  async function aplicarCargaNoChecklist() {
+    if (!itensCarga.length) { notificar("O checklist não tem item sobre carga e descarga."); return; }
+    if (carga.veredito === "sem_dado") {
+      notificar("Informe a área de depósito/produção (ou marque Anexo I) para a conta fechar.");
+      return;
+    }
+    const f = FILTROS_TEMA.find((x) => x.id === "carga")!;
+    if (carga.veredito === "dispensado") {
+      await aplicarFiltroTema(f, `IN 008/2023: ${carga.porQue}`, itensCarga);
+      return;
+    }
+    const detalhe = carga.porQue
+      + (carga.atende === false ? " — o pátio desenhado NÃO atende o mínimo" : "")
+      + (carga.atende === true ? " — o pátio desenhado atende o mínimo" : "")
+      + (carga.estudoEspecifico ? " · exige estudo específico de dimensionamento" : "");
+    await escreverNosItens("CARGA E DESCARGA EXIGIDA", itensCarga, detalhe);
   }
 
   function trocarUnidade(valor: string) {
     const sigla = valor.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
     setUnidadeTerritorial(sigla);
+    salvarAceites({ unidadeTerritorial: sigla });
     if (typeof window !== "undefined") window.localStorage.setItem(`mac5-ut-${codigo}`, sigla);
   }
 
@@ -1528,8 +1730,8 @@ export default function AnaliseAprovacaoProjeto() {
   async function aplicarFiltroUnidade() {
     const { minha, outras, excecoes } = alcanceUnidade;
     if (!minha) { notificar("Digite a sigla da unidade territorial (ex.: AAB, AOS, AA, ADD)."); return; }
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let aplicados = 0;
     for (const it of outras) {
       if (novasMarcas[it.id]) continue;
@@ -1547,19 +1749,18 @@ export default function AnaliseAprovacaoProjeto() {
       `↳ itens que tratam exclusivamente de unidades territoriais diferentes de ${minha}` +
       (excecoes ? `\n↳ ${excecoes} item(ns) com exceção de UT ("exceto ...") ficaram para conferência manual` : "") +
       "\n" + [...porGrupoAlvo.entries()].map(([g, q]) => `  • ${q}× ${g}`).join("\n");
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
 
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
-    setObservacoes(novasObs);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     await salvar(novasMarcas, novasFontes, novasObs);
     notificar(`Unidade ${minha}: ${aplicados} item(ns) saíram da análise.`);
   }
 
   /** Devolve só o que este filtro marcou (reconhecido pela fonte), como os outros filtros fazem. */
   async function desfazerFiltroUnidade() {
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let devolvidos = 0;
     for (const id of Object.keys(novasFontes)) {
       if (!(novasFontes[id] ?? "").startsWith(ASSINATURA_UT)) continue;
@@ -1571,10 +1772,9 @@ export default function AnaliseAprovacaoProjeto() {
     const bloco =
       `━━━ FILTRO DESFEITO: UNIDADE TERRITORIAL ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise`;
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
-    setObservacoes(novasObs);
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     await salvar(novasMarcas, novasFontes, novasObs, true);
     notificar(`Unidade territorial desfeita — ${devolvidos} item(ns) voltaram.`);
   }
@@ -1598,8 +1798,8 @@ export default function AnaliseAprovacaoProjeto() {
   async function aplicarFiltroTema(f: FiltroTema, motivo = "marcado por você", itensAlvo?: Item[]) {
     const alvos = itensAlvo ?? alcanceTemas[f.id]?.itens ?? [];
     if (!alvos.length) { notificar(`${f.rotulo}: o checklist não tem item sobre isso.`); return; }
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let aplicados = 0, substituidos = 0;
     for (const it of alvos) {
       const statusAnterior = novasMarcas[it.id];
@@ -1614,8 +1814,9 @@ export default function AnaliseAprovacaoProjeto() {
       `━━━ FILTRO APLICADO: ${f.rotulo} ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${aplicados} item(ns) → Não se Aplica (${motivo})\n` +
       `↳ ${f.explica}`;
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
-    setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     await salvar(novasMarcas, novasFontes, novasObs, true);
     notificar(`${f.rotulo}: ${aplicados} item(ns) marcados` + (substituidos ? ` (${substituidos} substituindo marcação anterior — "Desfazer" devolve).` : "."));
   }
@@ -1624,8 +1825,8 @@ export default function AnaliseAprovacaoProjeto() {
    * marcação (manual ou de outro filtro) recebe exatamente aquela marcação de volta. */
   async function desfazerFiltroTema(f: FiltroTema) {
     const assinatura = `Filtro "${f.rotulo}"`;
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let devolvidos = 0, restaurados = 0;
     for (const id of Object.keys(novasFontes)) {
       if (!(novasFontes[id] ?? "").startsWith(assinatura)) continue;
@@ -1645,8 +1846,9 @@ export default function AnaliseAprovacaoProjeto() {
       `━━━ FILTRO DESFEITO: ${f.rotulo} ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise` +
       (restaurados ? ` (${restaurados} com a marcação de antes restaurada)` : "");
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
-    setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     await salvar(novasMarcas, novasFontes, novasObs, true);
     notificar(`${f.rotulo} desfeito — ${devolvidos} item(ns) voltaram${restaurados ? `, ${restaurados} com a marcação de antes` : ""}.`);
   }
@@ -1654,14 +1856,13 @@ export default function AnaliseAprovacaoProjeto() {
   /** Marca (ou limpa) o grupo inteiro de uma vez — grava sempre, como qualquer marcação de item. */
   function marcarGrupo(grupo: string, status: Status | null, salvarAgora = true) {
     const lista = porGrupo.get(grupo) ?? [];
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     for (const i of lista) {
       if (status) { novasMarcas[i.id] = status; novasFontes[i.id] = "manual"; }
       else { delete novasMarcas[i.id]; delete novasFontes[i.id]; }
     }
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes });
     notificar(status
       ? `${grupo}: ${lista.length} item(ns) → ${ESTILO[status].rotulo}.`
       : `${grupo}: ${lista.length} item(ns) limpos.`);
@@ -1691,8 +1892,8 @@ export default function AnaliseAprovacaoProjeto() {
 
   /** Aplica UM filtro. Nunca sobrescreve item que o analista já respondeu. */
   async function aceitarFiltro(f: FiltroProposto) {
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let aplicados = 0;
     for (const id of f.itensIds) {
       if (novasMarcas[id]) continue;
@@ -1708,18 +1909,22 @@ export default function AnaliseAprovacaoProjeto() {
       `${f.recomendado ? "" : " (aceito contra a recomendação do sistema)"}\n` +
       `↳ ${f.justificativa}\n` +
       f.grupos.map((g) => `  • ${g.qtd}× ${g.grupo}`).join("\n");
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
 
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
-    setObservacoes(novasObs);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     marcarDecidido(f, "aceito");
     await salvar(novasMarcas, novasFontes, novasObs);
     notificar(`"${f.nome}": ${aplicados} item(ns) saíram da análise.`);
   }
 
+  /* A decisão fica GRAVADA na análise (`aceites.filtros`). É o que impede a aplicação automática
+   * da próxima abertura de remarcar exatamente o que o analista acabou de desfazer. */
   function marcarDecidido(f: FiltroProposto, decisao: "aceito" | "recusado") {
-    setDecisoes((prev) => ({ ...prev, [f.id]: decisao }));
+    const novas = { ...decisoesRef.current, [f.id]: decisao };
+    decisoesRef.current = novas;
+    setDecisoes(novas);
+    salvarAceites({ filtros: novas });
   }
 
   /**
@@ -1746,6 +1951,8 @@ export default function AnaliseAprovacaoProjeto() {
     try {
       const fd = new FormData();
       fd.append("codigo", codigo);
+      // Os "itens pendentes" são os da análise ABERTA — a rota, sem isto, olhava a de maior número.
+      if (analise) fd.append("analiseId", analise.id);
       // Pergunta ao Gemini, junto com o checklist, se cada tema existe neste processo — é assim que
       // zona aeroportuária / militar / área de lazer se resolvem sozinhas em outros processos.
       fd.append("temas", JSON.stringify(FILTROS_TEMA.map((f) => f.tema)));
@@ -1807,8 +2014,8 @@ export default function AnaliseAprovacaoProjeto() {
       if (!d || !d.ok) throw new Error(d?.erro ?? "falha na leitura");
       setProgressoPasta(100);
 
-      const novasMarcas = { ...marcas };
-      const novasFontes = { ...fontes };
+      const novasMarcas = { ...estadoRef.current.marcas };
+      const novasFontes = { ...estadoRef.current.fontes };
       let aplicados = 0;
       for (const [id, st] of Object.entries(d.itens ?? {})) {
         if (novasMarcas[id]) continue;           // nunca sobrescreve resposta existente
@@ -1823,9 +2030,10 @@ export default function AnaliseAprovacaoProjeto() {
         `Arquivos na pasta: ${d.arquivosNaPasta} · modelo ${d.modelo} · prompt v${d.versaoPrompt}` +
         ((d.incompatibilidades ?? []).length
           ? `\nIncompatibilidades apontadas:\n${d.incompatibilidades.map((s: string) => `  ⚠ ${s}`).join("\n")}` : "");
-      const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+      const anterior = estadoRef.current.observacoes;
+      const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
 
-      setMarcas(novasMarcas); setFontes(novasFontes); setObservacoes(novasObs);
+      aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
       registrar({
         modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo,
         detalhe: {
@@ -1874,6 +2082,8 @@ export default function AnaliseAprovacaoProjeto() {
       const fd = new FormData();
       fd.append("codigo", codigo);
       fd.append("arquivo", arquivo);
+      // Restaura NA ANÁLISE ABERTA. Sem isto a rota escrevia sempre na de maior número.
+      if (analise) fd.append("analiseId", analise.id);
       const r = await fetch("/api/mac/slot-05/importar", { method: "POST", credentials: "include", body: fd });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao importar");
@@ -1900,13 +2110,19 @@ export default function AnaliseAprovacaoProjeto() {
     try {
       const r = await fetch("/api/mac/slot-05/manutencao", {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, acao: "limpar" }),
+        // A análise ABERTA. Antes a rota limpava sempre a de maior número, enquanto a tela
+        // zerava a que estava na frente do analista — as duas ficavam erradas de uma vez.
+        body: JSON.stringify({ codigo, acao: "limpar", analiseId: (analise ?? analiseRef.current)?.id ?? null }),
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao limpar");
-      setMarcas({});
-      setFontes({});
+      aplicarEstado({ marcas: {}, fontes: {} });
+      // "Limpar" apaga RESPOSTAS. A sigla da UT e os números informados pelo analista não são
+      // resposta de item — continuam de pé, aqui e na rota.
+      aceitesRef.current = { ...aceitesRef.current, filtros: {} };
+      decisoesRef.current = {};
       setDecisoes({});
+      carregarHistorico((analise ?? analiseRef.current)?.id ?? null);
       notificar(`MAC limpo — ${d.limpos} item(ns) voltaram para pendente.`);
     } catch (e: any) {
       notificar(`Erro ao limpar: ${e?.message ?? e}`);
@@ -1938,8 +2154,8 @@ export default function AnaliseAprovacaoProjeto() {
    */
   async function desfazerFiltro(f: FiltroProposto) {
     const assinatura = `Filtro "${f.nome}"`;
-    const novasMarcas = { ...marcas };
-    const novasFontes = { ...fontes };
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
     let devolvidos = 0;
     for (const id of f.itensIds) {
       if (!(novasFontes[id] ?? "").startsWith(assinatura)) continue;
@@ -1953,11 +2169,10 @@ export default function AnaliseAprovacaoProjeto() {
       `━━━ FILTRO DESFEITO: ${f.nome} ━━━\n` +
       `${new Date().toLocaleString("pt-BR")} — ${devolvidos} item(ns) voltaram para a análise\n` +
       `↳ ${f.justificativa}`;
-    const novasObs = observacoes ? `${bloco}\n\n${observacoes}` : bloco;
+    const anterior = estadoRef.current.observacoes;
+    const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
 
-    setMarcas(novasMarcas);
-    setFontes(novasFontes);
-    setObservacoes(novasObs);
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
     marcarDecidido(f, "recusado");
     await salvar(novasMarcas, novasFontes, novasObs, true);
     notificar(`"${f.nome}" desfeito — ${devolvidos} item(ns) voltaram para a análise.`);
@@ -2065,7 +2280,7 @@ export default function AnaliseAprovacaoProjeto() {
         {/* ─── Cabeçalho ─────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => { void salvar(marcas, fontes, observacoes, true); router.push("/"); }}
+            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
@@ -2073,7 +2288,7 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-            <button onClick={() => { void salvar(marcas, fontes, observacoes, true); router.push(`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`); }}
+            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
             </button>
@@ -2085,7 +2300,10 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               📋 Gerenciar MAC
             </button>
-            <a href={`/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}`} download
+            {/* Sempre a análise ABERTA. Sem o parâmetro, a rota exportava a de maior número —
+                quem estivesse conferindo a Análise 1 baixava a planilha da 3. */}
+            <a href={`/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}`
+              + (analise ? `&analise=${analise.numero_analise}` : "")} download
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors"
               title="Baixa todos os itens com status, filtro que marcou e observações — dá para restaurar tudo">
               📊 Exportar Excel
@@ -2308,6 +2526,9 @@ export default function AnaliseAprovacaoProjeto() {
                   className="text-[11px] font-semibold text-[#2563EB] hover:underline">▲ esconder</button>
               </div>
               <p className="text-[11px] text-[var(--text-muted)] mb-3">
+                {proposta.origem === "codigo"
+                  ? "⚠ Rodando pelas REGRAS FIXAS DO CÓDIGO — nenhum filtro ativo cadastrado. Edite em 🎛️ Gerenciar Filtros para valer aqui. "
+                  : "Regras vindas de 🎛️ Gerenciar Filtros. "}
                 Lido de {proposta.camposPreenchidos} campos do LIP e do texto dos documentos da pasta.
                 Os <b>recomendados já marcaram Não se Aplica</b> nos itens deles — use
                 <b> Desfazer</b> no que discordar. Item que você respondeu à mão nunca é tocado.
@@ -2642,6 +2863,87 @@ export default function AnaliseAprovacaoProjeto() {
                   marcado = azul (Não se Aplica) · a leitura da pasta marca sozinha o que enxergar
                 </span>
               </div>
+
+              {/* ── EIT · EIV · CARGA E DESCARGA ────────────────────────────────────────────
+                  Os três se decidem por CONTA, não por desenho. O LIP dá CNAE, área da atividade
+                  e vagas; depósito/produção, pátio desenhado, capacidade de reunião e alunos por
+                  turno o LIP não tem — entram aqui e ficam guardados por processo no navegador.
+                  Sem estes campos na tela o motor rodava só com metade dos números e todo gatilho
+                  que dependesse deles ficava "sem dado" para sempre. Recolhido por padrão. */}
+              <details className="mb-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2">
+                <summary className="cursor-pointer text-xs font-bold uppercase tracking-wide flex flex-wrap items-center gap-2">
+                  🧮 EIT · EIV · Carga e descarga
+                  {([["EIT", eit.veredito], ["EIV", eiv.veredito], ["CARGA", carga.veredito]] as const).map(([r, v]) => (
+                    <span key={r} className="px-2 py-0.5 rounded text-[10px] font-bold border"
+                      style={v === "exigido"
+                        ? { background: "#FEF2F2", borderColor: "#DC2626", color: "#DC2626" }
+                        : v === "dispensado"
+                          ? { background: "#EFF6FF", borderColor: "#2563EB", color: "#2563EB" }
+                          : { background: "var(--bg-secondary)", borderColor: "var(--border)", color: "var(--text-muted)" }}>
+                      {r}: {v === "sem_dado" ? "sem dado" : v}
+                    </span>
+                  ))}
+                  <span className="text-[10px] font-normal normal-case text-[var(--text-muted)]">
+                    (clique para abrir e informar o que o LIP não tem)
+                  </span>
+                </summary>
+
+                <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {([
+                    ["areaDepositoProducao", "Área de depósito/produção (m²)", "somatória — IN 008/2023"],
+                    ["areaPatioProjetada", "Pátio de carga desenhado (m²)", "o que está na prancha"],
+                    ["capacidadeReuniao", "Capacidade de reunião (pessoas)", "templo, salão, auditório"],
+                    ["alunosPorTurno", "Alunos por turno", "ensino"],
+                  ] as const).map(([chave, rotulo, dica]) => (
+                    <label key={chave} className="flex flex-col gap-0.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">{rotulo}</span>
+                      <input value={manuais[chave]} inputMode="decimal"
+                        onChange={(e) => trocarManual({ [chave]: e.target.value } as Partial<typeof manuais>)}
+                        placeholder={dica}
+                        className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
+                    </label>
+                  ))}
+                  <label className="flex items-center gap-2 self-end pb-1">
+                    <input type="checkbox" checked={manuais.atividadeAnexoI}
+                      onChange={(e) => trocarManual({ atividadeAnexoI: e.target.checked })} />
+                    <span className="text-[11px] text-[var(--text-secondary)]">
+                      Atividade do <b>Anexo I</b> da IN 008/2023 (exige pátio mesmo sem depósito)
+                    </span>
+                  </label>
+                </div>
+
+                <div className="mt-2 flex flex-col gap-1 text-[11px] text-[var(--text-secondary)]">
+                  <p><b>EIT</b> — {eit.porQue || "sem gatilho avaliado"}</p>
+                  <p><b>EIV</b> — {eiv.porQue || "sem gatilho avaliado"}</p>
+                  <p>
+                    <b>Carga e descarga</b> — {carga.porQue}
+                    {carga.minimo !== null && carga.atende !== null && (
+                      <span style={{ color: carga.atende ? "#059669" : "#DC2626", fontWeight: 700 }}>
+                        {" "}· pátio desenhado {carga.atende ? "ATENDE" : "NÃO ATENDE"} o mínimo de {fmt(carga.minimo)} m²
+                      </span>
+                    )}
+                  </p>
+                  {!lipEstudos && (
+                    <p className="text-[var(--text-muted)] italic">
+                      Os números do LIP ainda não chegaram — CNAE, área da atividade e vagas saem de lá.
+                    </p>
+                  )}
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button onClick={() => void aplicarCargaNoChecklist()}
+                    disabled={!itensCarga.length || carga.veredito === "sem_dado"}
+                    title="Dispensado retira os itens de carga e descarga da análise; exigido escreve a conta na observação de cada um"
+                    className="px-2.5 py-1.5 rounded-md text-[11px] font-bold border transition-colors disabled:opacity-40"
+                    style={{ background: "#FFFFFF", borderColor: "#2563EB", color: "#2563EB" }}>
+                    📝 Levar a conta de carga e descarga para os {itensCarga.length} item(ns)
+                  </button>
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    EIT e EIV já se aplicam sozinhos ao abrir a tela — nada aqui marca item sem você mandar.
+                  </span>
+                </div>
+              </details>
+
               <div className="flex gap-2 flex-wrap mb-3">
                 <input value={busca} onChange={(e) => setBusca(e.target.value)}
                   placeholder="Procurar no checklist — ex.: recuo, acessibilidade, calçada"
@@ -2693,7 +2995,7 @@ export default function AnaliseAprovacaoProjeto() {
                       title={cor.rotulo ? `${grupo} — ${cor.rotulo}` : grupo}
                       className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg border transition-colors"
                       style={{ background: cor.bg, borderColor: cor.borda }}>
-                      <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupo); }}
+                      <button onClick={() => { void salvar(undefined, undefined, undefined, true); setAbaAtual(grupo); }}
                         className="flex items-center gap-3 flex-1 min-w-0 text-left px-2 py-1 rounded-md hover:bg-black/5 transition-colors">
                         <span className="text-[10px] text-[var(--text-muted)] font-mono w-[62px] shrink-0 uppercase tracking-wide">
                           ÍTEM {grupos.indexOf(grupo) + 1}
@@ -2753,7 +3055,10 @@ export default function AnaliseAprovacaoProjeto() {
                 </button>
                 <span className="font-bold">📝 OBS</span>
               </div>
-              <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={22}
+              <textarea value={observacoes}
+                onChange={(e) => { aplicarEstado({ observacoes: e.target.value }); agendarSalvarObs(); }}
+                onBlur={() => { void salvar(undefined, undefined, undefined, true); }}
+                rows={22}
                 placeholder="Observações do MAC — o pré-preenchimento pelo LIP registra aqui o que marcou e por quê."
                 className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-vertical" />
               <button onClick={() => salvar()}
@@ -2799,7 +3104,7 @@ export default function AnaliseAprovacaoProjeto() {
           {abaAtual !== null && abaAtual !== ABA_OBS && (
             <>
               <div className="flex items-center gap-3 mb-2 flex-wrap">
-                <button onClick={() => { void salvar(marcas, fontes, observacoes, true); setAbaAtual(null); }}
+                <button onClick={() => { void salvar(undefined, undefined, undefined, true); setAbaAtual(null); }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] shadow-sm transition-colors">
                   <span aria-hidden>←</span> Índice
                 </button>
@@ -2861,7 +3166,16 @@ export default function AnaliseAprovacaoProjeto() {
                     </div>
                     <textarea
                       value={observacoesPorItem[it.id] ?? ""}
-                      onChange={(e) => setObservacoesPorItem((prev) => ({ ...prev, [it.id]: e.target.value }))}
+                      onChange={(e) => {
+                        aplicarEstado({
+                          observacoesPorItem: { ...estadoRef.current.observacoesPorItem, [it.id]: e.target.value },
+                        });
+                        agendarSalvarObs();
+                      }}
+                      /* Sair do campo grava na hora: a observação do item era a ÚNICA coisa da
+                       * tela que só ia para o banco se o analista lembrasse de clicar em Salvar
+                       * ou navegasse por dentro do MAC — fechar a aba perdia o que ele escreveu. */
+                      onBlur={() => { void salvar(undefined, undefined, undefined, true); }}
                       placeholder="📝 Observação deste item — ex.: valores a informar, ressalvas..."
                       rows={1}
                       className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-md px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)] resize-y"
@@ -2917,13 +3231,13 @@ export default function AnaliseAprovacaoProjeto() {
               {/* Navegação entre grupos */}
               <div className="flex justify-between mt-3">
                 <button
-                  onClick={() => { const i = grupos.indexOf(abaAtual); if (i > 0) { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupos[i - 1]); } }}
+                  onClick={() => { const i = grupos.indexOf(abaAtual); if (i > 0) { void salvar(undefined, undefined, undefined, true); setAbaAtual(grupos[i - 1]); } }}
                   disabled={grupos.indexOf(abaAtual) === 0}
                   className="px-3 py-1.5 rounded text-sm bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40">
                   ← Anterior
                 </button>
                 <button
-                  onClick={() => { const i = grupos.indexOf(abaAtual); if (i < grupos.length - 1) { void salvar(marcas, fontes, observacoes, true); setAbaAtual(grupos[i + 1]); } }}
+                  onClick={() => { const i = grupos.indexOf(abaAtual); if (i < grupos.length - 1) { void salvar(undefined, undefined, undefined, true); setAbaAtual(grupos[i + 1]); } }}
                   disabled={grupos.indexOf(abaAtual) === grupos.length - 1}
                   className="px-3 py-1.5 rounded text-sm bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-40">
                   Próximo →
@@ -2996,7 +3310,7 @@ export default function AnaliseAprovacaoProjeto() {
             );
           })}
 
-          <button onClick={() => { void salvar(marcas, fontes, observacoes, true); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-aprovacao-projeto/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}
+          <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-aprovacao-projeto/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}
             className="w-full py-2 rounded-lg text-sm font-bold border bg-[var(--bg-secondary)] border-[var(--border-strong)] text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)] mt-1">
             🗺️ Via / Logradouro
           </button>

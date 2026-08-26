@@ -29,6 +29,11 @@ import path from "path";
 
 export type ItemNaoConforme = {
   texto: string; grupo: string; ordem: number;
+  /** Menor `ordem` do grupo no checklist inteiro — é ela que dá ao grupo a mesma posição que ele
+   * tem no índice da tela ("ÍTEM 12"). Sem isso, um grupo cuja única não conformidade estivesse
+   * num item acrescentado depois (ordem alta) descia para o fim do despacho, fora da sequência
+   * que o analista acabou de percorrer. */
+  ordemGrupo?: number;
   /** Observação que o analista escreveu NESTE item. Sai logo abaixo da exigência, recuada — é
    * o complemento dele para aquele item, não uma exigência nova, então não consome número. */
   observacao?: string | null;
@@ -127,13 +132,16 @@ function montarExigencias(itens: ItemNaoConforme[]): string {
       "Não foram identificadas exigências nesta análise.", { antes: 120 },
     );
   }
-  const ordemGrupos: string[] = [];
   const buckets: Record<string, ItemNaoConforme[]> = {};
+  const posicao: Record<string, number> = {};
   for (const it of itens) {
     const g = it.grupo || "OUTROS";
-    if (!buckets[g]) { buckets[g] = []; ordemGrupos.push(g); }
+    if (!buckets[g]) buckets[g] = [];
     buckets[g].push(it);
+    const p = it.ordemGrupo ?? it.ordem;
+    if (posicao[g] === undefined || p < posicao[g]) posicao[g] = p;
   }
+  const ordemGrupos = Object.keys(buckets).sort((a, b) => posicao[a] - posicao[b]);
   return ordemGrupos.map((g) =>
     paragrafoGrupo(g)
     + buckets[g].sort((a, b) => a.ordem - b.ordem)

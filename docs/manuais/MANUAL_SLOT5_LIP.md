@@ -1,9 +1,26 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.0
-**Data:** 2026-08-25
+**Versão:** 1.2
+**Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
+
+---
+
+> ## ⛔ REGRA SUPREMA DO SLOT 5 — manuais versionados
+>
+> **Toda modificação, ampliação, alteração ou expansão do Slot 5 obriga a atualizar, versionar e
+> datar OS DOIS manuais** — este e o seu par (`MANUAL_SLOT5_LIP.md` e `MANUAL_SLOT5_MAC.md`).
+> Não é opcional e não depende de o trabalho ter tocado só um dos módulos: o manual do módulo que
+> não mudou registra, na mesma data, que foi conferido e o que mudou do outro lado.
+>
+> Ordem obrigatória, antes de encerrar qualquer tarefa do Slot 5:
+> 1. escrever o que mudou na seção certa do manual (não só no histórico);
+> 2. acrescentar a linha nova em **Histórico de versões**, com versão e data;
+> 3. subir o `**Versão:**` e o `**Data:**` do cabeçalho;
+> 4. repetir 1-3 no outro manual.
+>
+> Regra declarada pelo Fábio em 2026-08-25. Registrada também no `CLAUDE.md` do repositório.
 
 ---
 
@@ -608,8 +625,74 @@ rota (`s3`) de forma mais simples.
 
 ---
 
+## 11. A noite do 48533 e do 48535 — 26/08/2026
+
+Dois processos cadastrados de madrugada, LER PASTA rodou "ridiculamente rápida e fraca", e o
+analista excluiu os dois achando que o sistema não tinha lido nada. Os dois foram restaurados (era
+exclusão lógica) e a causa foi encontrada. Vale como referência do que investigar quando a leitura
+voltar pobre.
+
+### 11.1 O que NÃO era
+
+- **Não era PDF escaneado.** A prancha do 48535 é vetorial: 11 fontes embutidas, 2.930 caracteres
+  de texto real, 42.267 traços. A camada de texto existia.
+- **Não era o MHD.** Os 8–9 documentos foram catalogados com o papel certo e o texto vigente
+  gravado (~29 mil caracteres cada).
+- **Não era a visão.** `mhd_interpretacoes_visao` está vazia desde sempre, mas ela cobre 4 campos
+  só (3 de vagas + área impermeabilizada) e nunca teve nada a ver com o carimbo. Como o Fábio
+  observou na mesma noite, esses 4 nem precisariam de imagem: o memorial de cálculo é texto.
+
+### 11.2 O que era — três defeitos somados
+
+1. **`m2` com o dígito dois.** O carimbo do 48535 escreve `524,70m2`; o leitor exigia `m²`, o
+   caractere de expoente. Os cinco campos obrigatórios do carimbo (área do terreno, área
+   construída e as três de cobertura vegetal) voltavam `NAO_ENCONTRADO`. `P_AREA`, a área do
+   carimbo, o ICCAP e o volume da caixa passaram a aceitar as duas grafias.
+2. **`proprietario` sem fonte possível.** A matriz declara o campo como vindo do REQUERIMENTO,
+   mas o requerimento é `SO_PRESENCA` e nada o abria — o campo mais visível da ficha nunca pôde
+   ser preenchido por leitura (no 50724 está gravado como `manual`). A regra do Fábio é que o
+   requerimento **não é importante** para a análise técnica, não que seja proibido lê-lo: agora
+   se lê dele UMA coisa, o nome do interessado, e a ausência continua não sendo cobrada.
+   O padrão antigo ainda exigia nome e CPF na mesma linha e em Caixa Alta e baixa; passou a
+   aceitar CNPJ, CAIXA ALTA e o número na linha de baixo do nome.
+3. **Autor do projeto em outro formato.** O padrão era `ARQ. NOME CAU: xxx`; a prancha escrevia
+   `Arquiteta e Urbanista - NOME - CAU-GO xxx`. Os dois valem.
+
+Resultado medido contra as pastas reais:
+
+| campo | antes | depois |
+|---|---|---|
+| areaTerreno 48535 | ✘ | 524,70 |
+| areaTotal 48535 | ✘ | 327,80 |
+| proprietario 48535 | ✘ | OMEGA PARTICIPAÇÕES E INVESTIMENTO LTDA |
+| nome_responsavel_arq 48535 | ✘ | MARCILENE SALES DIAS AMORIM |
+
+### 11.3 O que continua sem leitura, honestamente
+
+No **48533**, `proprietario` e `nome_responsavel_arq` seguem vazios — e devem seguir. O
+requerimento dele é o modelo do DOM com AcroForm de 1 campo, 0 preenchidos, sem CPF/CNPJ no texto;
+a prancha não traz o nome do arquiteto em lugar nenhum (só o contato da plotagem). O dado não
+existe no PDF. Uma tentativa de plano B pelo carimbo devolveu "SECRETARIA MUNICIPAL DE
+EFICIÊNCIA-SEFIC" como proprietário e foi **descartada**: nome errado num campo que vai assinado
+no despacho é pior que campo vazio.
+
+### 11.4 A leitura não pode mais ser rápida e muda
+
+Duas defesas novas na janela da proposta, antes de tudo, em destaque:
+
+- **documento sem camada de texto** — lista qual é, com quantos caracteres, e o que fazer;
+- **carimbo incompleto** — quando a prancha tem texto mas não entregou os campos obrigatórios, o
+  detalhe da conferência sobe para o topo em laranja. A informação já existia; estava enterrada
+  numa lista de dezenas de conferências que ninguém lê de madrugada.
+
+O log da OBS registra os dois casos junto com a leitura.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
+| 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.2 | 2026-08-26 | Seção 11: os defeitos de leitura achados nos processos 48533/48535 — `m2` sem expoente derrubando o carimbo inteiro, `proprietario` sem fonte possível, autor do projeto em outro formato — e os dois avisos novos que impedem a leitura de voltar pobre em silêncio |

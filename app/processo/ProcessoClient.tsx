@@ -989,6 +989,18 @@ export default function ProcessoClient() {
    * montasse o seu, eles divergiriam na primeira mudança, e o texto que o analista manda para
    * conferência deixaria de ser o mesmo que ficou registrado no processo.
    */
+  /** Consequência prática de a PRANCHA ser o documento sem texto — é o pior caso, porque o
+   * carimbo é a fonte declarada dos campos mais visíveis da ficha. */
+  function temprancha_aviso(temPrancha: boolean): string[] {
+    if (!temPrancha) return [`  Reexporte com texto pesquisável, ou passe um OCR, e leia de novo.`];
+    return [
+      `  A PRANCHA é um deles. Por isso ficaram em branco: proprietário, área do terreno,`,
+      `  área construída, responsável técnico e o quadro de áreas — todos saem do CARIMBO.`,
+      `  Conserto: reexporte o PDF do CAD com texto pesquisável (não plotado como imagem), ou`,
+      `  passe um OCR na prancha, e rode LER PASTA de novo. O resto da leitura já está correto.`,
+    ];
+  }
+
   function montarLogLeitura(p: any): string {
     const vigPorPapel: Record<string, string> = p.vigentesPorPapel ?? {};
     const rotuloVigente = (it: any) =>
@@ -998,6 +1010,33 @@ export default function ProcessoClient() {
       `📁 LEITURA DA PASTA — ${new Date().toLocaleString("pt-BR")}`,
       `Arquivos: ${p.catalogo.length} · rodadas: ${(p.rodadas ?? []).join(", ")} · ` +
       `${p.custo?.paginasNaPasta ?? 0} páginas · sem IA · ${Math.round((p.msLeitura ?? 0) / 100) / 10}s`,
+
+      /* PDF SEM CAMADA DE TEXTO — 26/08/2026.
+       *
+       * Esta leitura extrai TEXTO de PDF; não olha o desenho. Prancha plotada do CAD sem texto
+       * pesquisável (ou digitalizada sem OCR) devolve quase nada, e como o carimbo é a fonte
+       * declarada de proprietário, área do terreno, área construída e responsável técnico, a
+       * ficha volta vazia justamente nos campos que o analista olha primeiro.
+       *
+       * Antes isso acontecia EM SILÊNCIO e rápido: a leitura "dava certo", só não trazia nada.
+       * Aconteceu nos processos 48533 e 48535 (prancha com 5.828 e 3.436 caracteres, contra
+       * 47.275 do 50724) e custou uma noite de trabalho. Agora o log diz o que houve e o que
+       * fazer. */
+      ...(() => {
+        const semTexto = (p.catalogo ?? []).filter(
+          (it: any) => !it.soPresenca && it.temCamadaTexto === false,
+        );
+        if (!semTexto.length) return [];
+        const temPrancha = semTexto.some((it: any) => it.papeis?.includes("projeto"));
+        return [
+          ``,
+          `⚠ ${semTexto.length} DOCUMENTO(S) SEM CAMADA DE TEXTO — o que estava neles NÃO foi lido:`,
+          ...semTexto.map((it: any) =>
+            `  ✗ ${it.nome} → ${(it.papeis ?? []).join(" + ")} (${it.charsTexto ?? 0} caracteres em ${it.paginas ?? "?"} página(s))`),
+          `  Esta leitura extrai texto do PDF — ela não enxerga o desenho.`,
+          ...(temprancha_aviso(temPrancha)),
+        ];
+      })(),
       /* A ordem das pastas entra no log quando foi ADIVINHADA. Se depois se descobrir que a
        * ordem estava errada, é por aqui que se sabe qual leitura usou qual ordem. */
       ...(p.rodadaAmbigua
@@ -2016,6 +2055,62 @@ export default function ProcessoClient() {
             </div>
 
             <div className="p-4 space-y-4">
+              {/* PDF SEM CAMADA DE TEXTO — o aviso mais importante da janela, por isso vem antes
+                  de tudo. Esta leitura extrai TEXTO; prancha plotada sem texto pesquisável devolve
+                  quase nada e a ficha volta vazia nos campos do carimbo, em silêncio. Aconteceu no
+                  48533 e no 48535 (26/08/2026) e custou uma noite de trabalho. */}
+              {(() => {
+                const semTexto = (propostaPasta.catalogo ?? []).filter(
+                  (it: any) => !it.soPresenca && it.temCamadaTexto === false);
+                const carimbo = (propostaPasta.conferencias ?? []).find(
+                  (c: any) => /carimbo segue o modelo/i.test(c.nome ?? "") && c.estado === "NÃO CONFERE");
+                if (!semTexto.length && !carimbo) return null;
+                const prancha = semTexto.find((it: any) => it.papeis?.includes("projeto"));
+                if (!semTexto.length) {
+                  /* A prancha TEM texto, mas o carimbo não entregou os campos obrigatórios. É o
+                     caso do 48533/48535: a conferência já dizia isso, enterrada numa lista de
+                     dezenas de linhas que ninguém lê a essa hora. Aqui vem em cima, em vermelho. */
+                  return (
+                    <div className="border-2 rounded-lg p-3" style={{ borderColor: "#EA580C", background: "#FFF7ED" }}>
+                      <p className="text-sm font-bold" style={{ color: "#C2410C" }}>
+                        ⚠ O carimbo da prancha não entregou todos os campos obrigatórios
+                      </p>
+                      <p className="text-[11px] mt-1" style={{ color: "#7c2d12" }}>{carimbo.detalhe}</p>
+                      <p className="text-[11px] mt-1.5" style={{ color: "#7c2d12" }}>
+                        Os campos que saem do carimbo (área do terreno, área construída, cobertura
+                        vegetal) podem ter voltado vazios. Confira antes de aceitar a leitura.
+                      </p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="border-2 rounded-lg p-3" style={{ borderColor: "#DC2626", background: "#FEF2F2" }}>
+                    <p className="text-sm font-bold" style={{ color: "#DC2626" }}>
+                      ⚠ {semTexto.length} documento(s) sem camada de texto — não foram lidos
+                    </p>
+                    <div className="mt-1.5 flex flex-col gap-0.5">
+                      {semTexto.map((it: any) => (
+                        <p key={it.hash ?? it.nome} className="text-[11px]" style={{ color: "#7f1d1d" }}>
+                          ✗ <b>{it.nome}</b> → {(it.papeis ?? []).join(" + ")} — {it.charsTexto ?? 0} caracteres
+                          {it.paginas ? ` em ${it.paginas} página(s)` : ""}
+                        </p>
+                      ))}
+                    </div>
+                    <p className="text-[11px] mt-2" style={{ color: "#7f1d1d" }}>
+                      Esta leitura extrai <b>texto</b> do PDF — ela não enxerga o desenho.
+                    </p>
+                    {prancha && (
+                      <p className="text-[11px] mt-1.5 font-semibold" style={{ color: "#7f1d1d" }}>
+                        A <b>prancha</b> é um deles. É por isso que ficaram em branco proprietário, área
+                        do terreno, área construída, responsável técnico e o quadro de áreas — todos saem
+                        do carimbo. Reexporte o PDF do CAD com texto pesquisável (não plotado como imagem),
+                        ou passe um OCR na prancha, e rode LER PASTA de novo. O resto da leitura está correto.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* FALHA DO MHD NUNCA FICA INVISÍVEL. A leitura continua, o aceite não é bloqueado,
                   mas o analista precisa saber que o histórico não foi atualizado — senão ele confia
                   numa memória que não existe e espera economia que não vai acontecer. */}

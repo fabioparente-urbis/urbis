@@ -312,7 +312,18 @@ function lerTabelaDeVias(doc: DocTexto): { nome: string; classificacao: string |
  * terminação válida em vez da maior. Achado real: carimbo do processo 50724 escreve
  * "ÁREA TOTAL DA CONSTRUÇÃO: 3572,10m²" sem ponto, e a conferência com a ART (3.572,10, essa
  * com ponto) dava NÃO por causa do dígito perdido, não por divergência de verdade. */
-const P_AREA = /(?<!\d)(?:\d{1,3}(?:\.\d{3})+|\d+),\d{2}\s*m?²?/i;
+/* "m2" com o DÍGITO dois, não o expoente — 26/08/2026.
+ *
+ * O CAD nem sempre exporta "m²": a prancha do processo 48535 escreve "524,70m2", e a do 48533
+ * igual. Exigindo o caractere "²" o carimbo inteiro deixava de ser lido — área do terreno, área
+ * construída e as três de cobertura vegetal voltavam NAO_ENCONTRADO — e a ficha chegava vazia
+ * justamente nos campos que o analista olha primeiro, sem nenhum aviso. O mesmo vale para "m3".
+ *
+ * `2\b` (e `3\b`) exige fronteira: casa "524,70m2" e não engole o "2" de "12,00m20" nem de uma
+ * medida seguida de outro número. */
+const U_AREA = "m\\s*(?:\u00b2|2\\b)";
+const U_VOLUME = "m\\s*(?:\u00b3|3\\b)";
+const P_AREA = new RegExp(`(?<!\\d)(?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2}\\s*(?:${U_AREA})?`, "i");
 const P_DATA = /^\d{2}\/\d{2}\/\d{4}$/;
 
 // ───────────────────── identificação de papéis ─────────────────────
@@ -431,8 +442,8 @@ function lerUsoDoSolo(doc: DocTexto) {
   d.corredorViario = corr && corr !== "-" ? corr : null;
 
   d.fracaoIdeal = (t.match(/FRA[ÇC][ÃA]O IDEAL:\s*([^\n]+)/i) || [])[1]?.trim() || null;
-  d.iccap = (t.match(/(1m³ para cada \d+m² de [^\n]+)/i) || [])[1]?.trim() || null;
-  d.iccapDivisor = num((t.match(/1m³ para cada (\d+)m²/i) || [])[1]);
+  d.iccap = (t.match(new RegExp(`(1\\s*${U_VOLUME} para cada \\d+\\s*${U_AREA} de [^\\n]+)`, "i")) || [])[1]?.trim() || null;
+  d.iccapDivisor = num((t.match(new RegExp(`1\\s*${U_VOLUME} para cada (\\d+)\\s*${U_AREA}`, "i")) || [])[1]);
   d.paisagisticoMin = num((t.match(/m[íi]nimo de (\d+)%/i) || [])[1]);
   d.indiceOcupacao = (t.match(/[ÍI]NDICE DE OCUPA[ÇC][ÃA]O:\s*([^\n]+)/i) || [])[1]?.trim() || null;
   d.embarqueDesembarque = (t.match(/Embarque Desembarque[\s\S]{0,200}?\b(SIM|N[ÃA]O)\b/i) || [])[1] || null;
@@ -505,7 +516,7 @@ function lerPrancha(doc: DocTexto) {
       const v = valorPerto(doc, r, P_AREA);
       if (!v) continue;
       return {
-        area: num(v.match(/(?<!\d)((?:\d{1,3}(?:\.\d{3})+|\d+),\d{2})\s*m²/i)?.[1]),
+        area: num(v.match(new RegExp(`(?<!\\d)((?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2})\\s*${U_AREA}`, "i"))?.[1]),
         pct: num(v.match(/(\d+,\d+)\s*%/)?.[1]),
         rotuloUsado: r,
       };
@@ -550,8 +561,10 @@ function lerPrancha(doc: DocTexto) {
   /* Achado real (processo 50724): o carimbo não traz "EXIGIDO"/"ATENDIDO" nem "V = X,XXm³" —
    * só "10Cxs. 22,60m³" direto, junto do rótulo I.C.C.A.P. Sem esse terceiro padrão, tanto o
    * número de caixas quanto o volume adotado ficavam vazios. */
-  const cxs = t.match(/(\d+)\s*Cxs\.?\s*(\d+,\d+)\s*m³/i);
-  d.volumeCaixa = d.iccapAtendido ?? num((t.match(/V\s*=\s*(\d+,\d+)\s*m³/i) || [])[1]) ?? num(cxs?.[2]);
+  const cxs = t.match(new RegExp(`(\\d+)\\s*Cxs\\.?\\s*(\\d+,\\d+)\\s*${U_VOLUME}`, "i"));
+  d.volumeCaixa = d.iccapAtendido
+    ?? num((t.match(new RegExp(`V\\s*=\\s*(\\d+,\\d+)\\s*${U_VOLUME}`, "i")) || [])[1])
+    ?? num(cxs?.[2]);
   if (d.iccapExigido == null) d.carimboFaltando.push("ICCAP — EXIGIDO (o modelo pede EXIGIDO e ATENDIDO)");
   d.iccapBruto = iccap;
 
@@ -574,7 +587,11 @@ function lerPrancha(doc: DocTexto) {
   d.usoDoSoloN = (t.match(/USO DO SOLO N[ºO°]:\s*(\S+)/i) || [])[1] || null;
   d.endereco = (t.match(/(RUA [^\n,]+,\s*N[ºO°]\s*\d+[^\n]*LOTE\s*\d+)/i) || [])[1]?.trim() || null;
 
-  const arq = t.match(/ARQ\.\s*([A-ZÀ-Ú\s]+?)\s*CAU:\s*(\S+)/i);
+  /* AUTOR DO PROJETO. O padrão antigo exigia "ARQ. NOME CAU: xxx". As pranchas de 26/08 escrevem
+   * "Arquiteta e Urbanista - MARCILENE SALES DIAS AMORIM - CAU-GO A118288-9" — outro formato,
+   * outro separador, e "CAU-GO" em vez de "CAU:". Os dois passam a valer. */
+  const arq = t.match(/ARQ\.\s*([A-ZÀ-Ú\s]+?)\s*CAU:\s*(\S+)/i)
+    || t.match(/ARQUITET[OA](?:\s+E\s+URBANISTA)?\s*[-–—:]\s*([A-ZÀ-Ú][A-ZÀ-Ú\s.]+?)\s*[-–—]\s*CAU[-\s:]*[A-Z]{0,2}\s*(\S+)/i);
   d.arquiteto = arq?.[1]?.trim() || null;
   d.cau = arq?.[2] || null;
   const eng = t.match(/ENG\.?\s*CIVIL\s*([A-ZÀ-Ú\s]+?)\s*CREA:\s*(\S+)/i);
@@ -636,11 +653,57 @@ function lerArt(doc: DocTexto) {
   return d;
 }
 
+/* NOME DO INTERESSADO — 26/08/2026.
+ *
+ * A versão anterior exigia nome e CPF na MESMA linha e em Caixa Alta e baixa
+ * ("Fulano de Tal 123.456.789-00"). Na prática nenhum dos dois requerimentos reais de 26/08 batia:
+ *   · 48535 — o interessado é PESSOA JURÍDICA ("OMEGA PARTICIPAÇÕES E INVESTIMENTO LTDA"), com
+ *     CNPJ, e o número vem na LINHA DE BAIXO do nome;
+ *   · 48533 — o nome está em CAIXA ALTA, que o padrão anterior não aceitava.
+ * Resultado: o campo mais visível da ficha voltava vazio nos dois.
+ *
+ * Regra nova: acha o primeiro CPF **ou** CNPJ e pega o nome que estiver junto dele — na mesma
+ * linha, antes do número, ou na linha imediatamente acima. */
+const RE_CPF_CNPJ = /(\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2})/;
+
+/** Parece nome de pessoa ou razão social? Duas palavras ou mais, só letras (aceita CAIXA ALTA,
+ * "&", "." e "-"), e nada que seja rótulo de formulário. */
+function pareceNome(bruto: string): boolean {
+  const t = String(bruto ?? "").trim();
+  if (t.length < 5 || t.length > 90) return false;
+  if (/\d/.test(t)) return false;
+  if (/@|www\.|http/i.test(t)) return false;
+  if (/^(nome|interessado|propriet|requerente|endere|raz[ãa]o|cpf|cnpj|e-?mail|telefone)/i.test(t)) return false;
+  const palavras = t.split(/\s+/).filter((x) => /[A-Za-zÀ-Úà-ú]/.test(x));
+  return palavras.length >= 2;
+}
+
+/** Nome que acompanha o primeiro CPF/CNPJ do documento — na mesma linha ou na de cima. */
+function nomeJuntoDoDocumento(doc: DocTexto): string | null {
+  /* Ordem VISUAL. `extrairPdf` já converte o y para top-down (origem no alto) e monta as linhas
+   * ordenadas por página e y crescente — ou seja, `doc.linhas` JÁ está de cima para baixo.
+   * Reordenar por y decrescente inverte a página e faz "a linha acima" virar a de baixo: foi o
+   * que fez o proprietário sair como "SECRETARIA MUNICIPAL DE EFICIÊNCIA-SEFIC" num teste. */
+  const linhas = [...doc.linhas]
+    .sort((a, b) => (a.pagina - b.pagina) || (a.y - b.y))
+    .map((l) => l.texto.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  for (let i = 0; i < linhas.length; i++) {
+    const m = linhas[i].match(RE_CPF_CNPJ);
+    if (!m) continue;
+    const antesNaLinha = linhas[i].slice(0, linhas[i].indexOf(m[1]))
+      .replace(/(CNPJ|CPF)[\/A-Z]*\s*:?\s*$/i, "").trim();
+    if (pareceNome(antesNaLinha)) return antesNaLinha;
+    const acima = (linhas[i - 1] ?? "").replace(/(CNPJ|CPF)[\/A-Z]*\s*:?\s*$/i, "").trim();
+    if (pareceNome(acima)) return acima;
+  }
+  return null;
+}
+
 function lerRequerimento(doc: DocTexto) {
   const t = doc.texto;
   const d: any = {};
-  d.interessado =
-    (t.match(/^\s*([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Úa-zà-ú]+){1,5})\s+(\d{3}\.\d{3}\.\d{3}-\d{2})\s*$/m) || [])[1]?.trim() || null;
+  d.interessado = nomeJuntoDoDocumento(doc);
   d.cpf = (t.match(/(\d{3}\.\d{3}\.\d{3}-\d{2})/) || [])[1] || null;
   d.iptu = (t.match(/(\d{3}\.\d{3}\.\d{4}\.\d{4})/) || [])[1] || null;
   d.enderecoImovel = (t.match(/(Rua\s+\d+\s+Quadra[^\n]+)/i) || [])[1]?.trim() || null;
@@ -798,6 +861,22 @@ async function catalogar(
 
     // extratores despacham pelo PAPEL RESOLVIDO, não pelo caminho que o resolveu: o requerimento
     // não contém a palavra "requerimento" (é formulário do DOM) e só entra pela pista do nome
+    /* O NOME DO INTERESSADO SAI DO REQUERIMENTO — 26/08/2026.
+     *
+     * O requerimento é `SO_PRESENCA` porque **não é importante para a análise técnica** (regra do
+     * Fábio, 17/08/2026) — não porque seja proibido lê-lo. A distinção importa: a matriz declara
+     * `proprietario` como vindo dele (`doDoc("proprietario","REQUERIMENTO",...)`), e enquanto
+     * nada abria o arquivo esse campo não tinha como ser preenchido por leitura nenhuma. No 50724
+     * ele está gravado como `manual`, digitado à mão.
+     *
+     * Lê-se UMA coisa só: o nome do interessado, pescado junto do CPF/CNPJ. Nada mais do
+     * requerimento entra na análise, e a ausência dele continua não sendo cobrada
+     * (`DISPENSAVEIS`) — o que a regra pede é que ele não pese, não que fique fechado. */
+    if (item.papeis.includes("requerimento") && doc.temCamadaTexto) {
+      const interessado = nomeJuntoDoDocumento(doc);
+      if (interessado) item.dados = { ...(item.dados ?? {}), interessado, _v: VERSAO_EXTRATOR };
+    }
+
     if (!item.soPresenca && doc.temCamadaTexto) {
       if (item.papeis.includes("uso_solo")) item.dados = lerUsoDoSolo(doc);
       else if (item.papeis.includes("projeto")) item.dados = lerPrancha(doc);
@@ -1050,6 +1129,9 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
   set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo",
       undefined, [vig.uso_solo, vig.projeto, vig.requerimento]);
+  /* Só do REQUERIMENTO. Tentar o carimbo da prancha como plano B foi testado e descartado em
+   * 26/08/2026: o carimbo traz outros CNPJs (SEFIC, escritório projetista) e o campo saía com o
+   * nome errado — que é pior que vazio, porque vai assinado no despacho. */
   set("proprietario", rq.interessado, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
   set("nome_responsavel_arq", pr.arquiteto, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);

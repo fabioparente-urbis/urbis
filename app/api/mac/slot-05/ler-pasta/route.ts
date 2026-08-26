@@ -21,7 +21,7 @@
 import { NextRequest } from "next/server";
 import { createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { lerPastaSlot5, extrairPdf, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
+import { lerPastaSlot5, type ArquivoEntrada } from "@/lib/lerPastaSlot5";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { contextoNbrAcessibilidade } from "@/lib/mac-motor/slot5/contextoAcessibilidade";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
@@ -170,12 +170,18 @@ async function processar(
     const modeloId = await modeloDoSlot5();
     if (!modeloId) return enviar({ tipo: "erro", ok: false, erro: "sem modelo de checklist do Slot 5" });
 
+    // "Pendente" é pendente NA ANÁLISE ABERTA. Sem o `analiseId` da tela a rota olhava sempre a
+    // de maior número: quem estivesse revisando a Análise 1 mandava para o Gemini a lista de
+    // pendências da 3 — e pagava a leitura para responder o item errado.
+    const analiseId = String(form.get("analiseId") ?? "").trim();
+    let qAnalise = supabaseAdmin.from("analises_mac").select("id, itens")
+      .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
+      .is("excluido_em", null);
+    if (analiseId) qAnalise = qAnalise.eq("id", analiseId);
     const [{ data: itensTodos }, { data: analises }] = await Promise.all([
       supabaseAdmin.from("mac_checklist_itens").select("id, texto, grupo")
         .eq("modelo_id", modeloId).eq("ativo", true).order("ordem").limit(2000),
-      supabaseAdmin.from("analises_mac").select("id, itens")
-        .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
-        .is("excluido_em", null).order("numero_analise", { ascending: false }).limit(1),
+      qAnalise.order("numero_analise", { ascending: false }).limit(1),
     ]);
     const respondidos = ((analises?.[0] as any)?.itens ?? {}) as Record<string, string>;
     const pendentes = (itensTodos ?? []).filter((i: any) => !respondidos[i.id]);
@@ -212,22 +218,69 @@ async function processar(
         (temas.length ? `\n\n===== TEMAS =====\n${JSON.stringify(temas)}` : ""),
     });
 
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: partes }],
-          generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
-        }),
-      },
-    );
-    if (!resp.ok) {
-      return enviar({ tipo: "erro", ok: false, erro: `Gemini: ${resp.status} ${await resp.text()}` });
+    /* Sobrecarga do Gemini (503) e limite de taxa (429) são passageiros e frequentes numa
+     * chamada deste tamanho. Sem repetição, um 503 jogava fora a pasta inteira que acabou de ser
+     * enviada e o analista tinha que subir tudo de novo — foi o que impediu a primeira leitura
+     * real desta rota de terminar. Três tentativas, com espera crescente. */
+    const RECUPERAVEIS = new Set([429, 500, 502, 503, 504]);
+    let resp: Response | null = null;
+    let ultimoErro = "";
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      if (tentativa > 1) {
+        await enviar({
+          tipo: "progresso", fase: "analisando", atual: escolhidos.length, total: escolhidos.length,
+          documento: `Gemini ocupado (${ultimoErro}) — tentativa ${tentativa} de 3...`,
+        });
+        await new Promise((r) => setTimeout(r, (tentativa - 1) * 8000));
+      }
+      const r = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${MODELO}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: partes }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: "application/json",
+              // Explícito: a resposta traz um status por item pendente e cortar no meio devolve
+              // JSON quebrado, que aqui vira "resposta do Gemini não é JSON" sem explicação.
+              maxOutputTokens: 65536,
+            },
+          }),
+        },
+      );
+      if (r.ok) { resp = r; break; }
+      ultimoErro = `HTTP ${r.status}`;
+      const corpo = await r.text();
+      if (!RECUPERAVEIS.has(r.status)) {
+        return enviar({ tipo: "erro", ok: false, erro: `Gemini: ${r.status} ${corpo}` });
+      }
+      if (tentativa === 3) {
+        return enviar({
+          tipo: "erro", ok: false,
+          erro: `Gemini indisponível (${r.status}) depois de 3 tentativas. Os documentos já foram `
+            + `enviados; tente de novo em alguns minutos. Detalhe: ${corpo.slice(0, 300)}`,
+        });
+      }
     }
+    if (!resp) return enviar({ tipo: "erro", ok: false, erro: "Gemini não respondeu" });
 
-    const bruto = (await resp.json())?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const respJson = await resp.json();
+    const candidato = respJson?.candidates?.[0];
+    const bruto = candidato?.content?.parts?.[0]?.text ?? "";
+    if (!bruto) {
+      // Sem texto: quase sempre é corte por tamanho ou bloqueio. Dizer QUAL evita o analista
+      // repetir a leitura inteira sem saber o que mudar.
+      const motivo = candidato?.finishReason ?? respJson?.promptFeedback?.blockReason ?? "sem motivo declarado";
+      return enviar({
+        tipo: "erro", ok: false,
+        erro: `Gemini devolveu resposta vazia (${motivo}). `
+          + (String(motivo) === "MAX_TOKENS"
+            ? "A lista de pendências é grande demais para uma resposta só — responda parte dos itens à mão ou aplique os filtros antes de reler a pasta."
+            : "Tente de novo; se repetir, confira se algum PDF está corrompido."),
+      });
+    }
     let json: any;
     try { json = JSON.parse(bruto); } catch {
       const m = bruto.match(/\{[\s\S]*\}/);

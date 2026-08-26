@@ -77,12 +77,27 @@ export async function POST(req: NextRequest) {
 
     let naoConformes: ItemNaoConforme[] = [];
     if (idsNaoConformes.length) {
-      const { data: itens } = await supabaseAdmin
-        .from("mac_checklist_itens").select("id, texto, grupo, ordem")
-        .eq("modelo_id", modeloId).eq("ativo", true)
-        .in("id", idsNaoConformes).order("ordem", { ascending: true }).limit(2000);
+      const [{ data: itens }, { data: catalogo }] = await Promise.all([
+        supabaseAdmin
+          .from("mac_checklist_itens").select("id, texto, grupo, ordem")
+          .eq("modelo_id", modeloId).eq("ativo", true)
+          .in("id", idsNaoConformes).order("ordem", { ascending: true }).limit(2000),
+        // Posição de cada grupo no índice do checklist. Onze grupos do Slot 5 têm itens
+        // acrescentados depois, com `ordem` na casa dos 9000; sem a menor ordem do grupo, um
+        // deles apareceria no fim do despacho mesmo estando no meio da tela.
+        supabaseAdmin
+          .from("mac_checklist_itens").select("grupo, ordem")
+          .eq("modelo_id", modeloId).eq("ativo", true).limit(2000),
+      ]);
+      const ordemDoGrupo = new Map<string, number>();
+      for (const c of (catalogo ?? []) as any[]) {
+        const g = String(c.grupo ?? "");
+        const o = Number(c.ordem ?? 0);
+        if (!ordemDoGrupo.has(g) || o < ordemDoGrupo.get(g)!) ordemDoGrupo.set(g, o);
+      }
       naoConformes = (itens ?? []).map((i: any) => ({
         texto: String(i.texto ?? ""), grupo: String(i.grupo ?? ""), ordem: Number(i.ordem ?? 0),
+        ordemGrupo: ordemDoGrupo.get(String(i.grupo ?? "")) ?? Number(i.ordem ?? 0),
         // A observação do analista naquele item sai logo abaixo da exigência no documento.
         observacao: obsPorItem[i.id] ?? null,
       }));

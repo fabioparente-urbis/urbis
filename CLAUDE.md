@@ -62,3 +62,20 @@ demais. Os prompts do LIP, esses sim, são isolados por slot.
 - **Nunca deixar item sumir em silêncio.** Marca presa a item desativado do checklist não pode
   simplesmente não aparecer no documento — conte e reporte (ver o cabeçalho
   `X-Exigencias-Perdidas` em `app/api/mac/slot-05/despacho/route.ts`).
+
+### ⛔ Slot 5 — manuais versionados (regra suprema, declarada em 2026-08-25)
+
+**Toda modificação, ampliação, alteração ou expansão do Slot 5 obriga a atualizar, versionar e
+datar OS DOIS manuais**, `docs/manuais/MANUAL_SLOT5_LIP.md` e `docs/manuais/MANUAL_SLOT5_MAC.md`.
+
+Vale mesmo quando o trabalho tocou só um dos módulos: o manual do módulo que não mudou registra,
+na mesma data, que foi conferido e o que mudou do outro lado. Nenhuma tarefa do Slot 5 se encerra
+sem isso — nem correção de bug, nem ajuste de texto de botão.
+
+Ordem obrigatória, nos dois arquivos:
+1. escrever o que mudou **na seção certa** do manual, não só no histórico;
+2. acrescentar a linha nova em **Histórico de versões** (versão + data + o que mudou);
+3. subir o `**Versão:**` e o `**Data:**` do cabeçalho.
+
+Os manuais são servidos na tela (`/manuais/slot5`, ver `lib/manuaisSlot5.ts`): manual desatualizado
+não é documentação velha parada num diretório, é instrução errada na frente do analista.

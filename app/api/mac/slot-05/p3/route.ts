@@ -1,6 +1,12 @@
 /**
  * app/api/mac/slot-05/p3/route.ts — leitura da prancha por IA, EXCLUSIVA do Slot 5.
  *
+ * ⚠ SUPERADA E SEM CHAMADOR (auditoria de 25/08/2026). Quem lê documento para o MAC do Slot 5
+ * hoje é `app/api/mac/slot-05/ler-pasta/route.ts`, que recebe a PASTA inteira, elege o último de
+ * cada papel e responde em NDJSON com progresso. Esta rota recebe arquivos avulsos e continua de
+ * pé só como referência do formato de resposta; nenhuma tela a chama. Se for mexer no motor de
+ * leitura, mexa em ler-pasta — mudar aqui não muda nada na tela.
+ *
  * Isolada do Slot 1: não importa nada de app/api/mac/p3, e o prompt vem de
  * lib/mac-motor/slot5/promptP3.ts (código), nunca de `lip_prompts` — as rotas que leem essa
  * tabela caem, por fallback, no prompt global, que hoje é o da Regularização. Os três registros
