@@ -771,6 +771,15 @@ function lerAtendimento(doc: DocTexto) {
   d.areaConstruir = num(valorPerto(doc, "Área a ser construída", /\d+(?:\.\d{3})*(?:,\d+)?/, 120) ?? undefined);
   d.enderecoBruto = (t.match(/((?:AV|AVENIDA|R|RUA|AL|ALAMEDA|PRACA|PRA[ÇC]A|TV|TRAVESSA)\s+[^\n]{3,70}?Setor\s+[^\n]{3,40}?)(?=\s*-\s*CEP|\s{2,})/i) || [])[1]?.trim() || null;
   d.situacao = (t.match(/(Apto para An[áa]lise|Em An[áa]lise|Indeferido|Deferido)/i) || [])[1] || null;
+
+  /* O endereço do ATENDIMENTO vem inteiro numa linha só —
+   * "R RB11 Quadra 07 Lote 22 Setor SET ALTO DO VALE" — e é a única fonte que traz QUADRA e LOTE
+   * juntos quando o Uso do Solo não traz. Quebrado aqui para alimentar os campos um a um. */
+  const e = String(d.enderecoBruto ?? "");
+  d.quadra = (e.match(/Quadra\s+([A-Z0-9-]+)/i) || [])[1] || null;
+  d.lote = (e.match(/Lote\s+([A-Z0-9\/-]+)/i) || [])[1] || null;
+  d.setor = (e.match(/Setor\s+(.+?)\s*$/i) || [])[1]?.trim() || null;
+  d.logradouro = e.replace(/\s*(Quadra|Lote|Setor)\s+.*$/i, "").trim() || null;
   return d;
 }
 
@@ -1227,12 +1236,23 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
 
 
   // identificação
-  set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "ENCONTRADO", "Uso do Solo (Nome da Via)",
-      undefined, [vig.uso_solo, vig.projeto]);
-  set("quadra", uds.quadra, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
-  set("lote", uds.lote, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
-  set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
-  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo",
+  emCascata("logradouro", "LOGRADOURO", [
+    { valor: uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], fonte: "Uso do Solo (Nome da Via)", doc: vig.uso_solo, oficial: true },
+    { valor: at.logradouro, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("quadra", "QUADRA", [
+    { valor: uds.quadra, fonte: "Uso do Solo", doc: vig.uso_solo, oficial: true },
+    { valor: at.quadra, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("lote", "LOTE", [
+    { valor: uds.lote, fonte: "Uso do Solo", doc: vig.uso_solo, oficial: true },
+    { valor: at.lote, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("bairro", "BAIRRO / SETOR", [
+    { valor: uds.bairro, fonte: "Uso do Solo", doc: vig.uso_solo, oficial: true },
+    { valor: at.setor, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu ?? at.iptu), "ENCONTRADO", "Uso do Solo",
       undefined, [vig.uso_solo, vig.projeto, vig.requerimento]);
   /* Proprietário: requerimento → ATENDIMENTO → ART. NÃO se tenta o carimbo da prancha — testado e
    * descartado em 26/08/2026, porque o carimbo traz outros CNPJs (SEFIC, escritório projetista) e
