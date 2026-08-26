@@ -672,7 +672,18 @@ export default function ProcessoClient() {
         detalhe: { iptu, coordenadas: json.coordenadas, divergencias: divergentes.map((c) => c.campo) },
       });
 
-      if (divergentes.length > 0 || !json.exato) {
+      /* NO SLOT 5, o painel abre SEMPRE — inclusive quando tudo bate (26/08/2026, pedido do
+       * Fábio). Antes só aparecia havendo divergência: no 48533 o LIP já estava na mesma grafia
+       * do cadastro, então a busca preenchia a coordenada, mostrava um toast e sumia — e o
+       * analista ficava sem o caminho para o Mapa Fácil justamente onde queria ir olhar o lote.
+       * Conferência que bate também é informação.
+       *
+       * Nos demais slots o comportamento antigo fica INTACTO (só abre havendo o que conferir):
+       * esta tela é um arquivo só para os 15 slots, e a autorização desta sessão é do Slot 5 —
+       * mudar o fluxo do Slot 1 aqui seria mexer nele sem pedido (ver CLAUDE.md). Para estender,
+       * basta o Fábio pedir para aquele slot. */
+      const abrirPainelSempre = ehSlot5;
+      if (abrirPainelSempre || divergentes.length > 0 || !json.exato) {
         setConflitoMapa({
           coordenadas: json.coordenadas,
           iptu: json.iptuEncontrado ?? iptu,
@@ -680,6 +691,8 @@ export default function ProcessoClient() {
           cadastro: json.cadastro,
           confrontos,
         });
+      }
+      if (divergentes.length > 0 || !json.exato) {
         mostrarToast(`📍 Coordenadas preenchidas — ${divergentes.length} campo(s) de endereço a conferir.`, "info");
       } else {
         mostrarToast("📍 Coordenadas preenchidas — endereço confere com o cadastro.", "sucesso");
@@ -2415,17 +2428,27 @@ export default function ProcessoClient() {
         </div>
       )}
 
-      {/* Aviso de endereço divergente. NÃO bloqueia nada: a coordenada já foi
-          gravada antes deste painel aparecer. Ele existe para explicar o que
-          não bateu e levar o analista ao Mapa Fácil, que dá a palavra final. */}
-      {conflitoMapa && (
+      {/* Resultado da busca de coordenadas. NÃO bloqueia nada: a coordenada já foi
+          gravada antes deste painel aparecer. Ele existe para mostrar o confronto
+          campo a campo e levar o analista ao Mapa Fácil, que dá a palavra final.
+          No Slot 5 abre sempre; nos demais, só havendo o que conferir. */}
+      {conflitoMapa && (() => {
+        // Título e texto mudam conforme o resultado: afirmar "endereço a conferir" num processo em
+        // que os quatro campos bateram seria mentir para o analista.
+        const temDivergencia = conflitoMapa.confrontos.some((c) => c.situacao === "diverge");
+        const precisaAtencao = temDivergencia || !conflitoMapa.exato;
+        return (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setConflitoMapa(null)}>
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">🗺 Coordenadas preenchidas — endereço a conferir</h2>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">
+              {precisaAtencao ? "🗺 Coordenadas preenchidas — endereço a conferir" : "🗺 Coordenadas preenchidas — endereço confere"}
+            </h2>
             <p className="text-sm text-[var(--text-secondary)] mb-3">
               As coordenadas <strong className="text-[var(--text-primary)]">{conflitoMapa.coordenadas}</strong> já estão no
-              LIP. O que segue é só conferência: o cadastro do Mapa Fácil costuma estar desatualizado,
-              principalmente no bairro e no nome da via. A palavra final é sua.
+              LIP.{" "}
+              {precisaAtencao
+                ? "O que segue é só conferência: o cadastro do Mapa Fácil costuma estar desatualizado, principalmente no bairro e no nome da via. A palavra final é sua."
+                : "Todos os campos de endereço batem com o cadastro do município. Os botões abaixo continuam à mão se você quiser olhar o lote no mapa."}
             </p>
 
             {!conflitoMapa.exato && (
@@ -2485,7 +2508,8 @@ export default function ProcessoClient() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {modalVCP && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setModalVCP(false)}>

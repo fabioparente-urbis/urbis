@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.10
+**Versão:** 1.11
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -442,8 +442,34 @@ checagem — e como divergência nunca trava nada, não há necessidade prática
 extração automática de coordenada que o Slot 5 já tinha (a partir da ART) continua intocada; o botão
 🗺 é só um caminho manual adicional, não substitui a extração existente.
 
-**Nunca testado em processo real do Slot 5** — os processos de teste no banco (`123456`, `1234567`,
-`44556`) têm os campos de coordenada vazios.
+**Testado em processo real do Slot 5 em 26/08/2026** (48533) — funcionou: preencheu a coordenada e
+confrontou os quatro campos, todos batendo. *(Antes desta data o manual registrava "nunca testado";
+os processos de teste do banco — `123456`, `1234567`, `44556` — têm coordenada vazia.)*
+
+### 6.5 O painel de resultado passou a abrir sempre no Slot 5 (26/08/2026)
+
+Achado do teste acima. O painel de confronto (tabela LIP × Mapa Fácil + botões "Ver no Google Maps"
+e "Abrir o Mapa Fácil") só abria **quando havia divergência ou o IPTU casava por aproximação**:
+
+```
+if (divergentes.length > 0 || !json.exato) { abre o painel } else { só um toast verde }
+```
+
+No 48533 o LIP já estava na mesma grafia do cadastro (`SET ALTO DO VALE`, `R RB11`) — zero
+divergência, IPTU exato — então a busca preenchia a coordenada, mostrava o toast e sumia. O Fábio
+comparou com o Slot 1, onde o painel tinha aparecido (`ALAMEDA DOM EMANUEL GOMES` × `AL DOM EMANUEL
+GOMES`, `SETOR MARISTA` × `SET MARISTA`), e cobrou a mesma tela. **Não era diferença entre slots —
+era o mesmo código pegando o ramo "tudo bate".**
+
+Agora, **no Slot 5**, o painel abre sempre que a busca dá certo; o título e o texto mudam conforme o
+caso ("endereço a conferir" × "endereço confere"), e a tabela mostra os quatro campos com ✅. O
+motivo de abrir mesmo batendo é prático: é por esse painel que se chega ao Mapa Fácil com o IPTU já
+copiado — sem ele, o analista que quer só olhar o lote no mapa não tem caminho.
+
+**Os demais slots ficaram intactos** (só abrem havendo o que conferir). A tela é um arquivo só para
+os 15 slots e a autorização desta sessão era do Slot 5; mudar o fluxo do Slot 1 aqui seria mexer
+nele sem pedido (ver `CLAUDE.md`). Estender é uma linha — `const abrirPainelSempre = ehSlot5` —
+quando houver pedido para aquele slot.
 
 ---
 
@@ -966,6 +992,7 @@ Mesma categoria da altura no corte (seção 16, item 6): Grupo C, não implement
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.11 | 2026-08-26 | Seção 6.5: o painel de resultado da busca de coordenadas passa a abrir sempre no Slot 5 (antes só havendo divergência — no 48533 tudo batia e o analista ficava sem caminho para o Mapa Fácil); demais slots intactos. Seção 6.4: registrado o primeiro teste real da integração no Slot 5 |
 | 1.10 | 2026-08-26 | Seção 17: cadeia inteira de vagas calculada — `areaOcupadaPelaAtividade` (Art. 9º Lei 10.845/2022), `totalDeVagasExigidasParaEssas` (÷ tabela do Uso do Solo), `vagasPcdExigido`/`vagasIdosoExigido` (Art. 12 §3º-§5º, achado via BIP porque a NBR 9050 não traz percentual), `totalASerDescontadoNoCalculo` renomeado e revisado (Art. 11, desconto sobre a AOA). Registrada pendência do ACESSO/MANOBRA (precisa leitura espacial da planta) |
 | 1.9 | 2026-08-26 | Seção 16: 6 achados do teste ao vivo no 48533 — `grandePorte` calculado (não lido), ART execução reconhece declaração do CREA, `unidComerciais` reconhece "COMÉRCIO", `areaTotalPrivativa` NP quando comercial, `acessoVertical` conferido (já estava certo), `outorgaOnerosa` documentado (fórmula certa, falta leitura visual da altura). Mais 2 achados registrados como pendência: dimensões do lote × certidão, endereço × carimbo |
 | 1.8 | 2026-08-26 | Seção 15: laço LIP→MAC — cruzamento passa a gravar `divergenciasChaves`/`declaradoMasNaoEntregueChaves` por chave (não só texto), 8 filtros novos no MAC marcam item automaticamente quando o texto do item já cita o mesmo campo; corrigidas 2 chaves fantasma que faltavam declarar desde a noite do cruzamento |
