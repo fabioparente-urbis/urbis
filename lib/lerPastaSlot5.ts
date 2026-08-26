@@ -593,6 +593,35 @@ function lerPrancha(doc: DocTexto) {
    */
   d.previsaoElevadorSemInstalar = /PROJE[ÇC][ÃA]O\s+ESPA[ÇC]O\s+ELEVADOR|PREVIS[ÃA]O[\s\S]{0,20}ELEVADOR/i.test(t);
 
+  /* Categorias descontáveis do quadro de áreas/vagas — Lei 10.845/2022 (Art. 9º = base da Área
+   * Ocupada pela Atividade; Art. 11 = descontos extras específicos do cálculo de vagas) + IN
+   * 008/2023 Anexo VI. Aqui só EXTRAI o valor bruto de cada categoria, se o rótulo aparecer no
+   * quadro — a SOMA (com as exceções de atividade) acontece lá embaixo, onde `uds`/`rq` já estão
+   * disponíveis. Primeira versão — as variantes de rótulo cobrem o vocabulário mais comum, mas
+   * cada projetista escreve diferente; nunca assume 0 por não achar o rótulo esperado. */
+  const areaDoRotulo = (...rotulos: string[]) => {
+    for (const r of rotulos) {
+      const v = num(valorPerto(doc, r, P_AREA, 60) ?? undefined);
+      if (v != null) return v;
+    }
+    return null;
+  };
+  d.areaCirculacaoManobra = areaDoRotulo(
+    "CIRCULAÇÃO E MANOBRA", "CIRCULAÇÃO/MANOBRA/ESTACIONAMENTO", "CIRCULAÇÃO E ESTACIONAMENTO",
+    "ÁREA DE ESTACIONAMENTO", "ESTACIONAMENTO DE VEÍCULOS");
+  d.areaPatioCargaDescarga = areaDoRotulo(
+    "PÁTIO DE CARGA E DESCARGA", "ÁREA DE CARGA E DESCARGA", "CARGA E DESCARGA");
+  d.areaCaixaDaguaCasaMaquinas = areaDoRotulo(
+    "CAIXA D'ÁGUA", "CAIXA DÁGUA", "BARRILETE", "CASA DE MÁQUINAS");
+  d.areaLajeTecnica = areaDoRotulo("LAJE TÉCNICA", "ÁREA TÉCNICA");
+  d.areaCentralGasSubestacaoGerador = areaDoRotulo(
+    "CENTRAL DE GÁS", "SUBESTAÇÃO", "GERADOR", "ABRIGO DE RESÍDUOS");
+  d.areaEscadasElevadoresUsoComum = areaDoRotulo(
+    "ESCADAS E ELEVADORES DE USO COMUM", "ESCADA DE USO COMUM", "ELEVADOR DE USO COMUM");
+  // Depósito/produção: só descontável do cálculo de VAGAS quando ≥ 180 m² (Art. 11) — o limiar é
+  // aplicado lá embaixo, aqui só extrai o valor bruto.
+  d.areaDepositoProducao = areaDoRotulo("DEPÓSITO", "ÁREA DE PRODUÇÃO");
+
   const iccap = valorPerto(doc, "ICCAP", /EXIGIDO|ATENDIDO|\d+,\d+/i, 60)
              || valorPerto(doc, "ÍNDICE DE CONTROLE E CAPTAÇÃO", /V\s*=|\d+,\d+/i, 60);
   d.iccapExigido = num(t.match(/EXIGIDO:?\s*=?\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
@@ -1474,12 +1503,104 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     { valor: pr.vagasPcd, fonte: "tabela de vagas da prancha", doc: vig.projeto, oficial: true },
     { valor: at.vagasAtendidas?.pcd, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
   ]);
-  emCascata("totalDeVagasExigidasParaEssas", "TOTAL DE VAGAS EXIGIDAS", [
-    { valor: at.vagasExigidas?.total, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
-  ]);
-  emCascata("vagasPcdExigido", "VAGAS PCD EXIGIDAS", [
-    { valor: at.vagasExigidas?.pcd, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
-  ]);
+  /* ÁREA OCUPADA PELA ATIVIDADE (AOA) — Lei 10.845/2022 Art. 9º + IN 008/2023 Anexo VI. Regra do
+   * Fábio (26/08/2026, colou o texto da lei): AOA = área construída total (+ áreas descobertas de
+   * uso efetivo — leitor ainda não distingue isso no quadro, fica de fora por ora) MENOS as
+   * categorias técnicas/comuns do quadro de áreas. EXCEÇÃO: se a própria atividade do
+   * estabelecimento é estacionamento/garagem, o desconto de circulação·manobra·estacionamento não
+   * se aplica; se é carga e descarga/transportadora, o desconto de pátio C&D não se aplica — a
+   * área É a atividade, não sobra dela. */
+  const atividadeEhEstacionamento = /estacionamento|garagem/i.test(rq.tipoUso ?? "")
+    || (uds.cnaes ?? []).some((c: any) => /estacionamento|garagem/i.test(c.denominacao ?? ""));
+  const atividadeEhCargaDescarga = /transportadora|log[íi]stica/i.test(rq.tipoUso ?? "")
+    || (uds.cnaes ?? []).some((c: any) => /transportadora|log[íi]stica|carga\s*e?\s*descarga/i.test(c.denominacao ?? ""));
+
+  const itensAoa: string[] = [];
+  let descontoAoa = 0;
+  const descontarAoa = (valor: number | null, nome: string, excecao: boolean) => {
+    if (valor == null || excecao) return;
+    descontoAoa += valor;
+    itensAoa.push(`${nome}: ${fmt(valor)} m²`);
+  };
+  descontarAoa(pr.areaCirculacaoManobra, "circulação/manobra/estacionamento", atividadeEhEstacionamento);
+  descontarAoa(pr.areaPatioCargaDescarga, "pátio de carga e descarga", atividadeEhCargaDescarga);
+  descontarAoa(pr.areaCaixaDaguaCasaMaquinas, "caixa d'água/barrilete/casa de máquinas", false);
+  descontarAoa(pr.areaLajeTecnica, "laje técnica/área técnica", false);
+  descontarAoa(pr.areaCentralGasSubestacaoGerador, "central de gás/subestação/gerador/abrigo de resíduos", false);
+  descontarAoa(pr.areaEscadasElevadoresUsoComum, "escadas/elevadores de uso comum", false);
+
+  const areaTotalFinal = num(C["areaTotal"]?.valor);
+  let areaOcupadaFinal: number | null = null;
+  if (areaTotalFinal != null) {
+    areaOcupadaFinal = areaTotalFinal - descontoAoa;
+    set("areaOcupadaPelaAtividade", fmt(areaOcupadaFinal), "CALCULADO",
+        "área total construída − categorias técnicas/comuns do quadro de áreas", undefined, vig.projeto ?? null);
+    (C["areaOcupadaPelaAtividade"] as any).evidencia =
+      `${fmt(areaTotalFinal)} m² (área total) − [${itensAoa.length ? itensAoa.join(" | ") : "nenhuma área técnica/comum achada no quadro"}]`
+      + (atividadeEhEstacionamento ? " — atividade é estacionamento: desconto de circulação/manobra não se aplica (Art. 9º)." : "")
+      + (atividadeEhCargaDescarga ? " — atividade é carga e descarga: desconto de pátio C&D não se aplica (Art. 9º)." : "")
+      + " Não inclui áreas descobertas de uso efetivo (leitor não distingue isso ainda no quadro).";
+  }
+
+  /* TOTAL DE VAGAS EXIGIDAS — regra do Fábio (26/08/2026): AOA ÷ o que a tabela "Vagas de
+   * Estacionamento" do Uso do Solo preconiza pra faixa da AOA, sempre arredondado pra baixo. A
+   * tabela padrão de Goiânia (mesma que o Fábio mostrou, impressa no Uso do Solo): até 90m²
+   * isento; 90,01 a 1.500m² = 1 vaga a cada 90m²; 1.500,01 a 5.000m² = 1 a cada 60m²; acima de
+   * 5.000m² = 1 a cada 45m². Hardcoded — não lida do Uso do Solo processo a processo (a tabela
+   * pode ter faixas diferentes conforme a atividade/zona; sem um caso real com tabela diferente
+   * na mão, assumo a padrão). Nunca lê o ATENDIMENTO como fonte primária — só cruza como conferência. */
+  const FAIXAS_VAGAS_ESTACIONAMENTO: { ate: number; divisor: number | null }[] = [
+    { ate: 90, divisor: null }, // isento
+    { ate: 1500, divisor: 90 },
+    { ate: 5000, divisor: 60 },
+    { ate: Infinity, divisor: 45 },
+  ];
+  if (areaOcupadaFinal != null) {
+    const faixa = FAIXAS_VAGAS_ESTACIONAMENTO.find((f) => areaOcupadaFinal! <= f.ate)!;
+    const totalCalc = faixa.divisor == null ? 0 : Math.floor(areaOcupadaFinal / faixa.divisor);
+    set("totalDeVagasExigidasParaEssas", String(totalCalc), "CALCULADO",
+        faixa.divisor == null
+          ? "área ocupada pela atividade ≤ 90 m² — isento (tabela Vagas de Estacionamento do Uso do Solo)"
+          : `área ocupada pela atividade ÷ ${faixa.divisor} m²/vaga, arredondado pra baixo (tabela Vagas de Estacionamento do Uso do Solo)`,
+        undefined, vig.uso_solo ?? null);
+    const declarado = num(at.vagasExigidas?.total);
+    if (declarado != null && declarado !== totalCalc) {
+      (C["totalDeVagasExigidasParaEssas"] as any).evidencia =
+        `calculado ${totalCalc} (${fmt(areaOcupadaFinal)} m² ÷ ${faixa.divisor ?? "isento"}) — `
+        + `ATENDIMENTO declara ${declarado}, DIVERGE: confira qual está certo.`;
+    }
+  }
+  /* VAGAS PCD/IDOSO EXIGIDAS — achado no BIP a pedido do Fábio: a NBR 9050:2020 (seção 6.14.3) não
+   * traz percentual nenhum, remete a "legislação específica". Quem define é a Lei 10.845/2022,
+   * Art. 12 §3º-§5º: 2% PCD e 5% idoso do total de vagas exigidas, cada um garantido no mínimo 1 —
+   * EXCETO quando o total exigido é exatamente 1, caso em que essa vaga única vai inteira para PCD
+   * (§5º), sem reservar idoso também (só há uma vaga, não duas). Regra do Fábio confirmada pelo
+   * texto: "se só tem 1 vaga ela tem que ser PCD; se tem duas, uma de idoso e uma de PCD" — bate
+   * exato com 2%/5% arredondados pro mínimo em total=2. */
+  const totalVagasExigidas = num(C["totalDeVagasExigidasParaEssas"]?.valor);
+  if (totalVagasExigidas != null) {
+    const pcdExigido = totalVagasExigidas <= 0 ? 0
+      : totalVagasExigidas === 1 ? 1
+      : Math.max(1, Math.floor(totalVagasExigidas * 0.02));
+    const idosoExigido = totalVagasExigidas <= 0 ? 0
+      : totalVagasExigidas === 1 ? 0 // a vaga única já foi pra PCD acima — não sobra pra idoso
+      : Math.max(1, Math.floor(totalVagasExigidas * 0.05));
+    set("vagasPcdExigido", String(pcdExigido), "CALCULADO",
+        "2% do total de vagas exigidas, mínimo 1 quando total ≥ 1 (Lei 10.845/2022 Art. 12 §3º/§5º)");
+    set("vagasIdosoExigido", String(idosoExigido), "CALCULADO",
+        "5% do total de vagas exigidas, mínimo 1 quando total ≥ 2 (Lei 10.845/2022 Art. 12 §4º)"
+        + (totalVagasExigidas === 1 ? " — total é 1: a vaga única vai inteira para PCD (§5º), zero para idoso" : ""));
+  }
+
+  /* Total a descontar no cálculo das VAGAS — descontos EXTRAS do Art. 11, aplicados sobre a AOA,
+   * não a AOA em si. Hoje só o depósito/produção ≥180 m² está implementado (regra objetiva, sem
+   * depender de qual é a atividade); quadras de esportes (só p/ CNAE de educação) e áreas
+   * administrativas com exigência própria de C/D ficaram de fora — exigem detectar a atividade
+   * específica, e prefiro não chutar isso sem um caso real na mão. */
+  if (pr.areaDepositoProducao != null && pr.areaDepositoProducao >= 180) {
+    set("totalASerDescontadoNoCalculo", fmt(pr.areaDepositoProducao), "CALCULADO",
+        "depósito/produção ≥180m² no quadro de áreas (Art. 11, IN 008/2023 Anexo VI)", undefined, vig.projeto ?? null);
+  }
   set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("unidComerciais", pr.unidComerciais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
       ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"], vig.projeto ?? null);

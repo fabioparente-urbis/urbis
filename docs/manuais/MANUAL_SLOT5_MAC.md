@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.10
+**Versão:** 1.11
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -968,6 +968,7 @@ O próximo processo lido no Slot 5 é o primeiro teste de verdade em produção.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.11 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (seção 17 do `MANUAL_SLOT5_LIP.md`): cadeia de vagas (AOA, total exigido, PCD/idoso) calculada no LIP, nenhum item do checklist nem filtro tocado |
 | 1.10 | 2026-08-26 | Seção 4.4: caixa de recarga passa a ler `areaImpermeabilizada` do LIP direto, em vez de recalcular terreno−permeável por conta própria dentro do motor — achado ao vivo no 48533, `REGRA_VERSAO_CAIXA_RECARGA` 4→5 |
 | 1.9 | 2026-08-26 | Seção 14.10: laço LIP→MAC — 8 filtros novos (`LAÇO LIP:`) marcam item `nao_conforme` sozinho a partir do cruzamento declarado×entregue do LIP; tabela completa de campo→item e do que ficou de fora de propósito |
 | 1.8 | 2026-08-26 | Sem mudança de comportamento no MAC — o campo `licencaPrevia` foi removido do LIP (ver seção 14 do `MANUAL_SLOT5_LIP.md`) e o único ponto tocado no MAC foi o texto do prompt P3 (`promptP3.ts`), que citava o campo como referência descritiva ao apoiar o ITEM 1; nenhum item do checklist nem filtro dependia dele |

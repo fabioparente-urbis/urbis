@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.9
+**Versão:** 1.10
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -908,12 +908,65 @@ Outros dois achados do Fábio na mesma sessão, **ainda não implementados, agua
 
 ---
 
+## 17. Vagas de estacionamento — AOA, total exigido e PCD/idoso calculados (26/08/2026)
+
+Continuação da sessão do 48533. O Fábio colou o texto de três normas (Lei 10.845/2022, IN
+008/2023 Anexo VI, e pediu conferência na NBR 9050 via BIP) para fechar a cadeia inteira de
+vagas — hoje toda calculada, nenhum elo mais lido/declarado sem cálculo por trás.
+
+**Rótulo corrigido**: `totalASerDescontadoNoCalculo` era "TOTAL A SER DESCONTADO NO CÁLCULO DA
+ÁREA OCUPADA PELA ATIVIDADE" — renomeado para "...CÁLCULO DAS VAGAS", que é o que o campo
+representa de fato (ver abaixo).
+
+**A cadeia, na ordem que o código calcula:**
+
+1. **`areaOcupadaPelaAtividade` (AOA)** — Lei 10.845/2022 Art. 9º. `areaTotal` (construída) MENOS
+   as categorias técnicas/comuns achadas no quadro de áreas da prancha: circulação·manobra·
+   estacionamento, pátio de carga e descarga, caixa d'água/barrilete/casa de máquinas, laje
+   técnica/área técnica, central de gás/subestação/gerador/abrigo de resíduos, escadas/elevadores
+   de uso comum. Cada categoria só entra se o rótulo aparecer no quadro (nunca assume 0 por não
+   achar — ver `areaDoRotulo()` em `lerPastaSlot5.ts`). **Exceção do Art. 9º**: se a própria
+   atividade do estabelecimento é estacionamento/garagem, o desconto de circulação/manobra não se
+   aplica; se é carga e descarga/transportadora, o desconto de pátio C&D não se aplica (detectado
+   por CNAE/tipo de uso). Não inclui "áreas descobertas de uso efetivo" — o leitor ainda não
+   distingue isso no quadro de áreas.
+2. **`totalDeVagasExigidasParaEssas`** — AOA ÷ o divisor da tabela "Vagas de Estacionamento" do
+   Uso do Solo, sempre arredondado pra baixo. Tabela **hardcoded** (não lida do UDS
+   processo a processo): ≤90m² isento, 90,01–1.500m² = 1 vaga/90m², 1.500,01–5.000m² = 1 vaga/60m²,
+   acima de 5.000m² = 1 vaga/45m² — a mesma tabela que o Fábio mostrou impressa no Uso do Solo do
+   48533. Pode variar por zona/atividade em casos ainda não vistos; se aparecer um Uso do Solo com
+   tabela diferente, é achado pra registrar aqui, não pra generalizar sozinho. O que o ATENDIMENTO
+   declara vira só CONFERÊNCIA na evidência quando diverge do calculado — nunca é a fonte.
+3. **`totalASerDescontadoNoCalculo`** — descontos EXTRAS do Art. 11, aplicados sobre a AOA (não a
+   AOA em si): hoje só depósito/produção ≥180m² está implementado (regra objetiva). Quadras de
+   esportes (só CNAE de educação) e áreas administrativas com C/D regulado ficaram de fora —
+   dependem de detectar a atividade específica, e prefiro não chutar sem caso real.
+4. **`vagasPcdExigido`/`vagasIdosoExigido`** — achado no BIP a pedido do Fábio: a NBR 9050:2020
+   (seção 6.14.3) **não** traz percentual — o texto da norma diz literalmente "os percentuais...
+   estão definidos em legislação específica". Quem define é a Lei 10.845/2022, Art. 12 §3º-§5º: 2%
+   PCD e 5% idoso do total de vagas exigidas, cada um garantido no mínimo 1 — **exceto quando o
+   total é exatamente 1**, caso em que essa vaga única vai inteira para PCD (§5º), zero para
+   idoso. Confirma exatamente a regra que o Fábio descreveu de memória ("se só tem 1 vaga ela é
+   PCD; se tem duas, uma de idoso e uma de PCD") — 2%/5% arredondados pro mínimo em total=2 dá
+   exatamente 1+1.
+
+**Pendência registrada, não implementada — "ATENDE ACESSO/CIRCULAÇÃO/VAGAS/MANOBRAS? LC
+364/2023"**: regra do Fábio — para menos de 150 veículos, acesso de 3m e manobra de 5m na frente
+da vaga; se a manobra é INTERNA ao lote, tem que ler as vagas; se não é interna ao lote, não há
+"acesso" no sentido da norma e o item é NP (achado no 48533: manobra acontece na calçada, não
+dentro do lote — o resultado devia ser NP). Decidir "manobra interna × manobra na calçada" exige
+ler a POSIÇÃO das vagas/acesso na planta baixa — é leitura espacial de desenho, não texto corrido.
+Mesma categoria da altura no corte (seção 16, item 6): Grupo C, não implementado.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.10 | 2026-08-26 | Seção 17: cadeia inteira de vagas calculada — `areaOcupadaPelaAtividade` (Art. 9º Lei 10.845/2022), `totalDeVagasExigidasParaEssas` (÷ tabela do Uso do Solo), `vagasPcdExigido`/`vagasIdosoExigido` (Art. 12 §3º-§5º, achado via BIP porque a NBR 9050 não traz percentual), `totalASerDescontadoNoCalculo` renomeado e revisado (Art. 11, desconto sobre a AOA). Registrada pendência do ACESSO/MANOBRA (precisa leitura espacial da planta) |
 | 1.9 | 2026-08-26 | Seção 16: 6 achados do teste ao vivo no 48533 — `grandePorte` calculado (não lido), ART execução reconhece declaração do CREA, `unidComerciais` reconhece "COMÉRCIO", `areaTotalPrivativa` NP quando comercial, `acessoVertical` conferido (já estava certo), `outorgaOnerosa` documentado (fórmula certa, falta leitura visual da altura). Mais 2 achados registrados como pendência: dimensões do lote × certidão, endereço × carimbo |
 | 1.8 | 2026-08-26 | Seção 15: laço LIP→MAC — cruzamento passa a gravar `divergenciasChaves`/`declaradoMasNaoEntregueChaves` por chave (não só texto), 8 filtros novos no MAC marcam item automaticamente quando o texto do item já cita o mesmo campo; corrigidas 2 chaves fantasma que faltavam declarar desde a noite do cruzamento |
 | 1.7 | 2026-08-26 | Seção 14: campo `licencaPrevia` removido do LIP (0 uso em checklist/filtros/laudo/despacho, achado ao pesquisar antes de apagar) — banco, cruzamento, matriz de rastreabilidade e lock de versões atualizados juntos |

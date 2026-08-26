@@ -415,25 +415,17 @@
     "versao": 2,
     "hash": "feb462f0cdc470fe"
   },
-  "LIP:slot_05:vagasPcdExigido": {
-    "versao": 2,
-    "hash": "0e95c0a2ee96aed6"
-  },
-  "LIP:slot_05:vagasIdosoExigido": {
-    "versao": 2,
-    "hash": "0e95c0a2ee96aed6"
-  },
   "LIP:slot_05:totalDeVagasExigidasParaEssas": {
     "versao": 2,
-    "hash": "0e95c0a2ee96aed6"
+    "hash": "35828dde11b1dbb0"
   },
-  "LIP:slot_05:totalASerDescontadoNoCalculo": {
-    "versao": 1,
-    "hash": "7b5c5db6cb9ce48a"
+  "LIP:slot_05:vagasPcdExigido": {
+    "versao": 2,
+    "hash": "cdbb180e1383031c"
   },
-  "LIP:slot_05:areaOcupadaPelaAtividade": {
+  "LIP:slot_05:vagasIdosoExigido": {
     "versao": 1,
-    "hash": "7b5c5db6cb9ce48a"
+    "hash": "f76f09a41521bc7e"
   },
   "LIP:slot_05:totalDeVagasAtendidasParaAtividade": {
     "versao": 1,
@@ -450,6 +442,14 @@
   "LIP:slot_05:atendeAcessoCirculacaoVagasManobrasLc": {
     "versao": 1,
     "hash": "7b5c5db6cb9ce48a"
+  },
+  "LIP:slot_05:areaOcupadaPelaAtividade": {
+    "versao": 2,
+    "hash": "b77349a680c54c0a"
+  },
+  "LIP:slot_05:totalASerDescontadoNoCalculo": {
+    "versao": 2,
+    "hash": "b33fa2992d209ec7"
   },
   "LIP:slot_05:vagaAmbulanciaPCnaeAtivEspec": {
     "versao": 2,

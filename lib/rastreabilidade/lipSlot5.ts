@@ -496,13 +496,51 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   podeSerNP("aproveitamentoExigidoAreaDeFruicao", "OUTROS_CAMPOS", "área de fruição só é exigida com aproveitamento acima do básico", { depende: ["indiceDeAproveitamentoDoProjetoTotal"] }),
 
   // ═══════════════ VAGAS ═══════════════
-  // os três que a receita `prancha.calculo_de_vagas` já lê, num recorte só
-  ...["vagasPcdExigido", "vagasIdosoExigido", "totalDeVagasExigidasParaEssas"].map((k) =>
-    porVisao(k, "prancha.calculo_de_vagas", "quadro CÁLCULO DE VAGAS, colado como imagem na prancha")),
+  derivado("totalDeVagasExigidasParaEssas",
+    "área ocupada pela atividade ÷ divisor da tabela Vagas de Estacionamento do Uso do Solo, arredondado pra baixo",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "faixas hardcoded (≤90 isento, ≤1.500 = 1/90m², ≤5.000 = 1/60m², acima = 1/45m²) — tabela padrão que o Fábio mostrou; cruza com o ATENDIMENTO só como conferência" }],
+    {
+      depende: ["areaOcupadaPelaAtividade"], fontePrincipal: "USO_DO_SOLO", versao: 2,
+      observacao: "26/08/2026, regra do Fábio: antes vinha só do ATENDIMENTO declarado (podia estar "
+        + "errado); agora é calculado a partir da AOA. Tabela hardcoded, não lida do Uso do Solo "
+        + "processo a processo — pode variar por zona/atividade em casos não vistos ainda.",
+    }),
+  derivado("vagasPcdExigido", "2% do total de vagas exigidas, mínimo 1 (Lei 10.845/2022 Art. 12 §3º/§5º)",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "total=1 vira 1 (a vaga única é PCD, §5º); total≥2 usa max(1, floor(total×0,02))" }],
+    {
+      depende: ["totalDeVagasExigidasParaEssas"], fontePrincipal: "OUTROS_CAMPOS", versao: 2,
+      observacao: "26/08/2026, achado no BIP a pedido do Fábio: a NBR 9050:2020 (6.14.3) não traz "
+        + "percentual, remete a legislação específica — é a Lei 10.845/2022 Art. 12. Antes vinha "
+        + "declarado do ATENDIMENTO (podia estar errado); agora é calculado, a lei manda.",
+    }),
+  derivado("vagasIdosoExigido", "5% do total de vagas exigidas, mínimo 1 quando total≥2 (Lei 10.845/2022 Art. 12 §4º)",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "total=1 vira 0 (a vaga única já foi pra PCD, §5º, não sobra pra idoso); total≥2 usa max(1, floor(total×0,05))" }],
+    {
+      depende: ["totalDeVagasExigidasParaEssas"], fontePrincipal: "OUTROS_CAMPOS",
+      observacao: "26/08/2026, mesmo achado do BIP que vagasPcdExigido — nunca tinha fonte nenhuma antes.",
+    }),
   // o resto do mesmo quadro ainda não tem receita — a regra de negócio de cada um precisa do analista
-  ...["totalASerDescontadoNoCalculo", "areaOcupadaPelaAtividade", "totalDeVagasAtendidasParaAtividade",
+  ...["totalDeVagasAtendidasParaAtividade",
       "vagasPcdAtendidas", "vagasIdosoAtendidas", "atendeAcessoCirculacaoVagasManobrasLc",
   ].map((k) => pendenteVisao(k, "PRANCHA", "tabela de vagas colada como imagem na prancha", ["areaOcupadaPelaAtividade"])),
+  derivado("areaOcupadaPelaAtividade",
+    "área total construída − categorias técnicas/comuns achadas no quadro de áreas (Art. 9º Lei 10.845/2022)",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "circulação/manobra/estacionamento, pátio C&D, caixa d'água/casa de máquinas, laje técnica, central de gás/subestação/gerador/abrigo de resíduos, escadas/elevadores de uso comum — cada uma só entra se o rótulo aparecer no quadro; estacionamento/pátio C&D têm exceção quando a própria atividade é essa" }],
+    {
+      depende: ["areaTotal"], fontePrincipal: "PRANCHA", versao: 2,
+      observacao: "26/08/2026, regra do Fábio (colou o texto da Lei 10.845/2022 Art. 9º + IN 008/2023 "
+        + "Anexo VI): antes era PENDENTE_VISAO puro. Não inclui áreas descobertas de uso efetivo — o "
+        + "leitor ainda não distingue isso no quadro de áreas.",
+    }),
+  derivado("totalASerDescontadoNoCalculo",
+    "depósito/produção ≥180m² no quadro de áreas (Art. 11 Lei 10.845/2022, desconto extra sobre a AOA, específico do cálculo de vagas)",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "só o limiar objetivo (≥180m²) está implementado; quadras de esportes (só CNAE de educação) e áreas administrativas com C/D regulado ficaram de fora — dependem de detectar a atividade específica" }],
+    {
+      fontePrincipal: "PRANCHA", versao: 2,
+      observacao: "26/08/2026, regra do Fábio: antes era PENDENTE_VISAO puro, e o rótulo do campo dizia "
+        + "'...cálculo da área ocupada pela atividade' — renomeado para '...cálculo das vagas', que é o "
+        + "que o campo de fato representa (Art. 11 é desconto sobre a AOA, não a AOA em si).",
+    }),
   podeSerNP("vagaAmbulanciaPCnaeAtivEspec", "USO_DO_SOLO", "nenhum CNAE de atividade específica de saúde", { depende: ["cnae"] }),
 
   // ═══════════════ PENDÊNCIAS NO LAUDO E OBS ═══════════════
