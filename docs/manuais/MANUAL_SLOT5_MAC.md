@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.12
+**Versão:** 1.13
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -817,7 +817,8 @@ Varredura da tela, das 16 rotas, do motor e do estado real do banco. O que foi c
    autoritativo em `useRef` (`estadoRef`): quem MUTA lê do ref, que é atualizado de forma
    síncrona; quem só EXIBE continua lendo o state.
 2. **Observação por item e OBS geral só iam para o banco por acaso.** Digitar e fechar a aba
-   perdia o texto. Agora salvam ao sair do campo (`onBlur`) e 1,5s depois da última tecla.
+   perdia o texto. Agora salvam ao sair do campo (`onBlur`), 1,5s depois da última tecla, **e a
+   qualquer clique na tela** (ver seção 14.11).
 3. **Duas análises criadas por dois cliques rápidos.** Como qualquer marcação grava na hora, dois
    cliques num MAC ainda sem linha no banco entravam ao mesmo tempo em `garantirAnalise` e criavam
    duas. Agora a criação em voo fica num ref e o segundo clique espera a mesma promessa.
@@ -962,12 +963,35 @@ completa do que ficou de fora e por quê.
 **Não testado ainda com leitura real de pasta ponta a ponta** — só com `avaliarFiltros` isolado.
 O próximo processo lido no Slot 5 é o primeiro teste de verdade em produção.
 
+### 14.11 Qualquer clique na tela grava (26/08/2026)
+
+Pedido do Fábio, fechando a última janela de perda de trabalho. **Não é um salvamento por clique**
+— seria uma enxurrada de requisições. É o **adiantamento** do salvamento que já estava agendado:
+
+- Marcação de item já gravava na hora (não mudou nada aí).
+- Observação (geral e por item) gravava no `onBlur` e 1,5s depois da última tecla.
+- **Agora**: qualquer clique na tela descarrega imediatamente o que estiver pendente. Sem nada
+  pendente, o clique não dispara requisição nenhuma.
+
+Um `visibilitychange` cobre o caso de fechar/trocar de aba. O listener roda na **fase de captura**
+do `document`, para gravar mesmo quando o clique é num elemento que chama `stopPropagation` (os
+modais desta tela fazem isso). O timer da observação passou a zerar `obsTimer.current` ao disparar
+— sem isso, o descarregador acharia que ainda havia pendência e mandaria uma gravação repetida a
+cada clique seguinte.
+
+**A janela que fechou:** digitar na observação e fechar a aba (ou trocar de janela) dentro do 1,5s
+sem tirar o foco do campo — o `onBlur` não chega a disparar nesse caminho.
+
+O LIP recebeu o mesmo tratamento na mesma data (ver seção 18 do `MANUAL_SLOT5_LIP.md`), com a
+diferença de que lá o debounce é de 2s e vale para qualquer campo, não só a observação.
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.13 | 2026-08-26 | Seção 14.11: qualquer clique na tela descarrega o salvamento pendente (observação geral e por item), fechando a janela de perder texto ao fechar a aba dentro do 1,5s; sem nada pendente o clique não dispara requisição |
 | 1.12 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (seção 6.5 do `MANUAL_SLOT5_LIP.md`): o painel da busca de coordenadas passou a abrir sempre no Slot 5. É tela do LIP, não toca em item de checklist, filtro nem documento emitido |
 | 1.11 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (seção 17 do `MANUAL_SLOT5_LIP.md`): cadeia de vagas (AOA, total exigido, PCD/idoso) calculada no LIP, nenhum item do checklist nem filtro tocado |
 | 1.10 | 2026-08-26 | Seção 4.4: caixa de recarga passa a ler `areaImpermeabilizada` do LIP direto, em vez de recalcular terreno−permeável por conta própria dentro do motor — achado ao vivo no 48533, `REGRA_VERSAO_CAIXA_RECARGA` 4→5 |

@@ -611,9 +611,38 @@ export default function AnaliseAprovacaoProjeto() {
   const salvarObsRef = useRef<() => void>(() => {});
   const agendarSalvarObs = useCallback(() => {
     if (obsTimer.current) clearTimeout(obsTimer.current);
-    obsTimer.current = setTimeout(() => { salvarObsRef.current(); }, 1500);
+    obsTimer.current = setTimeout(() => {
+      obsTimer.current = null; // zera ANTES de gravar: senão o flush abaixo acha que ainda há pendência
+      salvarObsRef.current();
+    }, 1500);
   }, []);
   useEffect(() => () => { if (obsTimer.current) clearTimeout(obsTimer.current); }, []);
+
+  /* QUALQUER CLIQUE NA TELA GRAVA (pedido do Fábio, 26/08/2026).
+   *
+   * Não é um salvamento por clique: é o ADIANTAMENTO do salvamento que já estava agendado. Se não
+   * há nada pendente (`obsTimer` nulo), o clique não faz absolutamente nada — nenhuma requisição
+   * extra sai. Se há texto digitado esperando os 1,5s, o clique descarrega na hora.
+   *
+   * Fecha a última janela de perda que restava: digitar na observação e fechar a aba/trocar de
+   * janela dentro do 1,5s, sem tirar o foco do campo (o `onBlur` não chega a disparar).
+   * `visibilitychange` cobre o fechar/trocar de aba; a fase de captura garante que a gravação seja
+   * disparada mesmo que o clique seja num elemento que chama `stopPropagation`. */
+  useEffect(() => {
+    const descarregar = () => {
+      if (!obsTimer.current) return;
+      clearTimeout(obsTimer.current);
+      obsTimer.current = null;
+      salvarObsRef.current();
+    };
+    const aoEsconder = () => { if (document.visibilityState === "hidden") descarregar(); };
+    document.addEventListener("click", descarregar, true);
+    document.addEventListener("visibilitychange", aoEsconder);
+    return () => {
+      document.removeEventListener("click", descarregar, true);
+      document.removeEventListener("visibilitychange", aoEsconder);
+    };
+  }, []);
 
   const notificar = useCallback((m: string) => {
     setToast(m);

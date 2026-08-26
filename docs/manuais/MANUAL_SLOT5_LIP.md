@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.11
+**Versão:** 1.12
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -986,12 +986,36 @@ Mesma categoria da altura no corte (seção 16, item 6): Grupo C, não implement
 
 ---
 
+## 18. Qualquer clique na tela grava (26/08/2026)
+
+Pedido do Fábio, o mesmo aplicado ao MAC (seção 14.11 do `MANUAL_SLOT5_MAC.md`). **Não é um
+salvamento por clique** — seria uma enxurrada de requisições. É o **adiantamento** do salvamento
+que já estava agendado.
+
+Como já era: qualquer alteração de campo chama `autoSalvar`, que agenda a gravação para 2s depois
+da última tecla e não faz nada se o estado for igual ao último salvo (`snapRef`).
+
+O que mudou: o corpo da gravação saiu de dentro do `setTimeout` e virou `gravarPendente()`, com o
+estado a gravar num ref (`pendenteRef`). Um listener de `click` no `document`, em **fase de
+captura**, chama `gravarPendente()` — que retorna na hora se não há nada pendente, então clique em
+tela limpa não gera requisição. `visibilitychange` cobre fechar/trocar de aba.
+
+**A janela que fechou:** digitar num campo e fechar a aba dentro dos 2s. Como `gravarPendente()`
+zera `pendenteRef` na primeira linha, dois disparos concorrentes (clique + timer) não geram
+gravação dupla — o segundo sai imediatamente.
+
+Vale para todos os slots: é a tela compartilhada, e aqui o comportamento anterior não muda para
+ninguém (o salvamento já existia em todos; só passou a acontecer mais cedo).
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.12 | 2026-08-26 | Seção 18: qualquer clique na tela descarrega o salvamento pendente, fechando a janela de perder digitação ao fechar a aba dentro dos 2s do debounce; sem nada pendente o clique não dispara requisição |
 | 1.11 | 2026-08-26 | Seção 6.5: o painel de resultado da busca de coordenadas passa a abrir sempre no Slot 5 (antes só havendo divergência — no 48533 tudo batia e o analista ficava sem caminho para o Mapa Fácil); demais slots intactos. Seção 6.4: registrado o primeiro teste real da integração no Slot 5 |
 | 1.10 | 2026-08-26 | Seção 17: cadeia inteira de vagas calculada — `areaOcupadaPelaAtividade` (Art. 9º Lei 10.845/2022), `totalDeVagasExigidasParaEssas` (÷ tabela do Uso do Solo), `vagasPcdExigido`/`vagasIdosoExigido` (Art. 12 §3º-§5º, achado via BIP porque a NBR 9050 não traz percentual), `totalASerDescontadoNoCalculo` renomeado e revisado (Art. 11, desconto sobre a AOA). Registrada pendência do ACESSO/MANOBRA (precisa leitura espacial da planta) |
 | 1.9 | 2026-08-26 | Seção 16: 6 achados do teste ao vivo no 48533 — `grandePorte` calculado (não lido), ART execução reconhece declaração do CREA, `unidComerciais` reconhece "COMÉRCIO", `areaTotalPrivativa` NP quando comercial, `acessoVertical` conferido (já estava certo), `outorgaOnerosa` documentado (fórmula certa, falta leitura visual da altura). Mais 2 achados registrados como pendência: dimensões do lote × certidão, endereço × carimbo |

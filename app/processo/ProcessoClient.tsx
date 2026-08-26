@@ -539,38 +539,71 @@ export default function ProcessoClient() {
     }
   }
 
-  const autoSalvar = useCallback((estado: Record<string, Campo>) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(async () => {
-      // Auto-save blindado: salva mesmo com campos padrão vazios (CONFERIR)
-      // para que a análise no MAC receba os itens não conformes correspondentes.
-      const iguais = snapRef.current && Object.keys(estado).every(
-        (k) => estado[k]?.valor === snapRef.current![k]?.valor
-      );
-      if (iguais) return;
-      try {
-        setStatusSalvo("salvando");
-        const res = await fetch("/api/processo/salvar", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
-        });
-        const json = await res.json();
-        if (json?.ok) {
-          snapRef.current = estado;
-          setStatusSalvo("salvo");
-          await carregarHistorico();
-          setTimeout(() => setStatusSalvo("idle"), 3000);
-        } else if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
-          mostrarToast("⚠️ Sessão expirada. Faça login em nova aba e salve novamente.", "erro");
-          setStatusSalvo("erro");
-        } else {
-          setStatusSalvo("erro");
-        }
-      } catch { setStatusSalvo("erro"); }
-    }, 2000);
+  /* Estado que está esperando o debounce de 2s. Fica num ref (não em state) porque quem lê é o
+   * descarregador do clique, fora do ciclo de renderização — e porque um render no meio da
+   * digitação não pode zerar o que ainda não foi gravado. */
+  const pendenteRef = useRef<Record<string, Campo> | null>(null);
+
+  const gravarPendente = useCallback(async () => {
+    const estado = pendenteRef.current;
+    if (!estado) return;
+    pendenteRef.current = null;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    // Auto-save blindado: salva mesmo com campos padrão vazios (CONFERIR)
+    // para que a análise no MAC receba os itens não conformes correspondentes.
+    const iguais = snapRef.current && Object.keys(estado).every(
+      (k) => estado[k]?.valor === snapRef.current![k]?.valor
+    );
+    if (iguais) return;
+    try {
+      setStatusSalvo("salvando");
+      const res = await fetch("/api/processo/salvar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        snapRef.current = estado;
+        setStatusSalvo("salvo");
+        await carregarHistorico();
+        setTimeout(() => setStatusSalvo("idle"), 3000);
+      } else if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
+        mostrarToast("⚠️ Sessão expirada. Faça login em nova aba e salve novamente.", "erro");
+        setStatusSalvo("erro");
+      } else {
+        setStatusSalvo("erro");
+      }
+    } catch { setStatusSalvo("erro"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idUrl, tipoUrl]);
+
+  const autoSalvar = useCallback((estado: Record<string, Campo>) => {
+    pendenteRef.current = estado;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void gravarPendente(); }, 2000);
+  }, [gravarPendente]);
+
+  /* QUALQUER CLIQUE NA TELA GRAVA (pedido do Fábio, 26/08/2026).
+   *
+   * Não é um salvamento por clique: é o ADIANTAMENTO do que já estava agendado. Sem nada pendente
+   * (`pendenteRef` nulo), o clique não faz nada — nenhuma requisição extra sai. Com campo digitado
+   * esperando os 2s, o clique descarrega na hora.
+   *
+   * Fecha a janela de perda de digitar e fechar a aba/trocar de janela dentro dos 2s.
+   * `visibilitychange` cobre o fechar/trocar de aba; a fase de captura garante que a gravação
+   * dispare mesmo em clique de elemento que chama `stopPropagation`. */
+  useEffect(() => {
+    const descarregar = () => { if (pendenteRef.current) void gravarPendente(); };
+    const aoEsconder = () => { if (document.visibilityState === "hidden") descarregar(); };
+    document.addEventListener("click", descarregar, true);
+    document.addEventListener("visibilitychange", aoEsconder);
+    return () => {
+      document.removeEventListener("click", descarregar, true);
+      document.removeEventListener("visibilitychange", aoEsconder);
+    };
+  }, [gravarPendente]);
 
   function u(chave: string, valor: string) {
     setD((prev) => {
