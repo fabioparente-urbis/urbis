@@ -1746,6 +1746,12 @@ export default function ProcessoClient() {
     const mostrarBuscaCoordenadas = ehCoordenadas && coordenadasMapaFacilHabilitado;
     // Coordenadas são opcionais — não disparam marcação CONFERIR.
     const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
+    // Campo que o analista afirmou não ter ("X" digitado, não vazio por
+    // padrão) — sinal próprio, coexiste com CONFERIR: um campo pode nascer
+    // vazio (padrão) e o analista trocar por X depois, ou vice-versa nunca
+    // acontece, mas os dois indicadores respondem a coisas diferentes.
+    const ehX = val.valor.trim().toUpperCase() === "X";
+    const badgeX = ehX && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
     // Destaque do Laudo: só existe Laudo definido pra Regularização SEI
     // (slot 1) e Aceite SEI (slot 2) — outros slots (ex.: slot_05,
@@ -1777,7 +1783,7 @@ export default function ProcessoClient() {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}{badgeLaudo}
           </label>
           <textarea value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             placeholder={campo.placeholder || campo.label} rows={10}
@@ -1791,7 +1797,7 @@ export default function ProcessoClient() {
       return (
         <div key={campo.id} className="flex flex-col gap-1">
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeLaudo}
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}{badgeLaudo}
           </label>
           <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`}>
@@ -1806,7 +1812,7 @@ export default function ProcessoClient() {
     return (
       <div key={campo.id} className="flex flex-col gap-1">
         <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
-          {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}
+          {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}
           {/* Alimentado tanto pelo VCP quanto pela leitura em modo "sugerir" —
               por isso o rótulo não cita mais um dos dois. */}
           {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ SUGESTÃO</span>}{badgeLaudo}
@@ -3033,15 +3039,23 @@ export default function ProcessoClient() {
           const temPendente = a.lip_campos.some(
             (c) => c.chave !== "coordenadas" && d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === ""
           );
+          // Campo marcado com X (o analista afirmou que não tem aquele
+          // documento/dado) — sinal próprio da bolinha laranja de CONFERIR
+          // (vazio por padrão). Uma aba pode ter os dois ao mesmo tempo;
+          // as duas bolinhas aparecem juntas, cada uma no seu canto.
+          const temX = a.lip_campos.some(
+            (c) => (d[c.chave]?.valor ?? "").trim().toUpperCase() === "X"
+          );
           return (
             <button key={a.id} onClick={() => setAba(i)}
               className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
                 aba === i ? "bg-[var(--accent)] text-[var(--accent-fg)]" :
-                temPendente ? "bg-[#FEE2E2] border border-[#991B1B] text-[#991B1B] hover:bg-[#FECACA]" :
+                (temPendente || temX) ? "bg-[#FEE2E2] border border-[#991B1B] text-[#991B1B] hover:bg-[#FECACA]" :
                 "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
               }`}>
               {a.nome}
               {temPendente && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full border border-slate-900" />}
+              {temX && <span className="absolute -top-1 -left-1 flex items-center justify-center w-3.5 h-3.5 bg-red-600 rounded-full border border-slate-900 text-white text-[8px] font-bold leading-none">X</span>}
             </button>
           );
         })}
