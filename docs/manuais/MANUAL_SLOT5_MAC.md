@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.5
+**Versão:** 1.6
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -890,6 +890,7 @@ excluídas, senão a próxima nasceria como nº 4 num processo que voltou a ter 
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.6 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data, que reordenou os campos da aba INÍCIO (Interessado, Projeto Nº, Ordem de Serviço Nº, Data Pagto. Taxa inicial pro topo; ver seção 13 do `MANUAL_SLOT5_LIP.md`). Reordenação de campo não muda leitura nem checklist |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |
 | 1.1 | 2026-08-25 | Auditoria geral do Slot 5 (seção 14): gravação encadeada, escopo por análise, filtro recusado que não volta, observação que se salva sozinha, painel de EIT/EIV/carga, retry do Gemini, trilha de desmarcação, ordem dos grupos no despacho |
 | 1.2 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md` do repositório |

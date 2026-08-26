@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.4
+**Versão:** 1.5
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -756,12 +756,34 @@ acontecer. O modal também passou a dizer QUANTOS campos serão apagados.
 
 ---
 
+## 13. Layout da aba INÍCIO — campos-chave no topo (26/08/2026)
+
+A aba **INÍCIO** (primeira aba do LIP, `ordem=0`) tinha os campos de identificação do processo
+— **Interessado** (proprietário), **Projeto Nº**, **Ordem de Serviço Nº** e **Data Pagto. Taxa
+inicial** — enterrados no meio da lista (posições 8, 9, 10 e 14), depois de Via 1–4, frentes,
+quadra e lote. O Fábio pediu para trazer esses quatro pro topo, antes de qualquer coisa, para
+que sejam a primeira coisa que o analista vê ao abrir o LIP.
+
+Mudança feita **só na coluna `ordem` de `lip_campos`**, direto no banco (script descartável, não
+ficou no repo) — nenhum campo foi criado, renomeado ou apagado, e a mudança já vale para qualquer
+processo do Slot 5 sem precisar de deploy. Ordem nova da aba INÍCIO:
+
+1. `proprietario` — Interessado
+2. `processo` — Projeto Nº
+3. `processoFisico` — Ordem de Serviço Nº
+4. `dataPagtoTaxaInicial` — Data Pagto. Taxa inicial
+5. em diante — Via 1–4, frentes, quadra, lote, bairro, Licença Prévia, Cheadv Nº, IPTU, ARQ/CAU,
+   ENG/CREA, Coordenadas GPS (ordem relativa inalterada)
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.5 | 2026-08-26 | Seção 13: Interessado, Projeto Nº, Ordem de Serviço Nº e Data Pagto. Taxa inicial movidos para o topo da aba INÍCIO (só reordenação, sem campo novo) |
 | 1.4 | 2026-08-26 | Seção 12.5: "Limpar LIP" passa a gravar de verdade (antes só zerava a tela) e a exigir confirmação por digitação |
 | 1.3 | 2026-08-26 | Seção 12: motor de cruzamento (declarado no ATENDIMENTO × entregue nos documentos), leitor do ATENDIMENTO, texto corrido no extrator, número da ART no formato do CREA, e o Monitor IA com dois anéis — incluindo a eficiência da leitura |
 | 1.2 | 2026-08-26 | Seção 11: os defeitos de leitura achados nos processos 48533/48535 — `m2` sem expoente derrubando o carimbo inteiro, `proprietario` sem fonte possível, autor do projeto em outro formato — e os dois avisos novos que impedem a leitura de voltar pobre em silêncio |
