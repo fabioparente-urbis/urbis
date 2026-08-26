@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     // 3 — valores do LIP congelados (valor bruto + normalizado + origem) de processos.dados,
     // lidos no servidor depois da autorização — nunca do formulário do cliente.
     const areaTerreno = lerCampoLip(processo.dados, "areaTerreno");
-    const areaPermeavelProjetada = lerCampoLip(processo.dados, "areaPermeavelProjetada");
+    const areaImpermeabilizada = lerCampoLip(processo.dados, "areaImpermeabilizada");
     const volumeDaCaixaDeRecarga = lerCampoLip(processo.dados, "volumeDaCaixaDeRecarga");
 
     // 10 — valida PDF antes de gastar upload/cota no Gemini
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       criadoPor: usuario.id,
       apiKey,
       areaTerreno,
-      areaPermeavelProjetada,
+      areaImpermeabilizada,
       volumeDaCaixaDeRecarga,
       documentoCertidao: certidaoResult.doc,
       documentoPrancha: pranchaResult.doc,

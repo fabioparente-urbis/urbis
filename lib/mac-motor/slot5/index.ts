@@ -45,7 +45,8 @@ export type EntradaPilotoSlot5 = {
   // fatos já extraídos pelo LIP (deterministicos, sem Gemini) — passo 1 do contrato pedido.
   // Congelados (valor bruto + normalizado + origem de processos.dados), não números soltos.
   areaTerreno: CampoLipCongelado;
-  areaPermeavelProjetada: CampoLipCongelado;
+  /** área impermeabilizada já calculada no LIP (terreno − permeável) — ver lib/lerPastaSlot5.ts. */
+  areaImpermeabilizada: CampoLipCongelado;
   volumeDaCaixaDeRecarga: CampoLipCongelado;
 
   // documentos para o motor ler por conta própria — null = não disponível, motor trata como abstenção.
@@ -175,8 +176,7 @@ export async function executarPilotoSlot5(entrada: EntradaPilotoSlot5): Promise<
       }
     }
     const { memorial, volume } = decidirCaixaDeRecarga({
-      areaTerreno: entrada.areaTerreno,
-      areaPermeavelProjetada: entrada.areaPermeavelProjetada,
+      areaImpermeabilizada: entrada.areaImpermeabilizada,
       volumeDaCaixaDeRecarga: entrada.volumeDaCaixaDeRecarga,
       fatos: extracaoCaixa?.fatos ?? [],
     });

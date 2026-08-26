@@ -144,8 +144,8 @@
     "hash": "2ac2164a02e19178"
   },
   "LIP:slot_05:grandePorte": {
-    "versao": 1,
-    "hash": "fdf60d5025a91e42"
+    "versao": 2,
+    "hash": "adc6e3d7badb6803"
   },
   "LIP:slot_05:habSeriada": {
     "versao": 2,
@@ -257,7 +257,7 @@
   },
   "LIP:slot_05:aArtDeExecucaoAtendeA": {
     "versao": 2,
-    "hash": "39d185feed1d1fd0"
+    "hash": "529bdc0a2506ef94"
   },
   "LIP:slot_05:aAreaNaArtDeProjeto": {
     "versao": 2,
@@ -316,16 +316,16 @@
     "hash": "7317994fc73f62cb"
   },
   "LIP:slot_05:unidComerciais": {
-    "versao": 2,
+    "versao": 3,
     "hash": "15836d89fb9b59bb"
   },
   "LIP:slot_05:unidHabitacionais": {
-    "versao": 2,
+    "versao": 3,
     "hash": "15836d89fb9b59bb"
   },
   "LIP:slot_05:areaTotalPrivativa": {
-    "versao": 1,
-    "hash": "87465bf6fb62acfc"
+    "versao": 2,
+    "hash": "23fbc74a278ab952"
   },
   "LIP:slot_05:alturaDaEdificacao": {
     "versao": 1,

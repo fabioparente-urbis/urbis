@@ -179,7 +179,7 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
   const TRECHO_MEMORIAL_350 = "ÁREA IMPERMEABILIZADA 350,00 M²";
 
   const conforme = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(2.0),
+    areaImpermeabilizada: campoLip(400), volumeDaCaixaDeRecarga: campoLip(2.0),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_400 })],
   });
   t("9a. memorial usa a fórmula certa (400 = 500-100) → CONFORME", conforme.memorial.resultado === "CONFORME");
@@ -187,18 +187,18 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
   t("9c. ambos apontam para os itens reais confirmados no banco", conforme.memorial.macItemId === MAC_ITEM_CAIXA_RECARGA_MEMORIAL && conforme.volume.macItemId === MAC_ITEM_CAIXA_RECARGA_VOLUME);
 
   const memorialErrado = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(2.0),
+    areaImpermeabilizada: campoLip(400), volumeDaCaixaDeRecarga: campoLip(2.0),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_350 })],
   });
   t("9d. memorial declara área impermeabilizada errada (350 ≠ 400) → NAO_CONFORME", memorialErrado.memorial.resultado === "NAO_CONFORME");
 
   const volumeInsuficiente = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(1.0),
+    areaImpermeabilizada: campoLip(400), volumeDaCaixaDeRecarga: campoLip(1.0),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: TRECHO_MEMORIAL_400 })],
   });
   t("9e. volume projetado (1,00) abaixo do exigido (2,00) → NAO_CONFORME", volumeInsuficiente.volume.resultado === "NAO_CONFORME");
 
-  const semDadosLip = decidirCaixaDeRecarga({ areaTerreno: CAMPO_VAZIO, areaPermeavelProjetada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO, fatos: [] });
+  const semDadosLip = decidirCaixaDeRecarga({ areaImpermeabilizada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO, fatos: [] });
   t("9f. sem nenhum dado do LIP nem do Gemini → INDETERMINADO/NAO_AVALIADO nos dois", semDadosLip.memorial.aplicabilidade === "INDETERMINADO" && semDadosLip.volume.aplicabilidade === "INDETERMINADO");
 
   // 9g-9i — regressão do teste histórico TESTE-HIST-44353-AN3 (2026-08-03): o Gemini se abstinha
@@ -209,7 +209,7 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
   // em trecho/observacao pelo prompt v2) tem que continuar decidindo igual a um fato "limpo"; e a
   // ausência de qualquer suporte documental tem que continuar virando PENDENTE, nunca CONFORME.
   const rotuloAmbiguoComExpressao = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9),
+    areaImpermeabilizada: campoLip(356.93), volumeDaCaixaDeRecarga: campoLip(1.9),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "356,93", 0.9, {
       unidade: "m²",
       documento: "projeto",
@@ -222,7 +222,7 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
   t("9i. a regra não filtra nem descarta a evidência pelo rótulo — o trecho e a observação do fato chegam intactos em fatosUsados", rotuloAmbiguoComExpressao.memorial.fatosUsados.some((f) => !("abstencao" in f) && f.trecho === "ÁREA PERMEABILIZADA 356,93 M²" && (f as any).observacao?.includes("ÁREA PERMEABILIZADA")));
 
   const semSuporteDocumental = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9),
+    areaImpermeabilizada: campoLip(356.93), volumeDaCaixaDeRecarga: campoLip(1.9),
     fatos: [fatoAbstido("areaImpermeabilizadaMemorial", "nenhuma linha, rótulo ou expressão do quadro sustenta a área impermeabilizada — nem sob o rótulo usual, nem sob rótulo alternativo com conta visível")],
   });
   t("9j. sem trecho/expressão documental (abstenção explícita) → item MEMORIAL continua PENDENTE, requer revisão, nunca CONFORME por dedução", semSuporteDocumental.memorial.resultado === "PENDENTE" && semSuporteDocumental.memorial.requerRevisao === true);
@@ -231,7 +231,7 @@ secao("9 · cálculo da caixa de recarga (memorial + volume)");
 secao("10 · volume usa área impermeável INDEPENDENTE, nunca o memorial divergente");
 {
   const memorialSubestimado = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(500), areaPermeavelProjetada: campoLip(100), volumeDaCaixaDeRecarga: campoLip(1.80),
+    areaImpermeabilizada: campoLip(400), volumeDaCaixaDeRecarga: campoLip(1.80),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "350,00", 0.9, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 350,00 M²" })],
   });
   t("10a. memorial diverge (350≠400) → item MEMORIAL aponta NAO_CONFORME", memorialSubestimado.memorial.resultado === "NAO_CONFORME");
@@ -241,13 +241,13 @@ secao("10 · volume usa área impermeável INDEPENDENTE, nunca o memorial diverg
 secao("11 · correção — resultado do VOLUME grava os campos LIP efetivamente usados");
 {
   const resultado = decidirCaixaDeRecarga({
-    areaTerreno: campoLip(500, "extraido"), areaPermeavelProjetada: campoLip(100, "extraido"), volumeDaCaixaDeRecarga: campoLip(2.0, "manual"),
+    areaImpermeabilizada: campoLip(400, "extraido"), volumeDaCaixaDeRecarga: campoLip(2.0, "manual"),
     fatos: [fatoLido("areaImpermeabilizadaMemorial", "400,00", 0.9, { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 400,00 M²" })],
   });
   const campos = resultado.volume.camposLip as Record<string, CampoLipCongelado>;
-  t("11a. camposLip do item VOLUME não é mais {} — tem os 3 campos usados", Object.keys(campos).length === 3, JSON.stringify(campos));
-  t("11b. tem areaTerreno, areaPermeavelProjetada e volumeDaCaixaDeRecarga", "areaTerreno" in campos && "areaPermeavelProjetada" in campos && "volumeDaCaixaDeRecarga" in campos);
-  t("11c. cada campo preserva valor bruto, valorNormalizado e origem", campos.areaTerreno.valor === "500" && campos.areaTerreno.valorNormalizado === 500 && campos.areaTerreno.origem === "extraido");
+  t("11a. camposLip do item VOLUME não é mais {} — tem os 2 campos usados", Object.keys(campos).length === 2, JSON.stringify(campos));
+  t("11b. tem areaImpermeabilizada e volumeDaCaixaDeRecarga", "areaImpermeabilizada" in campos && "volumeDaCaixaDeRecarga" in campos);
+  t("11c. cada campo preserva valor bruto, valorNormalizado e origem", campos.areaImpermeabilizada.valor === "400" && campos.areaImpermeabilizada.valorNormalizado === 400 && campos.areaImpermeabilizada.origem === "extraido");
   t("11d. origem de volumeDaCaixaDeRecarga é a que veio do processo (\"manual\"), preservada sem reinterpretar", campos.volumeDaCaixaDeRecarga.origem === "manual");
 }
 
@@ -359,7 +359,7 @@ secao("15 · integração — vinculos_bip_json persistido, criado_por da execu�
       const resultado = await executarPilotoSlot5({
         processoId: processo.id, processoCodigo: processo.codigo,
         criadoPor: usuario.id, apiKey: "não usada — sem documentos, motor não chama o Gemini",
-        areaTerreno: CAMPO_VAZIO, areaPermeavelProjetada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO,
+        areaTerreno: CAMPO_VAZIO, areaImpermeabilizada: CAMPO_VAZIO, volumeDaCaixaDeRecarga: CAMPO_VAZIO,
         documentoCertidao: null, documentoPrancha: null,
       });
       execucaoId = resultado.execucaoId;
@@ -373,7 +373,7 @@ secao("15 · integração — vinculos_bip_json persistido, criado_por da execu�
       t("15c. vinculos_bip_json não veio vazio em nenhum dos 3 itens", todosTemVinculo, JSON.stringify((itensGravados ?? []).map((r: any) => ({ item: r.mac_item_id, n: r.vinculos_bip_json?.length }))));
 
       const itemVolume = (itensGravados ?? []).find((r: any) => r.mac_item_id === MAC_ITEM_CAIXA_RECARGA_VOLUME);
-      t("15d. campos_lip_json do item VOLUME (persistido no banco) tem os 3 campos, não {}", !!itemVolume && Object.keys(itemVolume.campos_lip_json ?? {}).length === 3, JSON.stringify(itemVolume?.campos_lip_json));
+      t("15d. campos_lip_json do item VOLUME (persistido no banco) tem os 2 campos, não {}", !!itemVolume && Object.keys(itemVolume.campos_lip_json ?? {}).length === 2, JSON.stringify(itemVolume?.campos_lip_json));
 
       // Ponte pra mhd_resultados_campo (ponteMhd.ts) — sem documento nem dado do LIP, os 3 itens
       // ficam INDETERMINADO/NAO_AVALIADO no piloto, que a ponte traduz pra BLOQUEADO (postura
@@ -474,7 +474,7 @@ secao("17 · parseNumeroBR aceita unidade colada (m², m, m³) e continua rejeit
 
 secao("18 · memorial exige valor literal + rótulo/observação documental — nunca por fórmula genérica");
 {
-  const base = { areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07), volumeDaCaixaDeRecarga: campoLip(1.9) };
+  const base = { areaImpermeabilizada: campoLip(356.93), volumeDaCaixaDeRecarga: campoLip(1.9) };
 
   // reprodução EXATA do caso real do reteste: trecho é uma fórmula simbólica, sem nenhum dígito.
   const formulaSemNumero = decidirCaixaDeRecarga({
@@ -533,7 +533,7 @@ secao("18 · memorial exige valor literal + rótulo/observação documental — 
 
 secao("19 · volume projetado: LIP × Gemini divergentes → REVISAO_MANUAL; fallback ao LIP é explícito");
 {
-  const base = { areaTerreno: campoLip(420), areaPermeavelProjetada: campoLip(63.07) };
+  const base = { areaImpermeabilizada: campoLip(356.93) };
   const trechoMemorialOk = { unidade: "m²", trecho: "ÁREA IMPERMEABILIZADA 356,93 M²", observacao: null } as const;
 
   // reprodução do caso real: LIP diz 1,90 (ATENDIDO real, ART), Gemini leu 1,78 (confundiu com o

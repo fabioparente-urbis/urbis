@@ -650,7 +650,10 @@ function lerPrancha(doc: DocTexto) {
    * Não é conteúdo rasterizado — verificado na camada de texto em 29/07/2026. */
   const unidades = valorPerto(doc, "Nº DE UNIDADES", /^\d{1,4}$/)
     ?? ((t.match(/N[ºO°.]?\s*DE\s*UNIDADES[^\d]{0,20}(\d{1,4})/i) || [])[1] || null);
-  d.unidComerciais = /COMERCIAL|ESCRIT[ÓO]RIO|LOJA/i.test(t) ? unidades : null;
+  // "COMÉRCIO SEM USO DEFINIDO" é o rótulo mais comum no carimbo — achado real (processo 48533,
+  // 26/08/2026): o regex só reconhecia "COMERCIAL" e nunca batia com "COMÉRCIO", então
+  // unidComerciais nunca fechava sozinho num carimbo comercial, por mais óbvio que fosse.
+  d.unidComerciais = /COM[ÉE]RCIO|COMERCIAL|ESCRIT[ÓO]RIO|LOJA/i.test(t) ? unidades : null;
   d.unidHabitacionais = /HABITACIONAL|RESIDENCIAL|APARTAMENTO/i.test(t) ? unidades : null;
   if (!unidades) d.carimboFaltando.push("Nº DE UNIDADES (a IN 007/2024 exige no carimbo)");
   return d;
@@ -671,7 +674,14 @@ function lerArt(doc: DocTexto) {
   d.dataRegistro =
     (t.match(/Data de Registro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] ||
     (t.match(/Registrada em\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
-  d.declaracaoAcessibilidade = /Declara[çc][ãa]o de Acessibilidade/i.test(t);
+  /* Dois formatos vistos na prática: seção com o título "Declaração de Acessibilidade" (CAU), e
+   * um item de checklist "Acessibilidade: Sim: Declaro atendimento às regras..." dentro de
+   * "Declarações" (CREA — achado real na ART de execução do 48533, 26/08/2026: a ART TINHA a
+   * declaração, só que sob esse rótulo, e o regex antigo só reconhecia o primeiro formato — a ART
+   * de execução caía sempre em NP como se o formato nunca trouxesse a declaração). "Sim" exigido
+   * explicitamente: "Acessibilidade: Não" não pode contar como declaração de atendimento. */
+  d.declaracaoAcessibilidade =
+    /Declara[çc][ãa]o de Acessibilidade/i.test(t) || /Acessibilidade\s*:\s*Sim\b/i.test(t);
 
   /* A ART é a fonte mais confiável de QUEM assina e PARA QUEM — é documento de conselho, com o
    * nome do profissional e do contratante em campo próprio. Passa a ser lida porque a prancha nem
@@ -1614,6 +1624,9 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     np("quitinete", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
     np("institucional", "uso comercial", "regra aplicada sobre dado já lido nesta leitura");
     np("atendeDecreto9451PUsoHab", "o Decreto 9.451 só alcança uso habitacional", "regra aplicada sobre dado já lido nesta leitura");
+    // Regra do Fábio (26/08/2026): área privativa é conceito de unidade habitacional/condomínio
+    // (fração de cada economia); uso comercial sem essa divisão não tem o que preencher aqui.
+    np("areaTotalPrivativa", "uso comercial — área privativa é conceito de unidade habitacional", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── térreo: não há acesso vertical nem tráfego de elevador para analisar
@@ -1650,11 +1663,6 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       evidencia: "regra aplicada sobre dado já lido nesta leitura",
     };
     np("dimensoesDoLoteConferemComRememb", "sem remembramento, remanejamento ou desmembramento na pasta", "regra aplicada sobre dado já lido nesta leitura");
-  }
-
-  // ── a ART de execução do CREA não traz declaração de acessibilidade
-  if (vig.art_execucao && !aExec.declaracaoAcessibilidade) {
-    np("aArtDeExecucaoAtendeA", "a ART de execução não traz declaração de acessibilidade", "regra aplicada sobre dado já lido nesta leitura");
   }
 
   // ── coordenadas: estão na ART, e o campo era digitado à mão
@@ -1729,9 +1737,20 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("habitacional", ehHabitacional ? "SIM" : ehComercial ? "NÃO" : null, "CALCULADO",
       "derivado do tipo de uso do requerimento e dos CNAEs do Uso do Solo");
   set("misto", ehHabitacional && ehComercial ? "SIM" : (ehComercial || ehHabitacional) ? "NÃO" : null, "CALCULADO", "há uso habitacional e econômico ao mesmo tempo?");
-  if (uds.areaMaxima) {
-    set("grandePorte", /sem limite/i.test(uds.areaMaxima) ? "NÃO" : null, "CALCULADO",
-        `porte admitido no Uso do Solo: ${uds.areaMaxima}`);
+  /* Grande porte é cálculo puro sobre a área construída — nunca leitura/inferência de documento.
+   * Regra do Fábio (26/08/2026): "para ser grande porte tem que ter área construída igual ou
+   * maior que 2000 metros quadrados, o próprio URBIS tem que calcular isso e não ler em lugar
+   * nenhum". Usa o valor final de `areaTotal` (já resolvido pelo cruzamento acima, não o dado
+   * bruto do carimbo) — se as fontes divergirem, a divergência já foi cobrada separadamente. Não
+   * confundir com `atendeOPorteAdmitido`, que é outra pergunta: se o porte cabe no que o Uso do
+   * Solo permite (esse sim lido do documento). */
+  {
+    const areaConstruidaFinal = num(C["areaTotal"]?.valor);
+    set("grandePorte", areaConstruidaFinal != null ? (areaConstruidaFinal >= 2000 ? "SIM" : "NÃO") : null,
+        "CALCULADO", "área construída ≥ 2.000 m²");
+    if (areaConstruidaFinal != null && C["grandePorte"]) {
+      (C["grandePorte"] as any).evidencia = `${fmt(areaConstruidaFinal)} m² de área construída`;
+    }
   }
 
   /* ── fração ideal: regula subdivisão em "economias" — só existe em uso habitacional.

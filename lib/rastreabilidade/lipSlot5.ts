@@ -229,9 +229,14 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
   derivado("misto", "há uso habitacional E econômico ao mesmo tempo",
     [{ regra: "DERIVAR_DE_CAMPO", descricao: "interseção entre habitacional e atividade econômica" }],
     { depende: ["habitacional", "atividadeEconomica"], valoresPossiveis: SIM_NAO }),
-  derivado("grandePorte", "porte admitido no Uso do Solo",
-    [{ regra: "DERIVAR_DE_CAMPO", descricao: "'sem limite de área' no UDS = não é grande porte por limitação" }],
-    { depende: ["atendeOPorteAdmitido"], fontePrincipal: "USO_DO_SOLO", valoresPossiveis: SIM_NAO }),
+  derivado("grandePorte", "área construída ≥ 2.000 m²",
+    [{ regra: "DERIVAR_DE_CAMPO", descricao: "SIM quando areaTotal ≥ 2000, NÃO quando < 2000 — nunca lido de documento" }],
+    {
+      depende: ["areaTotal"], valoresPossiveis: SIM_NAO, versao: 2,
+      observacao: "v2 em 26/08/2026: regra do Fábio — antes inferia de 'sem limite de área' no Uso do "
+        + "Solo (confundia com atendeOPorteAdmitido, que é pergunta diferente: se o porte cabe no que o "
+        + "UDS permite); agora é cálculo puro sobre areaTotal, nunca leitura de documento",
+    }),
 
   ...["habSeriada", "habColetiva", "quitinete", "institucional"].map((k) =>
     podeSerNP(k, "REQUERIMENTO", "uso comercial: a tipologia habitacional/institucional não se aplica", { depende: ["comercio", "atividadeEconomica"] })),
@@ -330,7 +335,14 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
     aplicabilidade: "seção 'Declaração de Acessibilidade' do formulário do CAU",
     valoresPossiveis: SIM_NAO,
   }),
-  podeSerNP("aArtDeExecucaoAtendeA", "ART", "a ART de execução do CREA não traz declaração de acessibilidade"),
+  doDoc("aArtDeExecucaoAtendeA", "ART", ["TEXTO_DOCUMENTO", "REGEX"], {
+    aplicabilidade: "'Declaração de Acessibilidade' (CAU) OU 'Acessibilidade: Sim' em Declarações (CREA)",
+    valoresPossiveis: SIM_NAO, versao: 2,
+    observacao: "v2 em 26/08/2026: era podeSerNP (assumia que a ART de execução do CREA nunca traz a "
+      + "declaração e virava NP em silêncio); achado real no 48533 provou o contrário — a ART tinha a "
+      + "declaração sob o rótulo 'Acessibilidade: Sim', e o regex só reconhecia o rótulo do CAU. Agora é "
+      + "doDoc puro, igual a artDeProjetoAtendeAAcessibilidade — ausência real vira NAO_ENCONTRADO, não NP",
+  }),
 
   // as três conferências: a aritmética já existia, o campo é que não recebia
   ...([
@@ -398,14 +410,22 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
    * PENDENTE_VISAO escondia uma exigência descumprida atrás de uma limitação nossa. */
   ...["unidComerciais", "unidHabitacionais"].map((k) =>
     doDoc(k, "PRANCHA", ["TEXTO_DOCUMENTO", "REGEX"], {
-      versao: 2,
+      versao: 3,
       ondeProcura: ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"],
       aplicabilidade: "carimbo, 'Nº DE UNIDADES' (IN 007/2024)",
       regraSemDado: "quando o carimbo omite o rótulo, resulta NAO_ENCONTRADO — pendência contra a IN 007/2024, não limitação do leitor",
       responsavel: "lib/lerPastaSlot5.ts:lerPrancha",
-      observacao: "v2 em 29/07/2026: era PENDENTE_VISAO. Verificado na camada de texto da amostra que o rótulo não existe no carimbo — é omissão do projetista, não conteúdo rasterizado.",
+      observacao: "v3 em 26/08/2026: reconhecia só 'COMERCIAL' no carimbo, nunca 'COMÉRCIO' — achado real no "
+        + "48533 ('COMÉRCIO SEM USO DEFINIDO'), unidComerciais nunca fechava sozinho por mais óbvio que "
+        + "fosse. v2 em 29/07/2026: era PENDENTE_VISAO. Verificado na camada de texto da amostra que o "
+        + "rótulo não existe no carimbo — é omissão do projetista, não conteúdo rasterizado.",
     })),
-  pendenteVisao("areaTotalPrivativa", "PRANCHA", "quadro de áreas detalhado, colado como imagem"),
+  podeSerNP("areaTotalPrivativa", "PRANCHA", "uso comercial — área privativa é conceito de unidade habitacional/condomínio", {
+    depende: ["habitacional"],
+    observacao: "v2 em 26/08/2026, regra do Fábio: só o caso comercial (NP) é automático hoje. Uso "
+      + "habitacional continua exigindo o quadro de áreas detalhado, colado como imagem — Grupo C, "
+      + "ainda não implementado (era PENDENTE_VISAO puro antes disso).",
+  }),
   pendenteVisao("alturaDaEdificacao", "PRANCHA", "cotada nos cortes — desenho, não tabela"),
   podeSerNP("acessoVertical", "PRANCHA", "edificação térrea: não há acesso vertical previsto", { depende: ["pav"] }),
   podeSerNP("art163BaiaDeDesaceleracaoAa", "USO_DO_SOLO", "o Art. 163 só alcança via expressa e acesso direto proibido; a via é coletora", { depende: ["tipoDeVia1"] }),

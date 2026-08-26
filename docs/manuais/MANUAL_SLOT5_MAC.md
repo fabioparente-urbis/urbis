@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.9
+**Versão:** 1.10
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -251,6 +251,27 @@ então o cálculo precisa reagir a QUALQUER salvamento, não só a uma leitura d
 que têm o bug de leitura de carimbo (dígito cortado, ver `MANUAL_SLOT5_LIP.md` seção 8.3). Só
 confiável onde a área já foi corrigida manualmente — herda essa fragilidade até o bug de leitura ser
 corrigido no código, não só ad-hoc por processo.
+
+### 4.4 Caixa de recarga: única fonte da área impermeável (26/08/2026, `REGRA_VERSAO_CAIXA_RECARGA = 5`)
+
+Achado ao vivo no 48533: `caixaDeRecarga.ts` recebia `areaTerreno`/`areaPermeavelProjetada` e
+recalculava `área impermeabilizada = terreno − permeável` **por conta própria**, dentro do motor —
+a MESMA fórmula que `lerPastaSlot5.ts` já calcula e grava no LIP como `areaImpermeabilizada`
+(seção 3, `MANUAL_SLOT5_LIP.md`). Duas contas iguais, dois lugares: se o analista corrige
+`areaPermeavelProjetada` à mão depois da leitura (foi exatamente o que aconteceu nesta sessão), o
+campo `areaImpermeabilizada` do LIP fica com o valor antigo — e o motor, se recalculasse sozinho,
+usaria o valor NOVO sem ninguém perceber a divergência entre o que a tela mostra e o que a caixa de
+recarga decide.
+
+Pedido do Fábio: *"o que deveria alimentar a caixa de recarga deveria ser essa área aí... área
+impermeável, e não área permeável projetada."* `EntradaDecisaoCaixaRecarga` passou a receber
+`areaImpermeabilizada` (o campo do LIP) direto — o motor não subtrai mais nada, só lê o que já foi
+calculado. Única fonte da verdade; a tela e o motor nunca mais podem discordar sobre esse número.
+`camposLip` dos dois itens (MEMORIAL e VOLUME) passou de 2–3 campos para 1–2, refletindo o que
+cada item efetivamente lê agora. Testes de `scripts/testar_mac_motor_slot5.mts` atualizados (as
+mesmas 18 seções, só trocando o par `areaTerreno+areaPermeavelProjetada` pelo valor já subtraído)
+— `areaTerreno` continua existindo em `EntradaPilotoSlot5` porque `MAC_ITEM_DIMENSOES_TERRENO`
+(item 1 da seção 4.2) ainda depende dele, só a caixa de recarga parou de usar.
 
 ---
 
@@ -947,6 +968,7 @@ O próximo processo lido no Slot 5 é o primeiro teste de verdade em produção.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.10 | 2026-08-26 | Seção 4.4: caixa de recarga passa a ler `areaImpermeabilizada` do LIP direto, em vez de recalcular terreno−permeável por conta própria dentro do motor — achado ao vivo no 48533, `REGRA_VERSAO_CAIXA_RECARGA` 4→5 |
 | 1.9 | 2026-08-26 | Seção 14.10: laço LIP→MAC — 8 filtros novos (`LAÇO LIP:`) marcam item `nao_conforme` sozinho a partir do cruzamento declarado×entregue do LIP; tabela completa de campo→item e do que ficou de fora de propósito |
 | 1.8 | 2026-08-26 | Sem mudança de comportamento no MAC — o campo `licencaPrevia` foi removido do LIP (ver seção 14 do `MANUAL_SLOT5_LIP.md`) e o único ponto tocado no MAC foi o texto do prompt P3 (`promptP3.ts`), que citava o campo como referência descritiva ao apoiar o ITEM 1; nenhum item do checklist nem filtro dependia dele |
 | 1.7 | 2026-08-26 | Seção 3.5 e 14.9: unidade territorial do LIP volta a valer como preenchimento automático do filtro do MAC (como último fallback, atrás da análise salva e do navegador) — segunda reversão dessa regra, achado ao vivo no 48533 |

@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.8
+**Versão:** 1.9
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -850,12 +850,71 @@ o primeiro teste de verdade.
 
 ---
 
+## 16. Achados ao vivo no 48533 — teste em produção, 26/08/2026
+
+O Fábio testou o LIP do 48533 ao vivo nesta conversa, campo a campo, contra os documentos reais
+da pasta. Seis achados, todos regras de código (nenhum precisou de leitura de imagem):
+
+1. **`grandePorte` inferia do Uso do Solo, devia calcular do LIP.** Regra do Fábio: "para ser
+   grande porte tem que ter área construída igual ou maior que 2.000 m², o próprio URBIS tem que
+   calcular isso e não ler em lugar nenhum." Antes: `SIM/NÃO` vinha de "sem limite de área" no
+   Uso do Solo (confundia com `atendeOPorteAdmitido`, pergunta diferente — se o porte cabe no que
+   o UDS permite). Agora: puro `areaTotal >= 2000`, nunca leitura de documento.
+
+2. **ART de execução caía sempre em NP na acessibilidade, mesmo quando a ART TINHA a
+   declaração.** O regex só reconhecia a seção "Declaração de Acessibilidade" (formato do CAU); a
+   ART de execução do 48533 é do CREA e declara sob "Declarações → Acessibilidade: Sim: Declaro
+   atendimento...". Regex ampliado para os dois formatos ("Sim" exigido explicitamente — "Não"
+   não conta como atendimento); a regra que forçava NP em qualquer ausência foi removida, porque a
+   premissa dela ("a ART do CREA nunca traz isso") estava provada errada pelo próprio documento.
+
+3. **`unidComerciais` nunca fechava sozinho num carimbo comercial.** O regex reconhecia só a
+   palavra "COMERCIAL"; o carimbo real escreve "COMÉRCIO SEM USO DEFINIDO" — palavra diferente,
+   nunca batia. Ampliado para `COM[ÉE]RCIO|COMERCIAL|...`.
+
+4. **`areaTotalPrivativa` não tinha NENHUM caminho automático** (`PENDENTE_VISAO` puro). Regra do
+   Fábio: "sempre que for comercial, como você detectou... a área privativa é NP" — área privativa
+   é conceito de unidade habitacional/condomínio, uso comercial sem essa divisão não tem o que
+   preencher. Adicionado ao mesmo bloco que já zera `habSeriada`/`habColetiva`/`quitinete`/
+   `institucional` em uso comercial. O caso habitacional continua pendente de visão (quadro de
+   áreas detalhado, colado como imagem — Grupo C, não implementado).
+
+5. **`acessoVertical` já estava certo** — conferido contra o pedido do Fábio ("se tem só 1
+   pavimento, obviamente é NP"): a regra já existia (`pav === 1` → NP), nenhuma mudança.
+
+6. **`outorgaOnerosa` — a fórmula já existia e está correta, mas o insumo que falta
+   (`alturaDaEdificacao`) precisa de leitura visual do corte.** Regra já implementada em
+   `lib/mac-motor/slot5/outorgaOnerosa.ts` desde 18/08/2026: `altura ≥ 7,5m E área construída >
+   área do lote`, recalculada a cada save do LIP. O Fábio pediu para automatizar a leitura da
+   altura ("ir no projeto, olhar o corte, se a laje de cobertura ou o forro/telhado for maior que
+   7,5m..."), lendo o corte E o carimbo. Isso é leitura de desenho técnico (números numa linha de
+   cota do corte, não texto corrido) — **não implementado nesta sessão**: é Grupo C (visão), e um
+   erro aqui decide sozinho se incide uma cobrança financeira ao requerente — não é caso para
+   tentar um regex frágil. Fica pendência explícita, não silenciosa.
+
+Outros dois achados do Fábio na mesma sessão, **ainda não implementados, aguardando decisão**:
+
+- **"DIMENSÕES DO LOTE CONFEREM COM A CERTIDÃO DE MATRÍCULA?"** deveria comparar a planta de
+  situação (medidas do lote no desenho) contra a certidão de matrícula (frente/fundos/lados/área
+  em texto). A certidão é viável por texto quando o cartório emite com camada de texto (achado:
+  o comentário de `lerCertidao()` dizia "vem sempre em imagem" — falso para o cartório da 2ª
+  circunscrição, que emite texto pesquisável); a planta de situação é a parte incerta — os números
+  ficam soltos ao lado do desenho do lote, não em rótulo:valor, então pode precisar de visão.
+- **"O ENDEREÇO ESTÁ CORRETO NO USO DO SOLO?"** hoje compara Uso do Solo × ATENDIMENTO via regex
+  frágil sobre texto livre ("QUADRA X LOTE Y" dentro de `pr.endereco`) — não compara contra o
+  CARIMBO, que é o que o Fábio pediu ("é só comparar o uso com o carimbo"). Precisa descobrir se o
+  carimbo tem quadra/lote/bairro como campos estruturados (não só dentro do endereço em texto
+  corrido) antes de decidir a abordagem.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.9 | 2026-08-26 | Seção 16: 6 achados do teste ao vivo no 48533 — `grandePorte` calculado (não lido), ART execução reconhece declaração do CREA, `unidComerciais` reconhece "COMÉRCIO", `areaTotalPrivativa` NP quando comercial, `acessoVertical` conferido (já estava certo), `outorgaOnerosa` documentado (fórmula certa, falta leitura visual da altura). Mais 2 achados registrados como pendência: dimensões do lote × certidão, endereço × carimbo |
 | 1.8 | 2026-08-26 | Seção 15: laço LIP→MAC — cruzamento passa a gravar `divergenciasChaves`/`declaradoMasNaoEntregueChaves` por chave (não só texto), 8 filtros novos no MAC marcam item automaticamente quando o texto do item já cita o mesmo campo; corrigidas 2 chaves fantasma que faltavam declarar desde a noite do cruzamento |
 | 1.7 | 2026-08-26 | Seção 14: campo `licencaPrevia` removido do LIP (0 uso em checklist/filtros/laudo/despacho, achado ao pesquisar antes de apagar) — banco, cruzamento, matriz de rastreabilidade e lock de versões atualizados juntos |
 | 1.6 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data, que passou a ler `unidadeTerritorialDoUsoDoSolo` do LIP como fallback do filtro de Unidade Territorial (ver seção 14.9 do `MANUAL_SLOT5_MAC.md`). O LIP não ganhou campo nem mudou de comportamento |

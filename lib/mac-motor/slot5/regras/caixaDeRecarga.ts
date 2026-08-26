@@ -58,7 +58,7 @@ export const REGRA_ID_CAIXA_RECARGA = "slot5.caixaDeRecarga";
  *  explícito na justificativa); v3: camposLip do item VOLUME passa a gravar os 3 campos usados
  *  (era {}); v2: volume exigido usa sempre a área impermeável calculada, nunca a declarada no
  *  memorial. */
-export const REGRA_VERSAO_CAIXA_RECARGA = 4;
+export const REGRA_VERSAO_CAIXA_RECARGA = 5;
 
 /** "Para cada 200,00m² de terreno impermeabilizado, atender 1,00m³" — do próprio texto do item MAC. */
 export const M2_IMPERMEAVEL_POR_M3_EXIGIDO = 200;
@@ -68,8 +68,14 @@ export const TOLERANCIA_AREA_IMPERMEAVEL_M2 = 1.0;
 export const TOLERANCIA_VOLUME_M3 = 0.02;
 
 export type EntradaDecisaoCaixaRecarga = {
-  areaTerreno: CampoLipCongelado;
-  areaPermeavelProjetada: CampoLipCongelado;
+  /** área do terreno − área permeável (grama), já calculada no LIP — ver `areaImpermeabilizada`
+   * em lib/lerPastaSlot5.ts. A não permeável (concregrama/floreira) não entra nessa subtração:
+   * conta como índice paisagístico, não como permeável, e por isso continua impermeável para
+   * este cálculo (regra do Fábio, 26/08/2026). Único source of truth: este motor NÃO recalcula
+   * terreno−permeável por conta própria — se recalculasse, um valor editado à mão no LIP depois
+   * da leitura (ex.: `areaPermeavelProjetada` corrigido manualmente) divergiria do que a caixa de
+   * recarga usa, sem ninguém perceber. */
+  areaImpermeabilizada: CampoLipCongelado;
   /** m³ — se o LIP já leu do carimbo (doDoc); valorNormalizado null = LIP não leu. */
   volumeDaCaixaDeRecarga: CampoLipCongelado;
   /** resposta do Gemini sobre a prancha (ver prompts.PROMPT_CAIXA_RECARGA). */
@@ -130,19 +136,15 @@ function evidenciaMemorialSuficiente(
 }
 
 export function decidirCaixaDeRecarga(entrada: EntradaDecisaoCaixaRecarga): SaidaCaixaDeRecarga {
-  const areaTerrenoLip = entrada.areaTerreno.valorNormalizado;
-  const areaPermeavelProjetadaLip = entrada.areaPermeavelProjetada.valorNormalizado;
-
-  const areaImpermeabilizadaCalculada =
-    areaTerrenoLip !== null && areaPermeavelProjetadaLip !== null ? areaTerrenoLip - areaPermeavelProjetadaLip : null;
+  // Único source of truth: lido pronto do LIP, nunca recalculado aqui — ver o comentário do tipo.
+  const areaImpermeabilizadaCalculada = entrada.areaImpermeabilizada.valorNormalizado;
 
   const fatoMemorial = buscarFato(entrada.fatos, "areaImpermeabilizadaMemorial");
   const areaImpermeabilizadaMemorial =
     fatoMemorial && !("abstencao" in fatoMemorial) ? parseNumeroBR(fatoMemorial.valor) : null;
 
   const memorial = decidirMemorial({
-    areaTerreno: entrada.areaTerreno,
-    areaPermeavelProjetada: entrada.areaPermeavelProjetada,
+    areaImpermeabilizada: entrada.areaImpermeabilizada,
     areaImpermeabilizadaCalculada,
     fatoMemorial,
     areaImpermeabilizadaMemorial,
@@ -158,8 +160,7 @@ export function decidirCaixaDeRecarga(entrada: EntradaDecisaoCaixaRecarga): Said
   // v4: LIP e Gemini chegam SEPARADOS em decidirVolume — quem cruza os dois (e decide se diverge
   // o bastante para exigir revisão) é a regra, não mais um "??" silencioso aqui.
   const volume = decidirVolume({
-    areaTerreno: entrada.areaTerreno,
-    areaPermeavelProjetada: entrada.areaPermeavelProjetada,
+    areaImpermeabilizada: entrada.areaImpermeabilizada,
     volumeDaCaixaDeRecarga: entrada.volumeDaCaixaDeRecarga,
     areaImpermeabilizadaEfetiva: areaImpermeabilizadaCalculada,
     volumeProjetadoLip: entrada.volumeDaCaixaDeRecarga.valorNormalizado,
@@ -174,8 +175,7 @@ export function decidirCaixaDeRecarga(entrada: EntradaDecisaoCaixaRecarga): Said
 }
 
 function decidirMemorial(p: {
-  areaTerreno: CampoLipCongelado;
-  areaPermeavelProjetada: CampoLipCongelado;
+  areaImpermeabilizada: CampoLipCongelado;
   areaImpermeabilizadaCalculada: number | null;
   fatoMemorial: FatoExtraido | undefined;
   areaImpermeabilizadaMemorial: number | null;
@@ -184,7 +184,7 @@ function decidirMemorial(p: {
     macItemId: MAC_ITEM_CAIXA_RECARGA_MEMORIAL,
     regraId: REGRA_ID_CAIXA_RECARGA,
     regraVersao: REGRA_VERSAO_CAIXA_RECARGA,
-    camposLip: { areaTerreno: p.areaTerreno, areaPermeavelProjetada: p.areaPermeavelProjetada },
+    camposLip: { areaImpermeabilizada: p.areaImpermeabilizada },
     fatosUsados: p.fatoMemorial ? [p.fatoMemorial] : [],
   };
 
@@ -194,7 +194,7 @@ function decidirMemorial(p: {
       aplicabilidade: "INDETERMINADO",
       resultado: "NAO_AVALIADO",
       confianca: null,
-      justificativa: "área do terreno e/ou área permeável projetada ainda não foram lidas pelo LIP — motor não pode calcular a área impermeabilizada exigida pela fórmula do item.",
+      justificativa: "área impermeabilizada ainda não foi calculada pelo LIP (depende de areaTerreno e areaPermeavelProjetada) — motor não pode conferir a fórmula do item.",
       requerRevisao: true,
     };
   }
@@ -245,8 +245,7 @@ function decidirMemorial(p: {
 }
 
 function decidirVolume(p: {
-  areaTerreno: CampoLipCongelado;
-  areaPermeavelProjetada: CampoLipCongelado;
+  areaImpermeabilizada: CampoLipCongelado;
   volumeDaCaixaDeRecarga: CampoLipCongelado;
   areaImpermeabilizadaEfetiva: number | null;
   /** volume "ATENDIDO/PROJETADO" do LIP (processos.dados) — pode ser null. */
@@ -265,9 +264,9 @@ function decidirVolume(p: {
     macItemId: MAC_ITEM_CAIXA_RECARGA_VOLUME,
     regraId: REGRA_ID_CAIXA_RECARGA,
     regraVersao: REGRA_VERSAO_CAIXA_RECARGA,
-    // os 3 campos do LIP EFETIVAMENTE usados por este item — correção de revisão independente,
-    // antes gravava {} apesar de depender dos três.
-    camposLip: { areaTerreno: p.areaTerreno, areaPermeavelProjetada: p.areaPermeavelProjetada, volumeDaCaixaDeRecarga: p.volumeDaCaixaDeRecarga },
+    // os campos do LIP EFETIVAMENTE usados por este item — correção de revisão independente,
+    // antes gravava {} apesar de depender deles.
+    camposLip: { areaImpermeabilizada: p.areaImpermeabilizada, volumeDaCaixaDeRecarga: p.volumeDaCaixaDeRecarga },
     fatosUsados,
   };
 
