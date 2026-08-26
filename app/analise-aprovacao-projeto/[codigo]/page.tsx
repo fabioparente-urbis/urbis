@@ -2364,26 +2364,39 @@ export default function AnaliseAprovacaoProjeto() {
             const pct = total ? Math.round((respondidos / total) * 100) : 0;
             const pctFiltro = total ? Math.round((origemDasRespostas.porFiltro / total) * 100) : 0;
             const cor = pct >= 100 ? "#059669" : pct >= 60 ? "#84cc16" : pct >= 30 ? "#eab308" : "#ef4444";
-            const rExt = 34, rInt = 25;
+            /* Dois anéis LADO A LADO, mesmo tamanho — igual ao Monitor IA do LIP (pedido do
+             * Fábio, 26/08/2026). Anéis concêntricos escondiam qual número era qual. */
             return (
               <div className="shrink-0 flex flex-col items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2">
-                <svg width="82" height="82" viewBox="0 0 82 82">
-                  <circle cx="41" cy="41" r={rExt} fill="none" stroke="var(--border)" strokeWidth="7" />
-                  <circle cx="41" cy="41" r={rExt} fill="none" stroke={cor} strokeWidth="7"
-                    strokeDasharray={`${(pct / 100) * 2 * Math.PI * rExt} ${2 * Math.PI * rExt}`}
-                    strokeLinecap="round" transform="rotate(-90 41 41)" />
-                  <circle cx="41" cy="41" r={rInt} fill="none" stroke="#2563EB" strokeWidth="5" opacity="0.45"
-                    strokeDasharray={`${(pctFiltro / 100) * 2 * Math.PI * rInt} ${2 * Math.PI * rInt}`}
-                    strokeLinecap="round" transform="rotate(-90 41 41)" />
-                  <text x="41" y="46" textAnchor="middle" fontSize="18" fontWeight="700" fill={cor}>{pct}%</text>
-                </svg>
-                <span className="text-[9px] font-bold uppercase tracking-tight text-[var(--text-muted)] text-center leading-tight w-[92px]">
-                  Monitor de<br />preenchimento do MAC
+                <div className="flex items-center gap-3">
+                  {([
+                    { pct, cor, rotulo: "marcado" },
+                    { pct: pctFiltro, cor: "#2563EB", rotulo: "por filtro" },
+                  ] as const).map((a) => (
+                    <div key={a.rotulo} className="flex flex-col items-center gap-0.5">
+                      <svg width="72" height="72" viewBox="0 0 72 72">
+                        <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border)" strokeWidth="7" />
+                        <circle cx="36" cy="36" r="30" fill="none" stroke={a.cor} strokeWidth="7"
+                          strokeDasharray={`${(a.pct / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`}
+                          strokeLinecap="round" transform="rotate(-90 36 36)" />
+                        <text x="36" y="41" textAnchor="middle" fontSize="17" fontWeight="700" fill={a.cor}>
+                          {a.pct}%
+                        </text>
+                      </svg>
+                      <span className="text-[9px] font-semibold" style={{ color: a.cor }}>{a.rotulo}</span>
+                    </div>
+                  ))}
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-tight text-[var(--text-muted)] text-center leading-tight">
+                  Monitor de preenchimento do MAC
                 </span>
                 <span className="text-[10px] text-[var(--text-secondary)] font-semibold">
-                  {respondidos}/{total}
+                  {respondidos}/{total} itens
                 </span>
-                <span className="text-[10px] text-[#2563EB]">🎛️ {pctFiltro}% por filtro</span>
+                <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight opacity-80">
+                  <b style={{ color: cor }}>marcado</b> = respondidos ÷ itens ·{" "}
+                  <b className="text-[#2563EB]">por filtro</b> = retirados sem você marcar
+                </span>
               </div>
             );
           })()}

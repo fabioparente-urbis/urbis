@@ -2724,36 +2724,37 @@ export default function ProcessoClient() {
                 </a>
               ))}
             </div>
+            {/* MONITOR IA — dois anéis LADO A LADO, mesmo tamanho (pedido do Fábio, 26/08/2026).
+                Empilhar os dois números no centro de um anel só confundia: o de fora responde uma
+                pergunta e o de dentro outra, e não dava para saber qual era qual. */}
             <div className="flex flex-col items-center gap-1">
-              <svg width="90" height="90" viewBox="0 0 90 90">
-                <circle cx="45" cy="45" r="38" fill="none" stroke="var(--border)" strokeWidth="8"/>
-                <circle cx="45" cy="45" r="38" fill="none"
-                  stroke={pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444"}
-                  strokeWidth="8"
-                  strokeDasharray={`${(pctIA / 100) * 2 * Math.PI * 38} ${2 * Math.PI * 38}`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 45 45)"
-                />
-                {/* Anel de dentro, azul: EFICIÊNCIA DA LEITURA — campos lidos ÷ campos do LIP. */}
-                <circle cx="45" cy="45" r="27" fill="none" stroke="var(--border)" strokeWidth="5" opacity="0.5" />
-                <circle cx="45" cy="45" r="27" fill="none" stroke="#2563EB" strokeWidth="5"
-                  strokeDasharray={`${(pctLido / 100) * 2 * Math.PI * 27} ${2 * Math.PI * 27}`}
-                  strokeLinecap="round"
-                  transform="rotate(-90 45 45)"
-                />
-                <text x="45" y="43" textAnchor="middle" fontSize="17" fontWeight="bold"
-                  fill={pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444"}>
-                  {pctIA}%
-                </text>
-                <text x="45" y="57" textAnchor="middle" fontSize="12" fontWeight="700" fill="#2563EB">
-                  {pctLido}%
-                </text>
-              </svg>
+              <div className="flex items-center gap-3">
+                {([
+                  { pct: pctIA, cor: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444", rotulo: "do preenchido" },
+                  { pct: pctLido, cor: "#2563EB", rotulo: "eficiência" },
+                ] as const).map((a) => (
+                  <div key={a.rotulo} className="flex flex-col items-center gap-0.5">
+                    <svg width="72" height="72" viewBox="0 0 72 72">
+                      <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border)" strokeWidth="7" />
+                      <circle cx="36" cy="36" r="30" fill="none" stroke={a.cor} strokeWidth="7"
+                        strokeDasharray={`${(a.pct / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`}
+                        strokeLinecap="round" transform="rotate(-90 36 36)" />
+                      <text x="36" y="41" textAnchor="middle" fontSize="17" fontWeight="bold" fill={a.cor}>
+                        {a.pct}%
+                      </text>
+                    </svg>
+                    <span className="text-[9px] font-semibold" style={{ color: a.cor }}>{a.rotulo}</span>
+                  </div>
+                ))}
+              </div>
               <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
               <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
                 {totalUrbis} de {totalCampos} lidos · {totalPreenchidos - totalUrbis} digitados
-                <br /><span className="text-[#2563EB] font-semibold">{pctLido}% de eficiência da leitura</span>
                 {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
+                <br /><span className="text-[9px] opacity-80">
+                  <b style={{ color: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444" }}>do preenchido</b> = quanto veio do sistema ·{" "}
+                  <b className="text-[#2563EB]">eficiência</b> = lidos ÷ campos do LIP
+                </span>
               </span>
             </div>
           </div>
