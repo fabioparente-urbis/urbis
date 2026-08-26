@@ -1875,6 +1875,9 @@ export default function ProcessoClient() {
   ).length;
   const totalPreenchidos = camposPreenchidos.length;
   const totalUrbis = camposPreenchidos.filter(([_, c]) => c.origem === "urbis").length;
+  /* Denominador pedido pelo Fábio (26/08/2026): "97 lidos" sozinho não diz de quanto. O total é
+   * o número de campos que a ficha TEM — é ele que mostra o tamanho do que ainda falta. */
+  const totalCampos = Object.keys(d).filter((k) => k !== "coordenadas").length;
   const pctIA = totalPreenchidos > 0 ? Math.round((totalUrbis / totalPreenchidos) * 100) : 0;
 
   if (carregandoAbas) {
@@ -2733,7 +2736,7 @@ export default function ProcessoClient() {
               </svg>
               <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
               <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
-                {totalUrbis} lidos · {totalPreenchidos - totalUrbis} digitados
+                {totalUrbis} de {totalCampos} lidos · {totalPreenchidos - totalUrbis} digitados
                 {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
               </span>
             </div>
