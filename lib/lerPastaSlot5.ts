@@ -339,6 +339,14 @@ const P_DATA = /^\d{2}\/\d{2}\/\d{4}$/;
 const ASSINATURAS: { papel: string; re: RegExp }[] = [
   { papel: "projeto", re: /AREA TOTAL DA CONSTRUCAO|PROJETO LEGAL DE ARQUITETURA|QUADROS? DE ABERTURAS/ },
   { papel: "uso_solo", re: /INFORMACAO DE USO DO SOLO/ },
+  /* ATENDIMENTO vem ANTES da matrícula de propósito — 26/08/2026.
+   *
+   * O print do Alvará Mais Fácil traz a lista de "Documentos Obrigatórios", e nela está escrito
+   * "Certidão de Matrícula (proprietário)". A assinatura da matrícula casava nesse ÍNDICE e o
+   * ATENDIMENTO era catalogado como certidão — perdendo o documento mais rico da pasta (é ele que
+   * traz proprietário, endereço, área do terreno, área a construir, responsável técnico e CAU,
+   * todos em campo separado). Achado no 48535. */
+  { papel: "atendimento", re: /CONSULTA ALVAR[ÁA]|APROVACAO SIMPLIFICADA|DADOS DO IM[ÓO]VEL.*RESPONSAVEL TECNICO/ },
   { papel: "certidao_matricula", re: /CERTIDAO DE MATRICULA|REGISTRO DE IMOVEIS DA/ },
   { papel: "art", re: /ART OBRA OU SERVICO|DETALHES DO RRT|N[ºO°]? DO RRT|ANOTACAO DE RESPONSABILIDADE TECNICA PARA/ },
   { papel: "requerimento", re: /REQUERIMENTO|REQUEIRO/ },
@@ -625,6 +633,17 @@ function lerArt(doc: DocTexto) {
     (t.match(/Data de Registro:\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] ||
     (t.match(/Registrada em\s*(\d{2}\/\d{2}\/\d{4})/i) || [])[1] || null;
   d.declaracaoAcessibilidade = /Declara[çc][ãa]o de Acessibilidade/i.test(t);
+
+  /* A ART é a fonte mais confiável de QUEM assina e PARA QUEM — é documento de conselho, com o
+   * nome do profissional e do contratante em campo próprio. Passa a ser lida porque a prancha nem
+   * sempre traz (no 48533 o responsável é engenheiro, com CREA, e o carimbo não escreve "CAU"). */
+  d.profissional =
+    (t.match(/\b([A-ZÀ-Ú][A-ZÀ-Ú\s.]{6,60}?)\s*RNP:/i) || [])[1]?.trim()
+    || (t.match(/Profissional:\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú\s.]{6,60}?)\s*(?:CPF|T[íi]tulo|Registro|N[ºo°])/i) || [])[1]?.trim()
+    || null;
+  d.tituloProfissional = (t.match(/T[íi]tulo profissional:\s*([^,\n]{3,50})/i) || [])[1]?.trim() || null;
+  d.contratante = (t.match(/Contratante:\s*(.{3,70}?)\s*CPF\/CNPJ:/i) || [])[1]?.trim() || null;
+  d.proprietario = (t.match(/Propriet[áa]ri[oa]\(?a?\)?:\s*(.{3,70}?)\s*CPF\/CNPJ:/i) || [])[1]?.trim() || null;
   // A ART do CREA imprime "Coordenadas Geográficas: -16.6773299,-49.2573366". O campo do LIP era
   // tratado como digitação manual desde a Regularização — nunca ninguém tinha olhado aqui.
   d.coordenadas = (t.match(/Coordenadas Geogr[áa]ficas:\s*(-?\d+[.,]\d+\s*,\s*-?\d+[.,]\d+)/i) || [])[1]
@@ -698,6 +717,50 @@ function nomeJuntoDoDocumento(doc: DocTexto): string | null {
     if (pareceNome(acima)) return acima;
   }
   return null;
+}
+
+/**
+ * Print da tela do Alvará Mais Fácil. É o documento mais estruturado da pasta: cada dado vem em
+ * campo próprio, sem depender do carimbo do CAD. Vale como FONTE DE ÚLTIMO RECURSO para os campos
+ * que o projeto não entregou — pedido do Fábio na noite de 26/08: "o endereço, proprietário e
+ * profissional tem em tudo... PRINCIPALMENTE na vistoria. Tem que ler tudo".
+ *
+ * A ordem do texto acompanha o desenho da tela, não a leitura: o VALOR costuma vir ANTES do
+ * rótulo ("OMEGA PARTICIPACOES E INVESTIMENTOS LTDA ... Proprietário *"). Por isso a busca é por
+ * proximidade posicional (`valorPerto`), não por regex de "rótulo seguido de valor".
+ */
+function lerAtendimento(doc: DocTexto) {
+  const t = doc.texto;
+  const d: any = {};
+
+  d.numeroAlvara = (t.match(/Consulta\s+Alvar[áa]\s+(\d{3,})/i) || [])[1]
+    || (t.match(/Alvar[áa]\s+(\d{4,})\s+\d+\s+Aprova/i) || [])[1] || null;
+  d.iptu = (t.match(/\b(\d{14})\b/) || [])[1] || null;
+  d.cpfCnpj = (t.match(/\b(\d{14}|\d{11})\b(?=[^\d]*(?:SOCIETARIO|@|Dados|Tipo Pessoa))/i) || [])[1] || null;
+
+  /* Proprietário e responsável técnico: o nome em CAIXA ALTA que aparece junto do rótulo. Como o
+   * valor pode estar antes ou depois, procura-se nos dois sentidos e fica o mais próximo. */
+  const nomeMaiusculo = /\b([A-ZÀ-Ú][A-ZÀ-Ú&.\s]{8,60}?)(?=\s{2,}|\s+[a-z(]|$)/;
+  d.proprietario = valorPerto(doc, "Proprietário", nomeMaiusculo, 90)
+    || valorPerto(doc, "Proprietario", nomeMaiusculo, 90) || null;
+  /* "Responsável Técnico" aparece como TÍTULO de seção e como rótulo de campo; o nome costuma
+   * vir na linha do número do CAU/CAE ("4405269 MARCILENE SALES DIAS AMORIM"). */
+  d.responsavelTecnico =
+    (t.match(/\b\d{5,9}\s+([A-ZÀ-Ú][A-ZÀ-Ú\s.]{8,60}?)(?=\s{2,}|\s+Sem\s|\s+Normal|$)/) || [])[1]?.trim()
+    || valorPerto(doc, "Responsável Técnico", nomeMaiusculo, 90)
+    || valorPerto(doc, "Responsavel Tecnico", nomeMaiusculo, 90) || null;
+  // o "(" do CPF entre parênteses entra no casamento — sai aqui
+  d.autor = (valorPerto(doc, "Autor", nomeMaiusculo, 60) || "").replace(/[\s(]+$/, "") || null;
+  d.cauResponsavel = (t.match(/\b(\d{5,9})\s+[A-ZÀ-Ú][A-ZÀ-Ú\s.]{8,60}?(?=\s{2,}|\s+Sem\s|\s+Normal|$)/) || [])[1] || null;
+
+  /* Na tela o VALOR vem antes do rótulo ("41910502270004 524,7 AV CENTRAL ... Area terreno: (m²)").
+   * Por isso a busca posicional, e não "rótulo seguido de número". */
+  d.areaTerreno = num(valorPerto(doc, "Area terreno", /\d+(?:\.\d{3})*(?:,\d+)?/, 120) ?? undefined)
+    ?? num((t.match(/Area\s+terreno:?\s*\(m²\)\s*\*?\s*([\d.]+,?\d*)/i) || [])[1]);
+  d.areaConstruir = num(valorPerto(doc, "Área a ser construída", /\d+(?:\.\d{3})*(?:,\d+)?/, 120) ?? undefined);
+  d.enderecoBruto = (t.match(/((?:AV|AVENIDA|R|RUA|AL|ALAMEDA|PRACA|PRA[ÇC]A|TV|TRAVESSA)\s+[^\n]{3,70}?Setor\s+[^\n]{3,40}?)(?=\s*-\s*CEP|\s{2,})/i) || [])[1]?.trim() || null;
+  d.situacao = (t.match(/(Apto para An[áa]lise|Em An[áa]lise|Indeferido|Deferido)/i) || [])[1] || null;
+  return d;
 }
 
 function lerRequerimento(doc: DocTexto) {
@@ -879,6 +942,7 @@ async function catalogar(
 
     if (!item.soPresenca && doc.temCamadaTexto) {
       if (item.papeis.includes("uso_solo")) item.dados = lerUsoDoSolo(doc);
+      else if (item.papeis.includes("atendimento")) item.dados = lerAtendimento(doc);
       else if (item.papeis.includes("projeto")) item.dados = lerPrancha(doc);
       else if (item.papeis.includes("requerimento")) item.dados = lerRequerimento(doc);
       else if (item.papeis.includes("certidao_matricula")) item.dados = lerCertidao(doc);
@@ -1117,9 +1181,38 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   const pr = vig.projeto?.dados ?? {};
   const rq = vig.requerimento?.dados ?? {};
   const ct = vig.certidao_matricula?.dados ?? {};
+  const at = vig.atendimento?.dados ?? {};
   const aProj = vig.art_projeto?.dados ?? {};
   const aExec = vig.art_execucao?.dados ?? {};
   const aCx = vig.art_caixa?.dados ?? {};
+
+  /* ── CASCATA DE FONTES ───────────────────────────────────────────────────────────────────
+   * Regra do Fábio, 26/08/2026: *"pode ler de outro lugar mas tenho que cobrar a correção do
+   * projeto"*. Endereço, proprietário e profissional aparecem em quase todo documento da pasta —
+   * principalmente no print do ATENDIMENTO, que traz cada um em campo próprio. Deixar o campo
+   * vazio porque o carimbo falhou é esconder informação que a pasta tem.
+   *
+   * Mas ler de outro lugar NÃO absolve a prancha. Todo campo que DEVERIA estar no carimbo e foi
+   * resgatado em outro documento entra em `camposForaDoCarimbo`: a ficha se completa e a
+   * deficiência do projeto continua exigível. Quem analisa é analista DE PROJETO — a origem fica
+   * escrita no campo, então ele vê na hora que o número não veio de onde a norma manda. */
+  const emCascata = (
+    chave: string, rotulo: string,
+    fontes: { valor: any; fonte: string; doc: any; oficial?: boolean }[],
+  ) => {
+    const achou = fontes.find((f) => f.valor !== null && f.valor !== undefined && f.valor !== "");
+    if (!achou) return;
+    /* Resgatado fora da fonte oficial: a EVIDÊNCIA do campo passa a dizer isso com todas as
+     * letras. É o que o analista lê na ficha e no log da OBS para cobrar a correção do projeto —
+     * o valor aparece preenchido, mas nunca disfarçado de "veio do lugar certo". */
+    const evidencia = achou.oficial
+      ? undefined
+      : `${rotulo} não foi lido na fonte oficial (${fontes[0].fonte}) — resgatado em ${achou.fonte}. `
+        + `EXIGIR a correção do projeto: a norma manda este dado constar ali.`;
+    set(chave, typeof achou.valor === "number" ? fmt(achou.valor) : String(achou.valor),
+        "ENCONTRADO", achou.fonte, evidencia, achou.doc ?? null);
+  };
+
 
   // identificação
   set("logradouro", uds.via ?? pr.endereco?.match(/RUA\s*\d+/i)?.[0], "ENCONTRADO", "Uso do Solo (Nome da Via)",
@@ -1129,11 +1222,23 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   set("bairro", uds.bairro, "ENCONTRADO", "Uso do Solo", undefined, vig.uso_solo ?? null);
   set("iptu", soDigitos(uds.iptu ?? pr.iptu ?? rq.iptu), "ENCONTRADO", "Uso do Solo",
       undefined, [vig.uso_solo, vig.projeto, vig.requerimento]);
-  /* Só do REQUERIMENTO. Tentar o carimbo da prancha como plano B foi testado e descartado em
-   * 26/08/2026: o carimbo traz outros CNPJs (SEFIC, escritório projetista) e o campo saía com o
-   * nome errado — que é pior que vazio, porque vai assinado no despacho. */
-  set("proprietario", rq.interessado, "ENCONTRADO", "Requerimento", undefined, vig.requerimento ?? null);
-  set("nome_responsavel_arq", pr.arquiteto, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  /* Proprietário: requerimento → ATENDIMENTO → ART. NÃO se tenta o carimbo da prancha — testado e
+   * descartado em 26/08/2026, porque o carimbo traz outros CNPJs (SEFIC, escritório projetista) e
+   * o campo saía com o nome errado, que é pior que vazio num documento assinado. */
+  emCascata("proprietario", "PROPRIETÁRIO", [
+    { valor: rq.interessado, fonte: "Requerimento", doc: vig.requerimento, oficial: true },
+    { valor: at.proprietario, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+    { valor: aProj.proprietario ?? aProj.contratante, fonte: "ART de projeto (contratante)", doc: vig.art_projeto },
+    { valor: aExec.proprietario ?? aExec.contratante, fonte: "ART de execução (contratante)", doc: vig.art_execucao },
+  ]);
+  emCascata("nome_responsavel_arq", "AUTOR DO PROJETO", [
+    { valor: pr.arquiteto, fonte: "carimbo da prancha", doc: vig.projeto, oficial: true },
+    /* ART antes do print: é documento de conselho, com o profissional em campo rotulado. O print
+     * do ATENDIMENTO traz o nome do ANALISTA na mesma tela — pescar dali primeiro arriscaria
+     * gravar o nome de quem analisa como autor do projeto. */
+    { valor: aProj.profissional, fonte: "ART do projeto (profissional)", doc: vig.art_projeto },
+    { valor: at.responsavelTecnico ?? at.autor, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
   set("cau", pr.cau, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("nome_responsavel_eng", pr.engenheiro, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("crea", pr.crea, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
@@ -1179,8 +1284,14 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       undefined, vig.art_execucao ?? null);
 
   // dados do projeto
-  set("areaTerreno", pr.areaTerreno != null ? fmt(pr.areaTerreno) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
-  set("areaTotal", pr.areaTotalConstrucao != null ? fmt(pr.areaTotalConstrucao) : null, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  emCascata("areaTerreno", "ÁREA DO TERRENO", [
+    { valor: pr.areaTerreno, fonte: "carimbo da prancha", doc: vig.projeto, oficial: true },
+    { valor: at.areaTerreno, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("areaTotal", "ÁREA TOTAL DA CONSTRUÇÃO", [
+    { valor: pr.areaTotalConstrucao, fonte: "carimbo da prancha", doc: vig.projeto, oficial: true },
+    { valor: at.areaConstruir, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+  ]);
   set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("unidComerciais", pr.unidComerciais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
       ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"], vig.projeto ?? null);
