@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
+import { autenticar } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,12 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  // Rota servia o LIP inteiro (todos os campos do processo) sem checar
+  // sessão nenhuma — bastava a URL com o código do processo, sem cookie,
+  // sem login. Mesmo padrão de autenticação usado em processo/salvar.
+  const auth = await autenticar(req);
+  if (auth instanceof NextResponse) return auth;
+
   const codigo = req.nextUrl.searchParams.get("codigo");
   const tipo = req.nextUrl.searchParams.get("tipo") || "regularizacao";
   if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
