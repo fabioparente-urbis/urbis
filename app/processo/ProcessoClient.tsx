@@ -2784,9 +2784,10 @@ export default function ProcessoClient() {
               <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
                 {totalUrbis} de {totalCampos} lidos · {totalPreenchidos - totalUrbis} digitados
                 {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
-                <br /><span className="text-[9px] opacity-80">
-                  <b style={{ color: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444" }}>do preenchido</b> = quanto veio do sistema ·{" "}
-                  <b className="text-[#2563EB]">eficiência</b> = lidos ÷ campos do LIP
+                {/* Uma legenda por linha, como no MAC: em linha única o card estica. */}
+                <span className="text-[9px] opacity-80 flex flex-col gap-0.5 mt-0.5 max-w-[190px] text-left mx-auto">
+                  <span><b style={{ color: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444" }}>do preenchido</b> = quanto veio do sistema</span>
+                  <span><b className="text-[#2563EB]">eficiência</b> = lidos ÷ campos do LIP</span>
                 </span>
               </span>
             </div>

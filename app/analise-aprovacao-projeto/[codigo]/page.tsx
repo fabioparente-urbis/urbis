@@ -2404,10 +2404,12 @@ export default function AnaliseAprovacaoProjeto() {
                 <span className="text-[10px] text-[var(--text-secondary)] font-semibold">
                   {respondidos}/{total} itens
                 </span>
-                <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight opacity-80">
-                  <b style={{ color: cor }}>marcado</b> = respondidos ÷ itens ·{" "}
-                  <b className="text-[#2563EB]">filtros</b> = temas marcados na tela ·{" "}
-                  <b className="text-[#7C3AED]">do LIP</b> = saíram sozinhos pelos campos do LIP
+                {/* Uma legenda por linha: em linha única o card esticava e empurrava o cabeçalho.
+                    Empilhado, o monitor mantém a largura que tinha com um anel só. */}
+                <span className="text-[9px] text-[var(--text-muted)] leading-tight opacity-80 flex flex-col gap-0.5 max-w-[190px]">
+                  <span><b style={{ color: cor }}>marcado</b> = respondidos ÷ itens</span>
+                  <span><b className="text-[#2563EB]">filtros</b> = temas marcados na tela</span>
+                  <span><b className="text-[#7C3AED]">do LIP</b> = saíram sozinhos pelos campos do LIP</span>
                 </span>
               </div>
             );
