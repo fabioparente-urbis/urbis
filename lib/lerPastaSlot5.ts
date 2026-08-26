@@ -1654,6 +1654,41 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     }
   }
 
+  /* ── "X" = TENHO CERTEZA QUE NÃO TEM ────────────────────────────────────────────────────────
+   * Convenção do Fábio (26/08/2026): campo vazio pode ser falha minha de leitura; campo com X é
+   * AFIRMAÇÃO — o documento que era obrigado a trazer aquilo não traz, e por isso vira cobrança.
+   *
+   * Por isso o X só é escrito onde a norma fecha a lista e o documento foi lido inteiro: a IN
+   * 007/2024 diz o que o carimbo tem que conter, `lerPrancha` percorre essa lista e devolve
+   * `carimboFaltando`. Fora daí eu não distingo "não tem" de "não soube ler" — e marcar X num
+   * campo que EXISTE no documento criaria exigência falsa contra quem cumpriu, que é o pior erro
+   * que este sistema pode cometer (aconteceu hoje, com a ART de execução).
+   *
+   * Só marca campo que ficou SEM VALOR NENHUM: se a cascata resgatou o dado em outro documento, o
+   * valor vale e a falha do carimbo já está registrada na evidência daquele campo. */
+  const FALTA_NO_CARIMBO: { rotulo: RegExp; campos: string[] }[] = [
+    { rotulo: /N[ºO°]\s*DE UNIDADES/i, campos: ["unidComerciais", "unidHabitacionais"] },
+    { rotulo: /^[ÁA]REA DO TERRENO/i, campos: ["areaTerreno"] },
+    { rotulo: /^[ÁA]REA TOTAL DA CONSTRU/i, campos: ["areaTotal"] },
+    { rotulo: /FORRA[ÇC][ÃA]O VEGETAL PERME[ÁA]VEL/i, campos: ["areaPermeavelProjetada"] },
+    { rotulo: /ICCAP/i, campos: ["volumeExigidoDaCaixa"] },
+  ];
+  if (vig.projeto) {
+    for (const falta of (pr.carimboFaltando ?? []) as string[]) {
+      const regra = FALTA_NO_CARIMBO.find((r) => r.rotulo.test(falta));
+      if (!regra) continue;
+      for (const chave of regra.campos) {
+        if (C[chave]?.valor) continue;   // veio de outra fonte — o valor manda, não o X
+        C[chave] = {
+          valor: "X",
+          resultado: "NAO_ENCONTRADO",
+          fonte: `não consta no carimbo — a IN 007/2024 exige "${falta}"`,
+          evidencia: "carimbo lido por inteiro e o campo não está lá — COBRAR no despacho",
+        } as any;
+      }
+    }
+  }
+
   return C;
 }
 
