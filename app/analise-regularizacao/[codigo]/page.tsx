@@ -337,12 +337,29 @@ export default function MacPage() {
 
   useEffect(() => { carregar(); }, [codigo]);
   // auto-save ao alterar itens/obs
+  //
+  // Só agenda gravação se o estado em tela DIVERGE do que já está salvo na
+  // análise atual. Sem essa checagem, apenas CONSULTAR uma análise (trocar
+  // de aba via selecionarAnalise, ou o carregamento inicial) já dispara
+  // este efeito — porque também popula `itens` via setItens — e o autosave
+  // regravava esse snapshot por cima do banco mesmo sem edição nenhuma do
+  // analista. Isso apagou uma reconstituição manual em 26/08/2026 só por a
+  // tela ter sido aberta com cache desatualizado.
   useEffect(() => {
     if (checklistItens.length === 0) return;
+    if (analiseAtual) {
+      const inalterado =
+        JSON.stringify(itens) === JSON.stringify(analiseAtual.itens || {}) &&
+        observacoes === (analiseAtual.observacoes || "") &&
+        JSON.stringify(observacoesPorAba) === JSON.stringify(analiseAtual.observacoes_por_aba || {}) &&
+        JSON.stringify(fontes) === JSON.stringify(analiseAtual.fontes || {}) &&
+        JSON.stringify(aceites) === JSON.stringify(analiseAtual.aceites || {});
+      if (inalterado) { setStatusSalvo(""); return; }
+    }
     setStatusSalvo("pendente");
     const t = setTimeout(() => salvarSilencioso("em_andamento"), 400);
     return () => clearTimeout(t);
-  }, [itens, observacoes, observacoesPorAba, fontes, aceites]);
+  }, [itens, observacoes, observacoesPorAba, fontes, aceites, analiseAtual]);
 
 
   function setItem(id: string, status: StatusItem) {
