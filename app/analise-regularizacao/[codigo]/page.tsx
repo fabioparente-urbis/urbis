@@ -1178,11 +1178,19 @@ export default function MacPage() {
     const existente = analises.find((a) => a.numero_analise === n);
     if (existente) {
       selecionarAnalise(existente);
-    } else {
-      // Backend incrementa numero_analise automaticamente; com a regra de
-      // liberação sequencial, o próximo será exatamente N.
-      iniciarNovaAnalise();
+      return;
     }
+    // Defesa em profundidade: o botão já vem `disabled` quando a análise
+    // anterior não foi emitida, mas a checagem se repete aqui — nunca criar
+    // a próxima análise sem despacho/parecer da anterior.
+    const anterior = analises.find((a) => a.numero_analise === n - 1);
+    if (n !== 1 && !(anterior && (anterior.numero_despacho || anterior.numero_parecer))) {
+      mostrarToast(`Emita o despacho da Análise ${n - 1} antes de abrir a Análise ${n}.`);
+      return;
+    }
+    // Backend incrementa numero_analise automaticamente; com a regra de
+    // liberação sequencial, o próximo será exatamente N.
+    iniciarNovaAnalise();
   }
 
   // Grava uma tag permanente no processo (jsonb processos.tags).
@@ -2278,8 +2286,19 @@ export default function MacPage() {
           <div className="flex flex-col gap-1.5 mb-1">
             {[1, 2, 3, 4, 5].map((n) => {
               const existente = analises.find((a) => a.numero_analise === n);
-              const jaEmitida = !!existente && existente.status !== "em_andamento";
-              const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
+              // "Emitida" é o que destrava a próxima análise — não a mera
+              // existência da linha em analises_mac. Uma análise pode ter
+              // sido criada sem nenhum item respondido (clique errado no
+              // botão, como aconteceu em 26/08/2026: clicou querendo abrir
+              // a 2, abriu a 3 em branco também). O sinal confiável é
+              // numero_despacho/numero_parecer, gravado atomicamente pela
+              // rota de numeração no COMMIT do despacho — `status` não
+              // serve: fica em "em_andamento" pra sempre num despacho
+              // normal, só muda em indeferimento.
+              const jaEmitida = !!existente && !!(existente.numero_despacho || existente.numero_parecer);
+              const anterior = analises.find((a) => a.numero_analise === n - 1);
+              const anteriorEmitida = !!anterior && !!(anterior.numero_despacho || anterior.numero_parecer);
+              const liberada = n === 1 || anteriorEmitida;
               const ativa = numeroAnaliseEmAndamento === n;
               return (
                 <div key={n} className="flex gap-1 items-stretch">

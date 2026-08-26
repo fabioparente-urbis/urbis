@@ -1117,8 +1117,16 @@ export default function AnaliseAprovacaoProjeto() {
 
   function selecionarOuCriarAnalise(n: number) {
     const existente = analises.find((a) => a.numero_analise === n);
-    if (existente) selecionarAnalise(existente);
-    else iniciarNovaAnalise(n);
+    if (existente) { selecionarAnalise(existente); return; }
+    // Defesa em profundidade: o botão já vem `disabled` quando a análise
+    // anterior não foi emitida, mas a checagem se repete aqui — nunca criar
+    // a próxima análise sem despacho/parecer da anterior.
+    const anterior = analises.find((a) => a.numero_analise === n - 1);
+    if (n !== 1 && !(anterior?.numero_despacho || anterior?.numero_parecer)) {
+      notificar(`Emita o despacho da Análise ${n - 1} antes de abrir a Análise ${n}.`);
+      return;
+    }
+    iniciarNovaAnalise(n);
   }
 
   /** Zera a análise sem excluí-la: os itens voltam a pendente e o número da análise é preservado
@@ -3431,11 +3439,17 @@ export default function AnaliseAprovacaoProjeto() {
         <aside className="w-56 shrink-0 flex flex-col gap-2">
           <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Ações</p>
 
-          {/* Análises 1-5 — mesma regra do Slot 1/2: a N só libera quando a N-1 existe. */}
+          {/* Análises 1-5 — mesma regra do Slot 1/2 (reproduzida por leitura, não
+              compartilhada): a N só libera quando a N-1 tem despacho/parecer
+              emitido, não pela mera existência da linha. Uma análise pode
+              existir em branco (clique errado no botão, como aconteceu no
+              Slot 1 em 26/08/2026) sem que nada tenha sido de fato emitido. */}
           {[1, 2, 3, 4, 5].map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
             const jaEmitida = !!(existente?.numero_despacho || existente?.numero_parecer);
-            const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
+            const anterior = analises.find((a) => a.numero_analise === n - 1);
+            const anteriorEmitida = !!(anterior?.numero_despacho || anterior?.numero_parecer);
+            const liberada = n === 1 || anteriorEmitida;
             const ativa = numeroAnaliseEmAndamento === n;
             return (
               <div key={n} className="flex gap-1 items-stretch">

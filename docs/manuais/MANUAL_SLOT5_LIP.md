@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.15
+**Versão:** 1.16
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1033,12 +1033,42 @@ parâmetro usado é o formato padrão documentado do widget Search do ArcGIS WAB
 confirmar visualmente quando o serviço deles voltar. A cópia do IPTU pra área de transferência
 continua como reforço, se o parâmetro não pegar.
 
+
+## 20. Botões MAC sem feedback de clique + Exportar Excel misturando abas de outros slots (26/08/2026)
+
+Dois achados na mesma tela, o `ProcessoClient.tsx` que serve o LIP de todos os slots.
+
+**Botão MAC sem feedback.** `salvar()` manda a ficha inteira por POST antes de navegar para o MAC
+— no Slot 5, com ~136 campos, o payload é maior e a rede demora mais que nos outros slots. Nenhum
+dos três caminhos de ir ao MAC (`MAC →`, `MAC ↗`, "Ir assim mesmo" do modal de pendências) tinha
+`disabled` nem texto de carregamento durante essa espera, ao contrário do botão "💾 Salvar" (que já
+tinha `disabled={salvando}` desde antes). Sem sinal nenhum na tela, o analista clicava de novo
+achando que não tinha registrado — cada clique empilhava outro POST e outro `router.push`
+concorrentes. Ganharam um estado próprio (`indoParaMac`) e o texto "Indo..." no botão principal.
+
+**Exportar Excel misturava abas de todos os slots.** `GET /api/processo/exportar-lip` consultava
+`lip_abas` **sem filtrar por `assunto_id`** — trazia as abas e campos de Regularização SEI, Aceite
+SEI e Aprovação de Projeto todos juntos, para qualquer processo. No Slot 5 (que já tem ~136 campos
+próprios) o Excel exportado saía com campos que nem existem na tela daquele processo — o mesmo
+`assunto_id` do processo agora filtra a consulta, igual ao que `GET /api/admin/lip` já fazia.
+
+De quebra, a rota **não checava sessão nenhuma** — bastava a URL com o código do processo,
+autenticado ou não, pra baixar o LIP inteiro. Passou a exigir `autenticar()` (`lib/auth.ts`), o
+mesmo helper que `processo/salvar` já usa. Isso é assunto da seção 9 (Segurança) só de leve: o
+problema ali (cookie `urbis_id` sem assinatura) continua aberto — esta rota apenas deixou de ser a
+única sem NENHUMA verificação de sessão.
+
+Nenhum dos dois achados é específico do Slot 5 — a tela e a rota são compartilhadas pelos três
+slots —, mas o Slot 5 é onde os dois doíam mais: ficha maior (clique repetido) e mais abas no banco
+para misturar (exportação errada).
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.16 | 2026-08-26 | Seção 20: `MAC →`/`MAC ↗`/"Ir assim mesmo" ganharam disabled+texto de carregamento durante o salvar() (sem isso o analista clicava várias vezes, empilhando POST e navegação); `GET /api/processo/exportar-lip` passou a filtrar `lip_abas` por `assunto_id` do processo (antes misturava campos de todos os slots) e a exigir sessão autenticada. Tela e rota compartilhadas pelos três slots, mas o Slot 5 é onde os dois doíam mais |
 | 1.15 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.16 do `MANUAL_SLOT5_MAC.md`): análise nova passou a nascer em branco herdando só os `nao_aplica`, ganhou botão 📄 de copiar a anterior, `selecionarAnalise` passou a reler do servidor e o banco ganhou índice único por `numero_analise`. Tudo em `analises_mac` e na tela do MAC; nenhum campo, prompt ou leitura do LIP tocado |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |

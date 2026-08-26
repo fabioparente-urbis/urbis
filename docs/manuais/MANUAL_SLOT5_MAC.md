@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.16
+**Versão:** 1.17
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1166,12 +1166,65 @@ tela do Slot 5 **não pôde ser verificada visualmente** — exige sessão auten
 ambiente local de quem fez a alteração. Vale conferir o botão 📄 no primeiro processo do Slot 5 com
 duas ou mais análises.
 
+
+### 14.17 Sequência de análises: liberar a próxima só quando a anterior tiver despacho/parecer emitido (26/08/2026)
+
+Achado ao vivo pelo Fábio: clicou querendo abrir a Análise 2 no Slot 1, o clique caiu na Análise 3
+(dedo em cima do botão errado) e o sistema **criou a Análise 3 em branco**, sem que a Análise 2
+tivesse sido sequer respondida — muito menos despachada. Apagadas as duas manualmente (Análise 2
+tinha 18 itens de trabalho real perdido no processo, Análise 3 nasceu vazia).
+
+**Causa raiz — os três slots tinham o mesmo defeito**: `liberada` (a condição que habilita o botão
+`Análise N`) checava só se a linha `numero_analise = N-1` **existia** em `analises_mac`:
+
+```ts
+const liberada = n === 1 || analises.some((a) => a.numero_analise === n - 1);
+```
+
+Uma análise existe assim que criada — em branco, sem nenhum despacho. Bastava a N-1 ter sido
+aberta (nem respondida) para a N ficar clicável. O Slot 5 já calculava `jaEmitida` certo (usando
+`numero_despacho`/`numero_parecer`) para colorir o botão de verde, mas `liberada` usava o mesmo
+critério fraco dos outros dois — o comentário na tela dizia até "mesma regra do Slot 1/2: a N só
+libera quando a N-1 existe", documentando o defeito como se fosse a regra pretendida.
+
+**Por que `status` não servia de sinal**: `jaEmitida` no Slot 1/2 comparava `existente.status !==
+"em_andamento"`, mas uma consulta no banco mostrou que **nenhuma análise emitida por despacho
+normal muda de status** — das 105 linhas de produção com `status`, todas ficam em `"em_andamento"`
+para sempre; só `"indeferido"` aparece como alternativa (7 linhas). O campo que de fato muda no
+COMMIT do despacho é `numero_despacho`/`numero_parecer`, gravado atomicamente por
+`/api/numeracao/proximo` (`route.ts:145`, grava em `analises_mac` via `analise_id`) — é esse o
+sinal usado agora, nos três slots, tanto para `jaEmitida` quanto para `liberada`:
+
+```ts
+const anterior = analises.find((a) => a.numero_analise === n - 1);
+const anteriorEmitida = !!anterior && !!(anterior.numero_despacho || anterior.numero_parecer);
+const liberada = n === 1 || anteriorEmitida;
+```
+
+Despacho grava em `numero_despacho`; indeferimento e arquivamento gravam em `numero_parecer` (série
+de parecer) — os dois contam como "emitida". O Laudo não consome número de faixa (não é despacho
+nem parecer) e por isso não destrava a próxima análise sozinho — coerente, porque o Laudo é
+normalmente o fecho do processo, não um passo intermediário.
+
+**O botão continua acessível para análises que já existiam** antes desta correção mesmo sem
+despacho na anterior (`disabled={!liberada && !existente}` não mudou) — a regra nova trava só a
+**criação** de análises novas, não tranca trabalho em andamento legítimo que já estava na tela.
+
+**Defesa em profundidade**: `selecionarOuCriarAnalise` repete a mesma checagem antes de chamar
+`iniciarNovaAnalise`, com um aviso (`notificar`/`mostrarToast`) — o botão `disabled` já deveria
+impedir o clique, mas a função não confia só nisso.
+
+**Reproduzido por leitura nos três slots**, não compartilhado (regra do slot 1 do `CLAUDE.md`):
+Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este arquivo,
+`analise-aprovacao-projeto`) cada um com sua própria cópia do trecho.
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.17 | 2026-08-26 | Seção 14.17: `liberada` (botão Análise N) passa a checar despacho/parecer emitido na análise anterior (`numero_despacho`/`numero_parecer`), não a mera existência da linha — achado ao vivo: clique errado criou Análise 3 em branco sem a 2 sequer respondida. Reproduzido nos três slots (1, 2 e 5), com defesa em profundidade em `selecionarOuCriarAnalise` |
 | 1.16 | 2026-08-26 | Seção 14.16: análise nova nasce em branco (herda só os `nao_aplica`) + botão 📄 de copiar a anterior a partir da 2ª, nos três slots; `selecionarAnalise` relê do servidor; índice único `analises_mac_unica_por_numero` em produção impede "análise fantasma" (duas linhas com o mesmo número). Bolinha laranja de aba incompleta ficou fora do Slot 5, por decisão do Fábio. Slot 5 não verificado visualmente (exige sessão) |
 | 1.15 | 2026-08-26 | Seções 14.13-14.15: 6 filtros de térreo/vagas + 2 campos internos (`ehTerreo`, `temVagasExigidas`); título de grupo do despacho ganhou `keepNext` (item partindo entre páginas); filtro `S/ EIT E EIV` desativado por duplicar os botões da tela, 5 itens órfãos cobertos por `idsExtras` |
 | 1.14 | 2026-08-26 | Seção 14.12: 4 filtros de aplicabilidade revisados — NÃO É LOTE DE ESQUINA (novo, automático por `esquina=NÃO`), S/ CORREDOR virou automático (ÍTEM 16 inteiro), SEM UTILIZAÇÃO DO RECUO FRONTAL (novo, manual) e S/ ONEROSA ampliado de 2 para 21 itens. Só configuração de banco, sem deploy |
