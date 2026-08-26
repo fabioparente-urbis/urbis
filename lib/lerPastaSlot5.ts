@@ -23,6 +23,8 @@ export type DocTexto = {
   itens: ItemTexto[];
   linhas: Linha[];
   texto: string;
+  /** Mesma extração sem quebra de linha — atravessa rótulo e valor separados por célula. */
+  textoCorrido: string;
   charsTexto: number;
   temCamadaTexto: boolean;
 };
@@ -75,7 +77,7 @@ export type AoAndar = (a: Andamento) => void;
  * ART, nome do interessado por CPF/CNPJ e a cascata de fontes.
  * 4 acompanha: ART de "EXECUCAO E PROJETO" valendo para os dois papéis e as duas grafias novas
  * do ICCAP — as duas vivem dentro de `dados`, que é justamente o que fica guardado. */
-export const VERSAO_EXTRATOR = 4;
+export const VERSAO_EXTRATOR = 5;
 
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
 
@@ -238,8 +240,24 @@ export async function extrairPdf(buffer: Uint8Array): Promise<DocTexto> {
   }
 
   const texto = linhas.map((l) => l.texto).join("\n");
+
+  /* TEXTO CORRIDO — 26/08/2026.
+   *
+   * `texto` é agrupado por LINHA (y), e em tabela isso separa o rótulo do valor: no ATENDIMENTO
+   * o cabeçalho "ART" fica numa linha e os três números noutra; na ART do CREA o "ART Obra ou
+   * serviço" e o número caem em células diferentes. Regex de "rótulo seguido de valor" não casa
+   * em nenhum dos dois — e o dado ESTÁ no documento.
+   *
+   * `textoCorrido` é a mesma extração na ordem de leitura, sem quebra de linha. Os parsers olham
+   * os dois: o agrupado preserva a estrutura da tabela, o corrido atravessa a quebra. Custo zero,
+   * é o mesmo array de itens. */
+  /* Ordem em que o PDF EMITE os itens, sem reordenar. É nela que o gerador do documento põe
+   * rótulo e valor juntos ("ART 1020260027990 1020260027990"); reordenar por posição separa os
+   * dois e a regex deixa de casar. `texto` (agrupado por linha) já cobre o caso posicional. */
+  const textoCorrido = itens.map((i) => i.t).join(" ");
+
   const charsTexto = texto.replace(/\s/g, "").length;
-  return { paginas: doc.numPages, itens, linhas, texto, charsTexto, temCamadaTexto: charsTexto > 50 };
+  return { paginas: doc.numPages, itens, linhas, texto, textoCorrido, charsTexto, temCamadaTexto: charsTexto > 50 };
 }
 
 /**
@@ -639,12 +657,13 @@ function lerPrancha(doc: DocTexto) {
 }
 
 function lerArt(doc: DocTexto) {
-  const t = doc.texto;
+  const t = `${doc.texto}\n${doc.textoCorrido ?? ""}`;
   const d: any = { atividades: [] as Atividade[] };
 
   d.numero =
     (t.match(/N[ºo°]?\s*do RRT:\s*(\S+)/i) || [])[1] ||               // formulário do CAU
     (t.match(/NUMERO_DA_ART=(\d+)/i) || [])[1] ||                     // ART do CREA (link de impressão)
+    (t.match(/ART\s+Obra\s+ou\s+servi[çc]o\s+(\d{10,})/i) || [])[1] ||   // CREA: rótulo com palavras no meio
     (t.match(/\bART\s*n?[ºo°]?\s*[:.]?\s*(\d{10,})/i) || [])[1] || null;
   d.registroProfissional =
     (t.match(/N[ºo°]?\s*do Registro:\s*(\S+)/i) || [])[1] || (t.match(/Registro:\s*(\S+)/i) || [])[1] || null;
@@ -750,7 +769,7 @@ function nomeJuntoDoDocumento(doc: DocTexto): string | null {
  * proximidade posicional (`valorPerto`), não por regex de "rótulo seguido de valor".
  */
 function lerAtendimento(doc: DocTexto) {
-  const t = doc.texto;
+  const t = `${doc.texto}\n${doc.textoCorrido ?? ""}`;
   const d: any = {};
 
   d.numeroAlvara = (t.match(/Consulta\s+Alvar[áa]\s+(\d{3,})/i) || [])[1]
@@ -780,6 +799,23 @@ function lerAtendimento(doc: DocTexto) {
   d.areaConstruir = num(valorPerto(doc, "Área a ser construída", /\d+(?:\.\d{3})*(?:,\d+)?/, 120) ?? undefined);
   d.enderecoBruto = (t.match(/((?:AV|AVENIDA|R|RUA|AL|ALAMEDA|PRACA|PRA[ÇC]A|TV|TRAVESSA)\s+[^\n]{3,70}?Setor\s+[^\n]{3,40}?)(?=\s*-\s*CEP|\s{2,})/i) || [])[1]?.trim() || null;
   d.situacao = (t.match(/(Apto para An[áa]lise|Em An[áa]lise|Indeferido|Deferido)/i) || [])[1] || null;
+
+  /* O que o requerente DECLAROU na tela — é isto que se confere contra o que ele entregou. */
+  const arts = (t.match(/\bART\s+((?:\d{7,14}\s+){1,3}\d{7,14})/i) || [])[1];
+  d.artNumeros = arts ? [...new Set(arts.trim().split(/\s+/))] : [];
+
+  const vagas = (rotulo: string) => {
+    const m = t.match(new RegExp(`Vagas\\s+${rotulo}[\\s\\S]{0,80}?Total de Vagas\\s+(\\d+)\\s+sendo\\s+PCD\\s+(\\d+)`, "i"));
+    return m ? { total: Number(m[1]), pcd: Number(m[2]) } : null;
+  };
+  d.vagasExigidas = vagas("Exigidas");
+  d.vagasAtendidas = vagas("Atendidas");
+
+  // "Consulta Alvará 48533 49221" — o segundo número é a licença prévia
+  d.licencaPrevia = (t.match(/Alvar[áa]\s+\d{4,}\s+(\d{4,})/i) || [])[1]
+    || (t.match(/^\s*(\d{4,6})\s+(\d{4,6})\s/m) || [])[2] || null;
+  d.dataPagtoTaxa = (t.match(/Data\s+Pagamento\s+Taxa\s+Inicial\s+(\d{2}\/\d{2}\/\d{4})/i) || [])[1]
+    || (t.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,40}Data\s+Pagamento\s+Taxa/i) || [])[1] || null;
 
   /* O endereço do ATENDIMENTO vem inteiro numa linha só —
    * "R RB11 Quadra 07 Lote 22 Setor SET ALTO DO VALE" — e é a única fonte que traz QUADRA e LOTE
@@ -1239,17 +1275,52 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
    * resgatado em outro documento entra em `camposForaDoCarimbo`: a ficha se completa e a
    * deficiência do projeto continua exigível. Quem analisa é analista DE PROJETO — a origem fica
    * escrita no campo, então ele vê na hora que o número não veio de onde a norma manda. */
+  /* Divergências entre o DECLARADO e o ENTREGUE — viram conferência e, no MAC, exigência. */
+  const divergencias: string[] = [];
+  const soDeclarado: string[] = [];
+
+  /** Compara valores de fontes diferentes ignorando formatação (vírgula, ponto, zeros, caixa). */
+  const mesmoValor = (a: any, b: any) => {
+    const norm = (v: any) => {
+      // sem acento: "PARTICIPAÇÕES" e "PARTICIPACOES" são a mesma empresa, não divergência
+      const s = String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+      const n = Number(s.replace(/\./g, "").replace(",", "."));
+      if (Number.isFinite(n) && /\d/.test(s)) return String(n);
+      // plural no fim de palavra também não é divergência ("INVESTIMENTO"/"INVESTIMENTOS")
+      return s.replace(/[^A-Z0-9 ]/g, "").split(/\s+/).map((w) => w.replace(/S$/, "")).join("");
+    };
+    return norm(a) === norm(b);
+  };
+
   const emCascata = (
     chave: string, rotulo: string,
     fontes: { valor: any; fonte: string; doc: any; oficial?: boolean }[],
   ) => {
-    const achou = fontes.find((f) => f.valor !== null && f.valor !== undefined && f.valor !== "");
+    const comValor = fontes.filter((f) => f.valor !== null && f.valor !== undefined && f.valor !== "");
+    const achou = comValor[0];
     if (!achou) return;
+
+    /* CRUZAMENTO — 26/08/2026, regra do Fábio: "o ATENDIMENTO tem tudo mas tem que cruzar, pra
+     * saber se o ATENDIMENTO tá errado ou se os documentos do processo tão errados e cobrar no
+     * MAC". O sistema NÃO decide quem errou: mostra os dois valores e cobra. */
+    const oficial = fontes.find((f) => f.oficial);
+    for (const outra of comValor) {
+      if (outra === achou) continue;
+      if (mesmoValor(achou.valor, outra.valor)) continue;
+      divergencias.push(`${rotulo}: ${achou.fonte} diz "${achou.valor}" · ${outra.fonte} diz "${outra.valor}"`);
+    }
+    // Declarado no ATENDIMENTO e ausente do documento que era obrigado a trazer.
+    if (oficial && !comValor.includes(oficial)) {
+      soDeclarado.push(`${rotulo}: consta em ${achou.fonte}, mas não em ${oficial.fonte}`);
+    }
     /* Resgatado fora da fonte oficial: a EVIDÊNCIA do campo passa a dizer isso com todas as
      * letras. É o que o analista lê na ficha e no log da OBS para cobrar a correção do projeto —
      * o valor aparece preenchido, mas nunca disfarçado de "veio do lugar certo". */
-    set(chave, typeof achou.valor === "number" ? fmt(achou.valor) : String(achou.valor),
-        "ENCONTRADO", achou.fonte, undefined, achou.doc ?? null);
+    // inteiro sai inteiro: vaga é contagem, não medida ("2", não "2,00")
+    const comoTexto = typeof achou.valor === "number"
+      ? (Number.isInteger(achou.valor) ? String(achou.valor) : fmt(achou.valor))
+      : String(achou.valor);
+    set(chave, comoTexto, "ENCONTRADO", achou.fonte, undefined, achou.doc ?? null);
     if (!achou.oficial && C[chave]) {
       (C[chave] as any).evidencia =
         `${rotulo} não foi lido na fonte oficial (${fontes[0].fonte}) — resgatado em ${achou.fonte}. `
@@ -1341,11 +1412,60 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   // dados do projeto
   emCascata("areaTerreno", "ÁREA DO TERRENO", [
     { valor: pr.areaTerreno, fonte: "carimbo da prancha", doc: vig.projeto, oficial: true },
-    { valor: at.areaTerreno, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+    { valor: at.areaTerreno, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
   ]);
   emCascata("areaTotal", "ÁREA TOTAL DA CONSTRUÇÃO", [
     { valor: pr.areaTotalConstrucao, fonte: "carimbo da prancha", doc: vig.projeto, oficial: true },
-    { valor: at.areaConstruir, fonte: "print do ATENDIMENTO", doc: vig.atendimento },
+    { valor: at.areaConstruir, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+
+  /* ART: o ATENDIMENTO declara os números; as ARTs entregues trazem o seu. Comparação por
+   * dígitos, porque o RRT do CAU embute o número num código ("SI16358195I00CT001"). */
+  const digitos = (v: any) => String(v ?? "").replace(/\D/g, "");
+  const artsEntregues = [aProj.numero, aExec.numero, aCx.numero].filter(Boolean).map(digitos);
+  const artsDeclaradas = ((at.artNumeros ?? []) as string[]).map(digitos);
+  for (const dec of artsDeclaradas) {
+    if (!dec) continue;
+    const achou = artsEntregues.some((e) => e.includes(dec) || dec.includes(e));
+    if (!achou) {
+      soDeclarado.push(`ART ${dec}: declarada no ATENDIMENTO e não encontrada entre as ARTs da pasta`);
+    }
+  }
+
+  emCascata("numeroDeArtProjeto", "Nº DA ART DE PROJETO", [
+    { valor: aProj.numero, fonte: "ART de projeto", doc: vig.art_projeto, oficial: true },
+    { valor: at.artNumeros?.[0], fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("numeroDeArtExecucao", "Nº DA ART DE EXECUÇÃO", [
+    { valor: aExec.numero, fonte: "ART de execução", doc: vig.art_execucao, oficial: true },
+  ]);
+  emCascata("numeroDeArtCaixa", "Nº DA ART DE CAIXA", [
+    { valor: aCx.numero, fonte: "ART de caixa", doc: vig.art_caixa, oficial: true },
+  ]);
+
+  /* Declarados na tela e que o LIP não tinha fonte nenhuma até hoje. */
+  emCascata("licencaPrevia", "LICENÇA PRÉVIA", [
+    { valor: at.licencaPrevia, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("dataPagtoTaxaInicial", "DATA DE PAGAMENTO DA TAXA", [
+    { valor: at.dataPagtoTaxa, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+
+  /* Vagas: hoje só o ATENDIMENTO entrega. A prancha tem a tabela e o leitor ainda não a lê —
+   * por isso entra como resgate, com a evidência mandando cobrar o projeto. */
+  emCascata("totalDeVagasAtendidasParaAtividade", "TOTAL DE VAGAS ATENDIDAS", [
+    { valor: pr.vagasAtendidas, fonte: "tabela de vagas da prancha", doc: vig.projeto, oficial: true },
+    { valor: at.vagasAtendidas?.total, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("vagasPcdAtendidas", "VAGAS PCD ATENDIDAS", [
+    { valor: pr.vagasPcd, fonte: "tabela de vagas da prancha", doc: vig.projeto, oficial: true },
+    { valor: at.vagasAtendidas?.pcd, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("totalDeVagasExigidasParaEssas", "TOTAL DE VAGAS EXIGIDAS", [
+    { valor: at.vagasExigidas?.total, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
+  ]);
+  emCascata("vagasPcdExigido", "VAGAS PCD EXIGIDAS", [
+    { valor: at.vagasExigidas?.pcd, fonte: "declarado no ATENDIMENTO", doc: vig.atendimento },
   ]);
   set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
   set("unidComerciais", pr.unidComerciais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
@@ -1654,6 +1774,24 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
           "edificação térrea: o índice até o último pavimento é o índice total");
       np("aproveitamentoExigidoAreaDeFruicao", "área de fruição só é exigida com aproveitamento acima do básico", "regra aplicada sobre dado já lido nesta leitura");
     }
+  }
+
+  /* O resultado do cruzamento vira campo do LIP, para o analista ver e para o MAC cobrar. */
+  if (divergencias.length) {
+    C["divergenciasEntreDocumentos"] = {
+      valor: `${divergencias.length} divergência(s)`,
+      resultado: "ENCONTRADO",
+      fonte: "cruzamento entre o declarado no ATENDIMENTO e o entregue nos documentos",
+      evidencia: divergencias.join(" | ") + " — EXIGIR a correção: um dos dois está errado.",
+    } as any;
+  }
+  if (soDeclarado.length) {
+    C["declaradoMasNaoEntregue"] = {
+      valor: `${soDeclarado.length} item(ns)`,
+      resultado: "ENCONTRADO",
+      fonte: "declarado no ATENDIMENTO e ausente do documento do processo",
+      evidencia: soDeclarado.join(" | ") + " — COBRAR no despacho.",
+    } as any;
   }
 
   /* ── "X" = TENHO CERTEZA QUE NÃO TEM ────────────────────────────────────────────────────────
