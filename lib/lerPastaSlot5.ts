@@ -67,7 +67,13 @@ export type AoAndar = (a: Andamento) => void;
  * v2 — 17/08/2026: quadra/lote sem "Possui Embargo", nº do UDS pela coluna Processo, matrícula
  *      com "n." e a tabela de vias inteira.
  */
-export const VERSAO_EXTRATOR = 2;
+/* 3 — 26/08/2026. Subir este número INVALIDA todo `dados` guardado no MHD e força reextração.
+ * Obrigatório sempre que um leitor muda: a rota só reusa a memória quando `_v` bate
+ * (`app/api/lip/ler-pasta/route.ts`), então mexer no parser sem subir a versão faz a leitura
+ * devolver o que o extrator ANTIGO tinha entendido — a correção existe no código e não aparece.
+ * Esta subida acompanha: unidade `m2` sem expoente, leitor do ATENDIMENTO, profissional e
+ * contratante na ART, nome do interessado por CPF/CNPJ e a cascata de fontes. */
+export const VERSAO_EXTRATOR = 3;
 
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
 
