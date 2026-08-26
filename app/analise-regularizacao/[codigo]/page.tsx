@@ -52,6 +52,7 @@ export default function MacPage() {
   // está rodando pra não mostrar "⏳ Analisando..." no botão errado.
   const [origemLeituraP3, setOrigemLeituraP3] = useState<"processo" | "individual" | null>(null);
   const [modalLimparAnalise, setModalLimparAnalise] = useState<number | null>(null);
+  const [modalCopiarAnalise, setModalCopiarAnalise] = useState<number | null>(null);
   const [modalExportar, setModalExportar] = useState(false);
   const [modalImportar, setModalImportar] = useState(false);
   const [progressoP2, setProgressoP2] = useState(0);
@@ -1028,11 +1029,29 @@ export default function MacPage() {
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
-    setItens(ultima?.itens || {});
-    setFontes(ultima?.fontes || {});
-    setAceites(ultima?.aceites || {});
-    setObservacoes(ultima?.observacoes || "");
-    setObservacoesPorAba(ultima?.observacoes_por_aba || {});
+    // Análise nova nasce EM BRANCO, herdando apenas os "não se aplica".
+    //
+    // O "não se aplica" descreve o lote e o tipo de edificação (não é
+    // corredor viário, não é tombado, não fica no Setor Central) — isso não
+    // muda de uma análise para a outra. Já "conforme"/"não conforme" é juízo
+    // sobre a prancha em mãos, e a prancha da análise nova é outra: herdar
+    // esses status faria o analista carimbar aprovação em desenho que não
+    // reexaminou.
+    //
+    // Antes daqui a análise nova era cópia integral da anterior. Isso tornava
+    // "análise N idêntica à N-1" o estado NORMAL da tela — indistinguível de
+    // uma gravação indevida, o que escondeu um clobber real em 26/08/2026.
+    // Nascendo em branco, duas análises iguais viram evidência de defeito.
+    // Para copiar de propósito existe o botão 📄 ao lado de cada análise.
+    const herdados: Record<string, StatusItem> = {};
+    Object.entries((ultima?.itens || {}) as Record<string, StatusItem>).forEach(([id, st]) => {
+      if (st === "nao_aplica") herdados[id] = "nao_aplica";
+    });
+    setItens(herdados);
+    setFontes({});
+    setAceites({});
+    setObservacoes("");
+    setObservacoesPorAba({});
     // CAU/CREA propagam da análise anterior (mesmo projeto = mesmo RT).
     criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
     setNovaAnalise(true);
@@ -1045,18 +1064,82 @@ export default function MacPage() {
     }
   }
 
-  function selecionarAnalise(a: any) {
+  async function selecionarAnalise(a: any) {
+    // Relê a análise do servidor em vez de confiar no objeto da lista em
+    // memória. `analises` é carregada uma vez e não acompanha gravações
+    // feitas depois — por outra aba, outro dispositivo ou correção direta no
+    // banco. Abrir a aba com o objeto velho e mexer em um item só bastava
+    // para o autosave regravar o snapshot desatualizado INTEIRO por cima do
+    // que estava gravado.
+    let alvo = a;
+    try {
+      const res = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+      const json = await res.json();
+      if (json.ok) {
+        setAnalises(json.data);
+        const fresca = json.data.find((x: any) => x.id === a.id);
+        if (fresca) alvo = fresca;
+      }
+    } catch { /* rede fora — segue com o que há em memória */ }
+
     setNumeroAnaliseNova(null);
-    setAnaliseAtual(a);
-    setItens(a.itens || {});
-    setFontes(a.fontes || {});
-    setAceites(a.aceites || {});
-    setObservacoes(a.observacoes || "");
-    setObservacoesPorAba(a.observacoes_por_aba || {});
-    setNumeroRevisao(Number(a.numero_revisao) || 1);
-    setHistoricoAnalises(a.historico_analises || "");
+    setAnaliseAtual(alvo);
+    setItens(alvo.itens || {});
+    setFontes(alvo.fontes || {});
+    setAceites(alvo.aceites || {});
+    setObservacoes(alvo.observacoes || "");
+    setObservacoesPorAba(alvo.observacoes_por_aba || {});
+    setNumeroRevisao(Number(alvo.numero_revisao) || 1);
+    setHistoricoAnalises(alvo.historico_analises || "");
     setNovaAnalise(false);
-    if (a.modelo_id) carregarItensModelo(a.modelo_id);
+    if (alvo.modelo_id) carregarItensModelo(alvo.modelo_id);
+  }
+
+  /**
+   * Copia a análise anterior (N-1) por cima da análise N, a pedido explícito.
+   *
+   * Substitui a cópia automática que existia em `iniciarNovaAnalise`: o
+   * atalho continua disponível para quem quer repetir o checklist inteiro,
+   * mas agora é um ato deliberado, com confirmação — e não o padrão silencioso.
+   */
+  async function copiarAnaliseAnterior(n: number) {
+    const anterior = analises.find((a) => a.numero_analise === n - 1);
+    const alvo = analises.find((a) => a.numero_analise === n);
+    setModalCopiarAnalise(null);
+    if (!anterior || !alvo) return;
+
+    await fetch("/api/analise-regularizacao", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: alvo.id,
+        itens: anterior.itens || {},
+        fontes: anterior.fontes || {},
+        aceites: anterior.aceites || {},
+        observacoes: anterior.observacoes || "",
+        observacoes_por_aba: anterior.observacoes_por_aba || {},
+        status: alvo.status || "em_andamento",
+        numero_revisao: Number(alvo.numero_revisao) || 1,
+        historico_analises: alvo.historico_analises || "",
+      }),
+    });
+
+    const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+    const jsonLista = await resLista.json();
+    if (jsonLista.ok) {
+      setAnalises(jsonLista.data);
+      const atualizada = jsonLista.data.find((x: any) => x.numero_analise === n);
+      if (atualizada) {
+        setAnaliseAtual(atualizada);
+        setItens(atualizada.itens || {});
+        setFontes(atualizada.fontes || {});
+        setAceites(atualizada.aceites || {});
+        setObservacoes(atualizada.observacoes || "");
+        setObservacoesPorAba(atualizada.observacoes_por_aba || {});
+      }
+    }
+    registrar({ modulo: "MAC", acao: "MAC_ANALISE_COPIADA", processo_codigo: codigo, detalhe: { de: n - 1, para: n } });
+    mostrarToast(`📄 Análise ${n - 1} copiada para a Análise ${n}.`);
   }
 
   // Seleciona uma análise existente (numero_analise === n) ou inicia o fluxo
@@ -2165,6 +2248,17 @@ export default function MacPage() {
                   >
                     {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
                   </button>
+                  {/* Copiar a análise anterior — só a partir da 2ª, e só se a
+                      anterior existir. A Análise 1 não tem de onde copiar. */}
+                  {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (
+                    <button
+                      onClick={() => setModalCopiarAnalise(n)}
+                      title={`Copiar Análise ${n - 1} para a Análise ${n}`}
+                      className="px-2 py-1 rounded-lg text-xs border border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] transition-colors"
+                    >
+                      📄
+                    </button>
+                  )}
                   {existente && (
                     <button
                       onClick={() => setModalLimparAnalise(n)}
@@ -2533,6 +2627,35 @@ export default function MacPage() {
               <button onClick={() => limparAnalise(modalLimparAnalise)}
                 className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
                 Zerar Análise {modalLimparAnalise}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalCopiarAnalise !== null && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border-2 border-[var(--border-strong)] rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">
+              📄 Copiar Análise {modalCopiarAnalise - 1} → Análise {modalCopiarAnalise}
+            </h2>
+            <p className="text-sm text-[var(--text-primary)] mb-4">
+              Todo o checklist da <strong>Análise {modalCopiarAnalise}</strong> será substituído pelas
+              respostas da <strong>Análise {modalCopiarAnalise - 1}</strong>, incluindo observações.
+              O que estiver marcado hoje na Análise {modalCopiarAnalise} será perdido.
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Lembre-se: os &ldquo;conforme&rdquo; copiados foram dados sobre a prancha da análise
+              anterior — confira item a item contra o projeto corrigido antes de emitir.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setModalCopiarAnalise(null)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button onClick={() => copiarAnaliseAnterior(modalCopiarAnalise)}
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold py-2 rounded-lg text-sm">
+                Copiar
               </button>
             </div>
           </div>
