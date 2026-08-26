@@ -1275,6 +1275,12 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
   /* Divergências entre o DECLARADO e o ENTREGUE — viram conferência e, no MAC, exigência. */
   const divergencias: string[] = [];
   const soDeclarado: string[] = [];
+  /* Mesma contagem que `divergencias`/`soDeclarado`, mas por CHAVE do LIP, não por texto — é o
+   * que permite um filtro em `mac_slot5_filtros` (CAMPO_LIP_IGUAL, substring) mirar um item
+   * específico do checklist a partir de uma divergência específica, em vez de só saber que "algo"
+   * divergiu em algum lugar do processo (ver seção do laço LIP→MAC no MANUAL_SLOT5_LIP.md). */
+  const chavesDivergentes: string[] = [];
+  const chavesSoDeclaradas: string[] = [];
 
   /** Compara valores de fontes diferentes ignorando formatação (vírgula, ponto, zeros, caixa). */
   const mesmoValor = (a: any, b: any) => {
@@ -1305,10 +1311,12 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       if (outra === achou) continue;
       if (mesmoValor(achou.valor, outra.valor)) continue;
       divergencias.push(`${rotulo}: ${achou.fonte} diz "${achou.valor}" · ${outra.fonte} diz "${outra.valor}"`);
+      chavesDivergentes.push(chave);
     }
     // Declarado no ATENDIMENTO e ausente do documento que era obrigado a trazer.
     if (oficial && !comValor.includes(oficial)) {
       soDeclarado.push(`${rotulo}: consta em ${achou.fonte}, mas não em ${oficial.fonte}`);
+      chavesSoDeclaradas.push(chave);
     }
     /* Resgatado fora da fonte oficial: a EVIDÊNCIA do campo passa a dizer isso com todas as
      * letras. É o que o analista lê na ficha e no log da OBS para cobrar a correção do projeto —
@@ -1426,6 +1434,7 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     const achou = artsEntregues.some((e) => e.includes(dec) || dec.includes(e));
     if (!achou) {
       soDeclarado.push(`ART ${dec}: declarada no ATENDIMENTO e não encontrada entre as ARTs da pasta`);
+      chavesSoDeclaradas.push("artNaoEntregue");
     }
   }
 
@@ -1778,8 +1787,23 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
       fonte: "cruzamento entre o declarado no ATENDIMENTO e o entregue nos documentos",
       evidencia: divergencias.join(" | ") + " — EXIGIR a correção: um dos dois está errado.",
     } as any;
+    /* Mesma informação, mas em formato que um filtro de `mac_slot5_filtros` consegue usar como
+     * gatilho: cada chave envolvida entra entre pipes ("|chave1|chave2|"). Um filtro CAMPO_LIP_IGUAL
+     * com valor_esperado="|numeroDeArtProjeto|" casa só nesse token — o pipe nas duas pontas
+     * impede que "processo" bata dentro de "processoFisico". Campo interno: não é `lip_campos`,
+     * não aparece na tela, só existe para o motor de filtros ler (laço LIP→MAC, 26/08/2026). */
+    C["divergenciasChaves"] = {
+      valor: `|${[...new Set(chavesDivergentes)].join("|")}|`,
+      resultado: "CALCULADO",
+      fonte: "chaves do cruzamento acima, para acionar filtros do MAC",
+    } as any;
   }
   if (soDeclarado.length) {
+    C["declaradoMasNaoEntregueChaves"] = {
+      valor: `|${[...new Set(chavesSoDeclaradas)].join("|")}|`,
+      resultado: "CALCULADO",
+      fonte: "chaves do cruzamento acima, para acionar filtros do MAC",
+    } as any;
     C["declaradoMasNaoEntregue"] = {
       valor: `${soDeclarado.length} item(ns)`,
       resultado: "ENCONTRADO",

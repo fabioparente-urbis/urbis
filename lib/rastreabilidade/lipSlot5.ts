@@ -517,4 +517,15 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
  * de integridade não acuse falso positivo, e para que a decisão (criar o campo ou parar de gravar)
  * não se perca.
  */
-export const CHAVES_FANTASMA_LIP_SLOT5 = ["certidao"];
+/* "divergenciasChaves"/"declaradoMasNaoEntregueChaves" (26/08/2026) são o mesmo cruzamento de
+ * "divergenciasEntreDocumentos"/"declaradoMasNaoEntregue", só que por CHAVE em vez de texto —
+ * existem para o motor de filtros do MAC (`mac_slot5_filtros`) mirar um item específico do
+ * checklist a partir de uma divergência específica. Nenhum dos quatro é `lip_campos`: não têm
+ * aba nem aparecem na tela, só existem dentro de `dados` para o motor ler. */
+export const CHAVES_FANTASMA_LIP_SLOT5 = [
+  "certidao",
+  "divergenciasEntreDocumentos",
+  "declaradoMasNaoEntregue",
+  "divergenciasChaves",
+  "declaradoMasNaoEntregueChaves",
+];

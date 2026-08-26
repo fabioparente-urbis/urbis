@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.8
+**Versão:** 1.9
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -903,12 +903,51 @@ mesmo LIP), e a tela usa esse valor como **último** fallback: só entra se a an
 > navegador), só acrescenta uma fonte abaixo delas. Uma leitura de documento dentro do MAC
 continua podendo trocar a sigla depois, normalmente.
 
+### 14.10 O laço LIP→MAC — 8 filtros novos marcam item sozinho a partir do cruzamento (26/08/2026)
+
+Pendência que o Fábio pediu para cobrar nesta conversa (a recomendação de fechamento da noite de
+26/08 — ver seção 12 do `MANUAL_SLOT5_LIP.md`): o motor de cruzamento já sabia dizer "isto
+divergiu" ou "isto foi declarado e não entregue", mas ficava preso num texto livre — o analista
+lia o campo do LIP e marcava o item do MAC à mão, um por um.
+
+**8 filtros novos em `mac_slot5_filtros`, todos com prefixo `LAÇO LIP:`**, todos `CAMPO_LIP_IGUAL`
+com `status_alvo = "nao_conforme"`, todos mirando o ITEM 1 ("INFORMAÇÕES NO SISTEMA ALVARÁ MAIS
+FÁCIL") — porque esse item já lista, no próprio texto, exatamente os campos que o cruzamento
+compara:
+
+| Filtro | Campo do LIP acionador | Item do checklist |
+|---|---|---|
+| ÁREA DO TERRENO DIVERGENTE | `divergenciasChaves` contém `areaTerreno` | "Área do terreno;" |
+| ÁREA CONSTRUÍDA DIVERGENTE | `divergenciasChaves` contém `areaTotal` | "Área construída, número de pavimentos..." |
+| ART DE PROJETO DIVERGENTE | `divergenciasChaves` contém `numeroDeArtProjeto` | "Compatibilizar Nº das ARTs e RRTs;" |
+| ART DE EXECUÇÃO DIVERGENTE | `divergenciasChaves` contém `numeroDeArtExecucao` | idem |
+| ART DE CAIXA DIVERGENTE | `divergenciasChaves` contém `numeroDeArtCaixa` | idem |
+| ART DECLARADA E NÃO ENTREGUE | `declaradoMasNaoEntregueChaves` contém `artNaoEntregue` | idem |
+| VAGAS ATENDIDAS DIVERGENTES | `divergenciasChaves` contém `totalDeVagasAtendidasParaAtividade` | "Vagas atendidas para comércio;" |
+| VAGAS PCD ATENDIDAS DIVERGENTES | `divergenciasChaves` contém `vagasPcdAtendidas` | "Vagas PcD" |
+
+O valor de cada campo é uma lista com pipe nas duas pontas (`|areaTerreno|numeroDeArtProjeto|`);
+o `valor_esperado` de cada filtro também vem com pipe (`|areaTerreno|`), então a comparação por
+substring do `CAMPO_LIP_IGUAL` não deixa `numeroDeArtProjeto` bater dentro de
+`numeroDeArtExecucao`, nem `areaTerreno` dentro de `areaTotal` — testado com `avaliarFiltros`
+contra um LIP simulado antes de subir.
+
+**Deliberadamente sem filtro** para as outras ~9 chaves que o cruzamento também cobre (endereço,
+proprietário, responsável técnico, data de pagamento, vagas *exigidas*): nenhum item do checklist
+cita esses campos no próprio texto, e inventar um mapeamento sem o item dizer isso seria decisão
+de analista, não coisa que eu decido sozinho. Ver seção 15 do `MANUAL_SLOT5_LIP.md` para a lista
+completa do que ficou de fora e por quê.
+
+**Não testado ainda com leitura real de pasta ponta a ponta** — só com `avaliarFiltros` isolado.
+O próximo processo lido no Slot 5 é o primeiro teste de verdade em produção.
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.9 | 2026-08-26 | Seção 14.10: laço LIP→MAC — 8 filtros novos (`LAÇO LIP:`) marcam item `nao_conforme` sozinho a partir do cruzamento declarado×entregue do LIP; tabela completa de campo→item e do que ficou de fora de propósito |
 | 1.8 | 2026-08-26 | Sem mudança de comportamento no MAC — o campo `licencaPrevia` foi removido do LIP (ver seção 14 do `MANUAL_SLOT5_LIP.md`) e o único ponto tocado no MAC foi o texto do prompt P3 (`promptP3.ts`), que citava o campo como referência descritiva ao apoiar o ITEM 1; nenhum item do checklist nem filtro dependia dele |
 | 1.7 | 2026-08-26 | Seção 3.5 e 14.9: unidade territorial do LIP volta a valer como preenchimento automático do filtro do MAC (como último fallback, atrás da análise salva e do navegador) — segunda reversão dessa regra, achado ao vivo no 48533 |
 | 1.6 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data, que reordenou os campos da aba INÍCIO (Interessado, Projeto Nº, Ordem de Serviço Nº, Data Pagto. Taxa inicial pro topo; ver seção 13 do `MANUAL_SLOT5_LIP.md`). Reordenação de campo não muda leitura nem checklist |

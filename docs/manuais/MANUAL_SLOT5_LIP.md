@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.7
+**Versão:** 1.8
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -807,12 +807,56 @@ no JSON do processo, só para de aparecer na tela e de ser escrito em leituras n
 
 ---
 
+## 15. O laço LIP→MAC — a divergência vira item marcado sozinho (26/08/2026)
+
+Pendência que o próprio Fábio pediu para cobrar nesta conversa (ver a noite de 26/08, seção 11):
+o motor de cruzamento (seção 12) já sabia dizer "isto divergiu" ou "isto foi declarado e não
+entregue", mas isso morria num texto livre — o analista tinha que ler o campo do LIP e marcar o
+item do MAC à mão. Agora uma parte disso fecha sozinha.
+
+**O que mudou no LIP:** ao lado de `divergenciasEntreDocumentos`/`declaradoMasNaoEntregue` (texto
+para o analista ler), o cruzamento agora também grava `divergenciasChaves` e
+`declaradoMasNaoEntregueChaves` — a mesma informação, mas por **chave** do LIP, em formato
+`|chave1|chave2|` (pipe nas duas pontas, para "processo" não bater dentro de "processoFisico").
+Os quatro são campos internos: não são `lip_campos`, não têm aba, não aparecem na tela — só
+existem dentro de `dados` para o motor de filtros do MAC ler. Declarados como chave fantasma em
+`CHAVES_FANTASMA_LIP_SLOT5` (`lipSlot5.ts`), senão o teste de integridade (13d/14c) reclamava —
+essas duas primeiras já estavam sem declarar desde a noite do cruzamento e passaram batido; foi
+corrigido junto, por estar bem no meio do que eu já estava mexendo.
+
+**O que mudou no MAC:** 8 filtros novos em `mac_slot5_filtros` (prefixo `LAÇO LIP:`), todos
+`CAMPO_LIP_IGUAL` mirando um token de `divergenciasChaves`/`declaradoMasNaoEntregueChaves`, todos
+`status_alvo = "nao_conforme"` — ver seção 14.10 do `MANUAL_SLOT5_MAC.md` para a lista completa e
+por que só esses 8.
+
+**Por que só 8 de ~17 chaves possíveis:** o cruzamento roda sobre 16 chaves do LIP (mais o caso
+avulso de ART não entregue). Só mapeei para item do checklist os casos em que o **próprio texto
+do item já cita o mesmo campo** — o ITEM 1 ("Conferir os dados informados... no Sistema Alvará
+Fácil") lista literalmente "Área do terreno", "Área construída...", "Compatibilizar Nº das ARTs e
+RRTs", "Vagas atendidas para comércio", "Vagas PcD": a mesma lista que o cruzamento já compara.
+Ficaram de fora, **de propósito, sem inventar mapeamento**: `logradouro`, `quadra`, `lote`,
+`bairro`, `proprietario`, `nome_responsavel_arq`, `dataPagtoTaxaInicial` (não há item do
+checklist que confira endereço/proprietário/data contra o declarado) e
+`totalDeVagasExigidasParaEssas`/`vagasPcdExigido` (o ITEM 1 só lista vagas *atendidas*, não
+*exigidas*). Decidir se algum desses merece item novo, ou se um item existente serve, é
+julgamento de analista — fica para o Fábio decidir, não para eu supor.
+
+Testado com `avaliarFiltros` contra um LIP simulado (divergência em `areaTerreno` +
+`numeroDeArtProjeto` + ART não entregue): os 3 filtros certos acionaram, os outros 5 não —
+confirma que o delimitador por pipe não deixa uma chave bater dentro de outra parecida
+(`numeroDeArtProjeto` × `numeroDeArtExecucao`/`numeroDeArtCaixa`, `areaTerreno` × `areaTotal`).
+Não testado ainda com leitura real de pasta ponta a ponta — o próximo processo lido no Slot 5 é
+o primeiro teste de verdade.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.8 | 2026-08-26 | Seção 15: laço LIP→MAC — cruzamento passa a gravar `divergenciasChaves`/`declaradoMasNaoEntregueChaves` por chave (não só texto), 8 filtros novos no MAC marcam item automaticamente quando o texto do item já cita o mesmo campo; corrigidas 2 chaves fantasma que faltavam declarar desde a noite do cruzamento |
 | 1.7 | 2026-08-26 | Seção 14: campo `licencaPrevia` removido do LIP (0 uso em checklist/filtros/laudo/despacho, achado ao pesquisar antes de apagar) — banco, cruzamento, matriz de rastreabilidade e lock de versões atualizados juntos |
 | 1.6 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data, que passou a ler `unidadeTerritorialDoUsoDoSolo` do LIP como fallback do filtro de Unidade Territorial (ver seção 14.9 do `MANUAL_SLOT5_MAC.md`). O LIP não ganhou campo nem mudou de comportamento |
 | 1.5 | 2026-08-26 | Seção 13: Interessado, Projeto Nº, Ordem de Serviço Nº e Data Pagto. Taxa inicial movidos para o topo da aba INÍCIO (só reordenação, sem campo novo) |
