@@ -14,17 +14,25 @@ export async function GET(req: NextRequest) {
 
   const { data: proc } = await supabase
     .from("processos")
-    .select("dados, codigo, tipo_processo")
+    .select("dados, codigo, tipo_processo, assunto_id")
     .eq("codigo", codigo)
     .eq("tipo_processo", tipo)
     .maybeSingle();
 
-  const dados = proc?.dados || {};
+  if (!proc) return NextResponse.json({ ok: false, erro: "Processo não encontrado" }, { status: 404 });
 
-  const { data: abas } = await supabase
+  const dados = proc.dados || {};
+
+  // Sem o filtro por assunto_id, a exportação trazia as abas e campos de
+  // TODOS os slots (Regularização, Aceite SEI, Aprovação de Projeto etc.
+  // misturados) — o Excel do Slot 5 saía com campos que nem existem na tela
+  // daquele processo. Mesmo filtro do GET /api/admin/lip.
+  let query = supabase
     .from("lip_abas")
     .select("nome, ordem, lip_campos(chave, label, ordem)")
     .order("ordem");
+  if (proc.assunto_id) query = query.eq("assunto_id", proc.assunto_id);
+  const { data: abas } = await query;
 
   const rows: { Aba: string; Campo: string; Valor: string }[] = [];
 
