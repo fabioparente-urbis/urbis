@@ -76,6 +76,16 @@ export default function MacPage() {
   const [dadosLip, setDadosLip] = useState<Record<string,any>>({});
   const [tagsProcesso, setTagsProcesso] = useState<any[]>([]);
   const [bannerCritico, setBannerCritico] = useState<string | null>(null);
+  // chave do LIP -> rótulo de tela ("artCx" -> "DOC SEI — ART/RRT da Caixa de
+  // Recarga"). Sem isso o banner de pendências mostrava a chave crua, que não
+  // diz ao analista qual documento está faltando.
+  const [rotulosLip, setRotulosLip] = useState<Record<string, string>>({});
+  // Nome do documento em emissão, só para o texto do modal de pendências.
+  const [rotuloEmissao, setRotuloEmissao] = useState("o documento");
+  // O modal de pendências avisa, nunca proíbe. Guarda o `resolve` da promise
+  // de quem pediu a emissão: "Emitir mesmo assim" resolve true e o fluxo segue
+  // de onde parou; "Voltar e revisar" resolve false e o fluxo desiste.
+  const resolverPendencias = useRef<((seguir: boolean) => void) | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [statusSalvo, setStatusSalvo] = useState<""|"pendente"|"salvando"|"salvo"|"erro">("");
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
@@ -650,13 +660,10 @@ export default function MacPage() {
 
   // Abre o modal de emissão já com o tipo definido pelo botão de origem.
   // Arquivamento sai da série de parecer; despacho, da série de despacho.
-  async function abrirModalDespacho(tipo: "despacho" | "arquivamento") {
-    setTipoDespacho(tipo);
-    setDataEmissao(new Date().toLocaleDateString("pt-BR"));
-              await salvarSilencioso();
-    // Avisos de pendência só valem para o despacho ao interessado.
-    if (tipo === "despacho") {
-    // Coleta avisos — nunca bloqueia, só informa
+  // Coleta o que está pendente: itens do MAC sugeridos pela IA e ainda não
+  // confirmados, mais campos do LIP marcados com X (o analista afirmando que o
+  // documento não traz aquilo). Não bloqueia nada — só levanta a lista.
+  async function coletarPendencias() {
     // origem explícita — sem isso o modal prefixava "MAC —" também nos
     // itens vindos do LIP, virando "MAC — LIP — 3. Uso do Solo".
     const pendentesIA = checklistItens
@@ -673,21 +680,43 @@ export default function MacPage() {
       const vistosLip = new Set<string>();
       const pendentesLipX = (lipJson?.data || []).flatMap((a: any) =>
         (a.lip_campos || [])
-          .filter((c: any) => dados[c.chave]?.valor === "X")
+          // O X é digitado pelo analista e chega dos dois jeitos ("X" e "x") —
+          // o resto do sistema já normaliza (processo/salvar usa toUpperCase, o
+          // banner desta tela usa toLowerCase). Só este portão comparava exato,
+          // e deixava passar em silêncio todo campo marcado em minúscula.
+          .filter((c: any) => String(dados[c.chave]?.valor ?? "").trim().toUpperCase() === "X")
           .filter((c: any) => (vistosLip.has(c.chave) ? false : (vistosLip.add(c.chave), true)))
           .map((c: any) => ({ id: `lip_${c.chave}`, texto: `${c.label} — marcado com X`, grupo: a.nome || "LIP", origem: "lip" as const }))
       );
-      const todosAvisos = [
-        ...pendentesIA,
-        ...pendentesLipX,
-      ];
-      if (todosAvisos.length > 0) {
-        setItensPendentesIA(todosAvisos);
-        setModalItensPendentesIA(true);
-        return;
-      }
-    } catch { /* silencioso */ }
+      return [...pendentesIA, ...pendentesLipX];
+    } catch {
+      // Se a consulta falhar, não inventa pendência nem trava a emissão —
+      // devolve só o que já se sabia pelo estado da tela.
+      return pendentesIA;
     }
+  }
+
+  // Portão único de emissão. Havendo pendência, mostra a lista e pergunta;
+  // resolve true se o analista decidir emitir assim mesmo. Sem pendência,
+  // segue direto. NUNCA impede a emissão — a decisão é do analista.
+  function confirmarSePendente(rotulo: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      void (async () => {
+        const avisos = await coletarPendencias();
+        if (avisos.length === 0) { resolve(true); return; }
+        setItensPendentesIA(avisos);
+        setRotuloEmissao(rotulo);
+        resolverPendencias.current = resolve;
+        setModalItensPendentesIA(true);
+      })();
+    });
+  }
+
+  async function abrirModalDespacho(tipo: "despacho" | "arquivamento") {
+    setTipoDespacho(tipo);
+    setDataEmissao(new Date().toLocaleDateString("pt-BR"));
+    await salvarSilencioso();
+    if (!(await confirmarSePendente(tipo === "arquivamento" ? "o arquivamento" : "o despacho"))) return;
     await prepararNumeracao(tipo);
   }
 
@@ -1055,12 +1084,29 @@ export default function MacPage() {
     const items: {label:string}[] = [];
     (Object.entries(dadosLip) as [string, any][]).forEach(([chave, campo]) => {
       if (campo && (!campo.valor || campo.status === "rascunho" || campo.valor?.toLowerCase() === "x")) {
-        items.push({ label: chave.replace(/_/g, " ") });
+        items.push({ label: rotulosLip[chave] ?? chave.replace(/_/g, " ") });
       }
     });
     setPendentesLIPItems(items);
     setBannerCritico(items.length > 0 ? "ativo" : null);
-  }, [dadosLip]);
+  }, [dadosLip, rotulosLip]);
+  useEffect(() => {
+    if (!assuntoId) return;
+    let vivo = true;
+    fetch(`/api/admin/lip?assunto_id=${encodeURIComponent(assuntoId)}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        const mapa: Record<string, string> = {};
+        for (const aba of j?.data || [])
+          for (const c of aba.lip_campos || [])
+            if (c?.chave && c?.label && !mapa[c.chave]) mapa[c.chave] = c.label;
+        setRotulosLip(mapa);
+      })
+      .catch(() => { /* banner cai no fallback da chave crua */ });
+    return () => { vivo = false; };
+  }, [assuntoId]);
+
   useEffect(() => {
     const obs = dadosLip["observacoes"]?.valor;
     if (obs) setObsText(obs);
@@ -2177,7 +2223,7 @@ export default function MacPage() {
               🖨️ Re-imprimir Parecer {indeferimentoParaReimprimir.numeroParecer}
             </button>
           )}
-          <button onClick={async () => { setDataEmissao(new Date().toLocaleDateString("pt-BR")); await salvarSilencioso(); setModalIndeferimento(true); }} disabled={salvando}
+          <button onClick={async () => { setDataEmissao(new Date().toLocaleDateString("pt-BR")); await salvarSilencioso(); if (!(await confirmarSePendente("o indeferimento"))) return; setModalIndeferimento(true); }} disabled={salvando}
             className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
@@ -2197,6 +2243,7 @@ export default function MacPage() {
             <div className="mt-2">
               <BotaoGerarLaudo
                 processoId={codigo}
+                onAntesDeGerar={() => confirmarSePendente("o laudo")}
                 mrpData={{ assuntoNome, interessado: dadosLip?.proprietario?.valor ?? null, areaConstruida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0, bairro: dadosLip?.bairro?.valor ?? null, numeroSei: dadosLip?.processo?.valor ?? codigo, numeroFisico: dadosLip?.processoFisico?.valor ?? null }}
                 onSuccess={() =>
                   void gravarTag({
@@ -2530,7 +2577,7 @@ export default function MacPage() {
               <h2 className="text-[var(--text-primary)] font-bold text-xl">Itens sugeridos pela IA aguardam aprovação</h2>
             </div>
             <p className="text-[var(--text-muted)] text-sm mb-4">
-              Há pendências antes de emitir o despacho: campos do LIP ainda em rascunho (marcados com "X") e/ou itens do checklist do MAC que a IA sugeriu e você ainda não confirmou ou rejeitou.
+              Há pendências antes de emitir {rotuloEmissao}: campos do LIP marcados com "X" (você afirmou que o documento não traz) e/ou itens do checklist do MAC que a IA sugeriu e você ainda não confirmou ou rejeitou. Você pode emitir assim mesmo — a decisão é sua.
             </p>
             <div className="max-h-[60vh] overflow-y-auto mb-5 pr-1 space-y-5">
               {itensPendentesIA.some((i: any) => i.origem === "lip") && (
@@ -2568,12 +2615,12 @@ export default function MacPage() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={async () => { setModalItensPendentesIA(false); await prepararNumeracao(tipoDespacho === "arquivamento" ? "arquivamento" : "despacho"); }}
+                onClick={() => { setModalItensPendentesIA(false); const r = resolverPendencias.current; resolverPendencias.current = null; r?.(true); }}
                 className="flex-1 bg-[var(--ia)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Emitir mesmo assim
               </button>
               <button
-                onClick={() => setModalItensPendentesIA(false)}
+                onClick={() => { setModalItensPendentesIA(false); const r = resolverPendencias.current; resolverPendencias.current = null; r?.(false); }}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Voltar e revisar
               </button>

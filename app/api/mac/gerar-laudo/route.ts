@@ -238,6 +238,22 @@ ${membro.cau_crea}`;
       .eq("codigo", processoId)
       .is("analise_concluida_em", null);
 
+    // ── MDP: o laudo é documento emitido e precisa constar no registro do
+    //    que SAIU, igual ao despacho (falha silenciosa) ──
+    try {
+      const { gravarRegistroMDPLaudo } = await import("@/lib/mdpGravar");
+      const r = await gravarRegistroMDPLaudo({
+        processo_codigo: processoId,
+        assunto_id: p.assunto_id ?? null,
+        numero_analise: mac?.numero_analise ?? null,
+        interessado: v("proprietario"),
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+      if (!r.ok) console.warn("[MDP] laudo não gravado:", r.motivo);
+    } catch (mdpErr) {
+      console.warn("[MDP] falha ao gravar laudo:", mdpErr);
+    }
+
     // ── MRP: grava geração do laudo automaticamente (falha silenciosa) ──
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
