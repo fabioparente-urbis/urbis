@@ -1205,12 +1205,13 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
     /* Resgatado fora da fonte oficial: a EVIDÊNCIA do campo passa a dizer isso com todas as
      * letras. É o que o analista lê na ficha e no log da OBS para cobrar a correção do projeto —
      * o valor aparece preenchido, mas nunca disfarçado de "veio do lugar certo". */
-    const evidencia = achou.oficial
-      ? undefined
-      : `${rotulo} não foi lido na fonte oficial (${fontes[0].fonte}) — resgatado em ${achou.fonte}. `
-        + `EXIGIR a correção do projeto: a norma manda este dado constar ali.`;
     set(chave, typeof achou.valor === "number" ? fmt(achou.valor) : String(achou.valor),
-        "ENCONTRADO", achou.fonte, evidencia, achou.doc ?? null);
+        "ENCONTRADO", achou.fonte, undefined, achou.doc ?? null);
+    if (!achou.oficial && C[chave]) {
+      (C[chave] as any).evidencia =
+        `${rotulo} não foi lido na fonte oficial (${fontes[0].fonte}) — resgatado em ${achou.fonte}. `
+        + `EXIGIR a correção do projeto: a norma manda este dado constar ali.`;
+    }
   };
 
 
