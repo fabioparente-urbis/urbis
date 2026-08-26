@@ -575,19 +575,26 @@ function lerPrancha(doc: DocTexto) {
 
   const iccap = valorPerto(doc, "ICCAP", /EXIGIDO|ATENDIDO|\d+,\d+/i, 60)
              || valorPerto(doc, "ÍNDICE DE CONTROLE E CAPTAÇÃO", /V\s*=|\d+,\d+/i, 60);
-  d.iccapExigido = num(t.match(/EXIGIDO\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
-  d.iccapAtendido = num(t.match(/ATENDIDO\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
+  d.iccapExigido = num(t.match(/EXIGIDO:?\s*=?\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
+  d.iccapAtendido = num(t.match(/ATENDIDO:?\s*=?\s*([\d.]+,?\d*)\s*[Mm]/i)?.[1]);
   /* Achado real (processo 50724): o carimbo não traz "EXIGIDO"/"ATENDIDO" nem "V = X,XXm³" —
    * só "10Cxs. 22,60m³" direto, junto do rótulo I.C.C.A.P. Sem esse terceiro padrão, tanto o
    * número de caixas quanto o volume adotado ficavam vazios. */
-  const cxs = t.match(new RegExp(`(\\d+)\\s*Cxs\\.?\\s*(\\d+,\\d+)\\s*${U_VOLUME}`, "i"));
+  /* Terceira e quarta grafias do ICCAP, achadas no 48533: "EXIGIDO: 1,35 m³ / ATENDIDO: 2,26 m³
+   * - 01 CAIXA" e "I.C.C.A.P. 01 CAIXA 2,26 m³". Sem elas o volume e o número de caixas ficavam
+   * vazios com a informação escrita na prancha. */
+  const cxs = t.match(new RegExp(`(\\d+)\\s*Cxs\\.?\\s*(\\d+,\\d+)\\s*${U_VOLUME}`, "i"))
+    || t.match(new RegExp(`(\\d+)\\s*CAIXAS?\\s+(\\d+,\\d+)\\s*${U_VOLUME}`, "i"));
   d.volumeCaixa = d.iccapAtendido
     ?? num((t.match(new RegExp(`V\\s*=\\s*(\\d+,\\d+)\\s*${U_VOLUME}`, "i")) || [])[1])
     ?? num(cxs?.[2]);
   if (d.iccapExigido == null) d.carimboFaltando.push("ICCAP — EXIGIDO (o modelo pede EXIGIDO e ATENDIDO)");
   d.iccapBruto = iccap;
 
-  d.numeroCaixas = (t.match(/N[úu]mero de caixas:\s*(\d+)/i) || [])[1] || cxs?.[1] || null;
+  d.numeroCaixas = (t.match(/N[úu]mero de caixas:\s*(\d+)/i) || [])[1]
+    || cxs?.[1]
+    || (t.match(/\b(\d{1,2})\s*CAIXAS?\b/i) || [])[1]
+    || null;
   d.revisao = (t.match(/\bREV\s?(\d{2})\b/i) || [])[0]?.replace(/\s/g, "") || null;
 
   // a data do carimbo tem que vir DO RÓTULO: a prancha está cheia de outras datas (especificação
@@ -921,8 +928,22 @@ async function catalogar(
       item.atividades = art.atividades;
       const temM2 = art.atividades.some((x: Atividade) => /QUADRAD/i.test(x.unidade));
       const temM3 = art.atividades.some((x: Atividade) => /C[ÚU]BIC/i.test(x.unidade));
+      /* "EXECUCAO E PROJETO ..." — 26/08/2026.
+       *
+       * O CREA registra numa ART só as duas atividades, e é assim que vem escrito. O teste
+       * anterior procurava PROJETO e parava: a ART virava só `art_projeto`, nenhuma assumia
+       * `art_execucao`, e o LIP afirmava "ANEXOU ART/RRT/EXECUÇÃO? NÃO" com a ART na pasta —
+       * uma exigência FALSA no despacho, contra um requerente que cumpriu. Visto no 48533.
+       *
+       * Agora cada atividade responde pelo que ela diz: cita execução, vale como execução; cita
+       * projeto, vale como projeto; citando as duas, vale para as duas. */
       const ehProjeto = art.atividades.some((x: Atividade) => /PROJETO|ELABORA/i.test(x.descricao));
-      if (temM2) item.papeis.push(ehProjeto ? "art_projeto" : "art_execucao");
+      const ehExecucao = art.atividades.some((x: Atividade) => /EXECU/i.test(x.descricao));
+      if (temM2) {
+        if (ehProjeto) item.papeis.push("art_projeto");
+        if (ehExecucao) item.papeis.push("art_execucao");
+        if (!ehProjeto && !ehExecucao) item.papeis.push("art_execucao");
+      }
       if (temM3) item.papeis.push("art_caixa");
       if (!item.papeis.length) item.papeis = ["art_indefinida"];
       item.confianca = art.atividades.length ? "alta" : "baixa";
