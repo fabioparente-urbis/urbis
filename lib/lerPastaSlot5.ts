@@ -346,7 +346,12 @@ const ASSINATURAS: { papel: string; re: RegExp }[] = [
    * ATENDIMENTO era catalogado como certidão — perdendo o documento mais rico da pasta (é ele que
    * traz proprietário, endereço, área do terreno, área a construir, responsável técnico e CAU,
    * todos em campo separado). Achado no 48535. */
-  { papel: "atendimento", re: /CONSULTA ALVAR[ÁA]|APROVACAO SIMPLIFICADA|DADOS DO IM[ÓO]VEL.*RESPONSAVEL TECNICO/ },
+  /* Só frases que existem NA TELA do sistema. A primeira versão desta assinatura aceitava
+   * "DADOS DO IMOVEL ... RESPONSAVEL TECNICO" e capturou o REQUERIMENTO do DOM, que tem as mesmas
+   * duas seções: o requerimento virava "atendimento", vencia por rodada mais alta e o print de
+   * verdade era descartado como versão superada — perdendo as DUAS fontes de proprietário de uma
+   * vez. Regressão vista em produção no 48533, 26/08/2026 00:07. */
+  { papel: "atendimento", re: /CONSULTA ALVAR[ÁA]|APROVACAO SIMPLIFICADA|ANEXE OS ARQUIVOS OBRIGATORIOS|SEM ANEXO PARA MOSTRAR/ },
   { papel: "certidao_matricula", re: /CERTIDAO DE MATRICULA|REGISTRO DE IMOVEIS DA/ },
   { papel: "art", re: /ART OBRA OU SERVICO|DETALHES DO RRT|N[ºO°]? DO RRT|ANOTACAO DE RESPONSABILIDADE TECNICA PARA/ },
   { papel: "requerimento", re: /REQUERIMENTO|REQUEIRO/ },
