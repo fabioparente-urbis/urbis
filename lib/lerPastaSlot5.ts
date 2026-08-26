@@ -71,9 +71,11 @@ export type AoAndar = (a: Andamento) => void;
  * Obrigatório sempre que um leitor muda: a rota só reusa a memória quando `_v` bate
  * (`app/api/lip/ler-pasta/route.ts`), então mexer no parser sem subir a versão faz a leitura
  * devolver o que o extrator ANTIGO tinha entendido — a correção existe no código e não aparece.
- * Esta subida acompanha: unidade `m2` sem expoente, leitor do ATENDIMENTO, profissional e
- * contratante na ART, nome do interessado por CPF/CNPJ e a cascata de fontes. */
-export const VERSAO_EXTRATOR = 3;
+ * 3 acompanhou: unidade `m2` sem expoente, leitor do ATENDIMENTO, profissional e contratante na
+ * ART, nome do interessado por CPF/CNPJ e a cascata de fontes.
+ * 4 acompanha: ART de "EXECUCAO E PROJETO" valendo para os dois papéis e as duas grafias novas
+ * do ICCAP — as duas vivem dentro de `dados`, que é justamente o que fica guardado. */
+export const VERSAO_EXTRATOR = 4;
 
 export type Atividade = { descricao: string; quantidade: string; unidade: string };
 
