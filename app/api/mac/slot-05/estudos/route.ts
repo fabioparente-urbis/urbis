@@ -28,6 +28,7 @@ const CAMPOS_MOSTRADOS = [
   "tipoProcessoLip",
   "areaTotal",
   "areaTerreno",
+  "unidadeTerritorialDoUsoDoSolo",
 ];
 
 export async function GET(req: NextRequest) {

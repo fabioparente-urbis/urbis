@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.5
+**Versão:** 1.6
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -783,6 +783,7 @@ processo do Slot 5 sem precisar de deploy. Ordem nova da aba INÍCIO:
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.6 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data, que passou a ler `unidadeTerritorialDoUsoDoSolo` do LIP como fallback do filtro de Unidade Territorial (ver seção 14.9 do `MANUAL_SLOT5_MAC.md`). O LIP não ganhou campo nem mudou de comportamento |
 | 1.5 | 2026-08-26 | Seção 13: Interessado, Projeto Nº, Ordem de Serviço Nº e Data Pagto. Taxa inicial movidos para o topo da aba INÍCIO (só reordenação, sem campo novo) |
 | 1.4 | 2026-08-26 | Seção 12.5: "Limpar LIP" passa a gravar de verdade (antes só zerava a tela) e a exigir confirmação por digitação |
 | 1.3 | 2026-08-26 | Seção 12: motor de cruzamento (declarado no ATENDIMENTO × entregue nos documentos), leitor do ATENDIMENTO, texto corrido no extrator, número da ART no formato do CREA, e o Monitor IA com dois anéis — incluindo a eficiência da leitura |

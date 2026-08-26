@@ -554,6 +554,8 @@ export default function AnaliseAprovacaoProjeto() {
   // continua sendo a origem oficial.
   const [unidadeTerritorial, setUnidadeTerritorial] = useState("");
   const unidadeCarregada = useRef(false);
+  const unidadeTerritorialRef = useRef(unidadeTerritorial);
+  unidadeTerritorialRef.current = unidadeTerritorial;
   /* EIT · EIV · carga e descarga: números do LIP + os que só o analista tem (depósito/produção,
    * pátio desenhado, capacidade de reunião, alunos por turno). Os manuais ficam por processo no
    * navegador, como a unidade territorial. */
@@ -1427,10 +1429,12 @@ export default function AnaliseAprovacaoProjeto() {
     void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
-  /* MAC novo começa com a unidade territorial EM BRANCO (decisão do Fábio): o campo só se preenche
-   * quando uma leitura de documento (pasta ou arquivo avulso) enxergar a sigla no Uso do Solo — o
-   * valor do LIP não vale como preenchimento automático. O que já foi lido/digitado neste processo
-   * volta do navegador; roda uma vez, para nunca apagar o que ele está digitando. */
+  /* A análise (banco) e o navegador mandam primeiro — o que o analista já leu/digitou neste
+   * processo nunca é sobrescrito. Só quando os dois estão vazios é que o valor lido no Uso do
+   * Solo do LIP entra como sugestão (mudança de 26/08/2026, pedido do Fábio: o campo ficava em
+   * branco até uma leitura de documento *dentro do MAC* enxergar a sigla — mas o LIP já tinha lido
+   * corretamente ("ÁREA ADENSÁVEL" → AA) e essa leitura não chegava aqui. Roda uma vez, para nunca
+   * apagar o que o analista está digitando. */
   useEffect(() => {
     if (carregando || unidadeCarregada.current) return;
     unidadeCarregada.current = true;
@@ -1452,7 +1456,19 @@ export default function AnaliseAprovacaoProjeto() {
     } catch { /* preferência local corrompida não pode derrubar a tela */ }
     fetch(`/api/mac/slot-05/estudos?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
       .then((r) => r.json())
-      .then((d) => { if (d?.ok) setLipEstudos(d.lip as DadosEstudos); })
+      .then((d) => {
+        if (!d?.ok) return;
+        setLipEstudos(d.lip as DadosEstudos);
+        // Fallback do fallback: só entra se o analista/aceite/navegador não já tiverem preenchido.
+        if (!unidadeTerritorialRef.current) {
+          const doLip = d?.campos?.unidadeTerritorialDoUsoDoSolo?.valor;
+          const sigla = siglaDaUnidade(String(doLip ?? ""));
+          if (sigla) {
+            trocarUnidade(sigla);
+            notificar(`Unidade territorial preenchida a partir do LIP (Uso do Solo): ${sigla}.`);
+          }
+        }
+      })
       .catch(() => null);
   }, [carregando, codigo]);
 

@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.6
+**Versão:** 1.7
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -159,10 +159,13 @@ observação de cada item — a decisão continua sendo do analista.
 
 ### 3.5 Filtro de Unidade Territorial
 
-Campo no topo do índice, com a sigla escolhida pelo analista (sugestão vem de
-`dados.unidadeTerritorialDoUsoDoSolo` do LIP, mas **um MAC novo nasce sempre em branco** — decisão
-explícita do Fábio revertendo uma tentativa anterior de pré-preencher automático; quem preenche de
-verdade é a leitura do documento de Uso do Solo, nunca um prefill vindo só do LIP). Marca N/A todo
+Campo no topo do índice, com a sigla escolhida pelo analista. **Histórico de idas e vindas nessa
+regra, as duas por pedido explícito do Fábio:** uma primeira tentativa pré-preenchia automático a
+partir do LIP; foi revertida para nascer sempre em branco, preenchendo só quando uma leitura de
+documento *dentro do MAC* via a sigla. Em 26/08/2026 essa segunda regra foi revertida de novo
+(seção 14.9): o valor de `dados.unidadeTerritorialDoUsoDoSolo` do LIP volta a valer, mas agora como
+**último** fallback — só entra quando a análise salva e o `localStorage` não têm nada; uma leitura
+de documento feita depois, dentro do MAC, ainda pode trocar a sigla normalmente. Marca N/A todo
 item que trata só de outras Unidades Territoriais. Escolha fica em `localStorage`
 (`mac5-ut-<codigo>`), sem coluna nova no banco. Siglas reconhecidas: AA, AAB, AAD, ADD, AOS, ARAU,
 APA, APAC, AEIS, AEBT. Casamento por fronteira Unicode (para "AAB" não bater dentro de "ACRÉSCIMO")
@@ -884,12 +887,29 @@ excluídas, senão a próxima nasceria como nº 4 num processo que voltou a ter 
 - O filtro **MEDIO PORTE** está cadastrado sem grupos, itens nem termos: alcança zero itens e
   aparece corretamente em "Sem dado para decidir". Falta configurá-lo em Gerenciar Filtros.
 
+### 14.9 Unidade territorial: o valor do LIP passou a valer como preenchimento automático (26/08/2026)
+
+**A decisão registrada na seção 3.5 foi revertida, a pedido do Fábio.** O campo do filtro
+UNIDADE TERRITORIAL ficava em branco até uma leitura de documento *dentro do MAC* (pasta ou
+arquivo avulso) enxergar a sigla no Uso do Solo — o valor que o **LIP** já tinha lido não contava.
+No processo 48533 isso significava abrir o MAC com o campo vazio mesmo o LIP já sabendo
+`ÁREA ADENSÁVEL → AA` corretamente (mesma tabela da seção 14.5), e o analista tinha que digitar a
+sigla à mão de novo.
+
+Agora `/api/mac/slot-05/estudos` também devolve `unidadeTerritorialDoUsoDoSolo` (mais um campo em
+`CAMPOS_MOSTRADOS`, sem tocar em `DadosEstudos`/`estudosExigencias.ts` — é só leitura extra do
+mesmo LIP), e a tela usa esse valor como **último** fallback: só entra se a análise salva e o
+`localStorage` do navegador não já tiverem um valor. Não muda a hierarquia que já existia (análise
+> navegador), só acrescenta uma fonte abaixo delas. Uma leitura de documento dentro do MAC
+continua podendo trocar a sigla depois, normalmente.
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.7 | 2026-08-26 | Seção 3.5 e 14.9: unidade territorial do LIP volta a valer como preenchimento automático do filtro do MAC (como último fallback, atrás da análise salva e do navegador) — segunda reversão dessa regra, achado ao vivo no 48533 |
 | 1.6 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data, que reordenou os campos da aba INÍCIO (Interessado, Projeto Nº, Ordem de Serviço Nº, Data Pagto. Taxa inicial pro topo; ver seção 13 do `MANUAL_SLOT5_LIP.md`). Reordenação de campo não muda leitura nem checklist |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |
 | 1.1 | 2026-08-25 | Auditoria geral do Slot 5 (seção 14): gravação encadeada, escopo por análise, filtro recusado que não volta, observação que se salva sozinha, painel de EIT/EIV/carga, retry do Gemini, trilha de desmarcação, ordem dos grupos no despacho |
