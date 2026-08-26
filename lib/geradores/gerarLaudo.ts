@@ -118,8 +118,8 @@ export interface DadosLaudo {
   areaTotalConstruida: number;        // E69  m²
 
   // ── Emissão ────────────────────────────────────────────────
-  nomeAnalista: string;               // M65
-  dataEmissao?: Date;                 // K65  → "Goiânia, DD de mês de AAAA"
+  nomeAnalista: string;               // K66 (mesclada K66:N72)
+  dataEmissao?: Date;                 // K65 (mesclada K65:N65) → "Goiânia, DD de mês de AAAA"
 
   // ── Observações finais (área livre linhas 70-72) ───────────
   observacoesFinais?: string;         // B70 (mescla B70:J70)
@@ -283,8 +283,13 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
 
   // ── EMISSÃO ───────────────────────────────────────────────
   const dataEmissao = dados.dataEmissao ?? new Date();
+  // K65 é a âncora da mesclagem K65:N65. Até 26/08/2026 o template trazia duas
+  // mesclagens separadas — K65:L65 com o texto "Goiânia, " e M65:N65 com a data
+  // em formato de data (`d"  "mmmm", "yyyy`). Escrever a frase por extenso nas
+  // duas fazia a data sair duplicada no laudo; deixar M65 vazia fazia o formato
+  // de data render "00/01/1900". Agora é uma célula só, uma escrita só.
   set(ws, "K65", dataExtenso(dataEmissao));
-  set(ws, "M65", dataExtenso(dataEmissao));
+  ws.getCell("K65").alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   set(ws, "K66", dados.nomeAnalista);
   ws.getCell("K66").alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
   // No template original, K66 (mesclada K66:N72) trazia um texto de nota

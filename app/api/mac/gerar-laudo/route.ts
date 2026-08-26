@@ -72,6 +72,16 @@ ${membro.cau_crea}`;
     // Helper para ler campos do JSON dados
     const d = p.dados || {};
     const v = (campo: string) => d[campo]?.valor ?? null;
+    // Campos de área do LIP podem chegar como número, como texto no formato
+    // brasileiro ("181,39") ou como marcador não-numérico ("NP" = não possui).
+    // O laudo grava em célula numérica, então texto que não é número vira null
+    // e o gerador aplica o `?? 0`.
+    const num = (val: unknown): number | undefined => {
+      if (val === null || val === undefined || val === "") return undefined;
+      if (typeof val === "number") return Number.isFinite(val) ? val : undefined;
+      const n = Number(String(val).trim().replace(/\./g, "").replace(",", "."));
+      return Number.isFinite(n) ? n : undefined;
+    };
     const tipoProc = String(p.tipo_processo || "regularizacao");
 
     // ── Compatibilidade de área (Slot 1 — Regularização SEI) ──────────
@@ -167,7 +177,7 @@ ${membro.cau_crea}`;
       // Da Análise — Áreas
       areaLote:               v("areaTerreno"),
       areaRegularizar:        v("areaTotal"),
-      areaExistenteAprovada:  v("existente"),
+      areaExistenteAprovada:  num(v("areaAprovada")),
       areaTotalConstrucao:    v("areaTotal"),
       numPavimentos:          v("pav"),
       numUnidades:            v("unid"),
@@ -202,7 +212,7 @@ ${membro.cau_crea}`;
 
       // Rodapé
       areaTerreno:          v("areaTerreno"),
-      areaAprovadaRodape:   v("existente"),
+      areaAprovadaRodape:   num(v("areaAprovada")),
       areaTotalRegRodape:   v("areaTotal"),
       areaTotalConstruida:  v("areaTotal"),
 
