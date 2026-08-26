@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.13
+**Versão:** 1.15
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -987,10 +987,152 @@ diferença de que lá o debounce é de 2s e vale para qualquer campo, não só a
 
 ---
 
+### 14.12 Quatro filtros de aplicabilidade revisados (26/08/2026)
+
+Rodada pedida pelo Fábio olhando o 48533 na tela. Tudo em `mac_slot5_filtros` — **nenhuma linha de
+código mudou**, é configuração de banco, e já vale sem deploy.
+
+**1. `NÃO É LOTE DE ESQUINA` (novo, automático).** Aciona quando `esquina = NÃO` no LIP — campo que
+o próprio leitor deriva de `quantasFrentes` (`nVias > 1 ? "SIM" : "NÃO"`), então "uma via só" já
+cai aqui sozinho. Marca **9 itens** como Não se Aplica: os 5 de chanfro/afastamento em relação ao
+chanfro (ord 145-149), os 2 de face de menor caixa em terreno com 3 vias (ord 137 e 140), o da
+calçada a 10m da interseção dos alinhamentos (ord 296) e o do rebaixo a 10m da interseção (ord
+319).
+
+*Dois itens ficaram de fora de propósito*, e por isso a lista é explícita em `itens_ids` em vez de
+um `termos_item: ["ESQUINA"]` que os varreria: ord 308 ("Para terrenos com testadas de até 50m… —
+*Obs. Somar testadas no caso de esquina*") e ord 309 ("início do rebaixo das esquinas com mín.
+5,00m"). Nos dois, "esquina" é observação lateral e a regra principal vale de qualquer jeito.
+
+**2. `S/ CORREDOR` — de MANUAL para automático.** Passou a acionar por
+`anexouCertidaoDeCorredorViario = NÃO`, retirando o **ÍTEM 16 (CORREDOR VIÁRIO)** inteiro, 8 itens.
+
+> ⚠️ **Rótulo x conteúdo desse campo.** O rótulo diz "ANEXOU CERTIDÃO DE CORREDOR VIÁRIO?", mas o
+> valor é `uds.corredorViario ? "SIM" : "NÃO"` (`lerPastaSlot5.ts`) — ou seja, responde **"o Uso do
+> Solo aponta corredor?"**, não "a certidão foi anexada?". São perguntas diferentes: um lote em
+> corredor cuja certidão não veio é exigência, não N/A. O filtro está correto porque usa o
+> conteúdo real; o RÓTULO é que engana. Renomear é decisão do Fábio — não mexi.
+
+**3. `SEM UTILIZAÇÃO DO RECUO FRONTAL` (novo, MANUAL).** Nenhum campo do LIP diz se o projeto ocupa
+o recuo frontal, então é botão para o analista, no mesmo padrão do antigo `S/ CORREDOR`. Alcança
+**7 itens** — os do Art. 67 e 68 da LC 364/2023 cujo assunto É a utilização do recuo (escadas e
+rampas, piscina, marquise do Art. 67, guarita, abrigo de resíduos, subestação e o limite de 2%).
+
+*Deixados de fora, cada um por um motivo:* marquises (ord 344-347) e subsolo aflorado (ord 124,
+125, 127) já têm filtro próprio (`SEM MARQUISE`, `S/ SUBSOLO`) e teriam dois donos; Central/
+Campinas (ord 143) fala de **obrigatoriedade** de ocupar, não de utilização opcional; e as vagas no
+recuo (ord 389, 420-422, 9205) são o caso mais delicado — no próprio 48533 a manobra é pela
+calçada, o que sugere que o projeto **usa** o recuo, então marcá-las N/A poderia estar errado
+justamente aqui.
+
+**4. `S/ ONEROSA` — cobertura ampliada.** A condição já estava certa (`CAMPO_LIP_AUSENTE` sobre
+`outorgaOnerosa` + `tDC`; `ausente()` reconhece tanto "NP" quanto "NÃO"), mas o alcance era só 1
+grupo + 1 item avulso. Com `termos_item: ["ONEROSA", "ONEROSO", "TDC"]` passou a **21 itens**, em 5
+grupos — o do coeficiente (14), ALTURA DE EDIFICAÇÃO (2), DOCUMENTAÇÃO (2), OBSERVAÇÕES GERAIS DA
+LEI DE ATIVIDADE (2) e ÍNDICE DE APROVEITAMENTO (1). Conferido que com `outorgaOnerosa = SIM` o
+filtro não dispara.
+
+Os quatro foram testados com `avaliarFiltros` contra LIPs simulados (o caso do 48533 e o inverso).
+**Nenhum testado ainda com LER PASTA real ponta a ponta.**
+
+---
+
+### 14.13 Térreo e vagas: 6 filtros novos + 2 campos internos (26/08/2026)
+
+Continuação da rodada de filtros pedida pelo Fábio olhando o 48533. Dois campos internos novos no
+LIP (mesmo padrão de `divergenciasChaves` — não são `lip_campos`, só existem para o motor de
+filtros ler com segurança):
+
+- **`ehTerreo`** — `"SIM"` quando `pav === 1`. Existe porque comparar `pav` direto num filtro
+  `CAMPO_LIP_IGUAL` seria perigoso: a comparação é substring, e `valor_esperado="1"` bateria dentro
+  de `"10"`, `"11"`, `"21"`. Mesma lógica que já zera `acessoVertical`/`trafegoElevadores` no LIP,
+  agora disponível para o MAC também.
+- **`temVagasExigidas`** — `"SIM"` quando `totalDeVagasExigidasParaEssas > 0`. Existe porque o
+  motor de filtros não tem como expressar "diferente de zero" com `CAMPO_LIP_IGUAL`.
+
+**6 filtros novos:**
+
+| Filtro | Gatilho | Alcance |
+|---|---|---|
+| TÉRREO — S/ PAVIMENTO SUPERIOR | `ehTerreo=SIM`, automático | 1 item (grupo ACESSIBILIDADE - NBR9050) |
+| TÉRREO — S/ CIRCULAÇÃO VERTICAL | `ehTerreo=SIM`, automático | 8 itens, lista explícita (ver abaixo) |
+| TEM VAGAS — S/ ISENÇÃO | `temVagasExigidas=SIM`, automático | 5 itens (grupo ISENÇÃO DE VAGAS) |
+| SEM VAGAS EXTERNAS | MANUAL | 7 itens (CALÇADA + Rebaixo atividades §11º) |
+| SEM VAGAS DESCOBERTAS | MANUAL | 4 itens (VAGAS uso habitacional/atividades gerais) |
+| SEM LOCAÇÃO DE VAGAS | MANUAL | 10 itens (CARIMBO, CORREDOR VIÁRIO, DA QUANTIDADE DE VAGAS) |
+
+**Por que "TÉRREO — S/ CIRCULAÇÃO VERTICAL" é lista explícita, não `termos_item`.** Primeiro teste
+usou `termos_item: ["ESCADA", "PLATAFORMA", "ELEVAÇÃO VERTICAL", "ELEVADOR", "ELEVADORES",
+"ELEVAÇÃO INCLINADA"]` (os termos que o Fábio pediu, literalmente) e pegou **falsos positivos
+sérios**: "Apresentar vaga acessível... (2% do número total de vagas)" e a regra de acesso a
+tanques de PISCINA — nenhum dos dois tem relação com número de pavimentos, entraram só por
+coincidência da palavra "plataforma" em outro trecho do próprio texto do item. Reconstruído com 8
+ids explícitos, cada um conferido individualmente:
+
+1. "Para unidade que contenha mais de um pavimento: deverá ser previsto espaço..." — explícito
+2. "Será obrigatória a instalação de elevadores nas edificações que excedam 12,00m..." (único item do grupo CIRCULAÇÃO HORIZONTAL E VERTICAL)
+3. Anexar Tráfego de Elevadores (>12m)
+4. Equipamento eletromecânico de circulação (elevador) — observação em prancha
+5. Plataforma de elevação vertical (item 6.10.3) — observação em prancha
+6. Plataforma de elevação inclinada — observação em prancha
+7. "Em edificações comerciais, não é permitida somente a previsão de instalação de elevadores" — moot sem elevador algum
+8. Largura mín. 1,5m fronteira às portas de elevadores/plataformas — moot sem elevador/plataforma
+
+Ficaram de fora, **de propósito**, dois itens sobre caixa de escada de acesso a terraço descoberto
+oriundo de TDC (grupo ALTURA DE EDIFICAÇÃO, Art. 73/74) — um terraço com escada própria pode
+existir mesmo em edificação de 1 pavimento (acréscimo por TDC), então não é seguro presumir N/A só
+pelo número de pavimentos do carimbo.
+
+**Deliberadamente sem filtro automático** — "SEM VAGAS EXTERNAS"/"SEM VAGAS DESCOBERTAS"/"SEM
+LOCAÇÃO DE VAGAS": nenhum campo do LIP diz onde ficam as vagas, se são cobertas, ou se o projeto
+usa a opção de locação a 300m — os três continuam MANUAL, mesmo padrão do "SEM UTILIZAÇÃO DO RECUO
+FRONTAL" (seção 14.12).
+
+**Itens 20 e 30 ficaram de fora desta rodada**, adiados a pedido do Fábio: os textos ("se é
+comercial → item 20 NP" e "1 pavimento → item 30 NP") não batiam com o conteúdo real desses grupos
+(ÍNDICE PAISAGÍSTICO/ICCAP e MARQUISES E COBERTURAS, respectivamente — o próprio 48533, comercial,
+tem ICCAP exigido de 1,35m³ no carimbo, então zerar o item 20 esconderia exigência real). Fica
+pendência explícita — não implementado, não chutado.
+
+### 14.14 Item partindo entre páginas no despacho — título de grupo sem `keepNext` (26/08/2026)
+
+Achado ao vivo, o Fábio concluiu uma análise e viu um "item" partido entre duas páginas do
+despacho gerado. `paragrafoItem()` (`gerarDespacho.ts`) já protegia isso desde antes — todo
+parágrafo do item (exigência + continuações + observação) recebe `<w:keepNext/><w:keepLines/>`
+exceto o último, grudando o bloco inteiro. Só o **título do grupo** (`paragrafoGrupo()`) não tinha
+proteção nenhuma: podia ficar sozinho no fim de uma página com todos os itens do grupo começando
+na seguinte — mesmo sintoma visual ("pedaço numa página, pedaço na outra"), na fronteira
+título↔primeiro item em vez de dentro de um item. Corrigido com `<w:keepNext/>` no título.
+
+**Não confirmado contra o despacho exato que gerou o achado** — não tenho como reproduzir a
+geração fora da sessão do Fábio (precisa de análise real no banco). Se acontecer de novo, salvar o
+`.docx` e mandar — dá pra abrir o XML e achar o ponto exato da quebra.
+
+### 14.15 Filtro duplicado — "S/ EIT E EIV" desativado, botões da tela ganharam os órfãos (26/08/2026)
+
+Achado do Fábio: o filtro `S/ EIT E EIV` (`mac_slot5_filtros`, `PALAVRA_AUSENTE`, alcançava só o
+grupo EIT/EIV) duplicava os botões `🚦 Sem EIT`/`🏘️ Sem EIV` da tela (`FILTROS_TEMA`), que já
+controlam o mesmo grupo de forma mais granular e ainda alcançam itens fora dele (DOCUMENTAÇÃO,
+CARGA E DESCARGA, CALÇADA). Desativado (`ativo=false`, não apagado — a descrição no banco explica
+por quê, pra quem olhar depois não achar que sumiu sem motivo).
+
+**Antes de desativar, conferência de cobertura**: os botões da tela alcançavam 13 dos 18 itens do
+grupo EIT/EIV por citarem a sigla EIT/RIT/EIV/RIV no texto. Os outros 5 são **continuação de
+lista** (a primeira linha diz "EIT. Considerar os seguintes empreendimentos..." ou "Estarão
+sujeitos ao EIV: Art.262...", e os itens seguintes só trazem o inciso, sem repetir a sigla) —
+ficariam órfãos, sem filtro nenhum os alcançando. Corrigido com `idsExtras` — campo novo no tipo
+`FiltroTema` (`page.tsx`), que SOMA ids explícitos aos `termos` (ao contrário de `idsExplicitos`,
+que substitui): 1 item no `🏘️ Sem EIV` (operação urbana/lei específica, inc. VIII e IX) e 4 no
+`🚦 Sem EIT` (Ceasa/supermercado ≥2.000m², terminal de cargas, aeródromo).
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.15 | 2026-08-26 | Seções 14.13-14.15: 6 filtros de térreo/vagas + 2 campos internos (`ehTerreo`, `temVagasExigidas`); título de grupo do despacho ganhou `keepNext` (item partindo entre páginas); filtro `S/ EIT E EIV` desativado por duplicar os botões da tela, 5 itens órfãos cobertos por `idsExtras` |
+| 1.14 | 2026-08-26 | Seção 14.12: 4 filtros de aplicabilidade revisados — NÃO É LOTE DE ESQUINA (novo, automático por `esquina=NÃO`), S/ CORREDOR virou automático (ÍTEM 16 inteiro), SEM UTILIZAÇÃO DO RECUO FRONTAL (novo, manual) e S/ ONEROSA ampliado de 2 para 21 itens. Só configuração de banco, sem deploy |
 | 1.13 | 2026-08-26 | Seção 14.11: qualquer clique na tela descarrega o salvamento pendente (observação geral e por item), fechando a janela de perder texto ao fechar a aba dentro do 1,5s; sem nada pendente o clique não dispara requisição |
 | 1.12 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (seção 6.5 do `MANUAL_SLOT5_LIP.md`): o painel da busca de coordenadas passou a abrir sempre no Slot 5. É tela do LIP, não toca em item de checklist, filtro nem documento emitido |
 | 1.11 | 2026-08-26 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (seção 17 do `MANUAL_SLOT5_LIP.md`): cadeia de vagas (AOA, total exigido, PCD/idoso) calculada no LIP, nenhum item do checklist nem filtro tocado |

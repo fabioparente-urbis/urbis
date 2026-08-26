@@ -586,4 +586,10 @@ export const CHAVES_FANTASMA_LIP_SLOT5 = [
   "declaradoMasNaoEntregue",
   "divergenciasChaves",
   "declaradoMasNaoEntregueChaves",
+  // "SIM"/"NÃO" derivado de pav===1 — existe só para o motor de filtros do MAC comparar com
+  // segurança (CAMPO_LIP_IGUAL é substring; "1" bateria dentro de "10"/"11"/"21"). 26/08/2026.
+  "ehTerreo",
+  // "SIM"/"NÃO" derivado de totalDeVagasExigidasParaEssas > 0 — mesma razão: CAMPO_LIP_IGUAL não
+  // expressa "diferente de zero" diretamente. 26/08/2026.
+  "temVagasExigidas",
 ];

@@ -62,9 +62,14 @@ function esc(s: string): string {
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** Parágrafo de título de grupo — estilo `CitaoIntensa`, o mesmo dos títulos de seção do modelo. */
+/** Parágrafo de título de grupo — estilo `CitaoIntensa`, o mesmo dos títulos de seção do modelo.
+ * `keepNext` gruda o título no parágrafo seguinte (o primeiro item do grupo) — achado ao vivo em
+ * 26/08/2026: o `paragrafoItem` já protegia um item de partir NO MEIO entre páginas, mas o TÍTULO
+ * do grupo não tinha proteção nenhuma e podia ficar sozinho no fim de uma página, com todos os
+ * itens do grupo começando na seguinte — o mesmo sintoma visual de "pedaço numa página, pedaço na
+ * outra", só que na fronteira título↔item em vez de dentro de um item. */
 function paragrafoGrupo(titulo: string): string {
-  return `<w:p><w:pPr><w:pStyle w:val="CitaoIntensa"/><w:spacing w:before="240" w:after="0"/>`
+  return `<w:p><w:pPr><w:pStyle w:val="CitaoIntensa"/><w:keepNext/><w:spacing w:before="240" w:after="0"/>`
     + `<w:ind w:left="0" w:right="0"/><w:jc w:val="both"/></w:pPr>`
     + `<w:r><w:rPr><w:rFonts w:cstheme="minorHAnsi"/><w:i w:val="0"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr>`
     + `<w:t xml:space="preserve">${esc(titulo)}</w:t></w:r></w:p>`;

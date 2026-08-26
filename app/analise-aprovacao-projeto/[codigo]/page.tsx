@@ -251,6 +251,10 @@ type FiltroTema = {
    * sozinho não separa um item do outro (ex.: os três itens de "Opção 1/2/3" do índice
    * paisagístico citam Art. 192 duas vezes; casar por palavra pegaria os dois). */
   idsExplicitos?: string[];
+  /** SOMA aos `termos` (ao contrário de `idsExplicitos`, que substitui). Para o item que pertence
+   * ao tema mas não cita a sigla — tipicamente a continuação de uma lista, onde só a primeira
+   * linha nomeia o assunto e as seguintes seguem só com "inc. VI e VII". */
+  idsExtras?: string[];
 };
 
 const FILTROS_TEMA: FiltroTema[] = [
@@ -293,6 +297,15 @@ const FILTROS_TEMA: FiltroTema[] = [
     rotulo: "🚦 Sem EIT",
     tema: "empreendimento sujeito a Estudo de Impacto de Trânsito (EIT/RIT)",
     termos: ["EIT", "RIT", "IMPACTO DE TRANSITO"],
+    /* Continuação da lista de polos geradores do Art. 267: a primeira linha diz "EIT. Considerar
+     * os seguintes empreendimentos...", e estas seguem só com o inciso, sem repetir a sigla.
+     * Ficavam órfãs quando o filtro do banco "S/ EIT E EIV" foi desativado (26/08/2026). */
+    idsExtras: [
+      "1406b3ce-cc6f-4a9e-b7d9-13a461b7e309", // Ceasa/supermercado > 2.000 m², inc. III
+      "1d9b3b42-7e77-49af-8f0f-be57f553751e", // terminal de cargas/passageiros, estação, inc. VI e VII
+      "7172db39-b89e-4302-8bff-02d0c713861d", // Ceasa/supermercado >= 2.000 m², inc. IV
+      "aef26efc-8275-4e59-abcc-adfc8c1a32c0", // aeródromo, heliporto, heliponto, inc. VII
+    ],
     explica: "o empreendimento não é polo gerador de tráfego pelos limites da Lei 10.977/2023",
   },
   {
@@ -300,6 +313,8 @@ const FILTROS_TEMA: FiltroTema[] = [
     rotulo: "🏘️ Sem EIV",
     tema: "empreendimento sujeito a Estudo de Impacto de Vizinhança (EIV/RIV)",
     termos: ["EIV", "RIV", "IMPACTO DE VIZINHANCA"],
+    // Continuação da lista do Art. 262 ("Estarão sujeitos ao EIV: ..."), sem repetir a sigla.
+    idsExtras: ["df12a5c6-b8ee-4802-80b2-39e0a09ff12b"], // operação urbana e lei específica, inc. VIII e IX
     explica: "o empreendimento não atinge os limites do art. 262 da LC 349/2022",
   },
   {
@@ -449,7 +464,9 @@ function itensDoTema(itens: Item[], f: FiltroTema) {
     const alvo = new Set(f.idsExplicitos);
     return itens.filter((it) => alvo.has(it.id));
   }
-  return itens.filter((it) => f.termos.some((termo) => itemCitaTermo(it.texto, termo)));
+  const extras = new Set(f.idsExtras ?? []);
+  return itens.filter((it) =>
+    extras.has(it.id) || f.termos.some((termo) => itemCitaTermo(it.texto, termo)));
 }
 
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */

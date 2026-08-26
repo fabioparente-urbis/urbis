@@ -1578,6 +1578,14 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
    * texto: "se só tem 1 vaga ela tem que ser PCD; se tem duas, uma de idoso e uma de PCD" — bate
    * exato com 2%/5% arredondados pro mínimo em total=2. */
   const totalVagasExigidas = num(C["totalDeVagasExigidasParaEssas"]?.valor);
+  /* Campo interno (mesmo padrão de `ehTerreo`, acima) — pra um filtro do MAC saber "há vaga
+   * exigida?" sem risco de substring: comparar `totalDeVagasExigidasParaEssas` direto por
+   * CAMPO_LIP_IGUAL não dá pra expressar "diferente de zero". Regra do Fábio (26/08/2026): "se no
+   * LIP detectamos que TEM VAGAS, os itens de isenção de vagas viram N/A" — ter vaga exigida e
+   * isenção são mutuamente exclusivos. */
+  if (totalVagasExigidas != null) {
+    C["temVagasExigidas"] = { valor: totalVagasExigidas > 0 ? "SIM" : "NÃO", resultado: "CALCULADO", fonte: "totalDeVagasExigidasParaEssas > 0" } as any;
+  }
   if (totalVagasExigidas != null) {
     const pcdExigido = totalVagasExigidas <= 0 ? 0
       : totalVagasExigidas === 1 ? 1
@@ -1602,6 +1610,14 @@ export function preencherLip(vig: Record<string, ItemCatalogo>) {
         "depósito/produção ≥180m² no quadro de áreas (Art. 11, IN 008/2023 Anexo VI)", undefined, vig.projeto ?? null);
   }
   set("pav", pr.pavimentos, "ENCONTRADO", "carimbo da prancha", undefined, vig.projeto ?? null);
+  /* Campo interno (não é lip_campos, não aparece na tela) para o motor de filtros do MAC — mesmo
+   * padrão de `divergenciasChaves` (seção 15/16 do MANUAL_SLOT5_LIP.md). Existe porque usar `pav`
+   * direto num filtro CAMPO_LIP_IGUAL seria perigoso: a comparação é substring, e valor_esperado
+   * "1" bateria dentro de "10", "11", "21"... Regra do Fábio (26/08/2026): "1 pavimento" desliga
+   * tudo que é circulação vertical entre andares — mesma lógica que já zera `acessoVertical` e
+   * `trafegoElevadores` (linhas ~1656 e ~1697), agora também disponível para o MAC. */
+  const pavNum = num(pr.pavimentos);
+  if (pavNum != null) C["ehTerreo"] = { valor: pavNum === 1 ? "SIM" : "NÃO", resultado: "CALCULADO", fonte: "pav === 1" } as any;
   set("unidComerciais", pr.unidComerciais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",
       ["rótulo 'Nº DE UNIDADES' no carimbo", "variantes 'N. DE UNIDADES', 'NUMERO DE UNIDADES'"], vig.projeto ?? null);
   set("unidHabitacionais", pr.unidHabitacionais, "ENCONTRADO", "carimbo, 'Nº DE UNIDADES'",

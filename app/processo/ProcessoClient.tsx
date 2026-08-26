@@ -2534,7 +2534,23 @@ export default function ProcessoClient() {
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(conflitoMapa.iptu).catch(() => {});
-                  window.open("https://portalmapa.goiania.go.gov.br/mapafacil/", "_blank", "noopener,noreferrer");
+                  /* Deep link pro Mapa Fácil já com o IPTU buscado — pedido do Fábio (26/08/2026):
+                   * "tem que abrir o site, com o iptu no campo e mandado localizar". Antes só abria
+                   * a home, exigindo colar o IPTU à mão na lupa.
+                   *
+                   * `?query=<índice da fonte>==<termo>` é o parâmetro padrão do widget Search do
+                   * ArcGIS Web AppBuilder (a mesma tecnologia do portal — confirmado no
+                   * config_Pesquisar.json do site: 6 fontes, índice 1 = "Cadastro Imobiliário
+                   * (IPTU)", campo nrinscr). Índice 1 é o segundo item do array `sources`.
+                   *
+                   * NÃO confirmado ao vivo: ao testar em 26/08/2026, o serviço
+                   * Feature_Base/MapServer/3 (o mesmo do Cadastro Imobiliário) devolvia 502 —
+                   * indisponibilidade do lado da Prefeitura, reproduzida também buscando à mão no
+                   * site deles, fora do URBIS. Copiar o IPTU pra área de transferência continua
+                   * como reforço — se o parâmetro não pegar (mudança no portal deles), colar na
+                   * lupa ainda funciona manualmente. */
+                  const url = `https://portalmapa.goiania.go.gov.br/mapafacil/?query=1%3D%3D${encodeURIComponent(conflitoMapa.iptu)}`;
+                  window.open(url, "_blank", "noopener,noreferrer");
                 }}
                 className="px-4 py-2 rounded font-bold text-sm bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"
               >🗺 Abrir o Mapa Fácil</button>

@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.12
+**Versão:** 1.14
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1009,12 +1009,40 @@ ninguém (o salvamento já existia em todos; só passou a acontecer mais cedo).
 
 ---
 
+## 19. Térreo e vagas — 2 campos internos novos + deep link do Mapa Fácil (26/08/2026)
+
+**`ehTerreo`/`temVagasExigidas`** — dois campos internos (mesmo padrão de `divergenciasChaves`,
+seção 15/16: não são `lip_campos`, não aparecem na tela, só existem em `dados` para o motor de
+filtros do MAC ler). `ehTerreo = "SIM"` quando `pav === 1`; `temVagasExigidas = "SIM"` quando
+`totalDeVagasExigidasParaEssas > 0`. Os dois existem porque `CAMPO_LIP_IGUAL` compara por
+substring — usar `pav` ou `totalDeVagasExigidasParaEssas` direto num filtro seria perigoso
+(`"1"` bate dentro de `"10"`/`"11"`; não dá pra expressar "diferente de zero"). Consumidos pelos 6
+filtros novos do MAC — ver seção 14.13 do `MANUAL_SLOT5_MAC.md`.
+
+**Deep link do "Abrir o Mapa Fácil"** — o botão do painel de coordenadas (seção 6) só abria a home
+do site, com o IPTU copiado pra área de transferência pra colar à mão. Achado do Fábio: "tem que
+abrir o site, com o iptu no campo e mandado localizar". Investigado: o portal é ArcGIS Web
+AppBuilder, e o widget de busca aceita `?query=<índice da fonte>==<termo>` na URL — índice 1 =
+"Cadastro Imobiliário (IPTU)" (confirmado lendo `config_Pesquisar.json` do próprio site), campo
+`nrinscr`. Aplicado em `ProcessoClient.tsx`.
+
+**Não confirmado ao vivo**: testando em 26/08/2026, `Feature_Base/MapServer/3` (o serviço do
+Cadastro Imobiliário) devolvia 502 — indisponibilidade do lado da Prefeitura, reproduzida buscando
+o mesmo IPTU manualmente no site deles, fora do URBIS (o mesmo "não localiza" que o Fábio viu). O
+parâmetro usado é o formato padrão documentado do widget Search do ArcGIS WAB, mas fica pendência
+confirmar visualmente quando o serviço deles voltar. A cópia do IPTU pra área de transferência
+continua como reforço, se o parâmetro não pegar.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.14 | 2026-08-26 | Seção 19: campos internos `ehTerreo`/`temVagasExigidas` (para os 6 filtros novos de térreo/vagas do MAC) e deep link do "Abrir o Mapa Fácil" com o IPTU pré-preenchido (não confirmado ao vivo — serviço da Prefeitura fora do ar) |
+| 1.13 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.12), que passou a acionar 4 filtros a partir de campos que o LIP já preenchia (`esquina`, `anexouCertidaoDeCorredorViario`, `outorgaOnerosa`/`tDC`). Fica registrado o descompasso entre o RÓTULO de `anexouCertidaoDeCorredorViario` ("anexou certidão?") e o valor que ele calcula ("o UDS aponta corredor?") — renomear é decisão do Fábio |
 | 1.12 | 2026-08-26 | Seção 18: qualquer clique na tela descarrega o salvamento pendente, fechando a janela de perder digitação ao fechar a aba dentro dos 2s do debounce; sem nada pendente o clique não dispara requisição |
 | 1.11 | 2026-08-26 | Seção 6.5: o painel de resultado da busca de coordenadas passa a abrir sempre no Slot 5 (antes só havendo divergência — no 48533 tudo batia e o analista ficava sem caminho para o Mapa Fácil); demais slots intactos. Seção 6.4: registrado o primeiro teste real da integração no Slot 5 |
 | 1.10 | 2026-08-26 | Seção 17: cadeia inteira de vagas calculada — `areaOcupadaPelaAtividade` (Art. 9º Lei 10.845/2022), `totalDeVagasExigidasParaEssas` (÷ tabela do Uso do Solo), `vagasPcdExigido`/`vagasIdosoExigido` (Art. 12 §3º-§5º, achado via BIP porque a NBR 9050 não traz percentual), `totalASerDescontadoNoCalculo` renomeado e revisado (Art. 11, desconto sobre a AOA). Registrada pendência do ACESSO/MANOBRA (precisa leitura espacial da planta) |
