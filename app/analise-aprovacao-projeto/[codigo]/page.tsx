@@ -839,15 +839,27 @@ export default function AnaliseAprovacaoProjeto() {
   /** Quanto do checklist saiu por filtro automático, quanto a IA (LER PASTA) sugeriu e quanto o
    * analista marcou à mão. */
   const origemDasRespostas = useMemo(() => {
-    let porFiltro = 0, porIA = 0, porAnalista = 0;
+    /* Dois tipos de filtro, e o Fábio quer os dois separados (26/08/2026):
+     *   · FILTRO DE TEMA — `FILTROS_TEMA`, aqui na tela. Marcado por ele ou pela leitura da
+     *     pasta ("🚦 Sem EIT", "🛫 Sem zona aeroportuária"). Depende de olhar o processo.
+     *   · DO LIP — `mac_slot5_filtros`, calculados a partir dos CAMPOS DO LIP ("COMERCIAL",
+     *     "APRO DE PROJ", "S/ SUBSOLO"). Saem sozinhos ao abrir a tela, sem ninguém decidir.
+     * A separação diz quanto do checklist o LIP resolve sem intervenção — que é o que mostra se
+     * a leitura está rendendo. Reconhecidos pelo RÓTULO gravado na fonte, não por emoji. */
+    const rotulosDeTema = new Set<string>([
+      ...FILTROS_TEMA.map((f) => f.rotulo),
+      "UNIDADE TERRITORIAL",   // filtro da sigla, também decidido na tela
+    ]);
+    let porFiltro = 0, porLip = 0, porIA = 0, porAnalista = 0;
     for (const i of itensChecklist) {
       if (!marcas[i.id]) continue;
       const f = fontes[i.id] ?? "";
-      if (f.startsWith("Filtro")) porFiltro++;
+      const nome = f.match(/^Filtro "([^"]+)"/)?.[1];
+      if (nome) { if (rotulosDeTema.has(nome)) porFiltro++; else porLip++; }
       else if (f.startsWith("IA")) porIA++;
       else porAnalista++;
     }
-    return { porFiltro, porIA, porAnalista };
+    return { porFiltro, porLip, porIA, porAnalista };
   }, [itensChecklist, marcas, fontes]);
 
   /** Constrói a lista de itens por trás de um número clicável do painel. */
@@ -2116,14 +2128,11 @@ export default function AnaliseAprovacaoProjeto() {
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.erro ?? "falha ao limpar");
-      aplicarEstado({ marcas: {}, fontes: {} });
-      // "Limpar" apaga RESPOSTAS. A sigla da UT e os números informados pelo analista não são
-      // resposta de item — continuam de pé, aqui e na rota.
-      aceitesRef.current = { ...aceitesRef.current, filtros: {} };
-      decisoesRef.current = {};
-      setDecisoes({});
-      carregarHistorico((analise ?? analiseRef.current)?.id ?? null);
-      notificar(`MAC limpo — ${d.limpos} item(ns) voltaram para pendente.`);
+      /* Zerou TUDO no banco (todas as análises em exclusão lógica). A tela tem que voltar ao
+       * estado de quem nunca abriu o MAC — senão o analista continua vendo, e podendo salvar,
+       * uma análise que não existe mais. */
+      notificar(`MAC zerado — ${d.limpos} marcação(ões), filtros e análises apagados.`);
+      setTimeout(() => window.location.reload(), 900);
     } catch (e: any) {
       notificar(`Erro ao limpar: ${e?.message ?? e}`);
     }
@@ -2363,6 +2372,7 @@ export default function AnaliseAprovacaoProjeto() {
             const respondidos = total - totais.pendente;
             const pct = total ? Math.round((respondidos / total) * 100) : 0;
             const pctFiltro = total ? Math.round((origemDasRespostas.porFiltro / total) * 100) : 0;
+            const pctLip = total ? Math.round((origemDasRespostas.porLip / total) * 100) : 0;
             const cor = pct >= 100 ? "#059669" : pct >= 60 ? "#84cc16" : pct >= 30 ? "#eab308" : "#ef4444";
             /* Dois anéis LADO A LADO, mesmo tamanho — igual ao Monitor IA do LIP (pedido do
              * Fábio, 26/08/2026). Anéis concêntricos escondiam qual número era qual. */
@@ -2371,7 +2381,8 @@ export default function AnaliseAprovacaoProjeto() {
                 <div className="flex items-center gap-3">
                   {([
                     { pct, cor, rotulo: "marcado" },
-                    { pct: pctFiltro, cor: "#2563EB", rotulo: "por filtro" },
+                    { pct: pctFiltro, cor: "#2563EB", rotulo: "filtros" },
+                    { pct: pctLip, cor: "#7C3AED", rotulo: "do LIP" },
                   ] as const).map((a) => (
                     <div key={a.rotulo} className="flex flex-col items-center gap-0.5">
                       <svg width="72" height="72" viewBox="0 0 72 72">
@@ -2395,7 +2406,8 @@ export default function AnaliseAprovacaoProjeto() {
                 </span>
                 <span className="text-[9px] text-[var(--text-muted)] text-center leading-tight opacity-80">
                   <b style={{ color: cor }}>marcado</b> = respondidos ÷ itens ·{" "}
-                  <b className="text-[#2563EB]">por filtro</b> = retirados sem você marcar
+                  <b className="text-[#2563EB]">filtros</b> = temas marcados na tela ·{" "}
+                  <b className="text-[#7C3AED]">do LIP</b> = saíram sozinhos pelos campos do LIP
                 </span>
               </div>
             );
@@ -3468,12 +3480,14 @@ export default function AnaliseAprovacaoProjeto() {
           <div className="bg-[var(--bg-card)] border border-[var(--error)] rounded-xl p-6 w-full max-w-md shadow-2xl">
             <h2 className="text-[var(--error)] font-bold text-lg mb-3">🗑️ Limpar o MAC?</h2>
             <p className="text-[var(--text-secondary)] text-sm mb-2">
-              Apaga as <b>{itensChecklist.length - totais.pendente} resposta(s)</b> desta análise —
-              inclusive o que os filtros marcaram. Os itens voltam todos para pendente.
+              Zera o MAC <b>inteiro</b>: as {itensChecklist.length - totais.pendente} resposta(s), os
+              filtros aplicados, as observações e <b>todas as {analises.length} análise(s)</b>. O
+              processo volta ao estado de quem nunca abriu o MAC.
             </p>
             <p className="text-[var(--text-muted)] text-xs mb-5">
-              A análise não é excluída e o histórico guarda o que existia. Exporte o Excel antes se
-              quiser poder restaurar exatamente como está.
+              As análises saem por exclusão lógica — a linha continua no banco e o histórico guarda
+              o que existia, então dá para recuperar. Ainda assim, <b>exporte o Excel antes</b> se
+              quiser poder restaurar sem depender disso.
             </p>
             <div className="flex gap-3">
               <button onClick={limparMac}

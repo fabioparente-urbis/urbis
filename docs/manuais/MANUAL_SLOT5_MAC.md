@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.4
+**Versão:** 1.5
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -852,7 +852,25 @@ do LIP — `COMERCIAL`, `APRO DE PROJ`, `S/ SUBSOLO`…) do que veio dos **filtr
 (`FILTROS_TEMA`, com emoji, marcados pelo analista ou pela leitura da pasta — `🚦 Sem EIT`,
 `🛫 Sem zona aeroportuária`…). A distinção existe e é visível na fonte gravada de cada item.
 
-### 14.7 Sinalizado, não alterado
+### 14.7 Três anéis e o "Limpar MAC" que zera de verdade (26/08/2026)
+
+**Três monitores, não dois** — pedido do Fábio: *"total marcados, filtros, e LIP"*.
+
+- **marcado** — respondidos ÷ itens
+- **filtros** (azul) — temas marcados na tela ou pela leitura da pasta (`FILTROS_TEMA`,
+  reconhecidos pelo rótulo gravado na fonte)
+- **do LIP** (roxo) — os que saíram sozinhos pelos filtros de `mac_slot5_filtros`, calculados a
+  partir dos campos do LIP (`COMERCIAL`, `APRO DE PROJ`, `S/ SUBSOLO`…)
+
+O terceiro é o que interessa acompanhar: mede **quanto do checklist o LIP resolve sem ninguém
+decidir nada**. No 48533, 200 dos 538 itens saíram assim.
+
+**"Limpar MAC" passou a zerar tudo** — respostas, filtros, observações e **todas as análises** —
+em vez de só apagar as respostas da análise aberta. Exclusão LÓGICA (`excluido_em`), nunca DELETE:
+a linha continua no banco e dá para recuperar. A numeração de análises passou a ignorar as
+excluídas, senão a próxima nasceria como nº 4 num processo que voltou a ter zero.
+
+### 14.8 Sinalizado, não alterado
 
 - `app/api/mac/slot-05/p3/route.ts` está **sem chamador** desde que `ler-pasta` assumiu; ficou de
   pé com aviso no cabeçalho. Quem for mexer no motor de leitura mexe em `ler-pasta`.
@@ -875,5 +893,6 @@ do LIP — `COMERCIAL`, `APRO DE PROJ`, `S/ SUBSOLO`…) do que veio dos **filtr
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando toda a memória de sessão acumulada sobre o MAC do Slot 5 (motor, reconciliação, tela, documentos, backlog) e conferência ao vivo de contagens contra o banco |
 | 1.1 | 2026-08-25 | Auditoria geral do Slot 5 (seção 14): gravação encadeada, escopo por análise, filtro recusado que não volta, observação que se salva sozinha, painel de EIT/EIV/carga, retry do Gemini, trilha de desmarcação, ordem dos grupos no despacho |
 | 1.2 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md` do repositório |
+| 1.5 | 2026-08-26 | Seção 14.7: três anéis no monitor (marcado · filtros · do LIP) e "Limpar MAC" zerando tudo por exclusão lógica, com a numeração ignorando as análises excluídas |
 | 1.4 | 2026-08-26 | Seção 14.6: monitor com dois anéis lado a lado, no padrão do LIP. Conferido contra o motor de cruzamento do LIP da mesma noite (seção 12 do `MANUAL_SLOT5_LIP.md`), que passa a produzir `divergenciasEntreDocumentos` e `declaradoMasNaoEntregue` — a matéria-prima do laço LIP→MAC, ainda não construído |
 | 1.3 | 2026-08-26 | Seção 14.5: sigla da unidade territorial deixa de ser inventada quando o Uso do Solo escreve o nome por extenso, e CNAE de preenchimento (`000000008`) passa a valer "sem dado" em vez de dispensar EIT/EIV sozinho. Conferido contra os defeitos de leitura do LIP da mesma noite (seção 11 do `MANUAL_SLOT5_LIP.md`) |

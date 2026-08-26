@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
 
     // ── Limpar MAC ───────────────────────────────────────────────────────────
     if (acao === "limpar") {
-      // A análise que a TELA está mostrando. Sem `analiseId` a rota limpava sempre a de maior
-      // número — quem estivesse na Análise 1 via a 1 zerar na tela e a 3 zerar no banco.
+      /* A trilha registra a limpeza da análise ABERTA item a item; a exclusão lógica abaixo
+       * alcança TODAS as análises do processo. */
       let q = supabaseAdmin.from("analises_mac")
         .select("id, numero_analise, itens, analista_id, aceites")
         .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
@@ -98,18 +98,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      /* "Limpar" apaga RESPOSTAS. Dentro de `aceites`, só `filtros` é resposta (quais o analista
-       * aceitou/recusou); a sigla da unidade territorial e os números que ele informou à mão
-       * (depósito/produção, pátio, capacidade, alunos) são dado do processo e ficam de pé — zerar
-       * junto obrigaria a redigitar tudo depois de um "Limpar MAC". */
-      const aceitesAntes = (alvo.aceites ?? {}) as Record<string, unknown>;
-      const aceitesDepois = { ...aceitesAntes, filtros: {} };
-
+      /* "LIMPAR MAC" ZERA TUDO — decisão do Fábio, 26/08/2026: *"tem que limpar tudo, até os
+       * filtros, as análises tudo"*. Não é só apagar as respostas da análise aberta: é devolver o
+       * processo ao estado de quem nunca abriu o MAC.
+       *
+       * Exclusão LÓGICA, nunca DELETE: `excluido_em` preserva a linha e o histórico continua
+       * apontando para ela. Dá para recuperar limpando o campo, como já foi preciso fazer com
+       * processo excluído por engano. */
+      const agora = new Date().toISOString();
       const { error } = await supabaseAdmin.from("analises_mac")
-        .update({ itens: {}, fontes: {}, aceites: aceitesDepois }).eq("id", alvo.id);
+        .update({ itens: {}, fontes: {}, aceites: {}, observacoes: "", observacoes_por_item: {}, excluido_em: agora })
+        .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5).is("excluido_em", null);
       if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
-      return NextResponse.json({ ok: true, limpos, analise: alvo.numero_analise });
+      return NextResponse.json({ ok: true, limpos, analise: alvo.numero_analise, zerouTudo: true });
     }
 
     return NextResponse.json({ ok: false, erro: "ação desconhecida" }, { status: 400 });

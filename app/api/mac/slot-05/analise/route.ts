@@ -99,9 +99,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: resolucao.erro }, { status: resolucao.status });
     }
 
+    /* Só as VIVAS contam para a numeração. Sem `is("excluido_em", null)`, um "Limpar MAC" — que
+     * exclui logicamente todas — faria a próxima análise nascer como nº 4 num processo que voltou
+     * a ter zero análises. */
     const { data: existentes } = await supabaseAdmin
       .from("analises_mac").select("numero_analise")
       .eq("processo_codigo", codigo).eq("tipo_processo", TIPO)
+      .is("excluido_em", null)
       .order("numero_analise", { ascending: false }).limit(1);
 
     const proximo = existentes?.length ? (existentes[0] as any).numero_analise + 1 : 1;

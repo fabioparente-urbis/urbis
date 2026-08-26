@@ -217,6 +217,10 @@ export default function ProcessoClient() {
   const [salvando, setSalvando] = useState(false);
   const [modalDI, setModalDI] = useState(false);
   const [modalLimparLip, setModalLimparLip] = useState(false);
+  /* Confirmação POR DIGITAÇÃO. Limpar o LIP apaga trabalho de horas e não tem desfazer; um
+   * clique em "Confirmar" é fácil demais de dar por engano num modal que aparece de repente.
+   * Ter que escrever a palavra obriga a ler o que vai acontecer. */
+  const [confirmaLimparLip, setConfirmaLimparLip] = useState("");
   const [numDI, setNumDI] = useState("");
   const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [destinoDI, setDestinoDI] = useState("");
@@ -1949,20 +1953,49 @@ export default function ProcessoClient() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
-            <p className="text-sm text-[var(--text-primary)] mb-2">Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo.</p>
-            <p className="text-sm text-red-300 font-semibold mb-4">Todos os campos preenchidos serão zerados. Esta ação não pode ser desfeita.</p>
-            <p className="text-xs text-[var(--text-muted)] mb-4">Recomendamos exportar o Excel antes de continuar.</p>
+            <p className="text-sm text-[var(--text-primary)] mb-2">
+              Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo —
+              os <strong>{Object.values(d).filter((c) => c?.valor?.trim()).length} campo(s)</strong> preenchidos,
+              lidos ou digitados.
+            </p>
+            <p className="text-sm text-red-300 font-semibold mb-2">
+              Não há desfazer. O que foi lido da pasta só volta rodando o LER PASTA de novo; o que
+              você digitou à mão, só digitando outra vez.
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Exporte o Excel antes se quiser poder restaurar.
+            </p>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+              Para confirmar, escreva <b className="text-red-400">LIMPAR</b> abaixo:
+            </label>
+            <input autoFocus value={confirmaLimparLip}
+              onChange={(e) => setConfirmaLimparLip(e.target.value.toUpperCase())}
+              placeholder="LIMPAR"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-4 focus:outline-none focus:ring-2 focus:ring-red-600" />
             <div className="flex gap-3">
-              <button onClick={() => setModalLimparLip(false)}
+              <button onClick={() => { setModalLimparLip(false); setConfirmaLimparLip(""); }}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
-              <button onClick={() => {
-                setD({});
-                setModalLimparLip(false);
-                mostrarToast("🗑️ LIP zerado.");
-              }}
-                className="flex-1 bg-red-700 hover:bg-red-600 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+              <button
+                disabled={confirmaLimparLip.trim() !== "LIMPAR"}
+                onClick={async () => {
+                  setD({});
+                  setModalLimparLip(false);
+                  setConfirmaLimparLip("");
+                  /* GRAVA. Antes isto só fazia setD({}) — a tela zerava, o banco não, e os campos
+                   * voltavam no próximo carregamento como se nada tivesse acontecido. */
+                  try {
+                    await fetch("/api/processo/salvar", {
+                      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: idUrl, dados: {}, tipo: tipoUrl }),
+                    });
+                    mostrarToast("🗑️ LIP zerado e gravado.");
+                  } catch {
+                    mostrarToast("⚠ LIP zerado na tela, mas a gravação falhou — recarregue antes de continuar.");
+                  }
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Confirmar — Limpar tudo
               </button>
             </div>

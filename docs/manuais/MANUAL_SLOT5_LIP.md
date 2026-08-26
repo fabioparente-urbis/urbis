@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.3
+**Versão:** 1.4
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -744,6 +744,16 @@ metade da ficha vazia. Agora são dois círculos iguais, lado a lado:
 - **eficiência** (azul) — **campos lidos ÷ campos que o LIP tem**. É o número que mostra se a
   leitura melhora de um processo para o outro. No 48533, depois desta noite: **81%**.
 
+### 12.5 Limpar LIP — agora grava, e exige digitação
+
+O botão existia e **não gravava**: fazia `setD({})`, a tela zerava e o banco não. Os campos
+voltavam no carregamento seguinte como se nada tivesse acontecido. Agora persiste (`dados: {}`).
+
+E a confirmação passou a exigir que o analista **escreva `LIMPAR`**. Apagar o LIP joga fora horas
+de leitura e digitação e não tem desfazer; um clique em "Confirmar" é fácil demais de dar por
+engano num modal que aparece de repente. Ter que escrever a palavra obriga a ler o que vai
+acontecer. O modal também passou a dizer QUANTOS campos serão apagados.
+
 ---
 
 ## Histórico de versões
@@ -752,5 +762,6 @@ metade da ficha vazia. Agora são dois círculos iguais, lado a lado:
 |---|---|---|
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
+| 1.4 | 2026-08-26 | Seção 12.5: "Limpar LIP" passa a gravar de verdade (antes só zerava a tela) e a exigir confirmação por digitação |
 | 1.3 | 2026-08-26 | Seção 12: motor de cruzamento (declarado no ATENDIMENTO × entregue nos documentos), leitor do ATENDIMENTO, texto corrido no extrator, número da ART no formato do CREA, e o Monitor IA com dois anéis — incluindo a eficiência da leitura |
 | 1.2 | 2026-08-26 | Seção 11: os defeitos de leitura achados nos processos 48533/48535 — `m2` sem expoente derrubando o carimbo inteiro, `proprietario` sem fonte possível, autor do projeto em outro formato — e os dois avisos novos que impedem a leitura de voltar pobre em silêncio |
