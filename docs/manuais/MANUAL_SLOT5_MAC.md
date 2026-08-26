@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.15
+**Versão:** 1.16
 **Data:** 2026-08-26
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1125,12 +1125,54 @@ ficariam órfãos, sem filtro nenhum os alcançando. Corrigido com `idsExtras` �
 que substitui): 1 item no `🏘️ Sem EIV` (operação urbana/lei específica, inc. VIII e IX) e 4 no
 `🚦 Sem EIT` (Ceasa/supermercado ≥2.000m², terminal de cargas, aeródromo).
 
+### 14.16 Análise nova nasce em branco + botão de copiar a anterior (26/08/2026)
+
+Mudança pedida pelo Fábio depois de um incidente no Slot 1, aplicada aos três slots (1, 2 e 5).
+
+**Antes**: `iniciarNovaAnalise(n)` copiava a análise anterior inteira — itens, fontes, observações
+e aceites. Reanálise nascia idêntica à anterior.
+
+**Agora**: a análise nova herda **apenas os `nao_aplica`**. Esses descrevem o lote e o tipo de
+edificação (não é lote de esquina, não incide onerosa, não é corredor viário) e não mudam de uma
+análise para a outra. `conforme`/`nao_conforme` é juízo sobre a prancha em mãos — e a prancha da
+reanálise é outra —, então nasce vazio, para ser efetivamente reexaminado. Sem isso o analista
+herda "conforme" dado sobre um desenho que já foi substituído, e assina por ele.
+
+**Efeito colateral que motivou a mudança**: com a cópia automática, "análise N idêntica à N-1" era
+o estado NORMAL logo após criar — indistinguível de uma gravação indevida. Em 26/08/2026 isso
+escondeu por horas um problema real no Slot 1 (duas linhas de Análise 2 no banco, uma invisível na
+tela). Nascendo em branco, duas análises iguais viram evidência de defeito, não ruído.
+
+**Botão 📄**: cada análise a partir da 2ª ganhou, ao lado da lixeira, um botão que copia a análise
+anterior por cima dela, com modal de confirmação. O atalho continua existindo — virou ato
+deliberado em vez de padrão silencioso. A Análise 1 não tem o botão (não há de onde copiar).
+
+**`selecionarAnalise` passou a reler do servidor**: antes usava o objeto da lista em memória, que
+não acompanha gravações feitas por outra aba, outro dispositivo ou correção direta no banco.
+
+**Trava no banco (vale para os três slots)**: índice único parcial
+`analises_mac_unica_por_numero` sobre `(processo_codigo, tipo_processo, numero_analise)` com
+`WHERE excluido_em IS NULL` — migration `2026_08_26_analises_mac_unica_por_numero.sql`, aplicada em
+produção e verificada. Impede a "análise fantasma": duas linhas com o mesmo número, das quais a
+tela mostra uma e a outra segue recebendo gravações invisíveis. Já havia um caso pré-existente
+fora do Slot 5 (duas Análises 2 criadas com 171 ms de diferença, disparo duplo).
+
+**Não aplicado ao Slot 5**: a bolinha laranja de "aba com item não respondido", que entrou só nos
+Slots 1 e 2. A lista de grupos do Slot 5 já mostra `respondidos/total` e colore o grupo inteiro por
+estado; decisão do Fábio de não mexer nela.
+
+**Verificação**: typecheck limpo nos três slots; Slots 1 e 2 conferidos ao vivo no navegador. A
+tela do Slot 5 **não pôde ser verificada visualmente** — exige sessão autenticada, indisponível no
+ambiente local de quem fez a alteração. Vale conferir o botão 📄 no primeiro processo do Slot 5 com
+duas ou mais análises.
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.16 | 2026-08-26 | Seção 14.16: análise nova nasce em branco (herda só os `nao_aplica`) + botão 📄 de copiar a anterior a partir da 2ª, nos três slots; `selecionarAnalise` relê do servidor; índice único `analises_mac_unica_por_numero` em produção impede "análise fantasma" (duas linhas com o mesmo número). Bolinha laranja de aba incompleta ficou fora do Slot 5, por decisão do Fábio. Slot 5 não verificado visualmente (exige sessão) |
 | 1.15 | 2026-08-26 | Seções 14.13-14.15: 6 filtros de térreo/vagas + 2 campos internos (`ehTerreo`, `temVagasExigidas`); título de grupo do despacho ganhou `keepNext` (item partindo entre páginas); filtro `S/ EIT E EIV` desativado por duplicar os botões da tela, 5 itens órfãos cobertos por `idsExtras` |
 | 1.14 | 2026-08-26 | Seção 14.12: 4 filtros de aplicabilidade revisados — NÃO É LOTE DE ESQUINA (novo, automático por `esquina=NÃO`), S/ CORREDOR virou automático (ÍTEM 16 inteiro), SEM UTILIZAÇÃO DO RECUO FRONTAL (novo, manual) e S/ ONEROSA ampliado de 2 para 21 itens. Só configuração de banco, sem deploy |
 | 1.13 | 2026-08-26 | Seção 14.11: qualquer clique na tela descarrega o salvamento pendente (observação geral e por item), fechando a janela de perder texto ao fechar a aba dentro do 1,5s; sem nada pendente o clique não dispara requisição |

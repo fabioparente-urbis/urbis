@@ -1877,7 +1877,8 @@ export default function MacPage() {
                       className="flex items-center gap-3 text-left px-4 py-2.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] hover:border-[var(--accent)] transition-colors">
                       <span className="text-xs text-[var(--text-muted)] font-mono w-7 shrink-0">{idx + 1}</span>
                       <span className="flex-1 text-sm text-[var(--text-primary)] font-medium">{grupo}</span>
-                      {temErro && <span className="w-2.5 h-2.5 bg-[var(--error)] rounded-full shrink-0" />}
+                      {respondidos < total && <span title="Há itens não respondidos" className="w-2.5 h-2.5 bg-[#F97316] rounded-full shrink-0" />}
+                      {temErro && <span title="Há item não conforme" className="w-2.5 h-2.5 bg-[var(--error)] rounded-full shrink-0" />}
                       <span className={`text-xs shrink-0 ${respondidos === total ? "text-[#059669]" : "text-[var(--text-muted)]"}`}>{respondidos}/{total}</span>
                     </button>
                   );
@@ -1902,7 +1903,10 @@ export default function MacPage() {
                   }`}>
                   {grupo}
                   <span className="ml-1.5 text-xs opacity-60">{respondidos}/{total}</span>
-                  {temErro && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[var(--error)] rounded-full border border-[var(--bg-card)]" />}
+                  {/* Laranja à esquerda = ainda há item sem resposta nesta aba.
+                      Não usar azul: azul é "não se aplica" em toda a tela. */}
+                  {respondidos < total && <span title="Há itens não respondidos" className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-[#F97316] rounded-full border border-[var(--bg-card)]" />}
+                  {temErro && <span title="Há item não conforme" className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-[var(--error)] rounded-full border border-[var(--bg-card)]" />}
                 </button>
               );
             })}

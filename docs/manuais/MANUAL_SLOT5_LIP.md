@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.14
+**Versão:** 1.15
 **Data:** 2026-08-26
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1039,6 +1039,7 @@ continua como reforço, se o parâmetro não pegar.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.15 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.16 do `MANUAL_SLOT5_MAC.md`): análise nova passou a nascer em branco herdando só os `nao_aplica`, ganhou botão 📄 de copiar a anterior, `selecionarAnalise` passou a reler do servidor e o banco ganhou índice único por `numero_analise`. Tudo em `analises_mac` e na tela do MAC; nenhum campo, prompt ou leitura do LIP tocado |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |
 | 1.1 | 2026-08-25 | Regra suprema dos manuais versionados incorporada ao manual e ao `CLAUDE.md`; conferido contra a auditoria geral do Slot 5 do mesmo dia, que **não alterou nada do LIP** — as 11 correções foram todas na tela e nas rotas do MAC (ver seção 14 do `MANUAL_SLOT5_MAC.md`) |
 | 1.14 | 2026-08-26 | Seção 19: campos internos `ehTerreo`/`temVagasExigidas` (para os 6 filtros novos de térreo/vagas do MAC) e deep link do "Abrir o Mapa Fácil" com o IPTU pré-preenchido (não confirmado ao vivo — serviço da Prefeitura fora do ar) |

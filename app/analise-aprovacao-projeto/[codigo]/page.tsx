@@ -501,6 +501,7 @@ export default function AnaliseAprovacaoProjeto() {
   // Número da análise iniciada mas ainda não gravada (a linha só nasce no primeiro salvamento).
   const [numeroAnaliseNova, setNumeroAnaliseNova] = useState(1);
   const [modalZerarAnalise, setModalZerarAnalise] = useState<number | null>(null);
+  const [modalCopiarAnalise, setModalCopiarAnalise] = useState<number | null>(null);
   /* Emissão do despacho. O número vem da MESMA série dos Slots 1 e 2 (/api/numeracao/proximo):
    * `peek` só espia, `commit` consome — o commit só acontece depois do documento ficar pronto,
    * pra um erro na geração não queimar um número da faixa. */
@@ -1010,18 +1011,32 @@ export default function AnaliseAprovacaoProjeto() {
 
   /* ── Gerenciamento das 5 análises — mesmas regras do Slot 1/2 ──────────────
    * Liberação sequencial (a análise N só abre depois que a N-1 existe), no máximo 5, e a nova
-   * NASCE COPIANDO a anterior: reanálise é conferir o que o requerente corrigiu, não recomeçar
-   * do zero. A criação no banco é preguiçosa (garantirAnalise no primeiro salvamento) — igual ao
-   * resto da tela. */
+   * NASCE EM BRANCO, herdando só os "não se aplica": reanálise é reexaminar a prancha corrigida,
+   * e herdar "conforme" da prancha anterior faz o analista carimbar desenho que não olhou. Para
+   * repetir a análise anterior inteira existe o botão 📄. A criação no banco é preguiçosa
+   * (garantirAnalise no primeiro salvamento) — igual ao resto da tela. */
 
-  function selecionarAnalise(a: Analise) {
-    setAnalise(a);
-    analiseRef.current = a;
+  async function selecionarAnalise(a: Analise) {
+    // Relê a análise do servidor em vez de confiar no objeto da lista em memória, que não
+    // acompanha gravações feitas por outra aba, outro dispositivo ou correção direta no banco.
+    let alvo = a;
+    try {
+      const r = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+      const d = await r.json();
+      if (d.ok && Array.isArray(d.data)) {
+        setAnalises(d.data);
+        const fresca = d.data.find((x: Analise) => x.id === a.id);
+        if (fresca) alvo = fresca;
+      }
+    } catch { /* rede fora — segue com o que há em memória */ }
+
+    setAnalise(alvo);
+    analiseRef.current = alvo;
     aplicarEstado({
-      marcas: a.itens ?? {}, fontes: a.fontes ?? {},
-      observacoes: a.observacoes ?? "", observacoesPorItem: a.observacoes_por_item ?? {},
+      marcas: alvo.itens ?? {}, fontes: alvo.fontes ?? {},
+      observacoes: alvo.observacoes ?? "", observacoesPorItem: alvo.observacoes_por_item ?? {},
     });
-    aceitesRef.current = (a.aceites ?? {}) as Aceites;
+    aceitesRef.current = (alvo.aceites ?? {}) as Aceites;
     decisoesRef.current = (aceitesRef.current.filtros ?? {}) as Record<string, "aceito" | "recusado">;
     setDecisoes(decisoesRef.current);
     if (aceitesRef.current.unidadeTerritorial !== undefined) setUnidadeTerritorial(aceitesRef.current.unidadeTerritorial);
@@ -1029,29 +1044,75 @@ export default function AnaliseAprovacaoProjeto() {
     setAbaAtual(null);
     setListaFiltrada(null);
     // A trilha é POR ANÁLISE: sem recarregar, a tela seguia mostrando o histórico da anterior.
-    carregarHistorico(a.id);
+    carregarHistorico(alvo.id);
   }
 
   function iniciarNovaAnalise(n: number) {
     if (analises.length >= 5) { notificar("Limite de 5 análises atingido."); return; }
-    // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a cópia
+    // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a herança
     // independente da ordenação da API.
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setAnalise(null);
     analiseRef.current = null;
     criandoAnalise.current = null;
-    aplicarEstado({
-      marcas: ultima?.itens ?? {}, fontes: ultima?.fontes ?? {},
-      observacoes: ultima?.observacoes ?? "", observacoesPorItem: ultima?.observacoes_por_item ?? {},
+    // Herda APENAS os "não se aplica" — eles descrevem o lote e o tipo de edificação, que não
+    // mudam entre análises. Conforme/não conforme é juízo sobre a prancha atual e nasce em branco.
+    const herdados: Record<string, Status> = {};
+    Object.entries((ultima?.itens ?? {}) as Record<string, Status>).forEach(([id, st]) => {
+      if (st === "nao_aplica") herdados[id] = "nao_aplica";
     });
-    aceitesRef.current = (ultima?.aceites ?? {}) as Aceites;
-    decisoesRef.current = (aceitesRef.current.filtros ?? {}) as Record<string, "aceito" | "recusado">;
+    aplicarEstado({ marcas: herdados, fontes: {}, observacoes: "", observacoesPorItem: {} });
+    aceitesRef.current = {} as Aceites;
+    decisoesRef.current = {};
     setDecisoes(decisoesRef.current);
     setHistorico([]);
     setNumeroAnaliseNova(n);
     setAbaAtual(null);
     setListaFiltrada(null);
-    notificar(`Análise ${n} iniciada — copiada da anterior. Salve para gravar.`);
+    notificar(`Análise ${n} iniciada em branco (só os "não se aplica" foram herdados). Salve para gravar.`);
+  }
+
+  /**
+   * Copia a análise anterior (N-1) por cima da análise N, a pedido explícito.
+   *
+   * Substitui a cópia automática que `iniciarNovaAnalise` fazia: o atalho continua disponível,
+   * mas agora é ato deliberado, com confirmação.
+   */
+  async function copiarAnaliseAnterior(n: number) {
+    const anterior = analises.find((a) => a.numero_analise === n - 1);
+    const alvo = analises.find((a) => a.numero_analise === n);
+    setModalCopiarAnalise(null);
+    if (!anterior || !alvo) return;
+    try {
+      const r = await fetch("/api/mac/slot-05/analise", {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: alvo.id,
+          itens: anterior.itens ?? {},
+          fontes: anterior.fontes ?? {},
+          aceites: anterior.aceites ?? {},
+          observacoes: anterior.observacoes ?? "",
+          observacoes_por_item: anterior.observacoes_por_item ?? {},
+          status: alvo.status ?? "em_andamento",
+        }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao copiar");
+
+      const copiada: Analise = {
+        ...alvo,
+        itens: anterior.itens ?? {},
+        fontes: anterior.fontes ?? {},
+        aceites: anterior.aceites ?? {},
+        observacoes: anterior.observacoes ?? "",
+        observacoes_por_item: anterior.observacoes_por_item ?? {},
+      };
+      setAnalises((prev) => prev.map((a) => (a.id === alvo.id ? copiada : a)));
+      await selecionarAnalise(copiada);
+      notificar(`Análise ${n - 1} copiada para a Análise ${n}.`);
+    } catch (e: any) {
+      notificar(`Erro ao copiar: ${e?.message ?? e}`);
+    }
   }
 
   function selecionarOuCriarAnalise(n: number) {
@@ -3389,6 +3450,13 @@ export default function AnaliseAprovacaoProjeto() {
                           : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border-dashed border-[var(--border)] cursor-not-allowed opacity-50"}`}>
                   {jaEmitida ? "✅" : "📋"} Análise {n}
                 </button>
+                {/* Copiar a anterior — só a partir da 2ª. A Análise 1 não tem de onde copiar. */}
+                {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (
+                  <button onClick={() => setModalCopiarAnalise(n)} title={`Copiar Análise ${n - 1} para a Análise ${n}`}
+                    className="px-2 rounded-lg text-xs border border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] transition-colors">
+                    📄
+                  </button>
+                )}
                 {existente && (
                   <button onClick={() => setModalZerarAnalise(n)} title={`Zerar Análise ${n}`}
                     className="px-2 rounded-lg text-xs border border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white transition-colors">
@@ -3682,6 +3750,35 @@ export default function AnaliseAprovacaoProjeto() {
                 {emitindoDespacho ? "Gerando…" : "Gerar e baixar"}
               </button>
               <button onClick={() => setModalDespacho(false)} disabled={emitindoDespacho}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalCopiarAnalise !== null && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border-strong)] rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-[var(--text-primary)] font-bold text-lg mb-3">
+              📄 Copiar Análise {modalCopiarAnalise - 1} → Análise {modalCopiarAnalise}
+            </h2>
+            <p className="text-[var(--text-secondary)] text-sm mb-2">
+              Todo o checklist da <b>Análise {modalCopiarAnalise}</b> será substituído pelas respostas
+              da <b>Análise {modalCopiarAnalise - 1}</b>, incluindo observações por item. O que estiver
+              marcado hoje na Análise {modalCopiarAnalise} será perdido.
+            </p>
+            <p className="text-[var(--text-muted)] text-xs mb-5">
+              Lembre-se: os &ldquo;conforme&rdquo; copiados foram dados sobre a prancha da análise
+              anterior — confira item a item contra o projeto corrigido antes de emitir.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => void copiarAnaliseAnterior(modalCopiarAnalise)}
+                className="flex-1 bg-[var(--accent)] hover:opacity-90 text-[var(--accent-fg)] font-bold py-2 rounded-lg text-sm">
+                Copiar
+              </button>
+              <button onClick={() => setModalCopiarAnalise(null)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
               </button>
