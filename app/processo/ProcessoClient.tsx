@@ -1879,6 +1879,11 @@ export default function ProcessoClient() {
    * o número de campos que a ficha TEM — é ele que mostra o tamanho do que ainda falta. */
   const totalCampos = Object.keys(d).filter((k) => k !== "coordenadas").length;
   const pctIA = totalPreenchidos > 0 ? Math.round((totalUrbis / totalPreenchidos) * 100) : 0;
+  /* EFICIÊNCIA DA LEITURA — pedido do Fábio (26/08/2026). O anel de fora responde "do que está
+   * preenchido, quanto veio do sistema" e por isso marca 100% mesmo com metade da ficha vazia.
+   * Esta é a pergunta que importa: dos campos que o LIP TEM, quantos a leitura conseguiu
+   * preencher. É ela que mostra se a leitura está melhorando de um processo para o outro. */
+  const pctLido = totalCampos > 0 ? Math.round((totalUrbis / totalCampos) * 100) : 0;
 
   if (carregandoAbas) {
     return (
@@ -2729,14 +2734,25 @@ export default function ProcessoClient() {
                   strokeLinecap="round"
                   transform="rotate(-90 45 45)"
                 />
-                <text x="45" y="49" textAnchor="middle" fontSize="20" fontWeight="bold"
+                {/* Anel de dentro, azul: EFICIÊNCIA DA LEITURA — campos lidos ÷ campos do LIP. */}
+                <circle cx="45" cy="45" r="27" fill="none" stroke="var(--border)" strokeWidth="5" opacity="0.5" />
+                <circle cx="45" cy="45" r="27" fill="none" stroke="#2563EB" strokeWidth="5"
+                  strokeDasharray={`${(pctLido / 100) * 2 * Math.PI * 27} ${2 * Math.PI * 27}`}
+                  strokeLinecap="round"
+                  transform="rotate(-90 45 45)"
+                />
+                <text x="45" y="43" textAnchor="middle" fontSize="17" fontWeight="bold"
                   fill={pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444"}>
                   {pctIA}%
+                </text>
+                <text x="45" y="57" textAnchor="middle" fontSize="12" fontWeight="700" fill="#2563EB">
+                  {pctLido}%
                 </text>
               </svg>
               <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
               <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
                 {totalUrbis} de {totalCampos} lidos · {totalPreenchidos - totalUrbis} digitados
+                <br /><span className="text-[#2563EB] font-semibold">{pctLido}% de eficiência da leitura</span>
                 {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
               </span>
             </div>
