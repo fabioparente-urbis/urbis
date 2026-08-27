@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { registrarChamadaIA } from "@/lib/iaUso";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  const processoCodigo = req.headers.get("x-processo-codigo") || null;
+  const slot = req.headers.get("x-slot") || null;
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey)
@@ -41,6 +45,11 @@ export async function POST(req: NextRequest) {
 
     if (!uploadRes.ok) {
       const err = await uploadRes.text();
+      await registrarChamadaIA({
+        modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
+        tamanhoBytes: fileSizeBytes, duracaoMs: Date.now() - t0,
+        status: "erro", motivoErro: err.slice(0, 500),
+      });
       return NextResponse.json({ ok: false, erro: `Upload falhou: ${err}` }, { status: 500 });
     }
 
@@ -50,6 +59,11 @@ export async function POST(req: NextRequest) {
     const state = uploadData.file?.state;
 
     console.log(`[S1] Concluído: ${filName} | state: ${state} | URI: ${fileUri}`);
+
+    await registrarChamadaIA({
+      modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
+      tamanhoBytes: fileSizeBytes, duracaoMs: Date.now() - t0, status: "ok",
+    });
 
     return NextResponse.json({
       ok: true,
@@ -61,6 +75,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     console.error("[S1] Erro:", e?.message);
+    await registrarChamadaIA({
+      modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
+      duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+    });
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }
 }

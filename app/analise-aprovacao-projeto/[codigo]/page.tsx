@@ -524,6 +524,10 @@ export default function AnaliseAprovacaoProjeto() {
   const [corpoDI, setCorpoDI] = useState("");
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
   const [gerandoDI, setGerandoDI] = useState(false);
+  const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
+  const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
+  const [padroesExterno, setPadroesExterno] = useState<{ id: string; titulo: string; corpo: string }[]>([]);
+  const [padraoSelecionadoExterno, setPadraoSelecionadoExterno] = useState("");
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [marcas, setMarcas] = useState<Record<string, Status>>({});
   const [fontes, setFontes] = useState<Record<string, string>>({});
@@ -635,6 +639,18 @@ export default function AnaliseAprovacaoProjeto() {
     }, 1500);
   }, []);
   useEffect(() => () => { if (obsTimer.current) clearTimeout(obsTimer.current); }, []);
+
+  useEffect(() => {
+    if (!modalDI) return;
+    fetch(`/api/despacho-padroes?assunto_id=${ASSUNTO_ID_SLOT5}&modulo=MAC&tipo_despacho=interno`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesDI(json.data); }).catch(() => {});
+  }, [modalDI]);
+
+  useEffect(() => {
+    if (!modalDespacho) { setPadraoSelecionadoExterno(""); return; }
+    fetch(`/api/despacho-padroes?assunto_id=${ASSUNTO_ID_SLOT5}&modulo=MAC&tipo_despacho=externo`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesExterno(json.data); }).catch(() => {});
+  }, [modalDespacho]);
 
   /* QUALQUER CLIQUE NA TELA GRAVA (pedido do Fábio, 26/08/2026).
    *
@@ -1187,6 +1203,8 @@ export default function AnaliseAprovacaoProjeto() {
           codigo, numeroDespacho: numDI, data: dataDI,
           destino: destinoDI === "outro" ? destinoCustomDI : destinoDI,
           corpo: corpoDI, numero_analise: analise?.numero_analise,
+          padrao_id: padraoSelecionadoDI || null,
+          padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null,
         }),
       });
       if (!r.ok) {
@@ -1330,6 +1348,8 @@ export default function AnaliseAprovacaoProjeto() {
             pendencias_lip: pendenciasLip,
             observacoes: observacoes || "",
             observacoes_por_item: observacoesPorItem || {},
+            padrao_id: padraoSelecionadoExterno || null,
+            padrao_titulo: padroesExterno.find((p) => p.id === padraoSelecionadoExterno)?.titulo || null,
           },
         }),
       }),
@@ -1394,6 +1414,7 @@ export default function AnaliseAprovacaoProjeto() {
         method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           codigo, numeroDespacho: numeroDespacho.trim(), dataEmissao: dataDespacho, analiseId: analise.id,
+          padrao_id: padraoSelecionadoExterno || null,
         }),
       });
       if (!r.ok) {
@@ -1402,6 +1423,8 @@ export default function AnaliseAprovacaoProjeto() {
       }
       const exigencias = r.headers.get("X-Exigencias") ?? "?";
       const perdidas = Number(r.headers.get("X-Exigencias-Perdidas") ?? 0);
+      const padraoAplicadoHeader = r.headers.get("X-Padrao-Aplicado");
+      const padraoAplicado = padraoAplicadoHeader ? decodeURIComponent(padraoAplicadoHeader) : null;
 
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -1435,7 +1458,9 @@ export default function AnaliseAprovacaoProjeto() {
       await registrarNosSatelites(numeroDespacho.trim(), dataDespacho, analise);
       setModalDespacho(false);
       notificar(
-        `Despacho nº ${numeroDespacho.trim()} baixado com ${exigencias} exigência(s).`
+        padraoAplicado
+          ? `Despacho nº ${numeroDespacho.trim()} baixado com o padrão "${padraoAplicado}" — itens do checklist não entraram no documento.`
+          : `Despacho nº ${numeroDespacho.trim()} baixado com ${exigencias} exigência(s).`
         + (perdidas ? ` ⚠ ${perdidas} não conforme ficou de fora (item desativado no checklist).` : "")
         + (dc && !dc.ok ? ` ⚠ O número NÃO foi registrado: ${dc.detalhe ?? dc.motivo ?? "falha na numeração"}.` : ""),
       );
@@ -3691,7 +3716,27 @@ export default function AnaliseAprovacaoProjeto() {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                  {padroesDI.length > 0 && (
+                    <select value={padraoSelecionadoDI} onChange={(e) => {
+                      const id = e.target.value;
+                      setPadraoSelecionadoDI(id);
+                      const p = padroesDI.find(x => x.id === id);
+                      if (p) {
+                        setCorpoDI(p.corpo);
+                        if (p.destinatario_padrao) {
+                          const fixo = ["GERECCO", "GERAED", "GERAGP", "DIRAAP"].includes(p.destinatario_padrao);
+                          setDestinoDI(fixo ? p.destinatario_padrao : "outro");
+                          if (!fixo) setDestinoCustomDI(p.destinatario_padrao);
+                        }
+                      }
+                    }} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Usar um padrão...</option>
+                      {padroesDI.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                    </select>
+                  )}
+                </div>
                 <textarea value={corpoDI} onChange={(e) => setCorpoDI(e.target.value)} rows={5}
                   placeholder="Redija o conteúdo do despacho interno..."
                   className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
@@ -3753,6 +3798,16 @@ export default function AnaliseAprovacaoProjeto() {
                 <input value={dataDespacho} onChange={(e) => setDataDespacho(e.target.value)}
                   placeholder="dd/mm/aaaa"
                   className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-4 focus:outline-none focus:ring-2 focus:ring-[#2563EB]" />
+
+                <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">Usar um padrão (opcional)</label>
+                <select value={padraoSelecionadoExterno} onChange={(e) => setPadraoSelecionadoExterno(e.target.value)}
+                  className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm mb-1 focus:outline-none focus:ring-2 focus:ring-[#2563EB]">
+                  <option value="">Nenhum — usar itens do checklist</option>
+                  {padroesExterno.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                </select>
+                {padraoSelecionadoExterno && (
+                  <p className="text-[10px] text-amber-500 mb-3">⚠ Com um padrão selecionado, os itens não-conformes do checklist NÃO entram no documento — só o texto do padrão.</p>
+                )}
               </>
             )}
 

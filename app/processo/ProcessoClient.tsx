@@ -228,6 +228,8 @@ export default function ProcessoClient() {
   const [corpoDI, setCorpoDI] = useState("");
   const [gerandoDI, setGerandoDI] = useState(false);
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
+  const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
+  const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
   const [numDICarregando, setNumDICarregando] = useState(false);
   const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
@@ -335,6 +337,13 @@ export default function ProcessoClient() {
       .catch(() => { /* fica no rótulo estático */ });
     return () => { vivo = false; };
   }, []);
+
+  useEffect(() => {
+    if (!modalDI || !assuntoIdRef.current) return;
+    fetch(`/api/despacho-padroes?assunto_id=${assuntoIdRef.current}&modulo=LIP&tipo_despacho=interno`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesDI(json.data); }).catch(() => {});
+  }, [modalDI]);
+
   const nomeAssunto = assuntosAtivos.find((a) => a.slug === tipoUrl)?.nome ?? null;
   // Como ESTE assunto numera seus processos (SEI x alvará/OS).
   const perfilNum = perfilDe(assuntosAtivos.find((a) => a.slug === tipoUrl)?.numeracao);
@@ -1286,6 +1295,8 @@ export default function ProcessoClient() {
               "X-File-Type": tipoArquivo,
               "X-File-Size": arquivo.size.toString(),
               "X-File-Name": arquivo.name,
+              "X-Processo-Codigo": idUrl,
+              "X-Slot": tipoUrl,
             },
             body: arquivo,
           });
@@ -1299,7 +1310,7 @@ export default function ProcessoClient() {
           const s2Res = await fetch("/api/lip/s2", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }),
+            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl }),
           });
           const s2Data = await s2Res.json();
           const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
@@ -1503,12 +1514,12 @@ export default function ProcessoClient() {
         const tipoVcp = arquivo.type || "application/pdf";
         const s1Res = await fetch("/api/lip/s1", {
           method: "POST",
-          headers: { "Content-Type": tipoVcp, "X-File-Type": tipoVcp, "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name },
+          headers: { "Content-Type": tipoVcp, "X-File-Type": tipoVcp, "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name, "X-Processo-Codigo": idUrl, "X-Slot": tipoUrl },
           body: arquivo,
         });
         const s1Data = await s1Res.json();
         if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
-        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }) });
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl }) });
         const s2Data = await s2Res.json();
         const pdfBase64vcp = await new Promise<string>((res) => {
           const r = new FileReader();
@@ -1632,11 +1643,13 @@ export default function ProcessoClient() {
             body: JSON.stringify({
               codigo: idUrl, numeroDespacho: numDI, data: dataDI,
               destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI,
+              padrao_id: padraoSelecionadoDI || null,
+              padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null,
             }),
           })
         : await fetch("/api/despacho-interno", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current }),
+            body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null }),
           });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -2672,7 +2685,27 @@ export default function ProcessoClient() {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                  {padroesDI.length > 0 && (
+                    <select value={padraoSelecionadoDI} onChange={e => {
+                      const id = e.target.value;
+                      setPadraoSelecionadoDI(id);
+                      const p = padroesDI.find(x => x.id === id);
+                      if (p) {
+                        setCorpoDI(p.corpo);
+                        if (p.destinatario_padrao) {
+                          const fixo = ["GERECCO", "GERAED", "GERAGP", "DIRAAP"].includes(p.destinatario_padrao);
+                          setDestinoDI(fixo ? p.destinatario_padrao : "outro");
+                          if (!fixo) setDestinoCustomDI(p.destinatario_padrao);
+                        }
+                      }
+                    }} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Usar um padrão...</option>
+                      {padroesDI.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                    </select>
+                  )}
+                </div>
                 <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>

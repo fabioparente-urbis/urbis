@@ -49,6 +49,9 @@ export type DadosDespacho = {
   dataEmissao: string;
   cheadvN?: string | null;
   naoConformes: ItemNaoConforme[];
+  /** Padrão de despacho selecionado — quando presente, substitui inteiramente as
+   * exigências geradas do checklist (ver montarExigencias). */
+  corpoPersonalizado?: string;
   /** Uma posição por etapa (1ª análise, reanálises 1-4). `null` = etapa ainda não emitida. */
   datasEtapas: (string | null)[];
   assinante: { nome: string; cargo?: string | null; registro?: string | null };
@@ -302,7 +305,14 @@ export async function gerarDespachoAprovacaoProjeto(dados: DadosDespacho): Promi
     : Math.max(doc.lastIndexOf("<w:p ", posShd), doc.lastIndexOf("<w:p>", posShd));
   if (inicioParagrafo === -1) throw new Error("template do despacho: início do parágrafo de CONSIDERAÇÕES FINAIS não encontrado");
 
-  doc = doc.slice(0, inicioParagrafo) + montarExigencias(dados.naoConformes) + doc.slice(inicioParagrafo);
+  // Padrão de despacho: substitui inteiramente as exigências do checklist —
+  // usa paragrafoSimples() (texto livre, sem a numeração automática de item)
+  // em vez de montarExigencias().
+  const corpoExigencias = dados.corpoPersonalizado
+    ? dados.corpoPersonalizado.split("\n").filter((l) => l.trim())
+      .map((l) => paragrafoSimples(l.trim(), { antes: 120 })).join("")
+    : montarExigencias(dados.naoConformes);
+  doc = doc.slice(0, inicioParagrafo) + corpoExigencias + doc.slice(inicioParagrafo);
 
   // ── Data e assinatura ─────────────────────────────────────────────────────
   doc = trocarTexto(doc, "26 de maio de 2026", dataPorExtenso(dados.dataEmissao));

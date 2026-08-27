@@ -10,6 +10,15 @@ import { parseAreaBR } from "@/lib/mrp";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
+/** Foto anexa ao parecer de indeferimento — legenda sugerida pela IA, sempre editável. */
+type FotoAnexo = {
+  id: string;
+  dataUrl: string;
+  tipo: "png" | "jpg";
+  legenda: string;
+  gerandoLegenda: boolean;
+};
+
 
 type Item = {
   id: string;
@@ -116,13 +125,18 @@ export default function MacPage() {
   const [destinoCustomDI, setDestinoCustomDI] = useState("");
   const [corpoDI, setCorpoDI] = useState("");
   const [gerandoDI, setGerandoDI] = useState(false);
+  const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
+  const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
+  const [padroesExterno, setPadroesExterno] = useState<{ id: string; titulo: string; corpo: string }[]>([]);
+  const [padraoSelecionadoExterno, setPadraoSelecionadoExterno] = useState("");
   const [modalPendenciasLip, setModalPendenciasLip] = useState(false);
   const [pendenciasLip, setPendenciasLip] = useState<string[]>([]);
   const [modalIndeferimento, setModalIndeferimento] = useState(false);
   const [motivosIndeferimento, setMotivosIndeferimento] = useState<string[]>([]);
   const [obsIndeferimento, setObsIndeferimento] = useState("");
-  const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string} | null>(null);
-  const [indeferimentoParaReimprimir, setIndeferimentoParaReimprimir] = useState<{motivos: string[], obs: string, numeroParecer: string, data?: string} | null>(null);
+  const [fotosIndeferimento, setFotosIndeferimento] = useState<FotoAnexo[]>([]);
+  const [indeferimentoPendente, setIndeferimentoPendente] = useState<{motivos: string[], obs: string, fotos: FotoAnexo[]} | null>(null);
+  const [indeferimentoParaReimprimir, setIndeferimentoParaReimprimir] = useState<{motivos: string[], obs: string, numeroParecer: string, data?: string, fotos: FotoAnexo[]} | null>(null);
   const [tipoDespacho, setTipoDespacho] = useState<"despacho" | "indeferimento" | "arquivamento">("despacho");
   const [numeroDespacho, setNumeroDespacho] = useState("");
   // Data de emissão do documento (editável no modal). Alimenta documento, tag e
@@ -347,6 +361,19 @@ export default function MacPage() {
   }
 
   useEffect(() => { carregar(); }, [codigo]);
+
+  useEffect(() => {
+    if (!modalDespachoInterno || !assuntoId) return;
+    fetch(`/api/despacho-padroes?assunto_id=${assuntoId}&modulo=MAC&tipo_despacho=interno`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesDI(json.data); }).catch(() => {});
+  }, [modalDespachoInterno, assuntoId]);
+
+  useEffect(() => {
+    if (!modalDespacho || tipoDespacho !== "despacho" || !assuntoId) { setPadraoSelecionadoExterno(""); return; }
+    fetch(`/api/despacho-padroes?assunto_id=${assuntoId}&modulo=MAC&tipo_despacho=externo`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesExterno(json.data); }).catch(() => {});
+  }, [modalDespacho, tipoDespacho, assuntoId]);
+
   // auto-save ao alterar itens/obs
   //
   // Só agenda gravação se o estado em tela DIVERGE do que já está salvo na
@@ -529,6 +556,34 @@ export default function MacPage() {
       });
       mostrarToast(res.ok ? "✅ Observações salvas!" : "Erro ao salvar.");
     } catch { mostrarToast("Erro ao salvar."); }
+  }
+
+  /** Adiciona fotos ao indeferimento e pede pro URBIS sugerir a legenda de cada uma — o analista sempre pode editar antes de gerar o documento. */
+  async function adicionarFotosIndeferimento(arquivos: FileList | null) {
+    if (!arquivos?.length) return;
+    for (const arquivo of Array.from(arquivos)) {
+      if (!arquivo.type.startsWith("image/")) continue;
+      const tipo: "png" | "jpg" = arquivo.type.includes("png") ? "png" : "jpg";
+      const dataUrl = await new Promise<string>((res) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.readAsDataURL(arquivo);
+      });
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setFotosIndeferimento((prev) => [...prev, { id, dataUrl, tipo, legenda: "", gerandoLegenda: true }]);
+      try {
+        const base64 = dataUrl.split(",")[1];
+        const r = await fetch("/api/lip/legenda-foto", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imagemBase64: base64, mimeType: arquivo.type, processo: codigo }),
+        });
+        const d = await r.json();
+        setFotosIndeferimento((prev) => prev.map((f) => f.id === id
+          ? { ...f, legenda: d.ok ? d.legenda : "", gerandoLegenda: false } : f));
+      } catch {
+        setFotosIndeferimento((prev) => prev.map((f) => f.id === id ? { ...f, gerandoLegenda: false } : f));
+      }
+    }
   }
 
   function aceitarTodasIA(grupo: string) {
@@ -891,6 +946,7 @@ export default function MacPage() {
           assunto_id: assuntoId,
           numero_revisao: numeroRevisao,
           data: dataEmissao,
+          padrao_id: tipoDespacho === "despacho" ? (padraoSelecionadoExterno || null) : null,
         }),
       });
 
@@ -967,6 +1023,8 @@ export default function MacPage() {
             pendencias_lip: pendenciasLip,
             observacoes: observacoes || "",
             observacoes_por_aba: observacoesPorAba || {},
+            padrao_id: tipoDespacho === "despacho" ? (padraoSelecionadoExterno || null) : null,
+            padrao_titulo: tipoDespacho === "despacho" ? (padroesExterno.find(p => p.id === padraoSelecionadoExterno)?.titulo || null) : null,
           },
         }),
       }).catch(() => {});
@@ -1278,7 +1336,7 @@ export default function MacPage() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -1623,6 +1681,20 @@ export default function MacPage() {
                 />
                 <span className="text-[10px] text-[var(--text-muted)]">Vai para o documento, a tag da pilha e o MRP.</span>
               </div>
+
+              {tipoDespacho === "despacho" && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Usar um padrão (opcional)</label>
+                  <select value={padraoSelecionadoExterno} onChange={e => setPadraoSelecionadoExterno(e.target.value)}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                    <option value="">Nenhum — usar itens do checklist</option>
+                    {padroesExterno.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                  </select>
+                  {padraoSelecionadoExterno && (
+                    <span className="text-[10px] text-amber-500">⚠ Com um padrão selecionado, os itens não-conformes do checklist NÃO entram no documento — só o texto do padrão.</span>
+                  )}
+                </div>
+              )}
 
             </div>
             {confirmarNaoRespondidos && (
@@ -2410,7 +2482,7 @@ export default function MacPage() {
 
           {indeferimentoPendente && (
             <button onClick={async () => {
-              const { motivos, obs } = indeferimentoPendente;
+              const { motivos, obs, fotos } = indeferimentoPendente;
               setGerandoDespacho(true);
               try {
                 // Verifica numeração de parecer ANTES de salvar o status
@@ -2432,6 +2504,7 @@ export default function MacPage() {
                   body: JSON.stringify({
                     processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
+                    fotos: fotos.map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
                     analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                     data: dataEmissao,
                   }),
@@ -2444,7 +2517,7 @@ export default function MacPage() {
                   document.body.appendChild(link); link.click();
                   document.body.removeChild(link); URL.revokeObjectURL(url);
                   setIndeferimentoPendente(null);
-                  setIndeferimentoParaReimprimir({ motivos, obs, numeroParecer, data: dataEmissao });
+                  setIndeferimentoParaReimprimir({ motivos, obs, numeroParecer, data: dataEmissao, fotos });
                   mostrarToast("✅ Documento de indeferimento gerado!");
                   await gravarTag({
                     tipo: "indeferimento",
@@ -2476,12 +2549,13 @@ export default function MacPage() {
             <button onClick={async () => {
               setGerandoDespacho(true);
               try {
-                const { motivos: _m, obs: _o, numeroParecer: _np } = indeferimentoParaReimprimir;
+                const { motivos: _m, obs: _o, numeroParecer: _np, fotos: _f } = indeferimentoParaReimprimir;
                 const res = await fetch("/api/despacho-regularizacao", { credentials: "include",
                   method: "POST", headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
                     processo: codigo, tipo: "indeferimento", numeroDespacho: _np,
                     naoConformes: _m, observacoes: _o,
+                    fotos: (_f ?? []).map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
                     analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
                     data: indeferimentoParaReimprimir.data || dataEmissao,
                   }),
@@ -2573,7 +2647,27 @@ export default function MacPage() {
                 )}
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                  {padroesDI.length > 0 && (
+                    <select value={padraoSelecionadoDI} onChange={e => {
+                      const id = e.target.value;
+                      setPadraoSelecionadoDI(id);
+                      const p = padroesDI.find(x => x.id === id);
+                      if (p) {
+                        setCorpoDI(p.corpo);
+                        if (p.destinatario_padrao) {
+                          const fixo = ["GERECCO", "GERAED", "GERAGP", "DIRAAP"].includes(p.destinatario_padrao);
+                          setDestinoDI(fixo ? p.destinatario_padrao : "outro");
+                          if (!fixo) setDestinoCustomDI(p.destinatario_padrao);
+                        }
+                      }
+                    }} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Usar um padrão...</option>
+                      {padroesDI.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                    </select>
+                  )}
+                </div>
                 <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
               </div>
             </div>
@@ -2812,6 +2906,32 @@ export default function MacPage() {
             <textarea value={obsIndeferimento} onChange={(e) => setObsIndeferimento(e.target.value)}
               placeholder="Observações adicionais (opcional)..."
               className="w-full mt-3 bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded p-2 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-20" />
+
+            <div className="mt-3">
+              <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">
+                Fotos anexas (opcional) — prints de imagem histórica, sistemas externos, etc.
+              </label>
+              <label className="mt-1 flex items-center justify-center gap-2 border border-dashed border-[var(--border-strong)] rounded p-2 text-xs text-[var(--text-muted)] cursor-pointer hover:bg-[var(--bg-secondary)]">
+                📷 Clique para anexar foto(s)
+                <input type="file" accept="image/*" multiple className="hidden"
+                  onChange={(e) => { adicionarFotosIndeferimento(e.target.files); e.target.value = ""; }} />
+              </label>
+              {fotosIndeferimento.map((foto) => (
+                <div key={foto.id} className="flex gap-2 items-start mt-2 bg-[var(--bg-secondary)] rounded p-2">
+                  <img src={foto.dataUrl} alt="" className="w-20 h-20 object-cover rounded shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <textarea value={foto.gerandoLegenda ? "Gerando legenda com o URBIS..." : foto.legenda}
+                      disabled={foto.gerandoLegenda}
+                      onChange={(e) => setFotosIndeferimento((prev) => prev.map((f) => f.id === foto.id ? { ...f, legenda: e.target.value } : f))}
+                      placeholder="Legenda da foto..."
+                      className="w-full bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded p-1.5 text-xs text-[var(--text-primary)] resize-none h-14 disabled:opacity-60" />
+                  </div>
+                  <button onClick={() => setFotosIndeferimento((prev) => prev.filter((f) => f.id !== foto.id))}
+                    className="text-[var(--text-muted)] hover:text-red-400 text-xs shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+
             <div className="flex flex-col gap-1 mt-3">
               <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data de emissão do parecer</label>
               <input
@@ -2832,10 +2952,12 @@ export default function MacPage() {
                 onClick={async () => {
                   const motivosCopy = [...motivosIndeferimento];
                   const obsCopy = obsIndeferimento;
-                  setIndeferimentoPendente({ motivos: motivosCopy, obs: obsCopy });
+                  const fotosCopy = [...fotosIndeferimento];
+                  setIndeferimentoPendente({ motivos: motivosCopy, obs: obsCopy, fotos: fotosCopy });
                   setModalIndeferimento(false);
                   setMotivosIndeferimento([]);
                   setObsIndeferimento("");
+                  setFotosIndeferimento([]);
                   await salvar("indeferido");
                 }}
                 className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">

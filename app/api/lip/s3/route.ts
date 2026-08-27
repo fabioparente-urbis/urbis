@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
 import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
 import { aplicarMarcadores } from "@/lib/promptCampos";
+import { registrarChamadaIA } from "@/lib/iaUso";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -131,11 +132,13 @@ async function processarJobBackground(jobId: string, params: {
 }) {
   const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso } = params;
   const tipoArquivo = params.tipoArquivo ?? "application/pdf";
+  const t0 = Date.now();
   try {
     let texto = "";
     let geminiOk = false;
     let ultimoStatus = 0;
     let ultimoCorpo = "";
+    let usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number } | null = null;
     // Sob sobrecarga o Gemini tende a: (a) devolver 503, ou (b) devolver 200 com
     // texto explicativo em vez do JSON pedido. Mais tentativas e espera mais
     // longa cobrem picos de demanda que hoje derrubam a leitura de vez.
@@ -165,6 +168,7 @@ async function processarJobBackground(jobId: string, params: {
             JSON.parse(testeJson);
             texto = candidato;
             geminiOk = true;
+            usageMetadata = data.usageMetadata ?? null;
             console.log(`[S3-bg] job=${jobId} OK`);
             break;
           } catch {
@@ -197,6 +201,10 @@ async function processarJobBackground(jobId: string, params: {
       else if (ultimoStatus === 503 || cl.includes("overloaded")) motivo = "GEMINI_SOBRECARREGADO";
       else if (ultimoStatus === 200 && cl.startsWith("json inválido")) motivo = "JSON_INVALIDO";
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
+      await registrarChamadaIA({
+        modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+        modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: motivo,
+      });
       await supabaseAdmin.from("lip_jobs").update({
         status: "erro",
         erro: motivo + ": " + ultimoCorpo.slice(0, 300),
@@ -204,6 +212,13 @@ async function processarJobBackground(jobId: string, params: {
       }).eq("id", jobId);
       return;
     }
+
+    await registrarChamadaIA({
+      modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
+      tokensEntrada: usageMetadata?.promptTokenCount ?? null,
+      tokensSaida: usageMetadata?.candidatesTokenCount ?? null,
+    });
 
     const clean = texto.replace(/```json|```/g, "").trim();
     let dados: any;
@@ -290,6 +305,10 @@ async function processarJobBackground(jobId: string, params: {
     }
   } catch (e: any) {
     console.error(`[S3-bg] job=${jobId} falha:`, e?.message);
+    await registrarChamadaIA({
+      modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+    });
     await supabaseAdmin.from("lip_jobs").update({
       status: "erro",
       erro: e?.message || "Erro desconhecido",

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id, data } = body;
+    const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id, data, padrao_id, fotos } = body;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -142,11 +142,28 @@ export async function POST(req: NextRequest) {
     const { gerarDespachoRegularizacao, gerarIndeferimento, gerarArquivamento, assuntoParaDocumento } = await import("@/lib/geradores");
     const assunto = await assuntoParaDocumento((proc as any)?.tipo_processo, assunto_id ?? (proc as any)?.assunto_id);
 
+    // Padrão de despacho: busca o texto NO SERVIDOR pelo id — nunca confia
+    // em texto vindo do client. Só vale para tipo="despacho" (parecer fica
+    // fora do escopo desta feature).
+    let corpoPersonalizado: string | undefined;
+    if (padrao_id && tipo === "despacho") {
+      const { data: padrao } = await supabase
+        .from("despacho_padroes")
+        .select("corpo")
+        .eq("id", padrao_id)
+        .eq("ativo", true)
+        .maybeSingle();
+      if (padrao?.corpo) corpoPersonalizado = padrao.corpo;
+    }
+
     let buffer: Buffer;
     if (tipo === "despacho") {
-        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante, responsavelTecnico, data, tipoProcesso: (proc as any)?.tipo_processo });
+        buffer = await gerarDespachoRegularizacao({ processo, interessado, numeroProcessoFisico, numeroDespacho, naoConformes, naoConformesAgrupados, observacoes, observacoesPorAba, analises: analisesParaDoc, assinante, responsavelTecnico, data, tipoProcesso: (proc as any)?.tipo_processo, corpoPersonalizado });
     } else if (tipo === "indeferimento") {
-      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
+      const fotosValidas = Array.isArray(fotos)
+        ? fotos.filter((f: any) => f?.base64 && (f?.tipo === "png" || f?.tipo === "jpg")).map((f: any) => ({ base64: f.base64, tipo: f.tipo, legenda: String(f.legenda ?? "") }))
+        : undefined;
+      buffer = await gerarIndeferimento({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data, fotos: fotosValidas });
     } else {
       buffer = await gerarArquivamento({ processo, interessado, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
     }

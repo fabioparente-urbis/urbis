@@ -376,7 +376,7 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
   });
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -417,13 +417,22 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   const temItensChecklist =
     (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) ||
     (dados.naoConformes && dados.naoConformes.length > 0);
-  if (temItensChecklist) {
+  if (dados.corpoPersonalizado) {
+    // Padrão de despacho selecionado — substitui inteiramente a montagem a
+    // partir do checklist (itens não-conformes são ignorados no documento).
     children.push(p([txt("PENDÊNCIAS:", { bold: true, underline: true })], { after: 80 }));
-  }
-  if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
-    gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
+    dados.corpoPersonalizado.split("\n").filter(l => l.trim()).forEach(linha => {
+      children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 80, line: 260 }, children: [txt(linha)] }));
+    });
   } else {
-    gerarItens(dados.naoConformes).forEach(item => children.push(item));
+    if (temItensChecklist) {
+      children.push(p([txt("PENDÊNCIAS:", { bold: true, underline: true })], { after: 80 }));
+    }
+    if (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) {
+      gerarItensAgrupados(dados.naoConformesAgrupados).forEach(item => children.push(item));
+    } else {
+      gerarItens(dados.naoConformes).forEach(item => children.push(item));
+    }
   }
   if (dados.observacoesPorAba && Object.keys(dados.observacoesPorAba).length > 0) {
     children.push(vazio(100));
@@ -508,7 +517,28 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; }): Promise<Buffer> {
+/**
+ * Lê largura/altura de PNG ou JPEG direto dos bytes (sem depender de libs de imagem) —
+ * necessário porque o docx exige a transformação explícita em pixels no ImageRun.
+ */
+function dimensoesImagem(buffer: Buffer, tipo: "png" | "jpg"): { width: number; height: number } {
+  if (tipo === "png") {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  }
+  // JPEG: percorre os marcadores até achar um SOFn (dimensões ficam nele).
+  let offset = 2;
+  while (offset < buffer.length) {
+    if (buffer[offset] !== 0xff) break;
+    const marker = buffer[offset + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: buffer.readUInt16BE(offset + 5), width: buffer.readUInt16BE(offset + 7) };
+    }
+    offset += 2 + buffer.readUInt16BE(offset + 2);
+  }
+  return { width: 420, height: 300 };
+}
+
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; fotos?: { base64: string; tipo: "png" | "jpg"; legenda: string }[]; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -547,6 +577,23 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   }
   if (dados.observacoes) {
     children.push(p([txt("Observações: ", { bold: true }), txt(dados.observacoes)], { after: 100 }));
+  }
+  if (dados.fotos?.length) {
+    children.push(vazio(80));
+    children.push(p([txt("Documentação fotográfica anexa:", { bold: true })], { after: 100 }));
+    for (const foto of dados.fotos) {
+      const buffer = Buffer.from(foto.base64, "base64");
+      const { width, height } = dimensoesImagem(buffer, foto.tipo);
+      const larguraMax = 420;
+      const escala = width > larguraMax ? larguraMax / width : 1;
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER, spacing: { before: 0, after: 40 },
+        children: [new ImageRun({ data: buffer, transformation: { width: Math.round(width * escala), height: Math.round(height * escala) }, type: foto.tipo })],
+      }));
+      if (foto.legenda) {
+        children.push(p([txt(foto.legenda, { italics: true, size: 18 })], { align: AlignmentType.CENTER, after: 160 }));
+      }
+    }
   }
   children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias", { bold: true }), txt(", contados a partir da publicação deste parecer, conforme previsto no Artigo 9º do Decreto nº. 2.559/2018. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));

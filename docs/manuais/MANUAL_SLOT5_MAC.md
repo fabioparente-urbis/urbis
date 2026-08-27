@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.17
-**Data:** 2026-08-26
+**Versão:** 1.19
+**Data:** 2026-08-27
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -610,6 +610,27 @@ os slots** (`/api/numeracao/proximo`), nunca série própria por slot. `peek` ao
 itens **ativos** do checklist — marca presa a item desativado do checklist sumiria calada, por isso
 a rota devolve o cabeçalho `X-Exigencias-Perdidas` e a tela avisa.
 
+**Padrões de Despacho (27/08/2026, revisado no mesmo dia)**: o modal ganhou um seletor "Usar um
+padrão (opcional)" — só ESCOLHE entre padrões já existentes, sem link nenhum pra criar/editar/
+excluir a partir daqui (decisão explícita do Fábio: gerenciamento é tarefa do ADMIN, não do fluxo de
+emissão). Quem cria/edita/exclui os padrões é a tela `/admin/despacho-padroes`, alcançada pelo botão
+"📋 Padrões de Despacho" dentro de **Configurações** (`/admin/configuracoes`) — não por um link
+dentro do modal. Lá dentro há um seletor em cascata (Slot → Módulo → Tipo) porque a tela pode ser
+aberta direto do menu, sem vir de um despacho aberto; escolhido o bucket, é lista + formulário de
+CRUD, isolado por bucket (nenhum padrão criado num aparece em outro slot, módulo ou tipo). Toda
+criação/edição/exclusão dispara auditoria (`registrar({modulo:"DESPACHO", acao:"PADRAO_DESPACHO_..."
+})`, satélite MAP — ver `lib/auditoria-tipos.ts`). Ao escolher um padrão no modal de emissão, a rota
+`POST /api/mac/slot-05/despacho` busca o texto **no servidor** por `padrao_id` (nunca confia em
+texto vindo do client) e `gerarDespacho.ts` usa `paragrafoSimples()` linha a linha em vez de
+`montarExigencias()` — **as exigências do checklist são inteiramente ignoradas no documento** quando
+um padrão está selecionado. Os headers `X-Exigencias`/`X-Exigencias-Perdidas` saem `0`/`0` nesse
+caso (e um novo header `X-Padrao-Aplicado` leva o título), para a notificação da tela não afirmar "N
+exigências" sobre algo que não foi impresso. O checklist real continua sendo gravado em
+`mdp_registros.conteudo.pendencias_mac` pelo client (`registrarNosSatelites`) mesmo com padrão
+aplicado — é auditoria do estado real da análise, não do que saiu no papel; `padrao_id`/
+`padrao_titulo` entram no mesmo `conteudo`. Schema: tabela nova `despacho_padroes`
+(`supabase/migrations/2026_08_27_despacho_padroes.sql`), API `app/api/despacho-padroes/route.ts`.
+
 **Armadilhas do template docx** (relevantes para qualquer edição futura do gerador):
 - **Namespaces**: editar `document.xml` sem registrar todos os prefixos do `<w:document>` original
   faz o Word recusar o arquivo.
@@ -620,11 +641,23 @@ a rota devolve o cabeçalho `X-Exigencias-Perdidas` e a tela avisa.
 
 ### 8.2 Despacho Interno — construído, em produção
 
-Não tem gerador próprio. A rota `/api/despacho-interno` já era agnóstica de slot (resolve o assunto
-pelo slug, usa `lib/geradores.ts`, manda e-mail ao responsável, grava no MDP) — o Slot 5 reusa ela
-inteira. Sai da MESMA série de numeração do despacho ao interessado, com `documento=despacho_interno`
-discriminando o commit (sem isso um sobrescreveria o número do outro). O LIP não precisou de mudança
-— o botão nunca foi travado por slot.
+Tem rota própria — `app/api/mac/slot-05/despacho-interno/route.ts` — decisão do Fábio: o ato é da
+Aprovação de Projeto e não pode depender do gerador da Regularização. Sai da MESMA série de
+numeração do despacho ao interessado, com `documento=despacho_interno` discriminando o commit (sem
+isso um sobrescreveria o número do outro). Chamado tanto pela tela própria do MAC (`modalDI` em
+`analise-aprovacao-projeto/[codigo]/page.tsx`) quanto pelo botão de Despacho Interno do LIP — em
+`ProcessoClient.tsx`, `handleDespachoInterno` desvia por `tipoUrl === "slot_05"` para esta rota; os
+demais slots usam `/api/despacho-interno` (agnóstica).
+
+**Padrões de Despacho (27/08/2026, revisado no mesmo dia)**: mesmo seletor "Usar um padrão" da seção
+8.1 (só seleção — CRUD é sempre em `/admin/despacho-padroes`, ver seção 8.1), só que aqui é puro
+preenchimento de formulário — a rota de emissão não mudou de lógica, continua aceitando texto livre
+em `corpo`. Ao escolher um padrão, o texto preenche a textarea (e o
+destinatário, se o padrão tiver um sugerido) mas continua **editável** antes de gerar — quem decide
+e clica "Gerar e Baixar" continua sendo o analista. `padrao_id`/`padrao_titulo` (quando usados) são
+gravados em `mdp_registros.conteudo` para rastreabilidade. Bucket próprio por módulo:
+`modulo=MAC&tipo_despacho=interno` aqui, `modulo=LIP&tipo_despacho=interno` no botão do LIP — os
+dois nunca compartilham a mesma lista de padrões, mesmo sendo o mesmo slot.
 
 ### 8.3 Laudo e Indeferimento — não construídos
 
@@ -1224,6 +1257,8 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.19 | 2026-08-27 | Seção 8: revisão da 1.18 — o Fábio corrigiu o desenho inicial. CRUD de Padrões de Despacho sai do modal de emissão (removido o link "📋 Padrões" de dentro dele) e passa a viver só em `/admin/despacho-padroes`, alcançado por um botão dentro de Configurações (`/admin/configuracoes`), com seletor em cascata Slot→Módulo→Tipo pra funcionar como destino direto do ADMIN. Dentro do modal de emissão só resta "usar" um padrão já criado. Criação/edição/exclusão de padrão agora dispara evento de auditoria no satélite MAP (`registrar()`, novas ações `PADRAO_DESPACHO_CRIADO/EDITADO/EXCLUIDO` em `lib/auditoria-tipos.ts`) |
+| 1.18 | 2026-08-27 | Seção 8: "Padrões de Despacho" — textos reutilizáveis para Despacho Interno e Despacho ao Interessado, isolados por (módulo LIP\|MAC × slot × interno\|externo), tabela nova `despacho_padroes`. No despacho ao interessado, escolher um padrão substitui inteiramente as exigências do checklist no documento (`paragrafoSimples()` em vez de `montarExigencias()`); no despacho interno é só preenchimento de formulário, texto continua editável. Corrigida também a descrição da seção 8.2, que estava desatualizada (dizia reusar `/api/despacho-interno`; a rota própria do Slot 5 já existia antes desta mudança) |
 | 1.17 | 2026-08-26 | Seção 14.17: `liberada` (botão Análise N) passa a checar despacho/parecer emitido na análise anterior (`numero_despacho`/`numero_parecer`), não a mera existência da linha — achado ao vivo: clique errado criou Análise 3 em branco sem a 2 sequer respondida. Reproduzido nos três slots (1, 2 e 5), com defesa em profundidade em `selecionarOuCriarAnalise` |
 | 1.16 | 2026-08-26 | Seção 14.16: análise nova nasce em branco (herda só os `nao_aplica`) + botão 📄 de copiar a anterior a partir da 2ª, nos três slots; `selecionarAnalise` relê do servidor; índice único `analises_mac_unica_por_numero` em produção impede "análise fantasma" (duas linhas com o mesmo número). Bolinha laranja de aba incompleta ficou fora do Slot 5, por decisão do Fábio. Slot 5 não verificado visualmente (exige sessão) |
 | 1.15 | 2026-08-26 | Seções 14.13-14.15: 6 filtros de térreo/vagas + 2 campos internos (`ehTerreo`, `temVagasExigidas`); título de grupo do despacho ganhou `keepNext` (item partindo entre páginas); filtro `S/ EIT E EIV` desativado por duplicar os botões da tela, 5 itens órfãos cobertos por `idsExtras` |

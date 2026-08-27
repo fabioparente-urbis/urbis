@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.16
-**Data:** 2026-08-26
+**Versão:** 1.18
+**Data:** 2026-08-27
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1064,10 +1064,36 @@ para misturar (exportação errada).
 
 ---
 
+## 21. Padrões de Despacho no botão de Despacho Interno (27/08/2026)
+
+O modal de Despacho Interno em `ProcessoClient.tsx` (compartilhado pelos três slots, desviado por
+`tipoUrl`) ganhou um seletor "Usar um padrão" ao lado do label "Conteúdo" — mesma mudança aplicada
+nas telas do MAC (ver `MANUAL_SLOT5_MAC.md`, seção 8.2). **Revisado ainda no dia 27/08/2026**: o
+modal só USA padrões já criados, sem link nenhum pra gerenciar — criar/editar/excluir um padrão
+(bucket `modulo=LIP&tipo_despacho=interno`, isolado por `assunto_id`) é feito só em
+`/admin/despacho-padroes`, alcançado por um botão dentro de Configurações (`/admin/configuracoes`),
+nunca a partir de dentro deste modal.
+
+**Sem lógica exclusiva do Slot 5**: o botão é genérico — o mesmo código atende Regularização, Aceite
+SEI e Aprovação de Projeto, o bucket certo é resolvido pelo `assunto_id` do processo aberto (já
+existia em `assuntoIdRef`), sem nenhum `if (tipoUrl === "slot_05")` novo. Esta seção existe só para
+registrar, na data certa, que o Slot 5 foi conferido: o botão de Despacho Interno do LIP para o Slot
+5 continua chamando `/api/mac/slot-05/despacho-interno` (rota própria, inalterada — só ganhou os
+campos opcionais `padrao_id`/`padrao_titulo` no body, gravados no MDP para rastreabilidade).
+
+**O LIP não tem, e não terá, Despacho/Parecer Externo** — `ProcessoClient.tsx` nunca chamou
+`/api/despacho-regularizacao`, `/api/despacho-aceite-sei` nem `/api/mac/slot-05/despacho`; só o MAC
+tem esse fluxo. A tabela nova `despacho_padroes` trava essa regra também no banco
+(`CHECK (NOT (modulo = 'LIP' AND tipo_despacho = 'externo'))`) — não é só convenção de tela.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.18 | 2026-08-27 | Seção 21: revisão da 1.17 — o Fábio corrigiu o desenho inicial. O link "📋 Padrões" saiu do modal de Despacho Interno do LIP; o modal só usa padrões já criados. CRUD (criar/editar/excluir) vive só em `/admin/despacho-padroes`, alcançado por Configurações — ver `MANUAL_SLOT5_MAC.md` v1.19 |
+| 1.17 | 2026-08-27 | Seção 21: botão de Despacho Interno do LIP (`ProcessoClient.tsx`, todos os slots) ganhou seletor "Usar um padrão" + link "📋 Padrões" — tabela nova `despacho_padroes`, bucket `modulo=LIP&tipo_despacho=interno`, isolado por `assunto_id`. Sem lógica exclusiva do Slot 5; conferido que o botão de Despacho Interno do Slot 5 continua na rota própria `/api/mac/slot-05/despacho-interno`. Confirmado que o LIP não tem (nem terá) Despacho Externo — ver `MANUAL_SLOT5_MAC.md` v1.18 para o que mudou do lado MAC |
 | 1.16 | 2026-08-26 | Seção 20: `MAC →`/`MAC ↗`/"Ir assim mesmo" ganharam disabled+texto de carregamento durante o salvar() (sem isso o analista clicava várias vezes, empilhando POST e navegação); `GET /api/processo/exportar-lip` passou a filtrar `lip_abas` por `assunto_id` do processo (antes misturava campos de todos os slots) e a exigir sessão autenticada. Tela e rota compartilhadas pelos três slots, mas o Slot 5 é onde os dois doíam mais |
 | 1.15 | 2026-08-26 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.16 do `MANUAL_SLOT5_MAC.md`): análise nova passou a nascer em branco herdando só os `nao_aplica`, ganhou botão 📄 de copiar a anterior, `selecionarAnalise` passou a reler do servidor e o banco ganhou índice único por `numero_analise`. Tudo em `analises_mac` e na tela do MAC; nenhum campo, prompt ou leitura do LIP tocado |
 | 1.0 | 2026-08-25 | Primeira versão do manual, consolidando o estado do LIP do Slot 5 a partir de toda a memória de sessão acumulada e conferência ao vivo de alguns números contra o banco |

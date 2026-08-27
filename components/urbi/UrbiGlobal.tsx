@@ -163,6 +163,18 @@ export default function UrbiGlobal() {
     };
   }, []);
 
+  // O layout raiz não remonta entre navegações (App Router só troca
+  // {children}), então login/logout não desmonta o URBI sozinho. Sem isso,
+  // ao expirar a sessão (useAutoLogout) ou clicar em "Sair", o widget
+  // continua vivo com o usuário e a conversa antigos por cima da tela de
+  // login.
+  useEffect(() => {
+    if (pathname?.startsWith("/login") || pathname?.startsWith("/redefinir-senha")) {
+      setUsuario(null);
+      setUrbiAberto(false);
+    }
+  }, [pathname]);
+
   // Microfone só liga com clique — nunca automático
   useEffect(() => {
     return () => pararEscuta();

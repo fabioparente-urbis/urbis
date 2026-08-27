@@ -73,7 +73,9 @@ export default function Rastreabilidade() {
   const router = useRouter();
   const [dados, setDados] = useState<any>(null);
   const [erro, setErro] = useState("");
-  const [modulo, setModulo] = useState<"LIP" | "MAC">("LIP");
+  const [modulo, setModulo] = useState<"LIP" | "MAC" | "IA">("LIP");
+  const [dadosIA, setDadosIA] = useState<any>(null);
+  const [erroIA, setErroIA] = useState("");
   const [busca, setBusca] = useState("");
   const [fSecao, setFSecao] = useState("");
   const [fMetodo, setFMetodo] = useState("");
@@ -102,7 +104,7 @@ export default function Rastreabilidade() {
   const [soLacunas, setSoLacunas] = useState(false);
   const [fPostura, setFPostura] = useState("");
 
-  function trocarModulo(m: "LIP" | "MAC") {
+  function trocarModulo(m: "LIP" | "MAC" | "IA") {
     setModulo(m); setAberto(null);
     setBusca(""); setFSecao(""); setFMetodo(""); setFStatus(""); setFFonte(""); setFIA("");
     setFClassifLip(""); setFClassifBip(""); setFTemVinculoLip(""); setFTemVinculoBip(""); setFPostura("");
@@ -125,6 +127,7 @@ export default function Rastreabilidade() {
   }
 
   useEffect(() => {
+    if (modulo === "IA") return;
     setDados(null); setErro("");
     const qs = new URLSearchParams({ modulo, slot: "slot_05" });
     if (processoAtivo) qs.set("processo", processoAtivo);
@@ -133,6 +136,15 @@ export default function Rastreabilidade() {
       .then((d) => (d.ok ? setDados(d) : setErro(d.erro)))
       .catch((e) => setErro(String(e)));
   }, [modulo, processoAtivo]);
+
+  useEffect(() => {
+    if (modulo !== "IA") return;
+    setDadosIA(null); setErroIA("");
+    fetch("/api/admin/rastreabilidade/ia", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => (d.ok ? setDadosIA(d) : setErroIA(d.erro)))
+      .catch((e) => setErroIA(String(e)));
+  }, [modulo]);
 
   const linhas: Linha[] = dados?.linhas ?? [];
   const opcoes = useMemo(() => ({
@@ -196,7 +208,7 @@ export default function Rastreabilidade() {
         não pode divergir do que o sistema faz.
       </p>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex items-center gap-2 mb-4" style={{ display: modulo === "IA" ? "none" : "flex" }}>
         <input value={processoBusca} onChange={(e) => setProcessoBusca(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && setProcessoAtivo(processoBusca.trim())}
           placeholder="código do processo — ver RESULTADO de uma execução"
@@ -241,8 +253,18 @@ export default function Rastreabilidade() {
                 {m.modulo} · {m.total} {m.total === 1 ? "registro" : "registros"}
               </button>
             ))}
+            <button onClick={() => trocarModulo("IA")}
+              className={`px-3 py-1.5 rounded text-sm font-semibold ${modulo === "IA"
+                ? "bg-[var(--primary)] text-white"
+                : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+              💰 IA / Custos
+            </button>
           </div>
 
+          {modulo === "IA" ? (
+            <PainelIA dados={dadosIA} erro={erroIA} onRegistrado={() => trocarModulo("IA")} />
+          ) : (
+          <>
           {!!linhas.length && (
             <>
               {/* Filtros */}
@@ -662,8 +684,255 @@ export default function Rastreabilidade() {
           {!linhas.length && dados && (
             <p className="text-sm text-[var(--text-muted)]">Nenhum registro encontrado.</p>
           )}
+          </>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Aba "IA / Custos" — uso real do Gemini (urbis_api_calls) e aportes de crédito
+ * (urbis_aportes, registrados manualmente: a Google não expõe isso por API).
+ */
+function PainelIA({ dados, erro, onRegistrado }: { dados: any; erro: string; onRegistrado: () => void }) {
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [dataHora, setDataHora] = useState(() => new Date().toISOString().slice(0, 16));
+  const [email, setEmail] = useState("fabio.parente@gmail.com");
+  const [valorReais, setValorReais] = useState("");
+  const [contaFaturamento, setContaFaturamento] = useState("My Billing Account 1");
+  const [projeto, setProjeto] = useState("urbis-gemini");
+  const [observacao, setObservacao] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erroForm, setErroForm] = useState("");
+
+  async function registrarAporte() {
+    if (!valorReais || Number(valorReais) <= 0) { setErroForm("informe o valor"); return; }
+    setSalvando(true); setErroForm("");
+    try {
+      const r = await fetch("/api/admin/rastreabilidade/ia", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dataHora, email, valorReais: Number(valorReais), contaFaturamento, projeto, observacao }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao registrar");
+      setValorReais(""); setObservacao(""); setMostrarForm(false);
+      onRegistrado();
+    } catch (e: any) {
+      setErroForm(String(e?.message ?? e));
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  if (erro) return <p className="text-sm text-[#DC2626]">{erro}</p>;
+  if (!dados) return <p className="text-sm text-[var(--text-muted)]">carregando…</p>;
+
+  const cartao = "border border-[var(--border)] rounded-lg p-3";
+  const rotulo = "text-[10px] uppercase text-[var(--text-muted)] font-bold";
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 text-xs bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg p-3">
+        <span>
+          💳 Para recarregar crédito ou trocar forma de pagamento:{" "}
+          <a href={dados.linkPagamento} target="_blank" rel="noopener noreferrer"
+            className="text-[var(--primary)] underline font-semibold">
+            aistudio.google.com — Faturamento
+          </a>
+        </span>
+        {dados.mediaMensalReais != null && (
+          <span className="text-[var(--text-muted)]">
+            · média histórica de aportes: <b>R$ {dados.mediaMensalReais.toFixed(2)}/mês</b>
+          </span>
+        )}
+      </div>
+
+      {/* Resumo de uso */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { t: "Hoje", r: dados.resumo.hoje },
+          { t: "Últimos 7 dias", r: dados.resumo.ultimos7Dias },
+          { t: "Últimos 30 dias", r: dados.resumo.ultimos30Dias },
+        ].map(({ t, r }) => (
+          <div key={t} className={cartao}>
+            <p className={rotulo}>{t}</p>
+            <p className="text-lg font-bold text-[var(--text-primary)]">{r.chamadas} chamadas</p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              {r.erros} erro(s) · ~US$ {r.custoEstimadoUsd.toFixed(4)} estimado
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Aportes */}
+      <div className={cartao}>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-sm font-bold text-[var(--text-primary)]">
+            Aportes de crédito · total R$ {dados.totalAportesReais.toFixed(2)}
+          </p>
+          <button onClick={() => setMostrarForm((v) => !v)}
+            className="px-2 py-1 rounded text-xs font-semibold bg-[var(--primary)] text-white">
+            {mostrarForm ? "cancelar" : "+ registrar aporte"}
+          </button>
+        </div>
+
+        {mostrarForm && (
+          <div className="flex flex-wrap gap-2 items-end mb-3 p-2 bg-[var(--bg-secondary)] rounded">
+            <div>
+              <p className={rotulo}>Data/hora</p>
+              <input type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <p className={rotulo}>Email</p>
+              <input value={email} onChange={(e) => setEmail(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs w-48" />
+            </div>
+            <div>
+              <p className={rotulo}>Valor (R$)</p>
+              <input type="number" step="0.01" value={valorReais} onChange={(e) => setValorReais(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs w-24" />
+            </div>
+            <div>
+              <p className={rotulo}>Conta de faturamento</p>
+              <input value={contaFaturamento} onChange={(e) => setContaFaturamento(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs w-40" />
+            </div>
+            <div>
+              <p className={rotulo}>Projeto</p>
+              <input value={projeto} onChange={(e) => setProjeto(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs w-32" />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <p className={rotulo}>Observação</p>
+              <input value={observacao} onChange={(e) => setObservacao(e.target.value)}
+                className="bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded px-2 py-1 text-xs w-full" />
+            </div>
+            <button onClick={registrarAporte} disabled={salvando}
+              className="px-3 py-1 rounded text-xs font-semibold bg-[var(--primary)] text-white disabled:opacity-50">
+              {salvando ? "salvando…" : "salvar"}
+            </button>
+            {erroForm && <p className="text-[10px] text-[#DC2626] w-full">✗ {erroForm}</p>}
+          </div>
+        )}
+
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] uppercase text-[var(--text-muted)] text-left">
+              <th className="pb-1">Quando</th><th>Email</th><th>Valor</th><th>Conta</th><th>Origem</th><th>Observação</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dados.aportes.map((a: any) => (
+              <tr key={a.id} className="border-t border-[var(--border)]">
+                <td className="py-1">{new Date(a.data_hora).toLocaleString("pt-BR")}</td>
+                <td>{a.email}</td>
+                <td>R$ {Number(a.valor_reais).toFixed(2)}</td>
+                <td>{a.conta_faturamento ?? "—"}</td>
+                <td>{a.origem === "historico" ? "histórico" : "manual"}</td>
+                <td className="text-[var(--text-muted)]">{a.observacao ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Uso por dia */}
+      <div className={cartao}>
+        <p className="text-sm font-bold text-[var(--text-primary)] mb-2">Uso por dia (últimos 30)</p>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] uppercase text-[var(--text-muted)] text-left">
+              <th className="pb-1">Dia</th><th>Chamadas</th><th>Erros</th><th>Custo estimado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dados.porDia.map((l: any) => (
+              <tr key={l.chave} className="border-t border-[var(--border)]">
+                <td className="py-1">{l.chave}</td><td>{l.chamadas}</td><td>{l.erros}</td>
+                <td>US$ {l.custoEstimadoUsd.toFixed(4)}</td>
+              </tr>
+            ))}
+            {!dados.porDia.length && <tr><td colSpan={4} className="py-2 text-[var(--text-muted)]">sem chamadas nos últimos 90 dias</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Por processo e por slot */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className={cartao}>
+          <p className="text-sm font-bold text-[var(--text-primary)] mb-2">Por processo</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] uppercase text-[var(--text-muted)] text-left">
+                <th className="pb-1">Processo</th><th>Chamadas</th><th>Custo est.</th><th>Última</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.porProcesso.map((l: any) => (
+                <tr key={l.chave} className="border-t border-[var(--border)]">
+                  <td className="py-1">{l.chave}</td><td>{l.chamadas}</td>
+                  <td>US$ {l.custoEstimadoUsd.toFixed(4)}</td>
+                  <td className="text-[var(--text-muted)]">{new Date(l.ultimaChamada).toLocaleDateString("pt-BR")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className={cartao}>
+          <p className="text-sm font-bold text-[var(--text-primary)] mb-2">Por slot</p>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-[10px] uppercase text-[var(--text-muted)] text-left">
+                <th className="pb-1">Slot</th><th>Chamadas</th><th>Erros</th><th>Custo est.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.porSlot.map((l: any) => (
+                <tr key={l.chave} className="border-t border-[var(--border)]">
+                  <td className="py-1">{l.chave}</td><td>{l.chamadas}</td><td>{l.erros}</td>
+                  <td>US$ {l.custoEstimadoUsd.toFixed(4)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Chamadas recentes */}
+      <div className={cartao}>
+        <p className="text-sm font-bold text-[var(--text-primary)] mb-2">Chamadas recentes</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs whitespace-nowrap">
+            <thead>
+              <tr className="text-[10px] uppercase text-[var(--text-muted)] text-left">
+                <th className="pb-1">Quando</th><th>Módulo</th><th>Slot</th><th>Operação</th><th>Processo</th>
+                <th>Tamanho</th><th>Duração</th><th>Tokens (in/out)</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.recentes.map((c: any, i: number) => (
+                <tr key={i} className="border-t border-[var(--border)]">
+                  <td className="py-1">{new Date(c.criado_em).toLocaleString("pt-BR")}</td>
+                  <td>{c.modulo}</td>
+                  <td>{c.slot ?? "—"}</td>
+                  <td>{c.operacao}</td>
+                  <td>{c.processo_codigo ?? "—"}</td>
+                  <td>{c.tamanho_bytes ? `${(c.tamanho_bytes / 1024 / 1024).toFixed(2)} MB` : "—"}</td>
+                  <td>{c.duracao_ms ? `${(c.duracao_ms / 1000).toFixed(1)}s` : "—"}</td>
+                  <td>{c.tokens_entrada ?? "—"} / {c.tokens_saida ?? "—"}</td>
+                  <td className={c.status === "erro" ? "text-[#DC2626]" : "text-[#16A34A]"} title={c.motivo_erro ?? ""}>
+                    {c.status}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL } from "@/lib/constants";
 import { supabase } from "@/lib/supabaseClient";
 import { aplicarMarcadores } from "@/lib/promptCampos";
+import { registrarChamadaIA } from "@/lib/iaUso";
 
 export const maxDuration = 280;
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  let processoCodigo: string | null = null;
+  let slot: string | null = null;
   try {
-    const { fileUri, assunto_id, mimeType } = await req.json();
+    const { fileUri, assunto_id, mimeType, codigo, tipoProcesso } = await req.json();
+    processoCodigo = typeof codigo === "string" ? codigo : null;
+    slot = typeof tipoProcesso === "string" ? tipoProcesso : null;
     // Sem isto, print de tela ia para o Gemini rotulado como PDF.
     const tipo = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "application/pdf";
     if (!fileUri)
@@ -61,6 +67,10 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const err = await res.text();
+      await registrarChamadaIA({
+        modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
+        modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500),
+      });
       return NextResponse.json({ ok: false, erro: err }, { status: 500 });
     }
 
@@ -69,8 +79,19 @@ export async function POST(req: NextRequest) {
     const clean = texto.replace(/```json|```/g, "").trim();
     const dados = JSON.parse(clean);
 
+    await registrarChamadaIA({
+      modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
+      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
+      tokensEntrada: data.usageMetadata?.promptTokenCount ?? null,
+      tokensSaida: data.usageMetadata?.candidatesTokenCount ?? null,
+    });
+
     return NextResponse.json({ ok: true, ...dados });
   } catch (e: any) {
+    await registrarChamadaIA({
+      modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
+      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+    });
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }
 }

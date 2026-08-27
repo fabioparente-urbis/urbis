@@ -134,6 +134,8 @@ export async function POST(req: NextRequest) {
           conteudo: {
             corpo: corpo || "",
             pendencias_lip: Array.isArray(body.pendencias_lip) ? body.pendencias_lip : [],
+            padrao_id: (body.padrao_id as string | null) || null,
+            padrao_titulo: (body.padrao_titulo as string | null) || null,
           },
           usuario_id: usuarioId,
         });

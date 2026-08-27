@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { codigo, numeroDespacho, dataEmissao, analiseId } = await req.json().catch(() => ({}));
+    const { codigo, numeroDespacho, dataEmissao, analiseId, padrao_id } = await req.json().catch(() => ({}));
     if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
     if (!numeroDespacho) return NextResponse.json({ ok: false, erro: "número do despacho obrigatório" }, { status: 400 });
 
@@ -104,6 +104,22 @@ export async function POST(req: NextRequest) {
     }
     const perdidos = idsNaoConformes.length - naoConformes.length;
 
+    // Padrão de despacho: busca o texto NO SERVIDOR pelo id — nunca confia em
+    // texto vindo do client. Quando presente, substitui inteiramente as
+    // exigências do checklist no documento (naoConformes continua sendo
+    // gravado no MDP pelo client, para auditoria — ver registrarNosSatelites).
+    let corpoPersonalizado: string | undefined;
+    let padraoTitulo: string | undefined;
+    if (padrao_id) {
+      const { data: padrao } = await supabaseAdmin
+        .from("despacho_padroes")
+        .select("titulo, corpo")
+        .eq("id", padrao_id)
+        .eq("ativo", true)
+        .maybeSingle();
+      if (padrao?.corpo) { corpoPersonalizado = padrao.corpo; padraoTitulo = padrao.titulo; }
+    }
+
     // Assinatura: o usuário logado, não o dono do processo — quem assina é quem emite.
     const { data: membro } = await supabaseAdmin
       .from("usuarios").select("nome, cargo, cau_crea").eq("id", usuario.id).maybeSingle();
@@ -117,6 +133,7 @@ export async function POST(req: NextRequest) {
       dataEmissao: data,
       cheadvN: valor("cheadvN") || null,
       naoConformes,
+      corpoPersonalizado,
       datasEtapas,
       assinante: {
         nome: (membro as any)?.nome || "—",
@@ -130,8 +147,12 @@ export async function POST(req: NextRequest) {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="despacho_${codigo}_${numeroDespacho}.docx"`,
         // A tela mostra estes números como conferência do que entrou no documento.
-        "X-Exigencias": String(naoConformes.length),
-        "X-Exigencias-Perdidas": String(perdidos > 0 ? perdidos : 0),
+        // Com padrão aplicado, o documento não leva as exigências do checklist —
+        // os headers refletem 0/0 e um sinalizador à parte, pra notificação da
+        // tela não afirmar "N exigências" sobre algo que não foi impresso.
+        "X-Exigencias": corpoPersonalizado ? "0" : String(naoConformes.length),
+        "X-Exigencias-Perdidas": corpoPersonalizado ? "0" : String(perdidos > 0 ? perdidos : 0),
+        ...(padraoTitulo ? { "X-Padrao-Aplicado": encodeURIComponent(padraoTitulo) } : {}),
       },
     });
   } catch (e: any) {

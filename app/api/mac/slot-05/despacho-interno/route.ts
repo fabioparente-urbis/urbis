@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { codigo, numeroDespacho, data, destino, corpo, numero_analise } = await req.json().catch(() => ({}));
+    const { codigo, numeroDespacho, data, destino, corpo, numero_analise, padrao_id, padrao_titulo } = await req.json().catch(() => ({}));
     if (!codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatório" }, { status: 400 });
     if (!numeroDespacho) return NextResponse.json({ ok: false, erro: "número do despacho obrigatório" }, { status: 400 });
     if (!destino) return NextResponse.json({ ok: false, erro: "destinatário obrigatório" }, { status: 400 });
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
         numero: String(numeroDespacho),
         destinatario: String(destino),
         data_despacho: dataFinal,
-        conteudo: { corpo: String(corpo), numero_analise: numero_analise ?? null },
+        conteudo: { corpo: String(corpo), numero_analise: numero_analise ?? null, padrao_id: padrao_id ?? null, padrao_titulo: padrao_titulo ?? null },
         usuario_id: usuario.id,
       });
     } catch (e) {
