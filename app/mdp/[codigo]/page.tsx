@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { FileText, ChevronLeft } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 
 type Registro = {
   id: string;
@@ -46,16 +46,21 @@ export default function MdpProcessoPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
-      <div className="border-b border-[var(--border)] bg-[var(--bg-card)] px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.back()} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <ChevronLeft size={20} />
-        </button>
-        <FileText size={20} className="text-[var(--accent)]" />
-        <div>
-          <h1 className="font-bold text-lg leading-tight">MDP — Despachos do Processo</h1>
-          <p className="text-xs text-[var(--text-muted)] font-mono">{codigo}</p>
+      <header className="border-b border-[var(--border)] bg-[var(--bg-card)] px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.back()} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
+            <ChevronLeft size={20} />
+          </button>
+          <button onClick={() => router.push("/")}
+            className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
+          <div>
+            <h1 className="font-bold text-lg leading-tight">📕 MDP — Despachos do Processo</h1>
+            <p className="text-xs text-[var(--text-muted)] font-mono">{codigo}</p>
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="max-w-3xl mx-auto px-4 py-6">
         {carregando ? (

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Search, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
 
 type Registro = {
   id: string;
@@ -63,16 +63,18 @@ export default function MdpPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       {/* Header */}
-      <div className="border-b border-[var(--border)] bg-[var(--bg-card)] px-6 py-4 flex items-center gap-4">
-        <button onClick={() => router.push("/")} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <ChevronLeft size={20} />
-        </button>
-        <FileText size={20} className="text-[var(--accent)]" />
-        <div>
-          <h1 className="font-bold text-lg leading-tight">MDP — Módulo de Despachos e Pareceres</h1>
-          <p className="text-xs text-[var(--text-muted)]">Histórico de despachos emitidos</p>
+      <header className="border-b border-[var(--border)] bg-[var(--bg-card)] px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button onClick={() => router.push("/")}
+            className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
+          <div>
+            <h1 className="font-bold text-lg leading-tight">📕 MDP — Módulo de Despachos e Pareceres</h1>
+            <p className="text-xs text-[var(--text-muted)]">Histórico de despachos emitidos</p>
+          </div>
         </div>
-      </div>
+      </header>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Busca */}
