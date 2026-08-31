@@ -32,6 +32,9 @@ export async function GET(req: NextRequest) {
   try {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
+    if (!usuario.perfis.includes("Administrador")) {
+      return NextResponse.json({ ok: false, erro: "Acesso restrito ao Administrador." }, { status: 403 });
+    }
 
     const noventaDiasAtras = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -48,8 +51,14 @@ export async function GET(req: NextRequest) {
         .order("data_hora", { ascending: false }),
     ]);
 
-    if (errChamadas) return NextResponse.json({ ok: false, erro: errChamadas.message }, { status: 500 });
-    if (errAportes) return NextResponse.json({ ok: false, erro: errAportes.message }, { status: 500 });
+    if (errChamadas) {
+      console.error("[rastreabilidade/ia GET] falha ao consultar urbis_api_calls:", errChamadas.message);
+      return NextResponse.json({ ok: false, erro: "Falha ao consultar chamadas de IA." }, { status: 500 });
+    }
+    if (errAportes) {
+      console.error("[rastreabilidade/ia GET] falha ao consultar urbis_aportes:", errAportes.message);
+      return NextResponse.json({ ok: false, erro: "Falha ao consultar aportes." }, { status: 500 });
+    }
 
     const linhas = chamadas ?? [];
 
@@ -125,7 +134,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (e: any) {
     console.error("[rastreabilidade/ia GET]", e);
-    return NextResponse.json({ ok: false, erro: e?.message ?? "falha" }, { status: 500 });
+    return NextResponse.json({ ok: false, erro: "Falha ao consultar rastreabilidade de IA." }, { status: 500 });
   }
 }
 
@@ -138,6 +147,9 @@ export async function POST(req: NextRequest) {
   try {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
+    if (!usuario.perfis.includes("Administrador")) {
+      return NextResponse.json({ ok: false, erro: "Acesso restrito ao Administrador." }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ ok: false, erro: "corpo da requisição inválido" }, { status: 400 });
@@ -159,11 +171,14 @@ export async function POST(req: NextRequest) {
       conta_faturamento: contaFaturamento, projeto, observacao,
       origem: "manual",
     });
-    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+    if (error) {
+      console.error("[rastreabilidade/ia POST] falha ao registrar aporte:", error.message);
+      return NextResponse.json({ ok: false, erro: "Falha ao registrar aporte." }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error("[rastreabilidade/ia POST]", e);
-    return NextResponse.json({ ok: false, erro: e?.message ?? "falha" }, { status: 500 });
+    return NextResponse.json({ ok: false, erro: "Falha ao registrar aporte." }, { status: 500 });
   }
 }
