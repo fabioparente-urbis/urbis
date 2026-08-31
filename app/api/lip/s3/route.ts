@@ -23,13 +23,27 @@ export async function POST(req: NextRequest) {
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
 
-    // Trava de budget
+    // Trava de budget — restrita ao módulo LIP (`modulo = "LIP"`). Sem esse filtro, chamadas
+    // de outros módulos (ex.: chat/STT/TTS do URBI) contariam para o mesmo limite e poderiam
+    // bloquear a leitura de PDF do LIP por consumo alheio.
     const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { count: chamadasRecentes } = await supabaseAdmin
+    const { count: chamadasRecentes, error: erroBudget } = await supabaseAdmin
       .from("urbis_api_calls")
       .select("*", { count: "exact", head: true })
+      .eq("modulo", "LIP")
       .gte("criado_em", umaHoraAtras)
       .eq("status", "ok");
+    if (erroBudget) {
+      // Falha na consulta não pode virar "orçamento zerado, pode passar" — isso desarma a
+      // trava exatamente no cenário que ela existe para evitar (custo de IA fora de controle).
+      // Requisição HEAD (count-only) às vezes não traz corpo de erro legível — loga o objeto
+      // inteiro (code/details/hint) em vez de só .message, que pode vir vazio nesse caso.
+      console.error("[lip/s3] falha ao consultar trava de budget:", erroBudget);
+      return NextResponse.json(
+        { ok: false, erro: "BUDGET_INDISPONIVEL", detalhe: "Não foi possível verificar o limite de uso antes de prosseguir. Tente novamente em instantes." },
+        { status: 503 },
+      );
+    }
     if ((chamadasRecentes ?? 0) >= 50) {
       return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
     }

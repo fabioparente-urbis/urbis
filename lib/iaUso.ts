@@ -34,7 +34,11 @@ type RegistroChamadaIA = {
 /** Nunca lança — uma falha ao registrar uso não pode derrubar a leitura de verdade. */
 export async function registrarChamadaIA(r: RegistroChamadaIA): Promise<void> {
   try {
-    await supabaseAdmin.from("urbis_api_calls").insert({
+    // O insert do supabase-js não lança em erro de banco/schema (coluna
+    // inexistente, etc.) — ele retorna { error } normalmente. Sem checar
+    // isso, uma falha de schema fica tão silenciosa quanto o try/catch abaixo
+    // sugere que não deveria ficar.
+    const { error } = await supabaseAdmin.from("urbis_api_calls").insert({
       modulo: r.modulo,
       slot: r.slot ?? null,
       operacao: r.operacao,
@@ -48,6 +52,9 @@ export async function registrarChamadaIA(r: RegistroChamadaIA): Promise<void> {
       status: r.status,
       motivo_erro: r.motivoErro ?? null,
     });
+    if (error) {
+      console.error("[iaUso] falha ao registrar chamada IA:", error.message);
+    }
   } catch (e) {
     console.error("[iaUso] falha ao registrar chamada IA:", e);
   }

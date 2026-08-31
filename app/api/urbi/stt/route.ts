@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { registrarChamadaIA } from "@/lib/iaUso";
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   try {
     const form = await req.formData();
     const audio = form.get("audio") as Blob | null;
@@ -20,12 +22,15 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       const err = await res.text();
+      await registrarChamadaIA({ modulo: "URBI", operacao: "stt", modelo: "whisper-large-v3", tamanhoBytes: audio.size, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500) });
       return NextResponse.json({ ok: false, erro: err }, { status: 500 });
     }
 
     const texto = (await res.text()).trim();
+    await registrarChamadaIA({ modulo: "URBI", operacao: "stt", modelo: "whisper-large-v3", tamanhoBytes: audio.size, duracaoMs: Date.now() - t0, status: "ok" });
     return NextResponse.json({ ok: true, texto });
   } catch (e: any) {
+    await registrarChamadaIA({ modulo: "URBI", operacao: "stt", modelo: "whisper-large-v3", duracaoMs: Date.now() - t0, status: "erro", motivoErro: (e?.message ?? "erro desconhecido").slice(0, 500) });
     return NextResponse.json({ ok: false, erro: e?.message }, { status: 500 });
   }
 }
