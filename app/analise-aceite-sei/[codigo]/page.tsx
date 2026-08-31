@@ -1140,7 +1140,9 @@ export default function MacPage() {
   const naoRespondidos = checklistItens.filter((i) => !itens[i.id]);
 
   function temNaoConformeNaAba(idx: number) {
-    return checklistItens.filter((i) => i.grupo === GRUPOS[idx]).some((i) => itens[i.id] === "nao_conforme");
+    const temItemNaoConforme = checklistItens.filter((i) => i.grupo === GRUPOS[idx]).some((i) => itens[i.id] === "nao_conforme");
+    const temObservacao = !!observacoesPorAba[GRUPOS[idx]]?.trim();
+    return temItemNaoConforme || temObservacao;
   }
 
   const [mostrarBanner, setMostrarBanner] = useState(false);
