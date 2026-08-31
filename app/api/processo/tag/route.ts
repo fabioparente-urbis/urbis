@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 
 /**
@@ -30,7 +30,7 @@ function novoIdLeve() {
 }
 
 async function carregarProcesso(codigo: string) {
-  return supabase
+  return supabaseAdmin
     .from("processos")
     .select("id, codigo, tags, analista_id")
     .eq("codigo", codigo)
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
     };
     tags.push(novaTag);
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("processos")
       .update({ tags, atualizado_em: new Date().toISOString() })
       .eq("id", (proc as any).id);
@@ -133,7 +133,7 @@ export async function DELETE(req: NextRequest) {
     const tagsAtuais = Array.isArray((proc as any).tags) ? (proc as any).tags : [];
     const tags = tagsAtuais.filter((t: any) => t?.id !== tagId);
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("processos")
       .update({ tags, atualizado_em: new Date().toISOString() })
       .eq("id", (proc as any).id);

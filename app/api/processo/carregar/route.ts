@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabaseClient'
+import { supabaseAdmin } from '@/lib/supabaseAdmin'
 import { autenticar, verificarOwnership } from '@/lib/auth'
 
 export async function GET(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   // Com tipo: pega o único processo daquele par (codigo, tipo).
   // Sem tipo: mantém comportamento legado — primeira ocorrência (mais antiga).
-  let query = supabase
+  let query = supabaseAdmin
     .from('processos')
     .select('id, dados, analista_id, tipo_processo, assunto_id, tags, lip_incompleto, laudo_campos_ocultos')
     .eq('codigo', codigo)

@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL, type GeminiModel } from "@/lib/constants";
 
 const _modeloValidado: GeminiModel = GEMINI_MODEL;
-import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
 import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
 import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
     const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
     let promptData: { conteudo: string; versao: number } | null = null;
     if (assuntoValido) {
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from("lip_prompts")
         .select("conteudo, versao")
         .eq("ativo", true).eq("chave", "P2_EXTRACAO").eq("assunto_id", assunto_id)
@@ -60,7 +59,7 @@ export async function POST(req: NextRequest) {
       promptData = data;
     }
     if (!promptData) {
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from("lip_prompts")
         .select("conteudo, versao")
         .eq("ativo", true).eq("chave", "P2_EXTRACAO")

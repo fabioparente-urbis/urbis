@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -16,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "pdfBase64 nao informado" }, { status: 400 });
 
     // Buscar prompt P2 do banco (mesmo prompt do S3)
-    const { data: promptData, error: promptError } = await supabase
+    const { data: promptData, error: promptError } = await supabaseAdmin
       .from("lip_prompts")
       .select("conteudo, versao")
       .eq("ativo", true)

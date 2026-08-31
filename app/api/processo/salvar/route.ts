@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
@@ -64,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     // Busca processo EXATAMENTE do par (codigo, tipo). Sem o tipo, REG e
     // ACEITE do mesmo SEI colidem.
-    const { data: existente, error: erroBusca } = await supabase
+    const { data: existente, error: erroBusca } = await supabaseAdmin
       .from("processos")
       .select("id, codigo, analista_id, tipo_processo, assunto_id")
       .eq("codigo", id)
@@ -138,7 +137,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from("processos")
         .update(update)
         .eq("id", existente.id);
@@ -151,7 +150,7 @@ export async function POST(req: NextRequest) {
       // Sem isso, o processo recem-criado nasceria com analista_id=null
       // e sumiria da lista do proprio criador (que e Analista, nao irrestrito).
       const dataProtocoloInicial = extrairDataProtocolo(dados ?? {});
-      const { data, error } = await supabase
+      const { data, error } = await supabaseAdmin
         .from("processos")
         .insert([{
           codigo: id,
@@ -180,7 +179,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (processoId && camposAlterados && camposAlterados.length > 0) {
-      await supabase
+      await supabaseAdmin
         .from("processo_historico")
         .insert([{
           processo_id: processoId,
@@ -206,7 +205,7 @@ export async function POST(req: NextRequest) {
       const chavesProblema = dados ? chavesVaziasOuX(dados) : [];
       if (chavesProblema.length > 0) {
         // 3. Buscar a análise MAC ativa (não deferida e não indeferida).
-        const { data: ultima } = await supabase
+        const { data: ultima } = await supabaseAdmin
           .from("analises_mac")
           .select("id, itens, modelo_id, status")
           .eq("processo_codigo", id)
@@ -225,7 +224,7 @@ export async function POST(req: NextRequest) {
           // 2. Itens do MAC cuja `chave_lip` cai na lista de campos
           //    vazios/X, restritos ao modelo da análise ativa
           //    (que, por sua vez, está vinculado ao tipo_processo).
-          const { data: itensMap } = await supabase
+          const { data: itensMap } = await supabaseAdmin
             .from("mac_checklist_itens")
             .select("id, chave_lip")
             .eq("modelo_id", ultima!.modelo_id)
@@ -254,7 +253,7 @@ export async function POST(req: NextRequest) {
               }
             }
             if (alterou) {
-              await supabase
+              await supabaseAdmin
                 .from("analises_mac")
                 .update({
                   itens: itensAtuais,
