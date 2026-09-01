@@ -166,6 +166,35 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Anúncios discretos para leitor de tela (região aria-live, sem conteúdo
+  // visual próprio). Limpa antes de setar para garantir que o leitor
+  // re-anuncie mesmo quando o texto é igual ao anterior.
+  const [anuncio, setAnuncio] = useState("");
+  function anunciar(texto: string) {
+    setAnuncio("");
+    requestAnimationFrame(() => setAnuncio(texto));
+  }
+  // Não anuncia troca de modo no carregamento inicial da preferência salva —
+  // só a partir da primeira troca feita de fato pelo usuário nesta sessão.
+  const modoBipMontadoRef = useRef(false);
+  useEffect(() => {
+    if (!modoBipMontadoRef.current) { modoBipMontadoRef.current = true; return; }
+    anunciar(modoBip ? "Modo alterado para BIP, Especialista em Legislação." : "Modo alterado para Assistente de análise.");
+  }, [modoBip]);
+  useEffect(() => {
+    if (carregando) anunciar("URBI está processando sua pergunta.");
+  }, [carregando]);
+  // Foco vai para o campo de mensagem sempre que o balão fica visível —
+  // tanto na abertura automática quanto ao reexpandir clicando no
+  // personagem. Não dispara enquanto um modal mantém o URBI recolhido.
+  useEffect(() => {
+    if (balaoVisivel && !modalAberto) {
+      const t = setTimeout(() => inputRef.current?.focus(), 60);
+      return () => clearTimeout(t);
+    }
+  }, [balaoVisivel, modalAberto]);
 
   // Posição arrastada persiste pela sessão do navegador (não entre sessões
   // distintas) — gravada a cada mudança; a leitura já acontece no
@@ -244,6 +273,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setTimeout(() => { setPoseId(selectPose("atencao", poseId)); setPoseOpacity(1); }, 200);
       setMsgs(m => [...m, { role: "urbi", texto: mensagem }]);
       setHistory(h => [...h, { role: "model", parts: [{ text: mensagem }] }]);
+      anunciar("URBI respondeu.");
       if (!speech.mudo) falar(mensagem);
     };
     window.addEventListener("urbi:entregar-dica", handler);
@@ -282,14 +312,17 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       const json = await res.json();
       if (json.ok && json.resposta) {
         setMsgs([{ role: "urbi", texto: json.resposta }]);
+        anunciar("URBI respondeu.");
         resetIdleTimer();
         return;
       }
     } catch (_) {}
     setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Como posso ajudar?` }]);
+    anunciar("URBI respondeu.");
     resetIdleTimer();
   }
   function abrir() {
+    anunciar("URBI aberto.");
     if (modo === "corner") {
       setFase("idle");
       setPoseId("atencao");
@@ -297,6 +330,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       if (mensagemInicial) {
         setMsgs([{ role: "urbi", texto: mensagemInicial }]);
         setHistory([{ role: "model", parts: [{ text: mensagemInicial }] }]);
+        anunciar("URBI respondeu.");
         resetIdleTimer();
         if (!speech.mudo) falar(mensagemInicial);
         onMensagemInicialConsumida?.();
@@ -330,6 +364,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   }
 
   function fechar() {
+    anunciar("URBI fechado.");
     pararFala();
     // Limpar idle timer
     if (idleTimer.current) clearTimeout(idleTimer.current);
@@ -426,6 +461,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       const resposta = intencao.resposta ?? "Ok.";
       setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
       setMsgs(m => [...m, { role: "urbi", texto: resposta }]);
+      anunciar("URBI respondeu.");
       if (!speech.mudo) falar(resposta);
       aplicarAcaoIntencao(intencao.acao);
       return;
@@ -447,6 +483,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
+        anunciar("URBI respondeu.");
         if (!speech.mudo) falar(json.resposta);
         await fetch("/api/urbi/historico", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -457,12 +494,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("negativo", poseId)); setPoseOpacity(1); }, 200);
         const fallback = "Tive um problema técnico. Tenta de novo.";
         setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
+        anunciar("URBI encontrou um problema técnico.");
         if (!speech.mudo) falar(fallback);
       }
     } catch {
       setPoseId(selectPose("negativo"));
       const fallback = "Sem conexão. Verifica a rede.";
       setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
+      anunciar("URBI encontrou um problema técnico.");
       if (!speech.mudo) falar(fallback);
     }
     setCarregando(false);
@@ -494,7 +533,23 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     .urbi-idle     { animation: urbiIdle 3s ease-in-out infinite; }
     .urbi-saindo   { animation: urbiSaida 0.5s ease-in forwards; }
     .urbi-balao    { animation: balaoEntrada 0.3s ease-out forwards; }
+    .urbi-focavel:focus-visible {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
   `;
+
+  // Visualmente oculto, mas presente para leitor de tela — anúncios de
+  // abertura/fechamento/troca de modo/carregamento/resposta.
+  const srOnlyStyle: React.CSSProperties = {
+    position: "absolute", width: 1, height: 1, padding: 0, margin: -1,
+    overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0,
+  };
+
+  function aoTeclarEscape(e: React.KeyboardEvent) {
+    if (e.key === "Escape") { e.stopPropagation(); fechar(); }
+  }
 
   const chatContent = (small?: boolean) => (
     <>
@@ -505,7 +560,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         fontSize: 11, fontWeight: 700,
         color: modoBip ? "#7c3aed" : "#1d4ed8",
       }}>
-        {modoBip ? "⚖️ Modo: BIP — Especialista em Legislação" : "🧭 Modo: Assistente de análise"}
+        <span aria-hidden="true">{modoBip ? "⚖️ " : "🧭 "}</span>
+        {modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}
       </div>
       <div style={{
         flex: 1, overflowY: "auto", maxHeight: small ? 220 : 300,
@@ -524,12 +580,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           </div>
         ))}
         {carregando && (
-          <div style={{ background: "#f1f5f9", borderRadius: "12px 12px 12px 2px", padding: "7px 14px", fontSize: 16, color: "#94a3b8", width: "fit-content" }}>···</div>
+          <div aria-hidden="true" style={{ background: "#f1f5f9", borderRadius: "12px 12px 12px 2px", padding: "7px 14px", fontSize: 16, color: "#94a3b8", width: "fit-content" }}>···</div>
         )}
         <div ref={endRef} />
       </div>
       <div style={{ display: "flex", gap: 6, borderTop: "1px solid #e2e8f0", paddingTop: 10 }}>
         <input
+          ref={inputRef}
+          className="urbi-focavel"
+          aria-label="Mensagem para o URBI"
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviar()}
@@ -538,19 +597,30 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             flex: 1, border: "1px solid #e2e8f0", borderRadius: 8,
             padding: "7px 10px", fontSize: 12,
             fontFamily: "system-ui, sans-serif",
-            outline: "none", color: "#1e293b", background: "#f8fafc",
+            color: "#1e293b", background: "#f8fafc",
           }}
         />
-        <button onClick={() => enviar()} disabled={carregando || !input.trim()} style={{
-          background: carregando ? "#94a3b8" : "#1d4ed8", border: "none",
-          borderRadius: 8, color: "#fff", padding: "7px 12px",
-          cursor: carregando ? "not-allowed" : "pointer", fontSize: 13,
-        }}>→</button>
-        <button onClick={fechar} style={{
-          background: "transparent", border: "1px solid #e2e8f0",
-          borderRadius: 8, color: "#94a3b8", padding: "7px 10px",
-          cursor: "pointer", fontSize: 12,
-        }}>✕</button>
+        <button
+          className="urbi-focavel"
+          aria-label="Enviar mensagem"
+          onClick={() => enviar()}
+          disabled={carregando || !input.trim()}
+          style={{
+            background: carregando ? "#94a3b8" : "#1d4ed8", border: "none",
+            borderRadius: 8, color: "#fff", padding: "7px 12px",
+            cursor: carregando ? "not-allowed" : "pointer", fontSize: 13,
+          }}
+        ><span aria-hidden="true">→</span></button>
+        <button
+          className="urbi-focavel"
+          aria-label="Fechar o URBI"
+          onClick={fechar}
+          style={{
+            background: "transparent", border: "1px solid #e2e8f0",
+            borderRadius: 8, color: "#94a3b8", padding: "7px 10px",
+            cursor: "pointer", fontSize: 12,
+          }}
+        ><span aria-hidden="true">✕</span></button>
       </div>
       <div style={{
         display: "flex", gap: 8, paddingTop: 8, minHeight: 36,
@@ -560,6 +630,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         {/* Microfone (STT) */}
         <button
           type="button"
+          className="urbi-focavel"
           onClick={alternarEscuta}
           disabled={!speech.suportaSTT}
           title={
@@ -588,6 +659,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         {/* Switch mudo/som (TTS) */}
         <button
           type="button"
+          className="urbi-focavel"
           onClick={() => {
             if (speech.falando) pararFala();
             alternarMudo();
@@ -625,8 +697,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             (só o BIP, exige fonte); desligado: Assistente de análise. */}
         <button
           type="button"
+          className="urbi-focavel"
           onClick={() => setModoBip(v => !v)}
           aria-pressed={modoBip}
+          aria-label={modoBip ? "Modo BIP ativo, Especialista em Legislação" : "Modo Assistente de análise ativo, ativar modo BIP"}
           title={modoBip
             ? "Modo BIP ativo — clique para voltar ao Assistente de análise"
             : "Ativar o modo BIP — Especialista em Legislação (só responde com base no BIP, sempre com fonte)"}
@@ -641,21 +715,24 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     return (
       <>
         <style>{css}</style>
-        <div style={{
-          position: "fixed",
-          bottom: cornerPos.bottom,
-          right: cornerPos.right,
-          // Abaixo dos modais do processo/MAC (todos em z-50) — o URBI nunca
-          // cobre um modal aberto, só fica visível ao lado/atrás dele.
-          zIndex: 45,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-end",
-          gap: 0,
-          userSelect: "none",
-        }}>
+        <div role="status" aria-live="polite" style={srOnlyStyle}>{anuncio}</div>
+        <div
+          onKeyDown={aoTeclarEscape}
+          style={{
+            position: "fixed",
+            bottom: cornerPos.bottom,
+            right: cornerPos.right,
+            // Abaixo dos modais do processo/MAC (todos em z-50) — o URBI nunca
+            // cobre um modal aberto, só fica visível ao lado/atrás dele.
+            zIndex: 45,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-end",
+            gap: 0,
+            userSelect: "none",
+          }}>
           {!modalAberto && balaoVisivel && (
-            <div className="urbi-balao" style={{
+            <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={{
               position: "relative",
               background: "#ffffff", borderRadius: 16,
               padding: "14px 16px", width: 280, maxHeight: 360,
@@ -665,7 +742,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               marginBottom: 6,
             }}>
               {chatContent(true)}
-              <div style={{
+              <div aria-hidden="true" style={{
                 position: "absolute",
                 bottom: -10,
                 right: 32,
@@ -675,7 +752,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
                 borderRight: "10px solid transparent",
                 borderTop: "10px solid #ffffff",
               }} />
-              <div style={{
+              <div aria-hidden="true" style={{
                 position: "absolute",
                 bottom: -13,
                 right: 30,
@@ -691,6 +768,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           {modalAberto ? (
             <button
               type="button"
+              className="urbi-focavel"
               aria-label="URBI recolhido — há um modal aberto nesta tela"
               title="URBI recolhido enquanto este modal está aberto"
               onMouseDown={onMouseDown}
@@ -707,9 +785,16 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             />
           ) : (
             <div
-              className={fase === "idle" ? "urbi-idle" : fase === "saindo" ? "urbi-saindo" : ""}
+              role="button"
+              tabIndex={0}
+              aria-label={balaoVisivel ? "Recolher o URBI" : "Abrir a conversa com o URBI"}
+              aria-expanded={balaoVisivel}
+              className={`urbi-focavel ${fase === "idle" ? "urbi-idle" : fase === "saindo" ? "urbi-saindo" : ""}`}
               onMouseDown={onMouseDown}
               onClick={() => setBalaoVisivel(v => !v)}
+              onKeyDown={e => {
+                if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setBalaoVisivel(v => !v); }
+              }}
               style={{ cursor: "grab", pointerEvents: "all" }}
             >
               <img
@@ -736,7 +821,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   return (
     <>
       {overlayVisivel && (
-        <div style={{
+        <div aria-hidden="true" style={{
           position: "fixed", inset: 0,
           background: "#000000",
           opacity: overlayOpacity,
@@ -747,6 +832,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       )}
       {videoAtivo && (
         <video
+          aria-hidden="true"
           src="/urbi/abertura-urbi-v3.mp4"
           autoPlay muted playsInline
           onEnded={onVideoEnd}
@@ -760,28 +846,31 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         />
       )}
       <style>{css}</style>
-      <div style={{
-        position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
-        zIndex: 950,
-        display: "flex", alignItems: "flex-start", gap: 24,
-        pointerEvents: "none",
-      }}>
+      <div role="status" aria-live="polite" style={srOnlyStyle}>{anuncio}</div>
+      <div
+        onKeyDown={aoTeclarEscape}
+        style={{
+          position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
+          zIndex: 950,
+          display: "flex", alignItems: "flex-start", gap: 24,
+          pointerEvents: "none",
+        }}>
         {balaoVisivel && (
-          <div className="urbi-balao" style={{
+          <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={{
             pointerEvents: "all", position: "relative",
             background: "#ffffff", borderRadius: 16,
             padding: "14px 16px", width: 420, maxHeight: 560,
             boxShadow: "0 8px 32px #00000033",
             display: "flex", flexDirection: "column",
           }}>
-            <div style={{
+            <div aria-hidden="true" style={{
               position: "absolute", right: -10, top: 16,
               width: 0, height: 0,
               borderTop: "10px solid transparent",
               borderBottom: "10px solid transparent",
               borderLeft: "10px solid #ffffff",
             }} />
-            <div style={{
+            <div aria-hidden="true" style={{
               position: "absolute", right: -13, top: 14,
               width: 0, height: 0,
               borderTop: "12px solid transparent",
@@ -794,13 +883,20 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         )}
         {fase !== "fora" && (
           <div
-            className={
+            role="button"
+            tabIndex={0}
+            aria-label={balaoVisivel ? "Recolher o URBI" : "Abrir a conversa com o URBI"}
+            aria-expanded={balaoVisivel}
+            className={`urbi-focavel ${
               fase === "entrando" ? "urbi-entrando" :
               fase === "idle"     ? "urbi-idle"     :
               fase === "saindo"   ? "urbi-saindo"   : ""
-            }
+            }`}
             style={{ pointerEvents: "all", flexShrink: 0, cursor: "pointer", background: "transparent" }}
             onClick={() => setBalaoVisivel(v => !v)}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setBalaoVisivel(v => !v); }
+            }}
           >
             <img
               src={POSE_MAP[poseId] ?? POSE_MAP["sucesso"]}

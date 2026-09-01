@@ -44,7 +44,21 @@ export default function UrbiGlobal() {
   const peekTimerRef = useRef<any>(null);
   const processoIdRef = useRef<string | null>(null);
 
+  // Foco devolvido ao elemento que abriu o URBI, quando existir (só o
+  // botão da Home aciona abertura por clique; Shift+U e a bolha de dica
+  // não têm um "elemento acionador" de foco a devolver).
+  const homeButtonRef = useRef<HTMLButtonElement>(null);
+  const origemAberturaRef = useRef<"home" | null>(null);
+
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
+
+  useEffect(() => {
+    if (urbiAberto) return;
+    if (origemAberturaRef.current === "home") {
+      origemAberturaRef.current = null;
+      requestAnimationFrame(() => homeButtonRef.current?.focus());
+    }
+  }, [urbiAberto]);
 
   useEffect(() => {
     try { sessionStorage.setItem("urbi:aberto", urbiAberto ? "true" : "false"); } catch {}
@@ -242,13 +256,22 @@ export default function UrbiGlobal() {
 
   return (
     <>
+      <style>{`
+        .urbi-focavel:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
+          border-radius: 6px;
+        }
+      `}</style>
       {!urbiAberto && isHome && (
         <div style={{
           position: "fixed", bottom: 80, right: 24, zIndex: 1000,
           display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
         }}>
           <button
-            onClick={() => { iniciarEscuta(); setUrbiAberto(true); }}
+            ref={homeButtonRef}
+            className="urbi-focavel"
+            onClick={() => { origemAberturaRef.current = "home"; iniciarEscuta(); setUrbiAberto(true); }}
             aria-label="Abrir o URBI. Atalho de teclado: Shift + U"
             title="Abrir o URBI (Shift + U)"
             style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
@@ -267,7 +290,12 @@ export default function UrbiGlobal() {
         <div
           onClick={ativarComDica}
           role="button"
+          tabIndex={0}
+          className="urbi-focavel"
           aria-label="URBI tem uma dica sobre este processo"
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ativarComDica(); }
+          }}
           style={{
             position: "fixed", bottom: 24, left: 24, zIndex: 1000,
             display: "flex", alignItems: "flex-end", gap: 8,
