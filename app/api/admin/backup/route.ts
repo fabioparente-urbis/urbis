@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { autenticar } from "@/lib/auth";
 
 // ===========================================================================
-// Backup & Restauração — gate por cookie urbis_perfil
+// Backup & Restauração — acesso restrito ao Administrador autenticado
 // ===========================================================================
 // Grupos de tabelas conforme briefing. Cada grupo é exportado como um único
 // arquivo JSON e importado de volta com upsert por `id`.
 //
-// IMPORTANTE: o gate aqui usa apenas o cookie urbis_perfil (briefing). Esse
-// cookie é adulterável pelo cliente — para rotas de leitura/escrita comum
-// preferir lib/auth.ts (autenticar) que valida via urbis_id contra o banco.
-// Aqui mantemos o gate simples pedido no briefing.
+// A identidade e os perfis são validados por lib/auth.ts contra o banco.
 // ===========================================================================
 
 type Tipo = "processos" | "usuarios" | "prompts" | "config" | "mrp" | "map" | "bdi" | "tudo";
@@ -99,13 +96,10 @@ function ehTipoValido(t: string | null): t is Tipo {
   );
 }
 
-async function bloqueioAdmin(): Promise<NextResponse | null> {
-  const store = await cookies();
-  const perfil = store.get("urbis_perfil")?.value ?? "";
-  // Aceita "admin" (briefing) e "Administrador" (valor real gravado pelo
-  // /api/auth/login no projeto), case-insensitive.
-  const p = perfil.toLowerCase();
-  if (p !== "admin" && p !== "administrador") {
+async function bloqueioAdmin(req: NextRequest): Promise<NextResponse | null> {
+  const auth = await autenticar(req);
+  if (auth instanceof NextResponse) return auth;
+  if (!auth.perfis.includes("Administrador")) {
     return NextResponse.json(
       { ok: false, erro: "Acesso restrito ao Administrador." },
       { status: 403 },
@@ -116,7 +110,7 @@ async function bloqueioAdmin(): Promise<NextResponse | null> {
 
 // ---------- GET: exportar ---------------------------------------------------
 export async function GET(req: NextRequest) {
-  const bloqueio = await bloqueioAdmin();
+  const bloqueio = await bloqueioAdmin(req);
   if (bloqueio) return bloqueio;
 
   const tipoParam = new URL(req.url).searchParams.get("tipo");
@@ -156,7 +150,7 @@ export async function GET(req: NextRequest) {
 
 // ---------- POST: importar --------------------------------------------------
 export async function POST(req: NextRequest) {
-  const bloqueio = await bloqueioAdmin();
+  const bloqueio = await bloqueioAdmin(req);
   if (bloqueio) return bloqueio;
 
   let body: any;

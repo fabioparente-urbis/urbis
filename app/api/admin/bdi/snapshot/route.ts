@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { autenticar, AuthContext } from "@/lib/auth";
 
 // ===========================================================================
 // BDI — Snapshot de mrp_registros
@@ -11,36 +11,24 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // Restrito ao perfil Administrador (mesmo gate do backup).
 // ===========================================================================
 
-async function bloqueioAdmin(): Promise<NextResponse | null> {
-  const store = await cookies();
-  const perfil = store.get("urbis_perfil")?.value ?? "";
-  const p = perfil.toLowerCase();
-  if (p !== "admin" && p !== "administrador") {
+async function autenticarAdmin(
+  req: NextRequest,
+): Promise<AuthContext | NextResponse> {
+  const auth = await autenticar(req);
+  if (auth instanceof NextResponse) return auth;
+  if (!auth.perfis.includes("Administrador")) {
     return NextResponse.json(
       { ok: false, erro: "Acesso restrito ao Administrador." },
       { status: 403 },
     );
   }
-  return null;
-}
-
-function identificarUsuario(req: NextRequest): {
-  id: string | null;
-  nome: string | null;
-} {
-  const cookieHeader = req.headers.get("cookie") || "";
-  const id = cookieHeader.match(/urbis_id=([^;]+)/)?.[1] ?? null;
-  const nome =
-    cookieHeader.match(/urbis_nome=([^;]+)/)?.[1]
-      ? decodeURIComponent(cookieHeader.match(/urbis_nome=([^;]+)/)![1])
-      : null;
-  return { id, nome };
+  return auth;
 }
 
 // ---------- POST: gerar snapshot --------------------------------------------
 export async function POST(req: NextRequest) {
-  const bloqueio = await bloqueioAdmin();
-  if (bloqueio) return bloqueio;
+  const auth = await autenticarAdmin(req);
+  if (auth instanceof NextResponse) return auth;
 
   let body: { origem?: unknown; observacoes?: unknown } = {};
   try {
@@ -68,15 +56,19 @@ export async function POST(req: NextRequest) {
   }
 
   const dados = registros ?? [];
-  const usuario = identificarUsuario(req);
+  const { data: usuario } = await supabaseAdmin
+    .from("usuarios")
+    .select("nome")
+    .eq("id", auth.userId)
+    .maybeSingle();
 
   const { data: inserido, error: erroInsert } = await supabaseAdmin
     .from("bdi_snapshots")
     .insert({
       tipo: "mrp_registros",
       origem,
-      gerado_por_id: usuario.id,
-      gerado_por_nome: usuario.nome,
+      gerado_por_id: auth.userId,
+      gerado_por_nome: usuario?.nome ?? null,
       total_registros: dados.length,
       dados,
       observacoes,
@@ -101,9 +93,9 @@ export async function POST(req: NextRequest) {
 }
 
 // ---------- GET: listar snapshots existentes --------------------------------
-export async function GET() {
-  const bloqueio = await bloqueioAdmin();
-  if (bloqueio) return bloqueio;
+export async function GET(req: NextRequest) {
+  const auth = await autenticarAdmin(req);
+  if (auth instanceof NextResponse) return auth;
 
   const { data, error } = await supabaseAdmin
     .from("bdi_snapshots")
