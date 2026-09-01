@@ -334,21 +334,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     // Limpar idle timer
     if (idleTimer.current) clearTimeout(idleTimer.current);
 
-    // OnDismiss: registrar sessão no MRP
-    try {
-      if (usuario?.id) {
-        fetch("/api/mrp/registros", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            usuario_id: usuario.id,
-            tipo: "urbi_sessao",
-            descricao: `Sessão URBI encerrada — ${msgs.length} mensagens`,
-            data: new Date().toISOString(),
-          }),
-        }).catch(() => {});
-      }
-    } catch (_) {}
+    // Sessão do URBI NÃO é registrada em mrp_registros: essa tabela é a régua
+    // de pontuação de despachos/pareceres reais (pontos calculados por área).
+    // Não existe tipo_despacho que signifique "conversou com o URBI" sem
+    // inventar um valor — e usar um valor real existente (ex.: "interno")
+    // daria pontos de produtividade indevidos só por abrir o chat. A
+    // tentativa antiga também usava nomes de campo errados (tipo/descricao/
+    // data em vez de tipo_despacho/observacoes/data_despacho) e falhava
+    // sempre com 400, engolido em silêncio — removida, não corrigida.
 
     // Salvar preferências
     if (usuario?.id) {
