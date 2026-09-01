@@ -92,8 +92,7 @@ async function buscarNoBip(
 
 export async function POST(req: NextRequest) {
   try {
-    const { message, history, usuario, tipo, assunto_id, lei_id, buscar_em_todas, aguardando_lei, leis_disponiveis } =
-      await req.json();
+    const { message, history, usuario, tipo, assunto_id, modo_bip } = await req.json();
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -185,75 +184,23 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
       return NextResponse.json({ ok: true, resposta, sair: false });
     }
 
-    // Se aguardando resposta de qual lei
-    if (aguardando_lei && leis_disponiveis) {
-      const leisIds: {id: string; nome: string}[] = leis_disponiveis;
-      const t = message.toLowerCase();
-      let leiEscolhida: string | null = null;
-      if (t.includes("todas") || t.includes("pesquisa em todas")) {
-        leiEscolhida = "TODAS";
-      } else {
-        for (const lei of leisIds) {
-          const nomeNorm = lei.nome.toLowerCase();
-          const numMatch = nomeNorm.match(/\d{3,}/);
-          const palavrasLei = nomeNorm.split(/\s+/).filter((p: string) => p.length > 4);
-          const matches = palavrasLei.filter((p: string) => t.includes(p));
-          if (matches.length >= 1 || (numMatch && t.includes(numMatch[0]))) { leiEscolhida = lei.id; break; }
-        }
-      }
-      if (!leiEscolhida) {
-        return NextResponse.json({ ok: true, resposta: "Uai, não entendi qual lei, sô! Repete o nome ou número?", sair: false, aguardando_lei: true, leis_disponiveis });
-      }
-      const perguntaOriginal = history?.length > 0 ? history[history.length - 2]?.parts?.[0]?.text ?? message : message;
-      const resultado = await buscarNoBip(perguntaOriginal, leiEscolhida === "TODAS" ? undefined : leiEscolhida);
-      if (resultado.status === "ok") {
-        const promptBip = `${systemPrompt}\n\nMODO BIP: Responda em 2-3 frases. Cite a referência (artigo/seção). Não transcreva.\n\nFRAGMENTOS:\n${resultado.contexto}\n\nFONTES: ${resultado.fontes.join(", ")}`;
-        const contents = [...(history ?? []), { role: "user", parts: [{ text: perguntaOriginal }] }];
-        const t0 = Date.now();
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ systemInstruction: { parts: [{ text: promptBip }] }, contents }) });
-        if (!res.ok) {
-          const err = await res.text();
-          await registrarChamadaIA({ modulo: "URBI", operacao: "chat_bip_lei_selecionada", modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500) });
-          return NextResponse.json({ ok: false, erro: err }, { status: 500 });
-        }
-        const data = await res.json();
-        await registrarChamadaIA({
-          modulo: "URBI", operacao: "chat_bip_lei_selecionada", modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
-          tokensEntrada: data.usageMetadata?.promptTokenCount ?? null,
-          tokensSaida: data.usageMetadata?.candidatesTokenCount ?? null,
-        });
-        const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "Não encontrei no BIP.";
-        return NextResponse.json({ ok: true, resposta: texto, sair: false });
-      } else if (resultado.status === "erro") {
-        return NextResponse.json({ ok: true, resposta: "Uai, deu um problema técnico pesquisando no BIP agora, sô — não é que a lei não exista, foi falha na busca mesmo. Tenta de novo ou usa o menu BIP direto.", sair: false });
-      } else {
-        return NextResponse.json({ ok: true, resposta: "Pesquisei no BIP e não encontrei. Tenta consultar diretamente pelo menu BIP.", sair: false });
-      }
-    }
-
-    const ehLei = detectarIntentLei(message);
+    // Modo é sempre explícito, escolhido pelo usuário no botão BIP do chat —
+    // nunca inferido/trocado aqui. Palavra-chave jurídica no modo Assistente
+    // só rende uma sugestão de texto para ligar o BIP; não muda o modo nem
+    // o comportamento da resposta.
+    const modoBipAtivo = modo_bip === true;
     let systemPromptFinal = systemPrompt;
+    const operacao = modoBipAtivo ? "chat_bip" : "chat_geral";
 
-    if (ehLei) {
-      const leiEspecificada = lei_id ?? null;
-      if (!leiEspecificada && !buscar_em_todas) {
-        const { supabaseAdmin } = await import("@/lib/supabaseAdmin");
-        const { data: leisDisp } = await supabaseAdmin
-          .from("bdi_documentos_lei")
-          .select("id, titulo, numero, ano")
-          .order("titulo", { ascending: true });
-        const leisIds = (leisDisp ?? []).map((l: any) => ({ id: l.id, nome: `${l.titulo}${l.numero ? ` nº ${l.numero}` : ""}${l.ano ? `/${l.ano}` : ""}` }));
-        const listaLeis = leisIds.map((l: any) => `• ${l.nome}`).join("\n");
-        const resposta = `Uai, boa pergunta! 📋 Em qual lei pesquiso?\n\n${listaLeis}\n\nOu diga **"pesquisa em todas"**!`;
-        return NextResponse.json({ ok: true, resposta, sair: false, aguardando_lei: true, leis_disponiveis: leisIds });
-      }
-      const resultado = await buscarNoBip(message, leiEspecificada ?? undefined);
+    if (modoBipAtivo) {
+      const resultado = await buscarNoBip(message, undefined);
       if (resultado.status === "ok") {
         systemPromptFinal = `${systemPrompt}
 
-MODO BIP ATIVO — USE APENAS OS FRAGMENTOS ABAIXO:
-Responda exclusivamente com base nos fragmentos das leis goianas fornecidos. Não use conhecimento externo.
-Cite a lei e a referência específica ao responder. Se a resposta não estiver nos fragmentos, diga claramente.
+MODO ATIVO: BIP — Especialista em Legislação.
+Responda EXCLUSIVAMENTE com base nos fragmentos das leis goianas abaixo. Não use conhecimento externo nem
+geral sobre legislação. Cite a lei e a referência específica ao responder. Se a resposta não estiver nos
+fragmentos, diga claramente que não encontrou — não complete com conhecimento próprio.
 
 FRAGMENTOS DO BIP:
 ${resultado.contexto}
@@ -262,17 +209,26 @@ FONTES: ${resultado.fontes.join(", ")}`;
       } else if (resultado.status === "erro") {
         systemPromptFinal = `${systemPrompt}
 
-MODO BIP ATIVO — FALHA TÉCNICA NA BUSCA:
+MODO ATIVO: BIP — Especialista em Legislação — FALHA TÉCNICA NA BUSCA:
 Houve um problema técnico ao consultar o BIP agora — isso NÃO significa que a lei não preveja o assunto.
 Informe isso claramente ao analista (é uma falha de busca, não ausência de previsão legal), sem inventar
-conteúdo, e sugira tentar de novo ou usar o menu Biblioteca de Leis diretamente.`;
+conteúdo, e sugira tentar de novo.`;
       } else {
         systemPromptFinal = `${systemPrompt}
 
-MODO BIP ATIVO — SEM RESULTADO:
-Pesquisei no BIP e não encontrei fragmentos sobre essa consulta.
-Informe ao analista que não encontrou no BIP e sugira acessar o menu Biblioteca de Leis diretamente.
-Não invente legislação.`;
+MODO ATIVO: BIP — Especialista em Legislação — SEM RESULTADO:
+Pesquisei no BIP e não encontrei fragmentos sobre essa consulta. Informe ao analista, com essas palavras
+ou equivalentes, que não encontrou base jurídica indexada para isso — não responda com conhecimento geral
+como se fosse a legislação, e sugira acessar o menu Biblioteca de Leis diretamente.`;
+      }
+    } else {
+      systemPromptFinal = `${systemPrompt}
+
+MODO ATIVO: Assistente de análise.
+Você NÃO tem acesso à base jurídica do BIP neste modo. Nunca afirme dispositivo legal, norma ou artigo
+como se fosse fonte própria — isso é exclusivo do modo BIP. Ajude com o que puder de forma geral.`;
+      if (detectarIntentLei(message)) {
+        systemPromptFinal += `\n\nEssa pergunta parece ser sobre legislação/norma técnica. Ao final da resposta, em 1 frase curta, sugira ao analista ativar o modo BIP (botão "⚖️ Ativar BIP" no chat) para uma resposta com fonte recuperada e citável. Não responda como se já tivesse consultado a legislação.`;
       }
     }
 
@@ -293,8 +249,6 @@ Não invente legislação.`;
         }),
       }
     );
-
-    const operacao = ehLei ? "chat_bip" : "chat_geral";
 
     if (!res.ok) {
       const err = await res.text();

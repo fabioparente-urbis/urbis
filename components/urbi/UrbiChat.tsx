@@ -107,6 +107,9 @@ type Props = {
   modo?: "center" | "corner";
   assuntoId?: string | null;
   urbiVoz?: boolean;
+  // Um modal crítico do processo está aberto — recolhe o URBI para um
+  // ícone discreto em vez de cobrir o modal. Só se aplica no modo "corner".
+  modalAberto?: boolean;
   // Rotina padrão de dicas: quando o URBI é aberto já carregando uma
   // mensagem pronta (dica pendente de um processo), pula a saudação via
   // IA e mostra essa mensagem direto. Consumida uma vez e limpa pelo pai.
@@ -116,28 +119,60 @@ type Props = {
 
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
+// Inicializador preguiçoso do useState (não um efeito de restauração) —
+// seguro contra mismatch de hidratação pelo mesmo motivo do UrbiGlobal:
+// este componente só renderiza de fato (fase !== "fora") depois de um
+// efeito client-side; a primeira pintura já é `null` independente deste
+// valor.
+function lerCornerPosSalvo(): { bottom: number; right: number } {
+  if (typeof window === "undefined") return DEFAULT_CORNER;
+  try {
+    const salvo = sessionStorage.getItem("urbi:cornerPos");
+    if (salvo) {
+      const pos = JSON.parse(salvo);
+      if (typeof pos?.bottom === "number" && typeof pos?.right === "number") return pos;
+    }
+  } catch {}
+  return DEFAULT_CORNER;
+}
+
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
-  const [msgs, setMsgs] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [poseOpacity, setPoseOpacity] = useState(1);
   const [videoAtivo, setVideoAtivo] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(0);
   const [overlayVisivel, setOverlayVisivel] = useState(false);
-  const [history, setHistory] = useState<GeminiMsg[]>([]);
   const [balaoVisivel, setBalaoVisivel] = useState(false);
+  // O botão BIP é o seletor real e explícito de modo — ligado: BIP /
+  // Especialista em Legislação; desligado: Assistente de análise. Cada modo
+  // mantém sua própria conversa (mensagens exibidas + histórico enviado ao
+  // modelo), isoladas uma da outra — nunca vazam entre si. Nada disso é
+  // persistido além da sessão do componente (fechar o URBI já zera as duas).
   const [modoBip, setModoBip] = useState(false);
+  const [msgsBip, setMsgsBip] = useState<Msg[]>([]);
+  const [historyBip, setHistoryBip] = useState<GeminiMsg[]>([]);
+  const [msgsAssistente, setMsgsAssistente] = useState<Msg[]>([]);
+  const [historyAssistente, setHistoryAssistente] = useState<GeminiMsg[]>([]);
+  const msgs = modoBip ? msgsBip : msgsAssistente;
+  const setMsgs = modoBip ? setMsgsBip : setMsgsAssistente;
+  const history = modoBip ? historyBip : historyAssistente;
+  const setHistory = modoBip ? setHistoryBip : setHistoryAssistente;
   const prefsCarregadasRef = useRef(false);
-  const [aguardandoLei, setAguardandoLei] = useState(false);
-  const [leisDisponiveis, setLeisDisponiveis] = useState<{id:string;nome:string}[]>([]);
-  const [cornerPos, setCornerPos] = useState(DEFAULT_CORNER);
+  const [cornerPos, setCornerPos] = useState(lerCornerPosSalvo);
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);
-  const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Posição arrastada persiste pela sessão do navegador (não entre sessões
+  // distintas) — gravada a cada mudança; a leitura já acontece no
+  // inicializador preguiçoso do useState acima (ver lerCornerPosSalvo).
+  useEffect(() => {
+    try { sessionStorage.setItem("urbi:cornerPos", JSON.stringify(cornerPos)); } catch {}
+  }, [cornerPos]);
 
   // ----- Web Speech (STT + TTS) ------------------------------------------
   // Carregar preferências ao montar
@@ -328,18 +363,19 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     setAberto(false);
     setTimeout(() => {
       setFase("fora");
-      setMsgs([]);
-      setHistory([]);
+      // Zera as duas conversas (BIP e Assistente) — nada de conversa
+      // sobrevive a um "dispensar", nas duas linhas.
+      setMsgsBip([]);
+      setHistoryBip([]);
+      setMsgsAssistente([]);
+      setHistoryAssistente([]);
       setPoseId("sucesso");
       setModoBip(false);
-      setAguardandoLei(false);
-      setLeisDisponiveis([]);
     }, 500);
   }
 
   function onMouseDown(e: React.MouseEvent) {
     e.preventDefault();
-    if (snapTimer.current) clearTimeout(snapTimer.current);
     dragStart.current = { mouseX: e.clientX, mouseY: e.clientY, bottom: cornerPos.bottom, right: cornerPos.right };
 
     function onMove(ev: MouseEvent) {
@@ -356,7 +392,6 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       dragStart.current = null;
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
-      snapTimer.current = setTimeout(() => setCornerPos(DEFAULT_CORNER), 3000);
     }
 
     window.addEventListener("mousemove", onMove);
@@ -408,11 +443,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     try {
       const res = await fetch("/api/urbi/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId, buscar_em_todas: modoBip, aguardando_lei: aguardandoLei, leis_disponiveis: leisDisponiveis }),
+        // history é só a conversa do modo ATIVO — trocar de modo troca de
+        // qual histórico este `history` aponta (ver derivação acima), então
+        // o modo anterior nunca é enviado ao modelo.
+        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId, modo_bip: modoBip }),
       });
       const json = await res.json();
       if (json.ok) {
-        if (json.aguardando_lei) { setAguardandoLei(true); setLeisDisponiveis(json.leis_disponiveis ?? []); } else { setAguardandoLei(false); setLeisDisponiveis([]); }
         const tipo = detectTipo(json.resposta);
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
@@ -468,6 +505,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
 
   const chatContent = (small?: boolean) => (
     <>
+      {/* Modo ativo — sempre visível, nunca muda sozinho por palavra-chave */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        marginBottom: 8, paddingBottom: 8, borderBottom: "1px solid #f1f5f9",
+        fontSize: 11, fontWeight: 700,
+        color: modoBip ? "#7c3aed" : "#1d4ed8",
+      }}>
+        {modoBip ? "⚖️ Modo: BIP — Especialista em Legislação" : "🧭 Modo: Assistente de análise"}
+      </div>
       <div style={{
         flex: 1, overflowY: "auto", maxHeight: small ? 220 : 300,
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
@@ -582,9 +628,17 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             Mic: {speech.ultimoErroStt}
           </span>
         )}
-        <button type="button" onClick={() => setModoBip(v => !v)}
+        {/* Seletor real de modo — ligado: BIP / Especialista em Legislação
+            (só o BIP, exige fonte); desligado: Assistente de análise. */}
+        <button
+          type="button"
+          onClick={() => setModoBip(v => !v)}
+          aria-pressed={modoBip}
+          title={modoBip
+            ? "Modo BIP ativo — clique para voltar ao Assistente de análise"
+            : "Ativar o modo BIP — Especialista em Legislação (só responde com base no BIP, sempre com fonte)"}
           style={{ background: modoBip ? "#7c3aed" : "#e2e8f0", color: modoBip ? "#fff" : "#1e293b", border: "none", borderRadius: 8, padding: "6px 10px", cursor: "pointer", fontSize: 14 }}>
-          {modoBip ? "📋 BIP ON" : "📋 BIP"}
+          {modoBip ? "⚖️ BIP ATIVO" : "⚖️ Ativar BIP"}
         </button>
       </div>
     </>
@@ -598,14 +652,16 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           position: "fixed",
           bottom: cornerPos.bottom,
           right: cornerPos.right,
-          zIndex: 950,
+          // Abaixo dos modais do processo/MAC (todos em z-50) — o URBI nunca
+          // cobre um modal aberto, só fica visível ao lado/atrás dele.
+          zIndex: 45,
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
           gap: 0,
           userSelect: "none",
         }}>
-          {balaoVisivel && (
+          {!modalAberto && balaoVisivel && (
             <div className="urbi-balao" style={{
               position: "relative",
               background: "#ffffff", borderRadius: 16,
@@ -639,27 +695,46 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               }} />
             </div>
           )}
-          <div
-            className={fase === "idle" ? "urbi-idle" : fase === "saindo" ? "urbi-saindo" : ""}
-            onMouseDown={onMouseDown}
-            onClick={() => setBalaoVisivel(v => !v)}
-            style={{ cursor: "grab", pointerEvents: "all" }}
-          >
-            <img
-              src={POSE_MAP[poseId] ?? POSE_MAP["sucesso"]}
-              alt="" draggable={false}
+          {modalAberto ? (
+            <button
+              type="button"
+              aria-label="URBI recolhido — há um modal aberto nesta tela"
+              title="URBI recolhido enquanto este modal está aberto"
+              onMouseDown={onMouseDown}
+              onClick={() => setBalaoVisivel(v => !v)}
               style={{
-                width: 100, height: 128,
-                objectFit: "contain",
-                opacity: poseOpacity,
-                transition: "opacity 0.2s",
-                filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
-                background: "transparent",
-                userSelect: "none",
-                pointerEvents: "none",
+                width: 40, height: 40, borderRadius: "50%",
+                border: "none", padding: 0, cursor: "grab",
+                backgroundImage: "url(/urbi/urbi-botao.jpg)",
+                backgroundSize: "cover", backgroundPosition: "center",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.35)",
+                opacity: 0.85,
+                pointerEvents: "all",
               }}
             />
-          </div>
+          ) : (
+            <div
+              className={fase === "idle" ? "urbi-idle" : fase === "saindo" ? "urbi-saindo" : ""}
+              onMouseDown={onMouseDown}
+              onClick={() => setBalaoVisivel(v => !v)}
+              style={{ cursor: "grab", pointerEvents: "all" }}
+            >
+              <img
+                src={POSE_MAP[poseId] ?? POSE_MAP["sucesso"]}
+                alt="" draggable={false}
+                style={{
+                  width: 100, height: 128,
+                  objectFit: "contain",
+                  opacity: poseOpacity,
+                  transition: "opacity 0.2s",
+                  filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.3))",
+                  background: "transparent",
+                  userSelect: "none",
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+          )}
         </div>
       </>
     );

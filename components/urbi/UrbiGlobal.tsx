@@ -3,10 +3,25 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import UrbiChat from "./UrbiChat";
 
+// Presença persistente por sessão do navegador (sessionStorage, não
+// localStorage — não sobrevive entre sessões distintas nem entre
+// abas/dispositivos). Só o estado visual (aberto/dispensado) persiste;
+// conversa e dados de processo nunca são gravados aqui. Inicializador
+// preguiçoso (não um efeito de restauração) — seguro contra mismatch de
+// hidratação porque este componente só renderiza de fato depois que
+// `usuario` chega via fetch client-side; a passagem de SSR/primeira
+// pintura já é `null` independente deste valor, então não há divergência
+// entre servidor e cliente a evitar.
+function lerUrbiAbertoSalvo(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return sessionStorage.getItem("urbi:aberto") === "true"; } catch { return false; }
+}
+
 export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
-  const [urbiAberto, setUrbiAberto] = useState(false);
+  const [urbiAberto, setUrbiAberto] = useState<boolean>(lerUrbiAbertoSalvo);
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
   const pathname = usePathname();
   const isHome = pathname === "/";
   const recRef = useRef<any>(null);
@@ -30,6 +45,10 @@ export default function UrbiGlobal() {
   const processoIdRef = useRef<string | null>(null);
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("urbi:aberto", urbiAberto ? "true" : "false"); } catch {}
+  }, [urbiAberto]);
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei)\/([^/?]+)/);
@@ -180,17 +199,69 @@ export default function UrbiGlobal() {
     return () => pararEscuta();
   }, []);
 
+  // Atalho global Shift+U: abre ou dispensa o URBI em qualquer tela
+  // autenticada. Fora da Home não existe botão visível — este é o único
+  // jeito de chamar o URBI ali. Nunca dispara com foco em campo de texto,
+  // textarea, select ou elemento editável (inclui o próprio input do chat).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (!e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      if (e.key.toLowerCase() !== "u") return;
+      if (!usuario?.nome || !usuario?.urbi_ativo) return;
+      const alvo = document.activeElement as HTMLElement | null;
+      const tag = alvo?.tagName;
+      const ehEditavel = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!alvo?.isContentEditable;
+      if (ehEditavel) return;
+      e.preventDefault();
+      setUrbiAberto(v => !v);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [usuario]);
+
+  // Detecta modal crítico aberto (convenção do app: overlay `fixed inset-0`
+  // + `z-50` — usada por todos os modais do processo/MAC) para recolher o
+  // URBI enquanto ele estiver visível, em vez de cobrir o modal.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function checar() {
+      const aberto = !!document.querySelector(".fixed.inset-0.z-50");
+      setModalAberto(prev => (prev === aberto ? prev : aberto));
+    }
+    checar();
+    const obs = new MutationObserver(() => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; checar(); }, 32);
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => { obs.disconnect(); if (timer) clearTimeout(timer); };
+  }, []);
+
   if (!usuario?.nome) return null;
   if (!usuario?.urbi_ativo) return null;
 
   return (
     <>
       {!urbiAberto && isHome && (
-        <button onClick={() => { iniciarEscuta(); setUrbiAberto(true); }}
-          style={{ position: "fixed", bottom: 80, right: 24, background: "transparent", border: "none", cursor: "pointer", zIndex: 1000 }}>
-          <img src="/urbi/urbi-botao.jpg"
-            style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
-        </button>
+        <div style={{
+          position: "fixed", bottom: 80, right: 24, zIndex: 1000,
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+        }}>
+          <button
+            onClick={() => { iniciarEscuta(); setUrbiAberto(true); }}
+            aria-label="Abrir o URBI. Atalho de teclado: Shift + U"
+            title="Abrir o URBI (Shift + U)"
+            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            <img src="/urbi/urbi-botao.jpg" alt=""
+              style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
+          </button>
+          <span aria-hidden="true" style={{
+            fontSize: 11, fontWeight: 600, color: "#334155", background: "#ffffffdd",
+            padding: "2px 9px", borderRadius: 999, boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+            letterSpacing: 0.3,
+          }}>Shift + U</span>
+        </div>
       )}
       {!urbiAberto && peekAtivo && dicaPeek && (
         <div
@@ -227,6 +298,7 @@ export default function UrbiGlobal() {
         modo={isHome ? "center" : "corner"}
         assuntoId={assuntoId}
         urbiVoz={usuario?.urbi_voz ?? false}
+        modalAberto={modalAberto}
         mensagemInicial={mensagemInicial}
         onMensagemInicialConsumida={() => setMensagemInicial(null)}
       />

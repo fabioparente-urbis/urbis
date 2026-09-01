@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Config = { chave: string; valor: string; descricao: string };
-type Lei = { id: string; titulo: string; tipo: string; numero: string; url_pdf: string; resumo: string; tags: string[]; ativo: boolean };
 type Historico = { id: string; usuario_nome: string; linha: string; mensagem_usuario: string; resposta_urbi: string; criado_em: string };
 type Stats = {
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
@@ -23,7 +22,6 @@ export default function BDIPage() {
   const router = useRouter();
   const [aba, setAba] = useState<"painel"|"estatisticas"|"capacidades"|"legislacao"|"historico">("painel");
   const [config, setConfig] = useState<Config[]>([]);
-  const [leis, setLeis] = useState<Lei[]>([]);
   const [historico, setHistorico] = useState<Historico[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -32,9 +30,6 @@ export default function BDIPage() {
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
   const [subAba, setSubAba] = useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
   const [toast, setToast] = useState("");
-  const [modalLei, setModalLei] = useState(false);
-  const [editandoLei, setEditandoLei] = useState<Lei | null>(null);
-  const [form, setForm] = useState({ titulo: "", tipo: "lei", numero: "", url_pdf: "", resumo: "", tags: "" });
 
   useEffect(() => {
     (async () => {
@@ -58,14 +53,12 @@ export default function BDIPage() {
     setLoadingSessoes(false);
   }
   async function carregarTudo() {
-    const [r1, r2, r3] = await Promise.all([
+    const [r1, r2] = await Promise.all([
       fetch("/api/urbi/config").then(r => r.json()),
-      fetch("/api/urbi/legislacao").then(r => r.json()),
       fetch("/api/urbi/historico?limit=100").then(r => r.json()),
     ]);
     if (r1.ok) setConfig(r1.data);
-    if (r2.ok) setLeis(r2.data);
-    if (r3.ok) setHistorico(r3.data);
+    if (r2.ok) setHistorico(r2.data);
   }
 
   async function carregarStats() {
@@ -90,37 +83,6 @@ export default function BDIPage() {
     showToast("Configuração atualizada.");
   }
 
-  async function salvarLei() {
-    const payload = { ...form, tags: form.tags.split(",").map(t => t.trim()).filter(Boolean), ativo: true };
-    if (editandoLei) {
-      await fetch("/api/urbi/legislacao", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: editandoLei.id, ...payload }) });
-      showToast("Lei atualizada.");
-    } else {
-      await fetch("/api/urbi/legislacao", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      showToast("Lei cadastrada.");
-    }
-    setModalLei(false); setEditandoLei(null);
-    setForm({ titulo: "", tipo: "lei", numero: "", url_pdf: "", resumo: "", tags: "" });
-    carregarTudo();
-  }
-
-  async function toggleLei(lei: Lei) {
-    await fetch("/api/urbi/legislacao", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: lei.id, ativo: !lei.ativo }) });
-    carregarTudo();
-  }
-
-  async function deletarLei(id: string) {
-    if (!confirm("Remover esta lei?")) return;
-    await fetch("/api/urbi/legislacao", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    showToast("Lei removida."); carregarTudo();
-  }
-
-  function abrirEdicao(lei: Lei) {
-    setEditandoLei(lei);
-    setForm({ titulo: lei.titulo, tipo: lei.tipo, numero: lei.numero ?? "", url_pdf: lei.url_pdf ?? "", resumo: lei.resumo ?? "", tags: (lei.tags ?? []).join(", ") });
-    setModalLei(true);
-  }
-
   const linhas = [
     { chave: "linha_consultor", label: "Consultor Jurídico", desc: "Responde dúvidas sobre legislação urbanística de Goiânia", emoji: "⚖️" },
     { chave: "linha_calculadora", label: "Calculadora", desc: "Cálculos de áreas, recuos, permeabilidade e volumetria", emoji: "🧮" },
@@ -129,7 +91,6 @@ export default function BDIPage() {
   ];
 
   const totalConversas = historico.length;
-  const leiAtivas = leis.filter(l => l.ativo).length;
   const urbiAtivo = getConfig("urbi_ativo") === "true";
 
   // Stats filtradas por assunto
@@ -189,11 +150,9 @@ export default function BDIPage() {
 
         {aba === "painel" && (
           <div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 24 }}>
               {[
                 { label: "CONVERSAS TOTAIS", valor: totalConversas },
-                { label: "LEIS ATIVAS", valor: leiAtivas },
-                { label: "LEIS CADASTRADAS", valor: leis.length },
                 { label: "LINHAS ATIVAS", valor: linhas.filter(l => getConfig(l.chave) === "true").length },
               ].map(({ label, valor }) => (
                 <div key={label} style={S.card}>
@@ -522,36 +481,20 @@ export default function BDIPage() {
         )}
 
         {aba === "legislacao" && (
-          <div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-              <button style={S.btn("#d946ef")} onClick={() => { setEditandoLei(null); setForm({ titulo: "", tipo: "lei", numero: "", url_pdf: "", resumo: "", tags: "" }); setModalLei(true); }}>+ Adicionar Lei</button>
+          <div style={S.card}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontSize: 22 }}>📚</span>
+              <div style={{ color: "#f0f0f0", fontSize: 15, fontWeight: 700 }}>O BIP é a fonte jurídica oficial do URBIS</div>
             </div>
-            {leis.length === 0 && <div style={{ color: "#ffffff33", fontSize: 12, textAlign: "center", padding: 40 }}>Nenhuma lei cadastrada ainda.</div>}
-            {leis.map(lei => (
-              <div key={lei.id} style={{ ...S.card, opacity: lei.ativo ? 1 : 0.4 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                      <span style={S.badge("#d946ef")}>{lei.tipo.toUpperCase()}</span>
-                      {lei.numero && <span style={{ color: "#ffffff44", fontSize: 11 }}>Nº {lei.numero}</span>}
-                    </div>
-                    <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{lei.titulo}</div>
-                    {lei.resumo && <div style={{ color: "#ffffff55", fontSize: 11, marginBottom: 6 }}>{lei.resumo}</div>}
-                    {lei.url_pdf && <a href={lei.url_pdf} target="_blank" style={{ color: "#06b6d4", fontSize: 11 }}>🔗 Ver PDF</a>}
-                    {(lei.tags ?? []).length > 0 && (
-                      <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
-                        {lei.tags.map(t => <span key={t} style={{ background: "#ffffff11", color: "#ffffff66", fontSize: 9, padding: "2px 8px", borderRadius: 10 }}>{t}</span>)}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 6, marginLeft: 16 }}>
-                    <button style={S.btn("#06b6d4")} onClick={() => abrirEdicao(lei)}>✏️</button>
-                    <button style={S.btn(lei.ativo ? "#f59e0b" : "#22c55e")} onClick={() => toggleLei(lei)}>{lei.ativo ? "⏸" : "▶"}</button>
-                    <button style={S.btn("#ef4444")} onClick={() => deletarLei(lei.id)}>🗑</button>
-                  </div>
-                </div>
-              </div>
-            ))}
+            <div style={{ color: "#ffffff66", fontSize: 13, lineHeight: 1.7, marginBottom: 20, maxWidth: 580 }}>
+              Leis, decretos e normas técnicas ficam indexados e pesquisáveis no BIP — Biblioteca Inteligente
+              para Pesquisas. É de lá que o modo BIP do URBI busca fragmento e cita fonte ao responder.
+              Este cadastro antigo de legislação (aba que existia aqui) não alimenta mais nada no sistema —
+              cadastre e gerencie leis diretamente no BIP.
+            </div>
+            <button style={S.btn("#d946ef")} onClick={() => router.push("/admin/bdi/leis")}>
+              📚 Abrir o BIP — Biblioteca de Leis →
+            </button>
           </div>
         )}
 
@@ -574,26 +517,6 @@ export default function BDIPage() {
           </div>
         )}
       </div>
-
-      {modalLei && (
-        <div style={{ position: "fixed", inset: 0, background: "#00000088", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999 }}>
-          <div style={{ background: "#0d0d14", border: "1px solid #d946ef44", borderRadius: 10, padding: 28, width: 500, maxWidth: "90vw" }}>
-            <div style={{ color: "#d946ef", fontSize: 11, letterSpacing: 2, marginBottom: 20 }}>{editandoLei ? "EDITAR LEI" : "NOVA LEI"}</div>
-            <input placeholder="Título *" value={form.titulo} onChange={e => setForm(f => ({ ...f, titulo: e.target.value }))} style={S.input} />
-            <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))} style={{ ...S.input, cursor: "pointer" }}>
-              {["lei","decreto","portaria","resolucao","outro"].map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input placeholder="Número (ex: 031/2007)" value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))} style={S.input} />
-            <input placeholder="URL do PDF" value={form.url_pdf} onChange={e => setForm(f => ({ ...f, url_pdf: e.target.value }))} style={S.input} />
-            <textarea placeholder="Resumo" value={form.resumo} onChange={e => setForm(f => ({ ...f, resumo: e.target.value }))} style={{ ...S.input, height: 80, resize: "vertical" }} />
-            <input placeholder="Tags (separadas por vírgula)" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} style={S.input} />
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
-              <button style={S.btn("#ffffff44")} onClick={() => setModalLei(false)}>Cancelar</button>
-              <button style={S.btn("#d946ef")} onClick={salvarLei}>Salvar</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {toast && (
         <div style={{ position: "fixed", bottom: 24, right: 24, background: "#052e16", border: "1px solid #22c55e55", color: "#22c55e", padding: "10px 18px", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }}>
