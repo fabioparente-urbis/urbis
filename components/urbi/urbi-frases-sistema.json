@@ -1,0 +1,13 @@
+{
+  "_comentario": "Frases fixas do URBI que não vêm de urbi-intencoes.json. Editar aqui e rodar scripts/gerar_vozes_urbi.mts para regravar. Manter curtas: cada uma vira um mp3 pré-gerado, tocado sem consumir crédito.",
+  "frases": [
+    {
+      "id": "sys_resposta_longa",
+      "texto": "Resposta muito grande para ser reproduzida em áudio. O texto está na tela."
+    },
+    {
+      "id": "sys_erro_voz",
+      "texto": "Não consegui gerar o áudio agora."
+    }
+  ]
+}

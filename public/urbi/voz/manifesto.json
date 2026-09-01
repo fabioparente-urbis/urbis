@@ -1,0 +1,127 @@
+{
+  "voz": "bIHbv24MWmeRgasZH58o",
+  "modelo": "eleven_multilingual_v2",
+  "gerado_em": "2026-09-01",
+  "falas": {
+    "abrir_processos": {
+      "texto": "Abrindo a pilha de processos.",
+      "arquivo": "abrir_processos.mp3",
+      "hash": "cf609b94225841f2",
+      "caracteres": 29,
+      "bytes": 31391,
+      "duracaoSeg": 2.1
+    },
+    "abrir_mrp": {
+      "texto": "Abrindo o MRP — Minha Produtividade.",
+      "arquivo": "abrir_mrp.mp3",
+      "hash": "b760bc0019abc071",
+      "caracteres": 36,
+      "bytes": 45601,
+      "duracaoSeg": 2.6
+    },
+    "abrir_mrp_equipe": {
+      "texto": "Abrindo o MRP da equipe.",
+      "arquivo": "abrir_mrp_equipe.mp3",
+      "hash": "bda41964b57f219e",
+      "caracteres": 24,
+      "bytes": 28465,
+      "duracaoSeg": 1.7
+    },
+    "abrir_usuarios": {
+      "texto": "Abrindo a gestão de usuários.",
+      "arquivo": "abrir_usuarios.mp3",
+      "hash": "a3df7de77709a93e",
+      "caracteres": 29,
+      "bytes": 30137,
+      "duracaoSeg": 2.1
+    },
+    "abrir_mac": {
+      "texto": "Abrindo o gerenciador de MAC.",
+      "arquivo": "abrir_mac.mp3",
+      "hash": "e6ecf2836b5df1e4",
+      "caracteres": 29,
+      "bytes": 30973,
+      "duracaoSeg": 2.1
+    },
+    "abrir_lip": {
+      "texto": "Abrindo o gerenciador de LIP.",
+      "arquivo": "abrir_lip.mp3",
+      "hash": "ab55d981f057d40c",
+      "caracteres": 29,
+      "bytes": 33898,
+      "duracaoSeg": 2.1
+    },
+    "abrir_prompts": {
+      "texto": "Abrindo o gerenciador de prompts.",
+      "arquivo": "abrir_prompts.mp3",
+      "hash": "f19f2c5ab2c6c1f6",
+      "caracteres": 33,
+      "bytes": 30973,
+      "duracaoSeg": 2.4
+    },
+    "abrir_bdi": {
+      "texto": "Abrindo o BDI.",
+      "arquivo": "abrir_bdi.mp3",
+      "hash": "2a190b40ec9d6a25",
+      "caracteres": 14,
+      "bytes": 22613,
+      "duracaoSeg": 1
+    },
+    "abrir_backup": {
+      "texto": "Abrindo Backup e Restauração.",
+      "arquivo": "abrir_backup.mp3",
+      "hash": "ffdacb74e8cb8680",
+      "caracteres": 29,
+      "bytes": 32226,
+      "duracaoSeg": 2.1
+    },
+    "ir_home": {
+      "texto": "Voltando para a página inicial.",
+      "arquivo": "ir_home.mp3",
+      "hash": "757e5da1ffb56efd",
+      "caracteres": 31,
+      "bytes": 33898,
+      "duracaoSeg": 2.2
+    },
+    "fechar_urbi": {
+      "texto": "Até a próxima!",
+      "arquivo": "fechar_urbi.mp3",
+      "hash": "4915be3a4369796f",
+      "caracteres": 14,
+      "bytes": 18852,
+      "duracaoSeg": 1
+    },
+    "ativar_mudo": {
+      "texto": "Silenciado.",
+      "arquivo": "ativar_mudo.mp3",
+      "hash": "4758e261f5aeec2a",
+      "caracteres": 11,
+      "bytes": 20524,
+      "duracaoSeg": 0.8
+    },
+    "desativar_mudo": {
+      "texto": "Som ativado.",
+      "arquivo": "desativar_mudo.mp3",
+      "hash": "05c28425328f2bd4",
+      "caracteres": 12,
+      "bytes": 20524,
+      "duracaoSeg": 0.9
+    },
+    "sys_resposta_longa": {
+      "texto": "Resposta muito grande para ser reproduzida em áudio. O texto está na tela.",
+      "arquivo": "sys_resposta_longa.mp3",
+      "hash": "c9fee518016a050e",
+      "caracteres": 74,
+      "bytes": 76112,
+      "duracaoSeg": 5.3
+    },
+    "sys_erro_voz": {
+      "texto": "Não consegui gerar o áudio agora.",
+      "arquivo": "sys_erro_voz.mp3",
+      "hash": "b1e8b87064899760",
+      "caracteres": 33,
+      "bytes": 36824,
+      "duracaoSeg": 2.4
+    }
+  }
+}

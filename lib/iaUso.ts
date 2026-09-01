@@ -9,7 +9,18 @@ const PRECO_USD_POR_MILHAO: Record<string, { entrada: number; saida: number }> =
   "gemini-2.5-flash": { entrada: 0.30, saida: 2.50 },
 };
 
+/**
+ * Modelos cobrados por CARACTERE (crédito), não por token — hoje só a voz do URBI,
+ * no ElevenLabs. Para eles, `tokens_entrada` guarda a contagem de caracteres, que é
+ * a unidade que consome a cota, e `custo_estimado_usd` fica NULL de propósito: a
+ * cobrança é por assinatura mensal com pacote de créditos, então dividir o valor do
+ * plano por chamada daria um número inventado. O que serve para acompanhar consumo
+ * ali é a soma de caracteres, não um dólar estimado.
+ */
+const COBRADOS_POR_CARACTERE = new Set(["eleven_multilingual_v2"]);
+
 function custoEstimadoUsd(modelo: string | null | undefined, tokensEntrada: number | null | undefined, tokensSaida: number | null | undefined): number | null {
+  if (modelo && COBRADOS_POR_CARACTERE.has(modelo)) return null;
   if (!modelo || !PRECO_USD_POR_MILHAO[modelo]) return null;
   const preco = PRECO_USD_POR_MILHAO[modelo];
   const custoEntrada = ((tokensEntrada ?? 0) / 1_000_000) * preco.entrada;
