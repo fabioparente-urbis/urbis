@@ -1,56 +1,16 @@
 -- 2026_08_31_trava_rls_anon.sql
 --
--- Achado da auditoria de segurança de 31/08/2026, motivada pelo processo
--- 25.5.000081077-0 (Antônia Meneses Rodrigues) "sumindo" da pilha.
+-- Auditoria de 31/08/2026 confirmou acesso direto de anon a sete tabelas e
+-- onze views. O app autentica por cookie proprio e acessa esses objetos apenas
+-- por rotas de servidor com service_role; anon/authenticated nao sao
+-- consumidores legitimos deles.
 --
--- O processo em si nunca foi apagado — os 75 campos do LIP e o histórico em
--- auditoria_log seguiam intactos o tempo todo (confirmado com a service role).
--- O susto real, achado ao investigar, é outro e mais grave: sete tabelas
--- estavam de fato abertas para a ANON KEY (a chave pública, a mesma que o
--- app expõe em NEXT_PUBLIC_SUPABASE_ANON_KEY) sem NENHUMA policy de RLS
--- restringindo. Testado direto contra o Supabase, sem passar pelo app:
---
---   processos            → SELECT liberado (83/83 linhas), e pior:
---                           UPDATE e DELETE também liberados. Uma linha de
---                           teste sofreu soft-delete E hard-delete via anon,
---                           sem tocar em urbis_id, sem checar dono, sem virar
---                           lixeira — o processo simplesmente deixa de
---                           existir, sem rastro em auditoria_log (que é
---                           alimentado por trigger, mas não impede o DELETE).
---   usuarios              → SELECT liberado: nome, e-mail, telefone,
---                           matrícula, cargo, perfis de todo mundo.
---   analises_mac          → SELECT liberado (118 linhas): conteúdo de
---                           análise inteiro.
---   lip_prompts            → SELECT liberado (10 linhas).
---   lip_resultados          → SELECT liberado (8 linhas).
---   processo_historico     → SELECT liberado (4 linhas).
---   urbis_config            → SELECT liberado (1 linha).
---
--- As outras ~48 tabelas do projeto (mdp_registros, mrp_registros,
--- auditoria_log, mhd_documentos, urbis_api_calls, assuntos, etc.) já
--- devolviam vazio para a mesma chave — RLS funcionando como esperado nelas.
--- Isto aqui fecha só as sete que estavam abertas.
---
--- O app NUNCA usa Supabase Auth (login é cookie próprio `urbis_id`, checado
--- em lib/auth.ts) — então `anon` e `authenticated` não têm nenhuma razão
--- legítima para tocar essas tabelas. Toda leitura/escrita de verdade já
--- passa pelas rotas de servidor com a SERVICE ROLE KEY (que ignora RLS por
--- natureza — é por isso que este arquivo não quebra nada do app: as sete
--- rotas que ainda liam `processos`/`lip_prompts` pela chave anônima
--- (lib/supabaseClient.ts) foram trocadas para supabaseAdmin no mesmo commit
--- desta migration — rodar este SQL ANTES desse deploy quebraria
--- /api/processo/carregar, /api/processo/salvar, /api/processo/tag e as
--- leituras de prompt do LIP/MAC).
---
--- Efeito de ENABLE ROW LEVEL SECURITY sem nenhuma policy: nega tudo por
--- padrão para quem não é o dono da tabela nem BYPASSRLS — cobre anon e
--- authenticated de uma vez, mesmo que apareça uma policy solta que não foi
--- encontrada nesta auditoria (não há acesso a psql/pg_policies neste
--- ambiente, só ao client-side via supabase-js). O REVOKE explícito abaixo é
--- cinto e suspensório: mesmo que RLS seja desabilitado por engano no futuro,
--- essas duas roles continuam sem privilégio nenhum na tabela.
---
--- Aditiva e idempotente — pode rodar mais de uma vez sem efeito colateral.
+-- As policies existentes sao preservadas. O bloqueio ocorre pelos privilegios
+-- das roles e pelo RLS, sem destruir regras que possam ser uteis no futuro.
+-- As views recebem security_invoker para respeitarem o acesso das tabelas-base.
+-- service_role nao e alterada. A migration e transacional e idempotente.
+
+BEGIN;
 
 ALTER TABLE public.processos          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.usuarios           ENABLE ROW LEVEL SECURITY;
@@ -59,26 +19,6 @@ ALTER TABLE public.lip_prompts        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.lip_resultados     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.processo_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbis_config       ENABLE ROW LEVEL SECURITY;
-
--- Derruba qualquer policy permissiva que hoje concede acesso a anon/authenticated
--- nessas sete tabelas — é isso que efetivamente deixava o SELECT (e, em
--- processos, o UPDATE/DELETE) passar apesar do RLS já poder estar ligado.
-DO $$
-DECLARE
-  r RECORD;
-BEGIN
-  FOR r IN
-    SELECT schemaname, tablename, policyname
-    FROM pg_policies
-    WHERE schemaname = 'public'
-      AND tablename IN (
-        'processos', 'usuarios', 'analises_mac', 'lip_prompts',
-        'lip_resultados', 'processo_historico', 'urbis_config'
-      )
-  LOOP
-    EXECUTE format('DROP POLICY IF EXISTS %I ON %I.%I', r.policyname, r.schemaname, r.tablename);
-  END LOOP;
-END $$;
 
 -- Cinto e suspensório: revoga o privilégio de tabela em si (independe de RLS).
 REVOKE ALL ON public.processos          FROM anon, authenticated;
@@ -89,18 +29,32 @@ REVOKE ALL ON public.lip_resultados     FROM anon, authenticated;
 REVOKE ALL ON public.processo_historico FROM anon, authenticated;
 REVOKE ALL ON public.urbis_config       FROM anon, authenticated;
 
--- ── REVERSÃO (não rodar junto) ───────────────────────────────────────
--- GRANT ALL ON public.processos          TO anon, authenticated;
--- GRANT ALL ON public.usuarios           TO anon, authenticated;
--- GRANT ALL ON public.analises_mac       TO anon, authenticated;
--- GRANT ALL ON public.lip_prompts        TO anon, authenticated;
--- GRANT ALL ON public.lip_resultados     TO anon, authenticated;
--- GRANT ALL ON public.processo_historico TO anon, authenticated;
--- GRANT ALL ON public.urbis_config       TO anon, authenticated;
--- ALTER TABLE public.processos          DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.usuarios           DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.analises_mac       DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.lip_prompts        DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.lip_resultados     DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.processo_historico DISABLE ROW LEVEL SECURITY;
--- ALTER TABLE public.urbis_config       DISABLE ROW LEVEL SECURITY;
+-- Views nao herdam automaticamente o RLS das tabelas-base. security_invoker
+-- impede que sejam executadas com os privilegios do proprietario postgres.
+ALTER VIEW public.mrp_painel_diario           SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_analistas_desempenho SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_autores               SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_nao_conformidades     SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_por_analista          SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_por_assunto           SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_por_bairro            SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_produtividade_mensal  SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_resumo_geral          SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_sessoes               SET (security_invoker = true);
+ALTER VIEW public.vw_bdi_tempo_analista        SET (security_invoker = true);
+
+REVOKE ALL ON public.mrp_painel_diario           FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_analistas_desempenho FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_autores               FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_nao_conformidades     FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_por_analista          FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_por_assunto           FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_por_bairro            FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_produtividade_mensal  FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_resumo_geral          FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_sessoes               FROM anon, authenticated;
+REVOKE ALL ON public.vw_bdi_tempo_analista        FROM anon, authenticated;
+
+NOTIFY pgrst, 'reload schema';
+
+COMMIT;
