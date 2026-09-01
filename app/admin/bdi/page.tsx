@@ -3,8 +3,8 @@ import React from "react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Config = { chave: string; valor: string; descricao: string };
 type Historico = { id: string; usuario_nome: string; linha: string; mensagem_usuario: string; resposta_urbi: string; criado_em: string };
+type UsuarioResumo = { id: string; urbi_ativo?: boolean };
 type Stats = {
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
   por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
@@ -21,7 +21,7 @@ const MESES = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","N
 export default function BDIPage() {
   const router = useRouter();
   const [aba, setAba] = useState<"painel"|"estatisticas"|"capacidades"|"legislacao"|"historico">("painel");
-  const [config, setConfig] = useState<Config[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioResumo[]>([]);
   const [historico, setHistorico] = useState<Historico[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
@@ -29,7 +29,6 @@ export default function BDIPage() {
   const [loadingSessoes, setLoadingSessoes] = useState(false);
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
   const [subAba, setSubAba] = useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
-  const [toast, setToast] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -54,10 +53,10 @@ export default function BDIPage() {
   }
   async function carregarTudo() {
     const [r1, r2] = await Promise.all([
-      fetch("/api/urbi/config").then(r => r.json()),
+      fetch("/api/admin/usuarios").then(r => r.json()),
       fetch("/api/urbi/historico?limit=100").then(r => r.json()),
     ]);
-    if (r1.ok) setConfig(r1.data);
+    if (r1.ok) setUsuarios(r1.data);
     if (r2.ok) setHistorico(r2.data);
   }
 
@@ -72,27 +71,8 @@ export default function BDIPage() {
     }
   }
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(""), 3000); }
-  function getConfig(chave: string) { return config.find(c => c.chave === chave)?.valor ?? ""; }
-
-  async function toggleConfig(chave: string) {
-    const atual = getConfig(chave);
-    const novo = atual === "true" ? "false" : "true";
-    await fetch("/api/urbi/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chave, valor: novo }) });
-    setConfig(c => c.map(x => x.chave === chave ? { ...x, valor: novo } : x));
-    showToast("Configuração atualizada.");
-  }
-
-  const linhas = [
-    { chave: "linha_consultor", label: "Consultor Jurídico", desc: "Responde dúvidas sobre legislação urbanística de Goiânia", emoji: "⚖️" },
-    { chave: "linha_calculadora", label: "Calculadora", desc: "Cálculos de áreas, recuos, permeabilidade e volumetria", emoji: "🧮" },
-    { chave: "linha_correio", label: "Correio", desc: "Mensageria interna entre analistas (em desenvolvimento)", emoji: "📬" },
-    { chave: "linha_co_analista", label: "Co-Analista", desc: "Auditor preditivo baseado em padrões históricos (futuro)", emoji: "🤖" },
-  ];
-
   const totalConversas = historico.length;
-  const urbiAtivo = getConfig("urbi_ativo") === "true";
-
+  const usuariosComUrbiAtivo = usuarios.filter(u => u.urbi_ativo).length;
   // Stats filtradas por assunto
   const assuntosDisponiveis = ["Todos", ...Array.from(new Set((stats?.por_assunto ?? []).map(x => x.assunto)))];
   const porBairroFiltrado = filtroAssunto === "Todos"
@@ -115,8 +95,6 @@ export default function BDIPage() {
     card: { background: "#0d0d14", border: "1px solid #ffffff11", borderRadius: 8, padding: 20, marginBottom: 16 },
     label: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, marginBottom: 6 },
     valor: { color: "#f0f0f0", fontSize: 22, fontWeight: 700 },
-    toggle: (ativo: boolean): React.CSSProperties => ({ width: 42, height: 22, borderRadius: 11, background: ativo ? "#d946ef" : "#ffffff22", border: "none", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }),
-    input: { background: "#0a0a0f", border: "1px solid #ffffff22", borderRadius: 6, color: "#f0f0f0", padding: "8px 12px", fontSize: 12, fontFamily: "inherit", width: "100%", outline: "none", marginBottom: 10 },
     btn: (cor: string): React.CSSProperties => ({ background: cor + "22", border: `1px solid ${cor}55`, color: cor, padding: "6px 14px", borderRadius: 4, cursor: "pointer", fontSize: 11, fontFamily: "inherit", letterSpacing: 1 }),
     th: { color: "#ffffff44", fontSize: 10, letterSpacing: 2, padding: "8px 12px", textAlign: "left" as const, borderBottom: "1px solid #ffffff11" },
     td: { color: "#f0f0f0", fontSize: 12, padding: "8px 12px", borderBottom: "1px solid #ffffff08" },
@@ -131,8 +109,7 @@ export default function BDIPage() {
           <span style={{ color: "#d946ef", fontSize: 11, letterSpacing: 3, fontWeight: 700 }}>BDI — BANCO DE DADOS PARA INTELIGÊNCIA</span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: urbiAtivo ? "#22c55e" : "#ef4444", boxShadow: `0 0 6px ${urbiAtivo ? "#22c55e" : "#ef4444"}` }} />
-          <span style={{ color: "#ffffff44", fontSize: 11 }}>URBI {urbiAtivo ? "ATIVO" : "INATIVO"}</span>
+          <span style={{ color: "#ffffff44", fontSize: 11 }}>URBI ativo para {usuariosComUrbiAtivo}/{usuarios.length} usuários</span>
           <button onClick={() => router.push("/admin/rastreabilidade")} style={S.btn("#ffffff44")}>🔍 Rastreabilidade</button>
           <button onClick={() => router.push("/")} style={S.btn("#ffffff66")}>← HOME</button>
         </div>
@@ -153,7 +130,7 @@ export default function BDIPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16, marginBottom: 24 }}>
               {[
                 { label: "CONVERSAS TOTAIS", valor: totalConversas },
-                { label: "LINHAS ATIVAS", valor: linhas.filter(l => getConfig(l.chave) === "true").length },
+                { label: "USUÁRIOS COM URBI ATIVO", valor: `${usuariosComUrbiAtivo}/${usuarios.length}` },
               ].map(({ label, valor }) => (
                 <div key={label} style={S.card}>
                   <div style={S.label}>{label}</div>
@@ -162,13 +139,14 @@ export default function BDIPage() {
               ))}
             </div>
             <div style={S.card}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div>
-                  <div style={S.label}>URBI GLOBAL</div>
-                  <div style={{ color: "#f0f0f0", fontSize: 14 }}>Liga ou desliga o URBI para todos os analistas</div>
-                </div>
-                <button style={S.toggle(urbiAtivo)} onClick={() => toggleConfig("urbi_ativo")} />
+              <div style={S.label}>ATIVAÇÃO DO URBI</div>
+              <div style={{ color: "#f0f0f0", fontSize: 14, lineHeight: 1.7, marginBottom: 14, maxWidth: 560 }}>
+                O URBI é ativado individualmente, por usuário — não existe um interruptor geral. Ligue ou desligue
+                para cada analista, gerência ou diretora em Configurações → Usuários.
               </div>
+              <button style={S.btn("#d946ef")} onClick={() => router.push("/admin/usuarios")}>
+                👤 Abrir Usuários →
+              </button>
             </div>
           </div>
         )}
@@ -459,24 +437,32 @@ export default function BDIPage() {
 
         {aba === "capacidades" && (
           <div>
-            {linhas.map(({ chave, label, desc, emoji }) => {
-              const ativo = getConfig(chave) === "true";
-              return (
-                <div key={chave} style={{ ...S.card, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                    <span style={{ fontSize: 24 }}>{emoji}</span>
-                    <div>
-                      <div style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{label}</div>
-                      <div style={{ color: "#ffffff55", fontSize: 11 }}>{desc}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ color: ativo ? "#22c55e" : "#ffffff33", fontSize: 10, letterSpacing: 1 }}>{ativo ? "ATIVO" : "INATIVO"}</span>
-                    <button style={S.toggle(ativo)} onClick={() => toggleConfig(chave)} />
-                  </div>
+            <div style={{ ...S.card, display: "flex", gap: 14, alignItems: "center" }}>
+              <span style={{ fontSize: 24 }}>⚖️</span>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600 }}>BIP — Especialista em Legislação</span>
+                  <span style={{ color: "#22c55e", fontSize: 10, letterSpacing: 1 }}>ATIVO</span>
                 </div>
-              );
-            })}
+                <div style={{ color: "#ffffff55", fontSize: 11 }}>
+                  Não se liga por aqui — cada analista ativa direto no botão "⚖️ Ativar BIP" dentro do chat do URBI.
+                  Quando ativo, o URBI responde só com base no BIP e sempre cita a fonte.
+                </div>
+              </div>
+            </div>
+            <div style={{ ...S.card, display: "flex", gap: 14, alignItems: "center", opacity: 0.6 }}>
+              <span style={{ fontSize: 24 }}>🤖</span>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span style={{ color: "#f0f0f0", fontSize: 13, fontWeight: 600 }}>Co-Analista</span>
+                  <span style={{ color: "#ffffff33", fontSize: 10, letterSpacing: 1 }}>AINDA NÃO IMPLEMENTADO</span>
+                </div>
+                <div style={{ color: "#ffffff55", fontSize: 11 }}>
+                  Apoio de análise consultando dados reais do processo — depende de acesso a ferramentas que o URBI
+                  ainda não tem. Não é um recurso que se liga; é trabalho de fase futura.
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -517,12 +503,6 @@ export default function BDIPage() {
           </div>
         )}
       </div>
-
-      {toast && (
-        <div style={{ position: "fixed", bottom: 24, right: 24, background: "#052e16", border: "1px solid #22c55e55", color: "#22c55e", padding: "10px 18px", borderRadius: 6, fontSize: 12, fontFamily: "monospace" }}>
-          {toast}
-        </div>
-      )}
     </div>
   );
 }
