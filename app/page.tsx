@@ -141,7 +141,7 @@ export default function Home() {
   const souAdmin = perfis.includes("Administrador");
 
   const cards: Card[] = [
-    { chave: "lip", nome: "PROCESSOS", descricao: "", Icone: ScanSearch, rota: "/processos", visivel: true, destaque: true },
+    { chave: "lip", nome: "PILHA DE PROCESSO", descricao: "", Icone: ScanSearch, rota: "/processos", visivel: true, destaque: true },
     { chave: "mac", nome: "MAC", descricao: "Análise e Conformidades", Icone: ClipboardCheck, rota: "/processos?destino=mac", visivel: false },
     { chave: "mrp", nome: "MRP", descricao: "Minha Produtividade", Icone: TrendingUp, rota: "/mrp", visivel: true },
     { chave: "mdp", nome: "MDP", descricao: "Despachos e Pareceres", Icone: FileText, rota: "/mdp", visivel: true },

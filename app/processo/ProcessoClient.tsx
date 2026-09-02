@@ -2758,7 +2758,7 @@ export default function ProcessoClient() {
           </button>
           <button onClick={() => router.push("/processos")}
             className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
-            ← Processos
+            ← Pilha de Processo
           </button>
           <button onClick={async () => {
               if (indoParaMac) return;
