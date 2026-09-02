@@ -28,7 +28,9 @@ export default function VigiaProcesso({ codigo }: { codigo: string }) {
   const [avisos, setAvisos] = useState<Aviso[] | null>(null);
   const [triagem, setTriagem] = useState<Triagem | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [aberto, setAberto] = useState(true);
+  // Sempre recolhido ao abrir o processo — consultar o Vigia é decisão do
+  // analista, não algo empurrado automaticamente na cara dele.
+  const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
     let vivo = true;
