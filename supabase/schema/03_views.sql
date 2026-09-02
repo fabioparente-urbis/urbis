@@ -1152,6 +1152,11 @@ CREATE OR REPLACE VIEW public.vw_bdi_analistas_desempenho AS
 -- vw_bdi_autores
 -- opcoes: security_invoker=true
 -- ======================================================================
+-- v2 (02/09/2026): total_nao_conformidades vinha inflado — o JOIN direto com
+-- analises_mac (1 linha por análise) multiplicava o valor já agregado por
+-- processo de `nao_conf` (400 em vez de 100, num processo com 4 análises).
+-- Fix: agrega análises numa CTE própria (analises_count), mesmo padrão de
+-- `nao_conf`, para todo JOIN da query externa ser 1:1 por processo_codigo.
 CREATE OR REPLACE VIEW public.vw_bdi_autores AS
  WITH rts AS (
          SELECT p.codigo AS processo_codigo,
@@ -1179,6 +1184,11 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
            FROM analises_mac am_1,
             LATERAL jsonb_each_text(COALESCE(am_1.itens, '{}'::jsonb)) v(chave, status)
           GROUP BY am_1.processo_codigo
+        ), analises_count AS (
+         SELECT processo_codigo,
+            count(*) AS total_analises
+           FROM analises_mac
+          GROUP BY processo_codigo
         )
  SELECT r.autor,
     r.registro,
@@ -1186,14 +1196,14 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
     r.assunto,
     r.status_processo,
     count(DISTINCT r.processo_codigo) AS total_processos,
-    count(DISTINCT am.id) AS total_analises,
+    COALESCE(sum(ac.total_analises), 0)::bigint AS total_analises,
     COALESCE(sum(nc.total_nao_conformidades), 0::numeric) AS total_nao_conformidades,
         CASE
             WHEN count(DISTINCT r.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT r.processo_codigo)::numeric, 2)
             ELSE 0::numeric
         END AS erros_por_processo
    FROM rts r
-     LEFT JOIN analises_mac am ON am.processo_codigo = r.processo_codigo
+     LEFT JOIN analises_count ac ON ac.processo_codigo = r.processo_codigo
      LEFT JOIN nao_conf nc ON nc.processo_codigo = r.processo_codigo
   GROUP BY r.autor, r.registro, r.tipo_registro, r.assunto, r.status_processo
   ORDER BY (
