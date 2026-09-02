@@ -134,6 +134,26 @@ export async function POST(req: NextRequest) {
 
     const { message, history, usuario, tipo, assunto_id, modo_bip } = await req.json();
 
+    // Chave-mestra de custo: desligada por padrão. Enquanto
+    // "chat_gemini_ativo" não for "true" em urbi_config, NENHUMA chamada ao
+    // Gemini acontece por este chat — zero custo real, não só um teto alto.
+    // Decisão do Fábio (02/09/2026): "200 chamadas/hora não é custo zero...
+    // o chat Gemini precisa ficar desligado ou só ser liberado manualmente
+    // quando você aceitar custo." Só o Administrador liga isso (PUT
+    // /api/urbi/config), fora do código — nunca automático.
+    const { data: flagChat } = await supabaseAdmin
+      .from("urbi_config")
+      .select("valor")
+      .eq("chave", "chat_gemini_ativo")
+      .maybeSingle();
+    if (flagChat?.valor !== "true") {
+      return NextResponse.json({
+        ok: false,
+        erro: "CHAT_DESLIGADO",
+        detalhe: "O chat com IA do URBI está desligado — nenhum custo é gerado enquanto isso. Fale com o Administrador se precisar dele ligado.",
+      }, { status: 503 });
+    }
+
     // Cache da saudação (OnMount): resolve sem custo de Gemini nem consumo de
     // budget se já saudou esse usuário há pouco (ver CACHE_ONMOUNT_TTL_MS).
     if (tipo === "OnMount") {

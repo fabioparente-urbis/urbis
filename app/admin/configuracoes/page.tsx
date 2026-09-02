@@ -54,6 +54,43 @@ function ConfiguracoesInner() {
   const [zerando, setZerando] = useState(false);
   // Resultado do auto-clone disparado ao ativar um slot.
   const [avisoClone, setAvisoClone] = useState("");
+  // Retenção do histórico do URBI — anonimização manual, um clique por vez.
+  const [retencaoElegiveis, setRetencaoElegiveis] = useState<number | null>(null);
+  const [retencaoConsultando, setRetencaoConsultando] = useState(false);
+  const [retencaoAplicando, setRetencaoAplicando] = useState(false);
+  const [retencaoResultado, setRetencaoResultado] = useState<string | null>(null);
+  const [retencaoErro, setRetencaoErro] = useState<string | null>(null);
+
+  async function consultarRetencao() {
+    setRetencaoConsultando(true); setRetencaoErro(null); setRetencaoResultado(null);
+    try {
+      const r = await fetch("/api/admin/urbi-historico/retencao");
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro || "falha ao consultar");
+      setRetencaoElegiveis(j.elegiveis);
+    } catch (e: any) {
+      setRetencaoErro(e?.message || "Falha ao consultar.");
+    } finally {
+      setRetencaoConsultando(false);
+    }
+  }
+
+  async function aplicarRetencao() {
+    if (!retencaoElegiveis) return;
+    if (!confirm(`Anonimizar ${retencaoElegiveis} conversa(s) do URBI com mais de 18 meses? O texto de pergunta/resposta é apagado (não recuperável); usuário, data e linha continuam para estatística.`)) return;
+    setRetencaoAplicando(true); setRetencaoErro(null); setRetencaoResultado(null);
+    try {
+      const r = await fetch("/api/admin/urbi-historico/retencao", { method: "POST" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro || "falha ao anonimizar");
+      setRetencaoResultado(`${j.anonimizadas} conversa(s) anonimizada(s).`);
+      setRetencaoElegiveis(0);
+    } catch (e: any) {
+      setRetencaoErro(e?.message || "Falha ao anonimizar.");
+    } finally {
+      setRetencaoAplicando(false);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(j => {
@@ -348,6 +385,30 @@ function ConfiguracoesInner() {
               </div>
             </div>
           )}
+
+          <div className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-5">
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Retenção do histórico do URBI</h2>
+            <p className="text-sm text-[var(--text-muted)] mt-1 mb-3">
+              Conversas com mais de 18 meses têm o texto de pergunta/resposta anonimizado — usuário,
+              data e linha continuam guardados para estatística e auditoria. Ação manual, um clique
+              por vez; nada roda sozinho.
+            </p>
+            {retencaoErro && <div className="mb-3 rounded-lg border border-red-900 bg-red-950/40 px-4 py-3 text-sm text-red-200">{retencaoErro}</div>}
+            {retencaoResultado && <div className="mb-3 rounded-lg border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">✅ {retencaoResultado}</div>}
+            <div className="flex items-center gap-3">
+              <button onClick={consultarRetencao} disabled={retencaoConsultando} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--surface)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)]">
+                {retencaoConsultando ? <><Loader2 size={12} className="animate-spin" /> Consultando</> : "Consultar elegíveis"}
+              </button>
+              {retencaoElegiveis !== null && (
+                <span className="text-sm text-[var(--text-secondary)]">{retencaoElegiveis} conversa(s) com mais de 18 meses</span>
+              )}
+              {!!retencaoElegiveis && (
+                <button onClick={aplicarRetencao} disabled={retencaoAplicando} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--error)] hover:brightness-110 text-white">
+                  {retencaoAplicando ? <><Loader2 size={12} className="animate-spin" /> Anonimizando</> : "Anonimizar agora"}
+                </button>
+              )}
+            </div>
+          </div>
         </>)}
 
         {abaAtual === "logradouros" && (<>
