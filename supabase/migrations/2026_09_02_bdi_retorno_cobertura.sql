@@ -1,11 +1,13 @@
 -- 2026_09_02_bdi_retorno_cobertura.sql
 --
--- ⚠️ NÃO APLICADA. Escrita para revisão do Fábio antes de aplicar (mesma
---    regra de sempre: mostrar arquivo e teste antes de rodar).
---    Cada SELECT abaixo já rodou contra o banco real, só leitura, via um
+-- ✅ APLICADA em produção em 02/09/2026, depois de revisão do Fábio no SQL
+--    e no teste abaixo. Confirmado por leitura direta no banco após aplicar:
+--    as 2 views existem, security_invoker=true, grants só postgres/
+--    service_role (sem anon/authenticated), 8 e 3 linhas respectivamente —
+--    mesmo resultado do teste pré-aplicação, sem divergência.
+--    Cada SELECT abaixo tinha rodado contra o banco real, só leitura, via um
 --    script descartável (não versionado — mesma técnica de
---    scripts/validar_views_bdi.mts). Resultado de 02/09/2026 no final deste
---    arquivo, em comentário, para review sem precisar rodar de novo.
+--    scripts/validar_views_bdi.mts) antes de virar CREATE VIEW.
 --
 -- POR QUE ESTAS VIEWS
 --
