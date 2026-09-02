@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -44,8 +45,7 @@ export async function POST(req: NextRequest) {
     } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
-    const cookieHeader = req.headers.get("cookie") || "";
-    const analistaId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1] ?? null;
+    const analistaId = await resolverUsuarioIdPorCookie(req.headers.get("cookie") || "");
 
     const { data: existentes } = await supabase
       .from("analises_mac")
