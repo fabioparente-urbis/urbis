@@ -2,8 +2,44 @@ import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL } from "@/lib/constants";
 import { registrarChamadaIA } from "@/lib/iaUso";
 import { autenticar } from "@/lib/auth";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const maxDuration = 60;
+
+// Trava de budget do chat livre do URBI — mesmo mecanismo do LIP
+// (app/api/lip/s3/route.ts), balde PRÓPRIO (modulo="URBI" + só operações de
+// chat): sem isolar por operação, uma sessão de leitura de PDF no LIP
+// consumiria o mesmo teto do chat, e vice-versa. Limite intencionalmente
+// mais alto que o do LIP (50/h): é conversa curta, não leitura de PDF —
+// ajustar aqui se o uso real mostrar que está errado.
+const LIMITE_CHAMADAS_HORA = 200;
+
+async function chatDentroDoBudget(): Promise<{ ok: true } | { ok: false; status: number; body: Record<string, unknown> }> {
+  const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabaseAdmin
+    .from("urbis_api_calls")
+    .select("*", { count: "exact", head: true })
+    .eq("modulo", "URBI")
+    .in("operacao", ["chat_geral", "chat_bip", "chat_onmount"])
+    .gte("criado_em", umaHoraAtras)
+    .eq("status", "ok");
+  if (error) {
+    // Mesma regra do LIP: falha na consulta nunca vira "orçamento liberado".
+    console.error("[urbi/chat] falha ao consultar trava de budget:", error);
+    return { ok: false, status: 503, body: { ok: false, erro: "BUDGET_INDISPONIVEL", detalhe: "Não foi possível verificar o limite de uso agora. Tenta de novo em instantes." } };
+  }
+  if ((count ?? 0) >= LIMITE_CHAMADAS_HORA) {
+    return { ok: false, status: 429, body: { ok: false, erro: "BUDGET_EXCEDIDO", detalhe: `Limite de ${LIMITE_CHAMADAS_HORA} chamadas/hora do chat atingido — muita gente conversando comigo agora. Tenta de novo daqui a pouco.` } };
+  }
+  return { ok: true };
+}
+
+// Cache da saudação de abertura (OnMount) por usuário — abrir e fechar o
+// widget repetidas vezes na mesma sessão de trabalho não deveria custar um
+// Gemini novo por abertura. Em memória (reinicia no deploy, aceitável para
+// uma saudação): TTL curto porque clima/fila mudam ao longo do dia.
+const CACHE_ONMOUNT_TTL_MS = 10 * 60 * 1000;
+const cacheOnMount = new Map<string, { resposta: string; ts: number }>();
 
 function detectarIntentLei(texto: string): boolean {
   const t = texto.toLowerCase();
@@ -98,6 +134,18 @@ export async function POST(req: NextRequest) {
 
     const { message, history, usuario, tipo, assunto_id, modo_bip } = await req.json();
 
+    // Cache da saudação (OnMount): resolve sem custo de Gemini nem consumo de
+    // budget se já saudou esse usuário há pouco (ver CACHE_ONMOUNT_TTL_MS).
+    if (tipo === "OnMount") {
+      const emCache = cacheOnMount.get(ctx.userId);
+      if (emCache && Date.now() - emCache.ts < CACHE_ONMOUNT_TTL_MS) {
+        return NextResponse.json({ ok: true, resposta: emCache.resposta, sair: false });
+      }
+    }
+
+    const budget = await chatDentroDoBudget();
+    if (!budget.ok) return NextResponse.json(budget.body, { status: budget.status });
+
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       console.error("[urbi:chat] GEMINI_API_KEY não configurada");
@@ -185,6 +233,7 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
         tokensSaida: data.usageMetadata?.candidatesTokenCount ?? null,
       });
       const resposta = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? `Fala, ${nome}! Uai, como posso ajudar?`;
+      cacheOnMount.set(ctx.userId, { resposta, ts: Date.now() });
       return NextResponse.json({ ok: true, resposta, sair: false });
     }
 

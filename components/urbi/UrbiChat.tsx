@@ -701,9 +701,12 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         if (json.sair) setTimeout(() => fechar(), 1800);
       } else {
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("negativo", poseId)); setPoseOpacity(1); }, 200);
-        const fallback = "Tive um problema técnico. Tenta de novo.";
+        // BUDGET_EXCEDIDO/BUDGET_INDISPONIVEL já vêm com mensagem pronta em
+        // `detalhe` (ver app/api/urbi/chat/route.ts) — não é "problema
+        // técnico", é limite de uso, e o analista merece saber a diferença.
+        const fallback = typeof json?.detalhe === "string" ? json.detalhe : "Tive um problema técnico. Tenta de novo.";
         setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
-        anunciar("URBI encontrou um problema técnico.");
+        anunciar(json?.erro === "BUDGET_EXCEDIDO" ? "URBI atingiu o limite de uso." : "URBI encontrou um problema técnico.");
         if (permiteAudio && !speech.mudo) falar(fallback);
       }
     } catch {
