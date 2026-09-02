@@ -183,27 +183,63 @@ export async function POST(req: NextRequest) {
         .is("analise_concluida_em", null);
     }
 
-    // ── MRP: grava o despacho automaticamente (falha silenciosa) ──
+    // ── MRP e MDP: gravação automática após emissão, no servidor. ──
+    // Rede de segurança — o cliente também grava, os dois convergem para a
+    // MESMA linha (dedupe por chave real da tabela). Falha aqui NÃO
+    // silenciosa: motivo some no header da resposta, o cliente mostra pro
+    // analista. Achado de 02/09/2026: gravarRegistroMRP já existia aqui,
+    // mas o retorno {ok:false} nunca era conferido — só exceção lançada
+    // caía no catch. Corrigido: agora os dois motivos de falha (exceção OU
+    // {ok:false}) viram cabeçalho visível.
+    const headersExtras: Record<string, string> = {};
+    const tipoMdp = tipo === "despacho" ? "despacho" : tipo === "indeferimento" ? "indeferimento" : "arquivamento";
+
     try {
       const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
-      await gravarRegistroMRP({
+      const rMrp = await gravarRegistroMRP({
         processo_codigo: processo,
         tipo_processo: (proc as any)?.tipo_processo ?? "regularizacao",
-        tipo_despacho: tipo === "despacho" ? "despacho" : tipo === "indeferimento" ? "indeferimento" : "arquivamento",
+        tipo_despacho: tipoMdp,
         numero_despacho: numeroDespacho ?? null,
         analise_id: analiseId ?? null,
         numero_revisao: Number.isInteger(Number(numero_revisao)) ? Number(numero_revisao) : null,
         data_despacho: data ?? null,
         cookie_header: req.headers.get("cookie") ?? "",
       });
-    } catch (mrpErr) {
+      if (!rMrp.ok && rMrp.motivo !== "sem numero_despacho — gravação delegada ao cliente") {
+        console.warn("[MRP] falha ao gravar registro automático:", rMrp.motivo);
+        headersExtras["X-MRP-Falhou"] = encodeURIComponent(rMrp.motivo ?? "motivo desconhecido");
+      }
+    } catch (mrpErr: any) {
       console.warn("[MRP] falha ao gravar registro automático:", mrpErr);
+      headersExtras["X-MRP-Falhou"] = encodeURIComponent(mrpErr?.message ?? "erro desconhecido");
+    }
+
+    try {
+      const { gravarRegistroMDPDespacho } = await import("@/lib/mdpGravar");
+      const rMdp = await gravarRegistroMDPDespacho({
+        processo_codigo: processo,
+        assunto_id: assunto_id ?? (proc as any)?.assunto_id ?? null,
+        tipo: tipoMdp,
+        numero: numeroDespacho ?? null,
+        interessado,
+        data_despacho: data ?? null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+      if (!rMdp.ok && rMdp.motivo !== "sem número — gravação delegada ao cliente") {
+        console.warn("[MDP] falha ao gravar registro automático:", rMdp.motivo);
+        headersExtras["X-MDP-Falhou"] = encodeURIComponent(rMdp.motivo ?? "motivo desconhecido");
+      }
+    } catch (mdpErr: any) {
+      console.warn("[MDP] falha ao gravar registro automático:", mdpErr);
+      headersExtras["X-MDP-Falhou"] = encodeURIComponent(mdpErr?.message ?? "erro desconhecido");
     }
 
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "Content-Disposition": `attachment; filename="despacho_${processo}_${tipo}.docx"`,
+        ...headersExtras,
       },
     });
   } catch (e: any) {

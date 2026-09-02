@@ -951,6 +951,11 @@ export default function MacPage() {
       });
 
       if (!res.ok) { mostrarToast("Erro ao gerar despacho."); return; }
+      // Gravação automática de MDP/MRP feita no servidor (rede de segurança, ver
+      // despacho-regularizacao/route.ts) — captura aqui pra avisar no fim da função,
+      // depois dos outros toasts, senão um sucesso mais tarde apaga o aviso.
+      const mdpFalhouServidor = res.headers.get("X-MDP-Falhou");
+      const mrpFalhouServidor = res.headers.get("X-MRP-Falhou");
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
       // Auto-registro MRP
       const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
@@ -1056,6 +1061,12 @@ export default function MacPage() {
       // marcando alteração pendente. Status preservado para não reabrir
       // análise concluída.
       await salvarSilencioso(analiseAtual?.status || "em_andamento");
+
+      // Falha no registro automático de MDP/MRP no servidor — nunca some em
+      // silêncio (CLAUDE.md). Mostrado por último de propósito: é o aviso mais
+      // importante desta operação, não pode ser apagado por um toast de sucesso.
+      if (mdpFalhouServidor) mostrarToast(`⚠️ Despacho gerado, mas o registro automático de MDP falhou: ${decodeURIComponent(mdpFalhouServidor)}`);
+      else if (mrpFalhouServidor) mostrarToast(`⚠️ Despacho gerado, mas o registro automático de MRP falhou: ${decodeURIComponent(mrpFalhouServidor)}`);
 
       // Análise 5 + despacho ao interessado → abre indeferimento (STEP 1d)
       if (
@@ -2517,6 +2528,10 @@ export default function MacPage() {
                   }),
                 });
                 if (res.ok) {
+                  // Gravação automática de MDP/MRP no servidor (rede de segurança, ver
+                  // despacho-regularizacao/route.ts) — mesma rota deste botão.
+                  const mdpFalhouServidor = res.headers.get("X-MDP-Falhou");
+                  const mrpFalhouServidor = res.headers.get("X-MRP-Falhou");
                   const blob = await res.blob();
                   const url = URL.createObjectURL(blob);
                   const link = document.createElement("a");
@@ -2554,6 +2569,11 @@ export default function MacPage() {
                     data: dataEmissao,
                   });
                   setAnaliseAtual((prev: any) => prev ? { ...prev, numero_parecer: numeroParecer } : prev);
+
+                  // Falha no registro automático de MDP/MRP no servidor — nunca some
+                  // em silêncio (CLAUDE.md).
+                  if (mdpFalhouServidor) mostrarToast(`⚠️ Indeferimento gerado, mas o registro automático de MDP falhou: ${decodeURIComponent(mdpFalhouServidor)}`);
+                  else if (mrpFalhouServidor) mostrarToast(`⚠️ Indeferimento gerado, mas o registro automático de MRP falhou: ${decodeURIComponent(mrpFalhouServidor)}`);
 
                   // Consome o número SOMENTE após a geração bem-sucedida.
                   const _numCommitParecer = parseInt(numeroParecer, 10);
