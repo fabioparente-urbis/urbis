@@ -70,7 +70,19 @@ export function useWebSpeech(opcoes?: {
     const temGravacao =
       typeof MediaRecorder !== "undefined" &&
       !!navigator?.mediaDevices?.getUserMedia;
-    const motor: MotorSTT = temWebSpeech ? "webspeech" : temGravacao ? "whisper" : null;
+
+    // `?urbi_stt=whisper` na URL força o caminho de gravação mesmo em navegador
+    // que tem o motor nativo. Serve para conferir o funcionamento em qualquer
+    // computador sem precisar de um segundo navegador para testar.
+    let forcado: MotorSTT = null;
+    try {
+      const p = new URLSearchParams(window.location.search).get("urbi_stt");
+      if (p === "whisper" && temGravacao) forcado = "whisper";
+      if (p === "webspeech" && temWebSpeech) forcado = "webspeech";
+    } catch (_) {}
+
+    const motor: MotorSTT =
+      forcado ?? (temWebSpeech ? "webspeech" : temGravacao ? "whisper" : null);
     setMotorSTT(motor);
     setSuportaSTT(motor !== null);
   }, []);
