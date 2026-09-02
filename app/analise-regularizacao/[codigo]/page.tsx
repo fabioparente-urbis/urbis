@@ -1005,7 +1005,10 @@ export default function MacPage() {
         if (!_commitOk) mostrarToast("⚠️ Despacho gerado, mas a numeração não foi confirmada. Confira a numeração antes de gerar o próximo.");
       }
 
-      // MDP: registra despacho (best-effort)
+      // MDP: registra despacho. Não bloqueia o fluxo (o .docx já foi baixado),
+      // mas nunca falha em silêncio — sem isso o despacho "concluído" na tela
+      // nunca aparece no MDP e os 16 campos de documento emitido do LIP
+      // ficam aguardando o fato para sempre (ver lib/lipDocumentosEmitidos.ts).
       fetch("/api/mdp", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1027,7 +1030,9 @@ export default function MacPage() {
             padrao_titulo: tipoDespacho === "despacho" ? (padroesExterno.find(p => p.id === padraoSelecionadoExterno)?.titulo || null) : null,
           },
         }),
-      }).catch(() => {});
+      })
+        .then((r) => { if (!r.ok) mostrarToast("⚠️ Despacho gerado, mas não foi registrado no MDP. Avise o suporte."); })
+        .catch(() => mostrarToast("⚠️ Despacho gerado, mas não foi registrado no MDP. Avise o suporte."));
 
       // Grava tag permanente no processo (STEP 2a)
       await gravarTag({
@@ -2521,6 +2526,27 @@ export default function MacPage() {
                   setIndeferimentoPendente(null);
                   setIndeferimentoParaReimprimir({ motivos, obs, numeroParecer, data: dataEmissao, fotos });
                   mostrarToast("✅ Documento de indeferimento gerado!");
+
+                  // MDP: registra o indeferimento. Este botão gera documento fora
+                  // do fluxo principal de despacho (que já registra no MDP) — sem
+                  // isso, todo indeferimento deste slot ficava de fora do MDP, não
+                  // só quando a chamada falhava (ver lib/lipDocumentosEmitidos.ts).
+                  fetch("/api/mdp", {
+                    method: "POST", credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      processo_codigo: codigo,
+                      assunto_id: assuntoId || null,
+                      tipo: "indeferimento",
+                      numero: numeroParecer,
+                      destinatario: null,
+                      data_despacho: dataEmissao,
+                      conteudo: { motivos, observacoes: obs || "" },
+                    }),
+                  })
+                    .then((r) => { if (!r.ok) mostrarToast("⚠️ Indeferimento gerado, mas não foi registrado no MDP. Avise o suporte."); })
+                    .catch(() => mostrarToast("⚠️ Indeferimento gerado, mas não foi registrado no MDP. Avise o suporte."));
+
                   await gravarTag({
                     tipo: "indeferimento",
                     numero_analise: analiseAtual?.numero_analise,
