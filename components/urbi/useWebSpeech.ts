@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import manifestoVoz from "../../public/urbi/voz/manifesto.json";
 
+export type MotorSTT = "webspeech" | "whisper" | null;
+
 export type WebSpeechState = {
   ouvindo: boolean;
   falando: boolean;
@@ -9,6 +11,14 @@ export type WebSpeechState = {
   suportaSTT: boolean;
   suportaTTS: boolean;
   ultimoErroStt: string | null;
+  // Qual motor de escuta este navegador vai usar. "webspeech" é o
+  // reconhecimento nativo (Chrome/Edge, de graça e instantâneo); "whisper" é
+  // gravar aqui e transcrever no servidor — mais lento e pago, mas é o que
+  // faz o URBI ouvir em navegador que não tem SpeechRecognition.
+  motorSTT: MotorSTT;
+  // Só no motor "whisper": áudio já foi gravado e está indo/voltando do
+  // servidor. No "webspeech" nunca fica true (a transcrição é local).
+  transcrevendo: boolean;
 };
 
 // Falas pré-gravadas (public/urbi/voz/) indexadas pelo próprio texto.
@@ -37,24 +47,55 @@ export function useWebSpeech(opcoes?: {
   const [mudo, setMudo] = useState(false);
   const [ultimoErroStt, setUltimoErroStt] = useState<string | null>(null);
   const [suportaSTT, setSuportaSTT] = useState(false);
+  const [motorSTT, setMotorSTT] = useState<MotorSTT>(null);
+  const [transcrevendo, setTranscrevendo] = useState(false);
   const suportaTTS = true;
   const recRef = useRef<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const gravadorRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const pedacosRef = useRef<Blob[]>([]);
   const aoTranscreverRef = useRef(opcoes?.aoTranscrever);
 
   useEffect(() => { aoTranscreverRef.current = opcoes?.aoTranscrever; }, [opcoes?.aoTranscrever]);
 
+  // Decide o motor uma vez, na montagem. SpeechRecognition ganha quando
+  // existe: é local, instantâneo e não consome crédito. Onde ele não existe
+  // (Firefox, Safari, Chrome com a API desativada por política), cai para
+  // gravar e transcrever no servidor — que é o que faz o URBI ouvir em
+  // qualquer computador, e não só nos com Chrome.
   useEffect(() => {
     const w = window as any;
-    setSuportaSTT(!!(w.SpeechRecognition ?? w.webkitSpeechRecognition));
+    const temWebSpeech = !!(w.SpeechRecognition ?? w.webkitSpeechRecognition);
+    const temGravacao =
+      typeof MediaRecorder !== "undefined" &&
+      !!navigator?.mediaDevices?.getUserMedia;
+    const motor: MotorSTT = temWebSpeech ? "webspeech" : temGravacao ? "whisper" : null;
+    setMotorSTT(motor);
+    setSuportaSTT(motor !== null);
   }, []);
+
+  function soltarMicrofone() {
+    if (streamRef.current) {
+      try { streamRef.current.getTracks().forEach(t => t.stop()); } catch (_) {}
+      streamRef.current = null;
+    }
+  }
 
   const pararEscuta = useCallback(() => {
     if (recRef.current) { try { recRef.current.stop(); } catch (_) {} recRef.current = null; }
+    // No motor whisper, parar é o gatilho da transcrição: o onstop do
+    // gravador é quem monta o blob e chama o servidor.
+    if (gravadorRef.current) {
+      try {
+        if (gravadorRef.current.state !== "inactive") gravadorRef.current.stop();
+      } catch (_) { soltarMicrofone(); }
+      gravadorRef.current = null;
+    }
     setOuvindo(false);
   }, []);
 
-  const iniciarEscuta = useCallback(() => {
+  const iniciarEscutaWebSpeech = useCallback(() => {
     const w = window as any;
     const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
     if (!Ctor) { setUltimoErroStt("Navegador não suporta STT."); return; }
@@ -76,6 +117,69 @@ export function useWebSpeech(opcoes?: {
     try { rec.start(); recRef.current = rec; setOuvindo(true); setUltimoErroStt(null); }
     catch (e: any) { setUltimoErroStt(e?.message ?? "Erro ao iniciar mic."); setOuvindo(false); }
   }, [idioma]);
+
+  // Motor whisper: grava no navegador, manda o blob para /api/urbi/stt e usa
+  // o texto que volta. O áudio existe só em memória e no corpo dessa
+  // requisição — não é salvo em lugar nenhum, nem no cliente nem no servidor.
+  const iniciarEscutaGravacao = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      pedacosRef.current = [];
+
+      const tipos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"];
+      const tipo = tipos.find(t => {
+        try { return MediaRecorder.isTypeSupported(t); } catch { return false; }
+      });
+
+      const gravador = new MediaRecorder(stream, tipo ? { mimeType: tipo } : undefined);
+      gravador.ondataavailable = (e) => { if (e.data?.size > 0) pedacosRef.current.push(e.data); };
+
+      gravador.onstop = async () => {
+        soltarMicrofone();
+        const blob = new Blob(pedacosRef.current, { type: gravador.mimeType || "audio/webm" });
+        pedacosRef.current = [];
+        // Clique sem fala nenhuma: não gasta chamada de servidor à toa.
+        if (blob.size < 1200) return;
+
+        setTranscrevendo(true);
+        try {
+          const form = new FormData();
+          form.append("audio", blob, "comando.webm");
+          const res = await fetch("/api/urbi/stt", { method: "POST", body: form });
+          const json = await res.json().catch(() => null);
+          if (res.ok && json?.ok && json.texto?.trim()) {
+            setUltimoErroStt(null);
+            aoTranscreverRef.current?.(json.texto.trim());
+          } else {
+            setUltimoErroStt(json?.erro ? "Não entendi o áudio." : "Falha ao transcrever.");
+          }
+        } catch {
+          setUltimoErroStt("Sem conexão para transcrever.");
+        } finally {
+          setTranscrevendo(false);
+        }
+      };
+
+      gravador.start();
+      gravadorRef.current = gravador;
+      setOuvindo(true);
+      setUltimoErroStt(null);
+    } catch (e: any) {
+      soltarMicrofone();
+      setOuvindo(false);
+      setUltimoErroStt(
+        e?.name === "NotAllowedError"
+          ? "Permissão de microfone negada."
+          : e?.message ?? "Erro ao acessar o microfone.",
+      );
+    }
+  }, []);
+
+  const iniciarEscuta = useCallback(() => {
+    if (motorSTT === "whisper") { void iniciarEscutaGravacao(); return; }
+    iniciarEscutaWebSpeech();
+  }, [motorSTT, iniciarEscutaGravacao, iniciarEscutaWebSpeech]);
 
   const alternarEscuta = useCallback(() => {
     if (ouvindo) pararEscuta(); else iniciarEscuta();
@@ -145,9 +249,13 @@ export function useWebSpeech(opcoes?: {
   }, [pararFala]);
 
   useEffect(() => {
-    return () => { pararEscuta(); pararFala(); };
+    // Desmontou com o microfone aberto: solta o dispositivo, senão o
+    // indicador de gravação do navegador fica aceso depois de fechar o URBI.
+    return () => { pararEscuta(); pararFala(); soltarMicrofone(); };
   }, []);
 
-  const estado: WebSpeechState = { ouvindo, falando, mudo, suportaSTT, suportaTTS, ultimoErroStt };
+  const estado: WebSpeechState = {
+    ouvindo, falando, mudo, suportaSTT, suportaTTS, ultimoErroStt, motorSTT, transcrevendo,
+  };
   return { estado, iniciarEscuta, pararEscuta, alternarEscuta, falar, pararFala, alternarMudo, setMudo };
 }

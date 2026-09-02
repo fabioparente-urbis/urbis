@@ -98,6 +98,10 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"b
   return "positivo";
 }
 
+// Como o comando chegou até o URBI — espelha a coluna `origem` de
+// urbi_comandos_voz (ver a migration 2026_09_02_urbi_comandos_voz.sql).
+type OrigemComando = "webspeech" | "whisper" | "texto";
+
 type Msg = { role: "user"|"urbi"; texto: string };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
@@ -183,6 +187,25 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // visual próprio). Limpa antes de setar para garantir que o leitor
   // re-anuncie mesmo quando o texto é igual ao anterior.
   const [anuncio, setAnuncio] = useState("");
+  // Registro do comando no Supabase. Guarda o TEXTO entendido e a AÇÃO —
+  // nunca o áudio. Falha aqui não pode atrapalhar o comando: o registro é
+  // observação, não parte da execução, então erro vira só log no console.
+  function registrarComando(dados: {
+    texto: string;
+    origem: OrigemComando;
+    intencao_id?: string;
+    acao_tipo?: string;
+    acao_alvo?: string;
+    executado: boolean;
+  }) {
+    if (!usuario?.id) return;
+    fetch("/api/urbi/comandos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dados),
+    }).catch(() => {});
+  }
+
   function anunciar(texto: string) {
     setAnuncio("");
     requestAnimationFrame(() => setAnuncio(texto));
@@ -227,6 +250,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     }
   }, [usuario]);
 
+  // Ref, e não o estado direto: o callback `aoTranscrever` é montado DENTRO da
+  // chamada do hook, então `speech` ainda não existe naquele ponto.
+  const motorSTTRef = useRef<"webspeech" | "whisper" | null>(null);
+
   const { estado: speech, alternarEscuta, pararEscuta, falar, pararFala, alternarMudo, setMudo } =
     useWebSpeech({
       idioma: "pt-BR",
@@ -254,9 +281,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           setTimeout(() => fechar(), 500); return;
         }
         setInput(texto);
-        void enviar(texto);
+        // A origem diz por qual motor o texto chegou — o nativo do navegador
+        // ou a transcrição no servidor. É o que permite ver depois em quais
+        // máquinas o URBI está sendo ouvido por qual caminho.
+        void enviar(texto, motorSTTRef.current === "whisper" ? "whisper" : "webspeech");
       },
     });
+
+  useEffect(() => { motorSTTRef.current = speech.motorSTT; }, [speech.motorSTT]);
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs]);
 
@@ -463,7 +495,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     }
   }
 
-  async function enviar(textoForcado?: string) {
+  async function enviar(textoForcado?: string, origem: OrigemComando = "texto") {
     const texto = (textoForcado ?? input).trim();
     if (!texto || carregando) return;
     resetIdleTimer();
@@ -480,8 +512,21 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       anunciar("URBI respondeu.");
       if (permiteAudio && !speech.mudo) falar(resposta);
       aplicarAcaoIntencao(intencao.acao);
+      registrarComando({
+        texto,
+        origem,
+        intencao_id: intencao.id,
+        acao_tipo: intencao.acao.tipo,
+        acao_alvo: (intencao.acao as any).rota ?? String((intencao.acao as any).valor ?? ""),
+        executado: true,
+      });
       return;
     }
+
+    // Não casou intenção nenhuma: vira pergunta ao modelo, não comando. Fica
+    // registrado assim mesmo (executado=false) — é o que mostra quais comandos
+    // as pessoas tentam dar e o URBI ainda não entende.
+    registrarComando({ texto, origem, executado: false });
 
     setCarregando(true);
     const novoHistory: GeminiMsg[] = [...history, { role: "user", parts: [{ text: texto }] }];
@@ -648,28 +693,36 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           type="button"
           className="urbi-focavel"
           onClick={alternarEscuta}
-          disabled={!speech.suportaSTT}
+          disabled={!speech.suportaSTT || speech.transcrevendo}
           title={
             !speech.suportaSTT
-              ? "Reconhecimento de voz não suportado neste navegador"
-              : speech.ouvindo
-                ? "Parar de ouvir"
-                : "Falar com o URBI (microfone)"
+              ? "Este navegador não permite usar o microfone"
+              : speech.transcrevendo
+                ? "Transcrevendo o que você falou…"
+                : speech.ouvindo
+                  ? (speech.motorSTT === "whisper" ? "Parar e transcrever" : "Parar de ouvir")
+                  : speech.motorSTT === "whisper"
+                    ? "Gravar um comando (clique de novo para enviar)"
+                    : "Falar com o URBI (microfone)"
           }
           aria-label="Microfone"
           aria-pressed={speech.ouvindo}
           style={{
-            background: speech.ouvindo ? "#dc2626" : "#e2e8f0",
-            color: speech.ouvindo ? "#ffffff" : "#1e293b",
+            background: speech.ouvindo ? "#dc2626" : speech.transcrevendo ? "#fef3c7" : "#e2e8f0",
+            color: speech.ouvindo ? "#ffffff" : speech.transcrevendo ? "#92400e" : "#1e293b",
             border: "none",
             borderRadius: 8,
             padding: "6px 10px",
-            cursor: speech.suportaSTT ? "pointer" : "not-allowed",
+            cursor: !speech.suportaSTT || speech.transcrevendo ? "not-allowed" : "pointer",
             fontSize: 14,
             opacity: speech.suportaSTT ? 1 : 0.4,
           }}
         >
-          {speech.ouvindo ? "● Ouvindo" : "🎙"}
+          {speech.transcrevendo
+            ? "⏳ Transcrevendo…"
+            : speech.ouvindo
+              ? (speech.motorSTT === "whisper" ? "● Gravando" : "● Ouvindo")
+              : "🎙"}
         </button>
 
         {/* Switch mudo/som (TTS) — some da tela inteira quando o admin não deu

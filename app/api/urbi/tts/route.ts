@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import { autenticar } from "@/lib/auth";
+
+// Teto por chamada: o ElevenLabs cobra por caractere. Sem limite, um texto
+// longo (ou um laço com defeito) queima o pacote de créditos de uma vez.
+const MAX_CARACTERES = 600;
 
 /**
  * Voz do URBI. Provedor: ElevenLabs.
@@ -18,8 +23,19 @@ const MODELO = "eleven_multilingual_v2";
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
   try {
+    // Sem guarda, esta rota era um gerador de voz aberto na internet, pago
+    // com a chave do URBIS por quem quisesse. Fechada em 02/09/2026.
+    const ctx = await autenticar(req);
+    if (ctx instanceof NextResponse) return ctx;
+
     const { texto } = await req.json();
     if (!texto?.trim()) return NextResponse.json({ ok: false, erro: "sem texto" }, { status: 400 });
+    if (texto.length > MAX_CARACTERES) {
+      return NextResponse.json(
+        { ok: false, erro: `Texto acima do limite de ${MAX_CARACTERES} caracteres.` },
+        { status: 413 },
+      );
+    }
 
     const chave = process.env.ELEVENLABS_API_KEY;
     const voz = process.env.ELEVENLABS_VOICE_ID;
