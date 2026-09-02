@@ -41,6 +41,7 @@ export async function autenticar(
   const cookieHeader = req.headers.get("cookie") || "";
   const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
   if (!token) {
+    console.error("[autenticar] sem cookie urbis_token na requisição:", req.nextUrl?.pathname);
     return NextResponse.json(
       { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
@@ -48,6 +49,10 @@ export async function autenticar(
   }
   const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
   if (authError || !authData?.user?.email) {
+    // Nunca deixar isso em silêncio: "SESSAO_EXPIRADA" pode ser JWT vencido
+    // (esperado) ou um bug de configuração (não esperado) — sem logar o
+    // motivo real, os dois são indistinguíveis de fora.
+    console.error("[autenticar] getUser falhou:", authError?.message ?? "sem user/email no retorno", "| status:", (authError as any)?.status);
     return NextResponse.json(
       { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
@@ -59,6 +64,7 @@ export async function autenticar(
     .eq("email", authData.user.email)
     .maybeSingle();
   if (error || !usuario) {
+    console.error("[autenticar] usuario nao encontrado por email:", authData.user.email, "| erro:", error?.message);
     return NextResponse.json(
       { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
