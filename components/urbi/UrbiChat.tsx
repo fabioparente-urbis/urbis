@@ -199,6 +199,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     executado: boolean;
   }) {
     if (!usuario?.id) return;
+    // A tabela é de COMANDO, não de conversa. Pergunta digitada que virou papo
+    // com o modelo já está inteira em urbi_historico — repetir aqui só
+    // duplicaria texto do usuário em dois lugares. Entra no registro o que
+    // executou uma ação (de qualquer origem) e o que veio por voz, inclusive
+    // quando não casou intenção: é assim que se enxerga o comando falado que o
+    // URBI ainda não entende.
+    const veioPorVoz = dados.origem === "webspeech" || dados.origem === "whisper";
+    if (!dados.executado && !veioPorVoz) return;
     fetch("/api/urbi/comandos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
