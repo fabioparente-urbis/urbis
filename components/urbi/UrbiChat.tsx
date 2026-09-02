@@ -114,7 +114,7 @@ type OrigemComando = "webspeech" | "whisper" | "texto";
 type Msg = { role: "user"|"urbi"; texto: string };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
-  usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean; urbi_modo_audio?: "nenhum" | "navegador" | "elevenlabs" };
+  usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean; urbi_modo_audio?: "nenhum" | "navegador" };
   aberto: boolean;
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
@@ -156,12 +156,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // essa permissão, mas não é obrigado a ter voz, e não tem tratamento
   // especial aqui. Opt-in — "nenhum" é o padrão do banco pra todo mundo,
   // então ausente/indefinido conta como BLOQUEADO, não permitido (a voz só
-  // existe quando o admin escolhe "navegador" ou "elevenlabs" explicitamente
-  // pra aquela pessoa). Bloqueado significa: o botão de som some da tela e
-  // nenhum caminho (comando falado, texto digitado, evento global) consegue
-  // religar. Ver supabase/migrations/2026_09_01_urbi_modo_audio.sql.
-  const permiteAudio = usuario?.urbi_modo_audio === "navegador"
-    || usuario?.urbi_modo_audio === "elevenlabs";
+  // existe quando o admin escolhe "navegador" explicitamente pra aquela
+  // pessoa — único modo de voz que existe (ElevenLabs descartado em
+  // 02/09/2026, custo por caractere imprevisível). Bloqueado significa: o
+  // botão de som some da tela e nenhum caminho (comando falado, texto
+  // digitado, evento global) consegue religar. Ver
+  // supabase/migrations/2026_09_01_urbi_modo_audio.sql.
+  const permiteAudio = usuario?.urbi_modo_audio === "navegador";
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
   const [input, setInput] = useState("");

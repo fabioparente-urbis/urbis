@@ -10,19 +10,19 @@ type Usuario = {
   perfis?: string[];
   gerencia?: string | null;
   status: string; reducao_meta?: number; urbi_ativo?: boolean;
-  urbi_modo_audio?: "nenhum" | "navegador" | "elevenlabs";
+  urbi_modo_audio?: "nenhum" | "navegador";
   criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
 
 // Modo de voz do URBI — decidido só pelo admin (ver /api/urbi/preferencias,
 // que deliberadamente não aceita mais essa permissão vinda do próprio usuário).
-// "elevenlabs" hoje se comporta como "navegador" no cliente: fica reservado até
-// /api/urbi/tts ganhar guarda de sessão e a chave entrar no Railway.
-const MODOS_AUDIO: { valor: "nenhum" | "navegador" | "elevenlabs"; rotulo: string }[] = [
+// ElevenLabs foi descartado em 02/09/2026 (custo por caractere imprevisível
+// em texto longo) — só existe voz do navegador (custo zero) e os MP3
+// pré-gravados estáticos, fora deste seletor.
+const MODOS_AUDIO: { valor: "nenhum" | "navegador"; rotulo: string }[] = [
   { valor: "nenhum", rotulo: "Sem áudio" },
   { valor: "navegador", rotulo: "Áudio do navegador" },
-  { valor: "elevenlabs", rotulo: "Áudio ElevenLabs (reservado)" },
 ];
 
 // Catalogo de perfis exibidos no checkbox. "Administrador" e filtrado em runtime
@@ -50,7 +50,7 @@ const vazio = () => ({
   status: "Ativo",
   reducao_meta: 0,
   urbi_ativo: false,
-  urbi_modo_audio: "nenhum" as "nenhum" | "navegador" | "elevenlabs",
+  urbi_modo_audio: "nenhum" as "nenhum" | "navegador",
 });
 
 export default function UsuariosPage() {

@@ -13,7 +13,7 @@ const ADMIN_FIXO = "Fábio Parente Martins Santos";
 // voz e não tem tratamento especial aqui. "nenhum" é o padrão pra todo mundo:
 // voz é opt-in, nunca liga sozinha por omissão ou valor inválido (ver
 // supabase/migrations/2026_09_01_urbi_modo_audio.sql).
-const MODOS_AUDIO_VALIDOS = ["nenhum", "navegador", "elevenlabs"] as const;
+const MODOS_AUDIO_VALIDOS = ["nenhum", "navegador"] as const;
 function normalizarModoAudio(v: unknown): typeof MODOS_AUDIO_VALIDOS[number] {
   return (MODOS_AUDIO_VALIDOS as readonly string[]).includes(v as string)
     ? (v as typeof MODOS_AUDIO_VALIDOS[number])
