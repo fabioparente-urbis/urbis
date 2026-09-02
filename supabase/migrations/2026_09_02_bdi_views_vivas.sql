@@ -1,9 +1,11 @@
 -- 2026_09_02_bdi_views_vivas.sql
 --
--- ⚠️ NÃO APLICADA. Escrita para revisão do Fábio (decisão de 02/09/2026:
---    "não aplique migrations nem publique sem me mostrar os arquivos e testes").
---    Cada SELECT aqui já foi rodado contra o banco real por
---    scripts/validar_views_bdi.mts — 6 de 6 devolvem dado que faz sentido.
+-- ✅ APLICADA em produção em 02/09/2026 (commit c56c179). Confirmado por
+--    leitura direta no banco em 02/09/2026: as 6 views existem, todas com
+--    security_invoker=true e grants restritos a postgres/service_role como
+--    definido abaixo, devolvendo dado real (11/52/843/4/80/5 linhas
+--    respectivamente). Cada SELECT também já tinha sido validado antes de
+--    aplicar por scripts/validar_views_bdi.mts — 6 de 6 fizeram sentido.
 --
 -- POR QUE ESTAS VIEWS
 --
