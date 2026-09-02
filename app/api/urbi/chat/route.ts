@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_MODEL } from "@/lib/constants";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import { autenticar } from "@/lib/auth";
 
 export const maxDuration = 60;
 
@@ -92,6 +93,9 @@ async function buscarNoBip(
 
 export async function POST(req: NextRequest) {
   try {
+    const ctx = await autenticar(req);
+    if (ctx instanceof NextResponse) return ctx;
+
     const { message, history, usuario, tipo, assunto_id, modo_bip } = await req.json();
 
     const apiKey = process.env.GEMINI_API_KEY;
