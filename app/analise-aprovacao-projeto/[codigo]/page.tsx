@@ -1452,6 +1452,22 @@ export default function AnaliseAprovacaoProjeto() {
           };
           setAnalise(atualizada);
           setAnalises((prev) => prev.map((x) => (x.id === atualizada.id ? atualizada : x)));
+
+          // Conclusão da PASSAGEM atual — só depois do número já commitado de verdade, nunca em
+          // reemissão. Diferente de registrarNosSatelites (best-effort, Promise.allSettled): esta
+          // chamada é aguardada e o erro aparece pro analista, porque o objetivo aqui é exatamente
+          // não repetir o padrão "falha engolida em silêncio" que a auditoria achou nos outros
+          // satélites. Só manda `numero_analise` — a rota releva número e tipo de documento
+          // direto do banco, não confia no que o navegador mandaria aqui.
+          try {
+            const rConcluir = await fetch("/api/mac/slot-05/concluir-analise", {
+              method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ codigo, numero_analise: analise.numero_analise }),
+            });
+            if (!rConcluir.ok) notificar("⚠ Despacho emitido, mas não consegui registrar a conclusão da análise.");
+          } catch {
+            notificar("⚠ Despacho emitido, mas não consegui registrar a conclusão da análise.");
+          }
         }
       }
 

@@ -129,6 +129,35 @@ export async function POST(req: NextRequest) {
     }).select().maybeSingle();
 
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+
+    // Início da PASSAGEM atual (não do processo inteiro — ver a rota de conclusão, que fecha o
+    // mesmo conceito do lado de saída). `processos.analise_iniciada_em` só marca a primeira vez
+    // que o processo entrou em análise, igual ao Slot 1/2 (mesma coluna, mesma regra, reproduzida
+    // por leitura — CLAUDE.md). O evento em auditoria_eventos, por outro lado, é por PASSAGEM: uma
+    // retomada (proximo > 1) também gera o seu próprio ANALISE_INICIADA, com numero_analise no
+    // detalhe. Servidor, aguardado — não é o registrar() client-side de outras telas, que engole
+    // erro em silêncio.
+    if (proximo === 1) {
+      const { error: erroInicio } = await supabaseAdmin
+        .from("processos")
+        .update({ analise_iniciada_em: new Date().toISOString() })
+        .eq("codigo", codigo)
+        .is("analise_iniciada_em", null);
+      if (erroInicio) console.error("[slot-05/analise] processos.analise_iniciada_em falhou:", erroInicio.message);
+    }
+
+    const { error: erroEvento } = await supabaseAdmin.from("auditoria_eventos").insert({
+      analista_id: usuario.id,
+      analista_nome: "",
+      modulo: "MAC",
+      acao: "ANALISE_INICIADA",
+      processo_codigo: codigo,
+      assunto_id: ASSUNTO_ID_SLOT5,
+      detalhe: { numero_analise: proximo, slot: TIPO },
+      origem: "SISTEMA",
+    });
+    if (erroEvento) console.error("[slot-05/analise] evento ANALISE_INICIADA falhou:", erroEvento.message);
+
     return NextResponse.json({ ok: true, analise: data });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e?.message || "erro interno" }, { status: 500 });
