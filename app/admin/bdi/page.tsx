@@ -78,6 +78,20 @@ function Secao({ titulo, descricao, acao, children }: { titulo: string; descrica
   );
 }
 
+// Rótulo do slot para exibição — os slugs internos de tipo_processo (não o
+// nome de `assuntos`, que essas views não trazem) só existem em 3 slots hoje.
+// Ver lib/assuntos.ts (resolverSlot) para a fonte de verdade dos slugs;
+// mapeamento repetido aqui de propósito porque é só apresentação síncrona,
+// não decisão de dado.
+const NOME_TIPO_PROCESSO: Record<string, string> = {
+  regularizacao: "Regularização SEI",
+  aceite_sei: "Aceite SEI",
+  slot_05: "Aprovação de Projeto",
+};
+function nomeTipoProcesso(tp: string): string {
+  return NOME_TIPO_PROCESSO[tp] ?? tp;
+}
+
 function Vazio({ cols, children }: { cols: number; children: React.ReactNode }) {
   return (
     <tr>
@@ -338,7 +352,7 @@ export default function BDIPage() {
                           <tr key={i} className={TR}>
                             <td className={`${TD} font-medium text-[var(--text-primary)]`}>{row.analista}</td>
                             <td className={TD}>{MESES[row.mes]}/{row.ano}</td>
-                            <td className={TD}><Badge tom="ok">{row.tipo_processo}</Badge></td>
+                            <td className={TD}><Badge tom="ok">{nomeTipoProcesso(row.tipo_processo)}</Badge></td>
                             <td className={TD}>{row.total_despachos}</td>
                             <td className={TD}>{Number(row.total_pontos).toFixed(1)}</td>
                           </tr>
@@ -412,7 +426,7 @@ export default function BDIPage() {
                       <tbody>
                         {stats.exigencias_contexto.map((r,i)=>(
                           <tr key={i} className={TR}>
-                            <td className={TD}><Badge tom="accent">{r.tipo_processo}</Badge></td>
+                            <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
                             <td className={`${TD} text-xs`}>{r.faixa_area}</td>
                             <td className={`${TD} text-xs text-[var(--text-muted)]`}>{r.bairro || "—"}</td>
                             <td className={`${TD} text-xs`}>{String(r.exigencia).slice(0,90)}</td>
@@ -485,7 +499,7 @@ export default function BDIPage() {
                         {stats.campos_criticos.map((r)=>(
                           <tr key={r.codigo} className={TR}>
                             <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{r.codigo}</td>
-                            <td className={`${TD} text-xs`}>{r.tipo_processo}</td>
+                            <td className={`${TD} text-xs`}>{nomeTipoProcesso(r.tipo_processo)}</td>
                             <td className={`${TD} text-center font-semibold ${r.campos_vazios>=10 ? "text-orange-600" : "text-[var(--text-secondary)]"}`}>{r.campos_vazios}</td>
                             <td className={`${TD} text-center text-sky-700`}>{r.campos_em_x}</td>
                             <td className={`${TD} text-center text-[var(--text-muted)]`}>{r.campos_totais}</td>
