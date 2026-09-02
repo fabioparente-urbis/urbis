@@ -2367,7 +2367,7 @@ export default function AnaliseAprovacaoProjeto() {
   if (erro) return (
     <div className="p-6">
       <p className="text-sm text-[var(--error)] mb-3">{erro}</p>
-      <button onClick={() => router.push("/processos")} className="text-sm underline">← Processos</button>
+      <button onClick={() => router.push("/processos")} className="text-sm underline">← Pilha de Processo</button>
     </div>
   );
 

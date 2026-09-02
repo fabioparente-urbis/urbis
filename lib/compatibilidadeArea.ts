@@ -52,7 +52,10 @@ export const ROTULOS_AREA: Record<ChaveArea, string> = {
   vistoria: "Fiscalização (Termo de Vistoria)",
 };
 
-const TOLERANCIA_M2 = 0.5;
+// Zero tolerância: qualquer diferença é divergência. Decisão do usuário em
+// 2026-09-02 — "tem que ser exatamente o mesmo número, se não for é tudo
+// problema, não existe divergência séria ou não séria".
+const TOLERANCIA_M2 = 0;
 
 /** Mesmo parser de área usado no VCP (lib/mrp.ts / s4): aceita "1.234,56", "1234,56" e "1234.56". */
 function parseArea(v: string | null | undefined): number | null {
