@@ -9,9 +9,21 @@ type Usuario = {
   perfil: string;
   perfis?: string[];
   gerencia?: string | null;
-  status: string; reducao_meta?: number; urbi_ativo?: boolean; criado_em: string;
+  status: string; reducao_meta?: number; urbi_ativo?: boolean;
+  urbi_modo_audio?: "nenhum" | "navegador" | "elevenlabs";
+  criado_em: string;
   ultimo_acesso: string | null; descadastrado_em: string | null;
 };
+
+// Modo de voz do URBI — decidido só pelo admin (ver /api/urbi/preferencias,
+// que deliberadamente não aceita mais essa permissão vinda do próprio usuário).
+// "elevenlabs" hoje se comporta como "navegador" no cliente: fica reservado até
+// /api/urbi/tts ganhar guarda de sessão e a chave entrar no Railway.
+const MODOS_AUDIO: { valor: "nenhum" | "navegador" | "elevenlabs"; rotulo: string }[] = [
+  { valor: "nenhum", rotulo: "Sem áudio" },
+  { valor: "navegador", rotulo: "Áudio do navegador" },
+  { valor: "elevenlabs", rotulo: "Áudio ElevenLabs (reservado)" },
+];
 
 // Catalogo de perfis exibidos no checkbox. "Administrador" e filtrado em runtime
 // para nao aparecer a usuarios que nao sao admins (ITEM 2).
@@ -38,6 +50,7 @@ const vazio = () => ({
   status: "Ativo",
   reducao_meta: 0,
   urbi_ativo: false,
+  urbi_modo_audio: "nenhum" as "nenhum" | "navegador" | "elevenlabs",
 });
 
 export default function UsuariosPage() {
@@ -100,6 +113,7 @@ export default function UsuariosPage() {
       status: u.status,
       reducao_meta: u.reducao_meta ?? 0,
       urbi_ativo: u.urbi_ativo ?? false,
+      urbi_modo_audio: u.urbi_modo_audio ?? "nenhum",
     });
     setSenha(""); setErro(""); setModal(true);
   }
@@ -360,6 +374,18 @@ export default function UsuariosPage() {
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(form as any).urbi_ativo ? "left-7" : "left-1"}`} />
                 </button>
               </div>
+              {form.urbi_ativo && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Modo de áudio do URBI</label>
+                  <select value={form.urbi_modo_audio} onChange={(e) => f("urbi_modo_audio", e.target.value as any)}
+                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+                    {MODOS_AUDIO.map(m => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+                  </select>
+                  <span className="text-xs text-[var(--text-muted)]">
+                    Decisão do administrador — inclusive para o próprio Administrador. O usuário não vê essa opção nem sabe que existe áudio quando está em "Sem áudio".
+                  </span>
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>
                 <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)}

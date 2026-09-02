@@ -101,7 +101,7 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"b
 type Msg = { role: "user"|"urbi"; texto: string };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
-  usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean };
+  usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean; urbi_modo_audio?: "nenhum" | "navegador" | "elevenlabs" };
   aberto: boolean;
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
@@ -138,6 +138,17 @@ function lerCornerPosSalvo(): { bottom: number; right: number } {
 
 export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
+  // Permissão de áudio: decidida só pelo administrador (urbi_modo_audio) pra
+  // qualquer usuário, ele mesmo incluído — o Administrador concede ou remove
+  // essa permissão, mas não é obrigado a ter voz, e não tem tratamento
+  // especial aqui. Opt-in — "nenhum" é o padrão do banco pra todo mundo,
+  // então ausente/indefinido conta como BLOQUEADO, não permitido (a voz só
+  // existe quando o admin escolhe "navegador" ou "elevenlabs" explicitamente
+  // pra aquela pessoa). Bloqueado significa: o botão de som some da tela e
+  // nenhum caminho (comando falado, texto digitado, evento global) consegue
+  // religar. Ver supabase/migrations/2026_09_01_urbi_modo_audio.sql.
+  const permiteAudio = usuario?.urbi_modo_audio === "navegador"
+    || usuario?.urbi_modo_audio === "elevenlabs";
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
   const [input, setInput] = useState("");
@@ -208,7 +219,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   useEffect(() => {
     if (!prefsCarregadasRef.current && usuario?.id) {
       prefsCarregadasRef.current = true;
-      if (usuario.urbi_mudo !== undefined) setMudo(usuario.urbi_mudo);
+      // Sem permissão de áudio, o estado de mudo nunca vem do valor salvo:
+      // fica travado em true, independente do que a preferência antiga guardava.
+      if (!permiteAudio) setMudo(true);
+      else if (usuario.urbi_mudo !== undefined) setMudo(usuario.urbi_mudo);
       if (usuario.urbi_bip !== undefined) setModoBip(usuario.urbi_bip);
     }
   }, [usuario]);
@@ -225,7 +239,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           if (speech.ouvindo) pararEscuta(); return;
         }
         if (norm.includes("ligar som") || norm.includes("ligar o som") || norm.includes("ligar alto falante")) {
-          setMudo(false); return;
+          if (permiteAudio) setMudo(false); return;
         }
         if (norm.includes("desligar som") || norm.includes("desligar o som")) {
           setMudo(true); return;
@@ -250,7 +264,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   useEffect(() => {
     const handler = (e: Event) => {
       const cmd = (e as CustomEvent).detail;
-      if (cmd === "ligar_som") { setMudo(false); }
+      if (cmd === "ligar_som") { if (permiteAudio) setMudo(false); }
       if (cmd === "desligar_som") { setMudo(true); }
       if (cmd === "ligar_mic") { if (!speech.ouvindo) alternarEscuta(); }
       if (cmd === "desligar_mic") { if (speech.ouvindo) pararEscuta(); }
@@ -274,7 +288,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setMsgs(m => [...m, { role: "urbi", texto: mensagem }]);
       setHistory(h => [...h, { role: "model", parts: [{ text: mensagem }] }]);
       anunciar("URBI respondeu.");
-      if (!speech.mudo) falar(mensagem);
+      if (permiteAudio && !speech.mudo) falar(mensagem);
     };
     window.addEventListener("urbi:entregar-dica", handler);
     return () => window.removeEventListener("urbi:entregar-dica", handler);
@@ -302,7 +316,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   }
 
   async function saudacaoOnMount(comVoz?: boolean) {
-    if (comVoz) { setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
+    if (comVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
     try {
       const res = await fetch("/api/urbi/chat", {
         method: "POST",
@@ -332,7 +346,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setHistory([{ role: "model", parts: [{ text: mensagemInicial }] }]);
         anunciar("URBI respondeu.");
         resetIdleTimer();
-        if (!speech.mudo) falar(mensagemInicial);
+        if (permiteAudio && !speech.mudo) falar(mensagemInicial);
         onMensagemInicialConsumida?.();
         return;
       }
@@ -435,7 +449,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setTimeout(() => fechar(), 1500);
         break;
       case "mudo":
-        setMudo((acao as any).valor);
+        // "ativar som"/"tirar mudo" digitado também é bloqueado sem permissão
+        // — só o sentido de silenciar (valor true) sempre passa.
+        if (permiteAudio || (acao as any).valor === true) setMudo((acao as any).valor);
         break;
       case "pose":
         setPoseOpacity(0);
@@ -462,7 +478,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
       setMsgs(m => [...m, { role: "urbi", texto: resposta }]);
       anunciar("URBI respondeu.");
-      if (!speech.mudo) falar(resposta);
+      if (permiteAudio && !speech.mudo) falar(resposta);
       aplicarAcaoIntencao(intencao.acao);
       return;
     }
@@ -484,7 +500,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
         anunciar("URBI respondeu.");
-        if (!speech.mudo) falar(json.resposta);
+        if (permiteAudio && !speech.mudo) falar(json.resposta);
         await fetch("/api/urbi/historico", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ usuario_id: usuario.id ?? null, usuario_nome: usuario.nome, mensagem_usuario: texto, resposta_urbi: json.resposta, linha: "geral", pose_usada: poseId }),
@@ -495,14 +511,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         const fallback = "Tive um problema técnico. Tenta de novo.";
         setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
         anunciar("URBI encontrou um problema técnico.");
-        if (!speech.mudo) falar(fallback);
+        if (permiteAudio && !speech.mudo) falar(fallback);
       }
     } catch {
       setPoseId(selectPose("negativo"));
       const fallback = "Sem conexão. Verifica a rede.";
       setMsgs(m => [...m, { role: "urbi", texto: fallback }]);
       anunciar("URBI encontrou um problema técnico.");
-      if (!speech.mudo) falar(fallback);
+      if (permiteAudio && !speech.mudo) falar(fallback);
     }
     setCarregando(false);
   }
@@ -656,37 +672,41 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           {speech.ouvindo ? "● Ouvindo" : "🎙"}
         </button>
 
-        {/* Switch mudo/som (TTS) */}
-        <button
-          type="button"
-          className="urbi-focavel"
-          onClick={() => {
-            if (speech.falando) pararFala();
-            alternarMudo();
-          }}
-          disabled={!speech.suportaTTS}
-          title={
-            !speech.suportaTTS
-              ? "Síntese de voz não suportada neste navegador"
-              : speech.mudo
-                ? "Ativar som das respostas"
-                : "Silenciar respostas"
-          }
-          aria-label={speech.mudo ? "Ativar som" : "Silenciar"}
-          aria-pressed={speech.mudo}
-          style={{
-            background: speech.mudo ? "#e2e8f0" : "#1d4ed8",
-            color: speech.mudo ? "#64748b" : "#ffffff",
-            border: "none",
-            borderRadius: 8,
-            padding: "6px 10px",
-            cursor: speech.suportaTTS ? "pointer" : "not-allowed",
-            fontSize: 14,
-            opacity: speech.suportaTTS ? 1 : 0.4,
-          }}
-        >
-          {speech.mudo ? "🔇 Mudo" : speech.falando ? "🔊 Falando…" : "🔊 Som"}
-        </button>
+        {/* Switch mudo/som (TTS) — some da tela inteira quando o admin não deu
+            áudio a este usuário: "quem não tem áudio não pode nem saber que
+            existe" (roadmap do URBI, item 2, 2026-09-01). */}
+        {permiteAudio && (
+          <button
+            type="button"
+            className="urbi-focavel"
+            onClick={() => {
+              if (speech.falando) pararFala();
+              alternarMudo();
+            }}
+            disabled={!speech.suportaTTS}
+            title={
+              !speech.suportaTTS
+                ? "Síntese de voz não suportada neste navegador"
+                : speech.mudo
+                  ? "Ativar som das respostas"
+                  : "Silenciar respostas"
+            }
+            aria-label={speech.mudo ? "Ativar som" : "Silenciar"}
+            aria-pressed={speech.mudo}
+            style={{
+              background: speech.mudo ? "#e2e8f0" : "#1d4ed8",
+              color: speech.mudo ? "#64748b" : "#ffffff",
+              border: "none",
+              borderRadius: 8,
+              padding: "6px 10px",
+              cursor: speech.suportaTTS ? "pointer" : "not-allowed",
+              fontSize: 14,
+              opacity: speech.suportaTTS ? 1 : 0.4,
+            }}
+          >
+            {speech.mudo ? "🔇 Mudo" : speech.falando ? "🔊 Falando…" : "🔊 Som"}
+          </button>
+        )}
 
         {speech.ultimoErroStt && (
           <span style={{ fontSize: 11, color: "#dc2626" }}>

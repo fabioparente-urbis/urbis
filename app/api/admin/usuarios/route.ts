@@ -8,6 +8,18 @@ const supabase = createClient(
 
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
 
+// Modo de voz do URBI. O Administrador é quem CONCEDE ou REMOVE essa
+// permissão pra qualquer usuário — ele mesmo incluído; não é obrigado a ter
+// voz e não tem tratamento especial aqui. "nenhum" é o padrão pra todo mundo:
+// voz é opt-in, nunca liga sozinha por omissão ou valor inválido (ver
+// supabase/migrations/2026_09_01_urbi_modo_audio.sql).
+const MODOS_AUDIO_VALIDOS = ["nenhum", "navegador", "elevenlabs"] as const;
+function normalizarModoAudio(v: unknown): typeof MODOS_AUDIO_VALIDOS[number] {
+  return (MODOS_AUDIO_VALIDOS as readonly string[]).includes(v as string)
+    ? (v as typeof MODOS_AUDIO_VALIDOS[number])
+    : "nenhum";
+}
+
 /**
  * Normaliza os perfis recebidos do client: dedup, remove vazios,
  * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
@@ -123,6 +135,7 @@ export async function POST(req: NextRequest) {
       gerencia,
       status: status || "Ativo",
       urbi_ativo: body.urbi_ativo === true,
+      urbi_modo_audio: normalizarModoAudio(body.urbi_modo_audio),
     });
 
     if (dbError) {
@@ -167,7 +180,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
 
     const reducao_meta = typeof body.reducao_meta === "number" ? body.reducao_meta : (parseInt(body.reducao_meta) || 0);
-    const atualizacao: any = { nome, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status, reducao_meta, urbi_ativo: body.urbi_ativo === true };
+    const atualizacao: any = { nome, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status, reducao_meta, urbi_ativo: body.urbi_ativo === true, urbi_modo_audio: normalizarModoAudio(body.urbi_modo_audio) };
     if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
     if (status === "Ativo") atualizacao.descadastrado_em = null;
 
