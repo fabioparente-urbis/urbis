@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth";
+import { avaliarCaixaRecarga, LIMITE_AREA_CAIXA_M2 } from "@/lib/caixaRecargaSlot1";
+import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 
 export const maxDuration = 30;
 
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const { arquivos } = await req.json();
+    const { arquivos, tipoProcesso } = await req.json();
     if (!arquivos || arquivos.length === 0)
       return NextResponse.json({ ok: false, erro: "Nenhum arquivo informado" }, { status: 400 });
 
@@ -139,6 +141,43 @@ export async function POST(req: NextRequest) {
       const diff = Math.abs(total - soma);
       if (diff > 0.5) {
         inc.push({ tipo: "DIVERGÊNCIA", campo: "somatório de áreas", descricao: `Área Total (${total}m²) ≠ ForaFrontal(${toNum("areaForaFrontal")}) + Recuo(${toNum("areaRecuo")}) + Vertical(${toNum("areaVertical")}) = ${soma.toFixed(2)}m². Diferença: ${diff.toFixed(2)}m².`, docs: ["PROJETO"] });
+      }
+    }
+
+    // 13. CAIXA DE RECARGA × 250m² — SÓ Regularização SEI (Slot 1).
+    // LC 314/2018, Art. 2º §4º: a caixa só é obrigatória acima de 250m² de
+    // área construída e desde que a edificação não tenha ocupado a totalidade
+    // do lote. É comparação numérica — decidida aqui, nunca pela IA. Os demais
+    // slots não entram: o Slot 5 tem lei e regra próprias (proporcional à área
+    // impermeabilizada), e sem tipo informado nada roda.
+    if (ehRegularizacaoSei(tipoProcesso)) {
+      const vCaixa = avaliarCaixaRecarga({
+        areaTotal: mesclado["areaTotal"],
+        areaAprovada: mesclado["areaAprovada"],
+      });
+      const caixaSim = sim(mesclado, "caixa");
+      const caixaNao = get(mesclado, "caixa").toLowerCase() === "não" || get(mesclado, "caixa").toLowerCase() === "nao";
+
+      if (vCaixa.dispensadaPorArea === true && caixaSim) {
+        inc.push({
+          tipo: "ALERTA", campo: "caixa",
+          descricao: `${vCaixa.mensagem} O projeto apresenta caixa mesmo assim — registrar como fato, sem transformar em exigência.`,
+          docs: ["PROJETO"],
+        });
+      }
+      if (vCaixa.dispensadaPorArea === false && caixaNao) {
+        inc.push({
+          tipo: "ALERTA", campo: "caixa",
+          descricao: `${vCaixa.mensagem} O projeto não apresenta caixa — conferir se cabe exigência.`,
+          docs: ["PROJETO"],
+        });
+      }
+      if (vCaixa.situacao === "INDETERMINADA") {
+        inc.push({
+          tipo: "ALERTA", campo: "areaTotal",
+          descricao: `Área construída não lida — sem ela o limite de ${LIMITE_AREA_CAIXA_M2}m² da caixa de recarga (LC 314/2018, Art. 2º §4º) não pode ser conferido.`,
+          docs: ["PROJETO"],
+        });
       }
     }
 

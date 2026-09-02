@@ -6,6 +6,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
+import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
+import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
@@ -1549,7 +1551,7 @@ export default function ProcessoClient() {
         }
       }
       // 3. S4 — cruzamento
-      const s4Res = await fetch("/api/lip/s4", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ arquivos: resultados }) });
+      const s4Res = await fetch("/api/lip/s4", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ arquivos: resultados, tipoProcesso: tipoUrl }) });
       const s4Data = await s4Res.json();
       setProgresso(95);
       // 4. Salvar campos mesclados + OBS
@@ -1779,6 +1781,28 @@ export default function ProcessoClient() {
         LAUDO
       </button>
     );
+    // Caixa de recarga — Slot 1 (Regularização SEI) apenas. O corte dos 250m²
+    // da LC 314/2018 (Art. 2º §4º) é conta do sistema, não do analista e não da
+    // IA: comparação numérica sobre a área que já está no LIP. Abaixo do corte
+    // a caixa é DISPENSADA e o campo vazio não vira exigência (a rota de save
+    // também deixa de pré-marcar os itens do MAC — ver lib/caixaRecargaSlot1.ts).
+    // Outros slots não passam por aqui: o Slot 5 tem lei e regra próprias.
+    const notaCaixa =
+      ehRegularizacaoSei(tipoUrl) && (campo.chave === "caixa" || campo.chave === "artCx")
+        ? avaliarCaixaRecargaDosDados(d)
+        : null;
+    const notaCaixaClasse =
+      notaCaixa?.dispensadaPorArea === true
+        ? "border-green-400 bg-green-50 text-green-800"
+        : notaCaixa?.dispensadaPorArea === false
+          ? "border-amber-400 bg-amber-50 text-amber-800"
+          : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-muted)]";
+    const blocoNotaCaixa = notaCaixa && (
+      <div className={`mb-1 p-2 rounded border text-[11px] leading-snug ${notaCaixaClasse}`}>
+        {notaCaixa.dispensadaPorArea === true ? "✔ " : notaCaixa.dispensadaPorArea === false ? "⚠ " : "ℹ "}
+        {notaCaixa.mensagem}
+      </div>
+    );
     // "janelinha" de ajuda no rótulo — só pra lembrar a regra, não é validação
     const textoAjuda = AJUDA_CAMPOS[campo.chave];
     const badgeAjuda = textoAjuda && (
@@ -1807,6 +1831,7 @@ export default function ProcessoClient() {
           <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
             {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}{badgeLaudo}
           </label>
+          {blocoNotaCaixa}
           <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
             className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`}>
             <option value="">— selecione —</option>
@@ -1825,6 +1850,7 @@ export default function ProcessoClient() {
               por isso o rótulo não cita mais um dos dois. */}
           {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ SUGESTÃO</span>}{badgeLaudo}
         </label>
+        {blocoNotaCaixa}
         {temSugestaoVCP && (
           <div className="mb-1 p-2 rounded border border-yellow-400 bg-yellow-50 text-xs flex items-center gap-2">
             <span className="text-yellow-700">⚡ Sugestão da leitura: <strong>{vcpSugestoes[campo.chave]}</strong></span>

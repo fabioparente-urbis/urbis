@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
 import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
+import { chavesCaixaDispensadasSlot1 } from "@/lib/caixaRecargaSlot1";
 
 /**
  * Retorna as chaves do objeto `dados` cujos campos estão marcados como
@@ -189,6 +190,11 @@ export async function POST(req: NextRequest) {
         }]);
     }
 
+    // Dispensa da caixa de recarga apurada abaixo (Slot 1). Fica fora do
+    // try/catch para poder ir na resposta — nunca deixar item sumir em
+    // silêncio: quem chamou precisa saber que uma pré-marcação não ocorreu.
+    let respostaCaixaRecarga: { mensagem: string; chaves: string[] } | null = null;
+
     // Propaga campos CONFERIR/X do LIP para a análise MAC ativa
     // (status != 'deferido' && status != 'indeferido') como itens
     // 'nao_conforme'. NÃO cria análise se não existir e NÃO sobrescreve
@@ -202,7 +208,39 @@ export async function POST(req: NextRequest) {
     // estrutura efetiva no banco. Filtra por tipo_processo via
     // modelo_id da análise + colunas explícitas.
     try {
-      const chavesProblema = dados ? chavesVaziasOuX(dados) : [];
+      let chavesProblema = dados ? chavesVaziasOuX(dados) : [];
+
+      // Slot 1 (Regularização SEI) — a exigência da caixa de recarga
+      // (LC 314/2018, Art. 2º, § 4º) tem DUAS condições: área > 250 m² E não
+      // ocupar a totalidade do lote. O LIP só confere a primeira. Por isso a
+      // marcação AUTOMÁTICA de "não conforme" nunca acontece pra essas
+      // chaves, nas três situações possíveis: área ≤ 250 (dispensada por
+      // lei), área > 250 (falta confirmar a ocupação do lote) ou área não
+      // lida (falta o dado). Decisão do Fábio, 02/09/2026 — ver
+      // lib/caixaRecargaSlot1.ts.
+      //
+      // Isto NÃO desativa nem esconde item nenhum: os itens continuam no
+      // checklist, visíveis e marcáveis pelo analista — o que deixa de
+      // acontecer é só a marcação AUTOMÁTICA. A situação fica registrada no
+      // log e é devolvida na resposta.
+      const dispensaCaixa = chavesCaixaDispensadasSlot1(tipoProcesso, dados);
+      let caixaRecargaDispensada: { mensagem: string; chaves: string[] } | null = null;
+      if (dispensaCaixa.chaves.length > 0) {
+        const removidas = chavesProblema.filter((c) => dispensaCaixa.chaves.includes(c));
+        if (removidas.length > 0) {
+          chavesProblema = chavesProblema.filter((c) => !dispensaCaixa.chaves.includes(c));
+          caixaRecargaDispensada = {
+            mensagem: dispensaCaixa.veredicto!.mensagem,
+            chaves: removidas,
+          };
+          console.info(
+            `[LIP/slot1] ${id}: caixa de recarga (${dispensaCaixa.veredicto!.situacao}) — sem ` +
+            `pré-marcação automática de ${removidas.join(", ")}. ${dispensaCaixa.veredicto!.mensagem}`,
+          );
+        }
+      }
+      respostaCaixaRecarga = caixaRecargaDispensada;
+
       if (chavesProblema.length > 0) {
         // 3. Buscar a análise MAC ativa (não deferida e não indeferida).
         const { data: ultima } = await supabaseAdmin
@@ -269,7 +307,12 @@ export async function POST(req: NextRequest) {
     }
 
     return renovarCookieAuth(
-      NextResponse.json({ ok: true, acao, tipo: tipoProcesso }),
+      NextResponse.json({
+        ok: true,
+        acao,
+        tipo: tipoProcesso,
+        ...(respostaCaixaRecarga ? { caixaRecargaDispensada: respostaCaixaRecarga } : {}),
+      }),
       auth.userId,
     );
   } catch (e: any) {

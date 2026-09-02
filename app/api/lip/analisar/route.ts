@@ -57,7 +57,7 @@ RESPONSÁVEIS TÉCNICOS (fonte: carimbo do projeto — última planta):
 CORREDOR E CAIXA (fonte: uso do solo + planta memorial de cálculo):
 - corredor: buscar no documento de Uso do Solo a linha "CORREDOR VIÁRIO: SIM" ou "CORREDOR VIÁRIO: NÃO"; retornar "Sim" ou "Não" conforme indicado; se não encontrar a linha, retornar "Não"
 - faixa: faixa de ampliação do corredor em metros (ex: "5m") — preencher APENAS se corredor = Sim E houver certidão de corredor no processo; "NP" se corredor = Não
-- caixa: "Sim" se no carimbo do projeto houver indicação de caixa de infiltração/recarga, memorial de cálculo de caixa, volume em m³, ou se área construída total > 250m²; buscar termos como "CAIXA", "VOLUME", "m³", "INFILTRAÇÃO", "RECARGA" no carimbo; "Não" se não houver nenhuma dessas indicações
+- caixa: "Sim" se no carimbo do projeto houver indicação de caixa de infiltração/recarga, memorial de cálculo de caixa ou volume em m³; buscar termos como "CAIXA", "VOLUME", "m³", "INFILTRAÇÃO", "RECARGA" no carimbo; "Não" se não houver nenhuma dessas indicações. NUNCA responder "Sim" por dedução da área construída: se a caixa é EXIGÍVEL (acima de 250m², LC 314/2018 Art. 2º §4º) quem decide é o sistema, comparando a área do LIP com o limite legal — aqui só interessa se a caixa está OU NÃO no projeto
 - volMin: volume mínimo da caixa em m³ (só número) — "NP" se caixa = Não
 - volAt: volume atendido em m³ (só número) — "NP" se caixa = Não
 - caixas: número de caixas (só número) — "NP" se caixa = Não

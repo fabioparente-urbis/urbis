@@ -5,6 +5,7 @@ const _modeloValidado: GeminiModel = GEMINI_MODEL;
 import { createClient } from "@supabase/supabase-js";
 import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
 import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
+import { blocoPromptCaixaRecarga } from "@/lib/caixaRecargaSlot1";
 import { aplicarMarcadores } from "@/lib/promptCampos";
 import { registrarChamadaIA } from "@/lib/iaUso";
 
@@ -88,6 +89,11 @@ export async function POST(req: NextRequest) {
     }
     const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
     const blocoArea = blocoPromptCompatibilidadeArea(tipoProcesso);
+    // Caixa de recarga (só Regularização SEI): impede que o modelo responda
+    // "caixa: Sim" por dedução da área. O corte de 250m² da LC 314/2018 é
+    // comparação numérica feita pelo sistema — do modelo se quer só o fato
+    // que está no carimbo. Ver lib/caixaRecargaSlot1.ts.
+    const blocoCaixa = blocoPromptCaixaRecarga(tipoProcesso);
 
     // Marcadores resolvidos pelo banco ({{CAMPOS_DO_ASSUNTO}},
     // {{ESQUELETO_JSON}}, {{CAMPOS_VAZIOS}}). Prompt sem marcador passa
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
       assunto_id: assuntoValido ? assunto_id : null,
       codigo: typeof codigo === "string" ? codigo : null,
     });
-    const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea;
+    const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea + blocoCaixa;
 
     // Cria job no banco
     const { data: job, error: jobErr } = await supabaseAdmin
