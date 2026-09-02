@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha } from "@/lib/urbi/navegacao";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 
@@ -129,13 +131,20 @@ function formatar(dataStr: string | null) {
   });
 }
 
-export default function ProcessosPage() {
+// useSearchParams obriga fronteira de Suspense (o Next avisa no build, não em
+// tempo de execução). O conteúdo real vive aqui dentro; o export só embrulha.
+function ProcessosConteudo() {
   const router = useRouter();
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState("");
+  // Filtros que chegam pela URL — é assim que o URBI entrega o resultado de
+  // "processos indeferidos na análise 2" já na tela, sem precisar de estado
+  // compartilhado entre o widget e esta página.
+  const searchParams = useSearchParams();
+  const [filtrosUrl, setFiltrosUrl] = useState<FiltrosPilha>({});
   const [status, setStatus] = useState("");
   const [analista, setAnalista] = useState("");
   const [deletando, setDeletando] = useState<string | null>(null);
@@ -216,6 +225,24 @@ export default function ProcessosPage() {
 
   useEffect(() => { carregarUsuarios(); carregarPerfil(); }, []);
   useEffect(() => { carregar(); }, [busca, tipo, status, analista]);
+
+  // A URL manda nos campos: o que o URBI pediu vira o estado visível dos
+  // filtros, então a pessoa vê exatamente por que aquela lista está ali.
+  useEffect(() => {
+    const f = queryParaFiltros(new URLSearchParams(searchParams?.toString() ?? ""));
+    setFiltrosUrl(f);
+    setBusca(f.busca ?? "");
+    setTipo(f.tipo ?? "");
+  }, [searchParams]);
+
+  // Recorte de apresentação sobre a lista que a API já devolveu — e a API é
+  // quem aplica a permissão. Filtrar aqui não amplia o que a pessoa enxerga.
+  const processosVisiveis = aplicarFiltrosLocais(processos as any[], filtrosUrl) as typeof processos;
+
+  const rotulosFiltro: string[] = [];
+  if (filtrosUrl.tag) rotulosFiltro.push({ despacho: "despacho", despacho_interno: "despacho interno", indeferimento: "indeferimento", laudo: "laudo" }[filtrosUrl.tag] ?? filtrosUrl.tag);
+  if (filtrosUrl.analise !== undefined) rotulosFiltro.push(`análise ${filtrosUrl.analise}`);
+  if (filtrosUrl.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos" }[filtrosUrl.ordenar]);
 
   async function deletar(p: Processo) {
     const num = p.codigo || p.numero_sei;
@@ -319,8 +346,21 @@ export default function ProcessosPage() {
             <p className="text-[var(--text-muted)] text-sm">Todos os processos cadastrados no URBIS</p>
           </div>
         </div>
-        <span className="text-[var(--text-muted)] text-sm">{processos.length} processo(s)</span>
+        <span className="text-[var(--text-muted)] text-sm">{processosVisiveis.length} processo(s)</span>
       </div>
+
+      {rotulosFiltro.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2 rounded-lg border border-[var(--accent)] bg-[var(--bg-secondary)]">
+          <span className="text-xs font-bold text-[var(--accent)]">FILTRO DO URBI</span>
+          {rotulosFiltro.map((r) => (
+            <span key={r} className="text-xs px-2 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)]">{r}</span>
+          ))}
+          <button onClick={() => router.push("/processos")}
+            className="ml-auto text-xs px-2 py-1 rounded bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)]">
+            Limpar filtros
+          </button>
+        </div>
+      )}
 
       {/* FILTROS */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -351,11 +391,11 @@ export default function ProcessosPage() {
       {/* LISTA */}
       {carregando ? (
         <div className="text-[var(--text-muted)] text-sm text-center py-12">Carregando...</div>
-      ) : processos.length === 0 ? (
+      ) : processosVisiveis.length === 0 ? (
         <div className="text-[var(--text-muted)] text-sm text-center py-12">Nenhum processo encontrado.</div>
       ) : (
         <div className="flex flex-col gap-2">
-          {processos.map((p) => {
+          {processosVisiveis.map((p) => {
             const proprietario = p.dados?.proprietario?.valor || "—";
             const numero = p.codigo || p.numero_sei || "—";
             const processoFisico = p.dados?.processoFisico?.valor;
@@ -513,4 +553,12 @@ export default function ProcessosPage() {
     </div>
   );
 
+}
+
+export default function ProcessosPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-[var(--text-muted)]">Carregando...</div>}>
+      <ProcessosConteudo />
+    </Suspense>
+  );
 }

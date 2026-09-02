@@ -3,6 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSpeech } from "./useWebSpeech";
 import intencoesJson from "./urbi-intencoes.json";
+import {
+  interpretar,
+  pareceComando,
+  AJUDA_COMANDOS,
+  aplicarFiltrosLocais,
+  filtrosParaQuery,
+  type ComandoNavegacao,
+  type FiltrosPilha,
+} from "@/lib/urbi/navegacao";
 
 type IntencaoAcao =
   | { tipo: "navegar"; rota: string }
@@ -197,6 +206,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     acao_tipo?: string;
     acao_alvo?: string;
     executado: boolean;
+    erro?: string;
   }) {
     if (!usuario?.id) return;
     // A tabela é de COMANDO, não de conversa. Pergunta digitada que virou papo
@@ -212,6 +222,118 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(dados),
     }).catch(() => {});
+  }
+
+  // Último resultado de busca/filtro, para o "abrir o primeiro" funcionar sem
+  // refazer a consulta. Ref, não estado: nada na tela depende disso.
+  const ultimoResultadoRef = useRef<any[]>([]);
+
+  /** Rota de leitura do processo — a mesma que a Pilha usa ao clicar na linha. */
+  function rotaDoProcesso(p: any): string {
+    const tipo = p?.tipo_processo || "regularizacao";
+    return `/processo/${encodeURIComponent(p.codigo)}?tipo=${encodeURIComponent(tipo)}`;
+  }
+
+  function descreverProcesso(p: any): string {
+    const interessado = p?.dados?.proprietario?.valor;
+    return interessado ? `${p.codigo} — ${interessado}` : String(p?.codigo ?? "");
+  }
+
+  /**
+   * Executa um comando de navegação já interpretado. Só leitura: navega,
+   * consulta e conta. A consulta vai por /api/processos, que é onde mora a
+   * regra de permissão — um analista não alcança processo de outro nem
+   * pedindo, porque a rota ignora qualquer filtro de analista vindo do
+   * cliente e prende a consulta ao próprio usuário.
+   */
+  async function executarComandoNavegacao(c: ComandoNavegacao, texto: string, origem: OrigemComando) {
+    const responder = (msg: string) => {
+      setMsgs(m => [...m, { role: "urbi", texto: msg }]);
+      anunciar("URBI respondeu.");
+      if (permiteAudio && !speech.mudo) falar(msg);
+    };
+
+    if (c.tipo === "navegar") {
+      responder(c.resposta);
+      router.push(c.rota);
+      registrarComando({ texto, origem, intencao_id: `nav:${c.rota}`, acao_tipo: "navegar", acao_alvo: c.rota, executado: true });
+      return;
+    }
+
+    if (c.tipo === "voltar") {
+      responder(c.resposta);
+      router.back();
+      registrarComando({ texto, origem, intencao_id: "nav:voltar", acao_tipo: "voltar", acao_alvo: "", executado: true });
+      return;
+    }
+
+    if (c.tipo === "limpar_filtros") {
+      responder(c.resposta);
+      router.push("/processos");
+      registrarComando({ texto, origem, intencao_id: "nav:limpar", acao_tipo: "limpar_filtros", acao_alvo: "/processos", executado: true });
+      return;
+    }
+
+    if (c.tipo === "abrir_resultado") {
+      const alvo = ultimoResultadoRef.current[c.indice];
+      if (!alvo) {
+        responder("Não tenho esse resultado na lista. Faça a busca primeiro.");
+        registrarComando({ texto, origem, intencao_id: "nav:abrir_resultado", acao_tipo: "abrir_resultado", acao_alvo: "", executado: false });
+        return;
+      }
+      responder(`Abrindo ${descreverProcesso(alvo)}.`);
+      const rota = rotaDoProcesso(alvo);
+      router.push(rota);
+      registrarComando({ texto, origem, intencao_id: "nav:abrir_resultado", acao_tipo: "abrir_resultado", acao_alvo: rota, executado: true });
+      return;
+    }
+
+    // buscar | filtrar — os dois consultam a mesma rota e mostram a pilha.
+    const filtros: FiltrosPilha = c.tipo === "buscar" ? { busca: c.termo } : c.filtros;
+    setCarregando(true);
+    try {
+      const params = new URLSearchParams();
+      if (filtros.busca) params.set("busca", filtros.busca);
+      if (filtros.tipo) params.set("tipo", filtros.tipo);
+      const res = await fetch(`/api/processos?${params.toString()}`);
+      const json = await res.json();
+      if (!json.ok) {
+        responder("Não consegui consultar a pilha agora.");
+        registrarComando({ texto, origem, acao_tipo: c.tipo, acao_alvo: "", executado: false, erro: "consulta falhou" });
+        return;
+      }
+
+      // tag/análise/ordenação são recorte sobre o que a rota JÁ autorizou.
+      const achados = aplicarFiltrosLocais(json.data ?? [], filtros);
+      ultimoResultadoRef.current = achados;
+
+      const query = filtrosParaQuery(filtros);
+      let msg: string;
+      if (achados.length === 0) {
+        msg = c.tipo === "buscar"
+          ? `Não encontrei nenhum processo com "${c.termo}".`
+          : "Nenhum processo com esse filtro.";
+      } else if (achados.length === 1) {
+        msg = `Encontrei 1 processo: ${descreverProcesso(achados[0])}. Diga "abrir o primeiro" para abrir.`;
+      } else {
+        const amostra = achados.slice(0, 3).map(descreverProcesso).join("; ");
+        msg = `Encontrei ${achados.length} processos. Os primeiros: ${amostra}.`;
+      }
+      responder(msg);
+      router.push(`/processos${query}`);
+      registrarComando({
+        texto, origem,
+        intencao_id: c.tipo === "buscar" ? "nav:buscar" : "nav:filtrar",
+        acao_tipo: c.tipo,
+        acao_alvo: query || "/processos",
+        executado: true,
+      });
+    } catch {
+      responder("Sem conexão para consultar a pilha.");
+      registrarComando({ texto, origem, acao_tipo: c.tipo, acao_alvo: "", executado: false, erro: "sem conexao" });
+    } finally {
+      setCarregando(false);
+    }
   }
 
   function anunciar(texto: string) {
@@ -260,7 +382,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
 
   // Ref, e não o estado direto: o callback `aoTranscrever` é montado DENTRO da
   // chamada do hook, então `speech` ainda não existe naquele ponto.
-  const motorSTTRef = useRef<"webspeech" | "whisper" | null>(null);
+  const motorSTTRef = useRef<"webspeech" | null>(null);
 
   const { estado: speech, alternarEscuta, pararEscuta, falar, pararFala, alternarMudo, setMudo } =
     useWebSpeech({
@@ -292,7 +414,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         // A origem diz por qual motor o texto chegou — o nativo do navegador
         // ou a transcrição no servidor. É o que permite ver depois em quais
         // máquinas o URBI está sendo ouvido por qual caminho.
-        void enviar(texto, motorSTTRef.current === "whisper" ? "whisper" : "webspeech");
+        void enviar(texto, "webspeech");
       },
     });
 
@@ -355,23 +477,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     }, 120000); // 2 minutos
   }
 
-  async function saudacaoOnMount(comVoz?: boolean) {
+  // CUSTO ZERO (02/09/2026): a saudação era gerada pelo Gemini a cada abertura
+  // — abrir o robô, sozinho, já custava uma chamada paga que ninguém pediu.
+  // Agora é local: monta a frase aqui, sem rede. A saudação sempre foi
+  // descartável (havia esta mesma frase como fallback quando a API falhava),
+  // então não se perde nada além do improviso sobre o tempo em Goiânia.
+  function saudacaoOnMount(comVoz?: boolean) {
     if (comVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
-    try {
-      const res = await fetch("/api/urbi/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: "OnMount", assunto_id: assuntoId, usuario }),
-      });
-      const json = await res.json();
-      if (json.ok && json.resposta) {
-        setMsgs([{ role: "urbi", texto: json.resposta }]);
-        anunciar("URBI respondeu.");
-        resetIdleTimer();
-        return;
-      }
-    } catch (_) {}
-    setMsgs([{ role: "urbi", texto: `Fala, ${usuario.nome.split(" ")[0]}! Como posso ajudar?` }]);
+    const primeiroNome = (usuario.nome ?? "").split(" ")[0] || "colega";
+    setMsgs([{ role: "urbi", texto: `Fala, ${primeiroNome}! Diga o que procura ou peça uma tela.` }]);
     anunciar("URBI respondeu.");
     resetIdleTimer();
   }
@@ -511,8 +625,33 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     setMsgs(m => [...m, { role: "user", texto }]);
     setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("pensando", poseId)); setPoseOpacity(1); }, 200);
 
-    // Antes de chamar a API, tenta casar com uma intenção local (comando de voz/atalho).
+    // 1º) Navegador determinístico: rotas, busca, filtros e ordenação da
+    // pilha. Vem ANTES do casador de intenções porque ele casa por substring —
+    // "pilha de processos indeferidos" bateria em "pilha de processos" e o
+    // filtro se perderia no caminho. Nenhuma IA aqui: é tabela e regex.
+    const comandoNav = interpretar(texto);
+    if (comandoNav) {
+      setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
+      await executarComandoNavegacao(comandoNav, texto, origem);
+      return;
+    }
+
+    // 2º) Intenções fixas do catálogo (silenciar, tchau, poses) — várias têm
+    // mp3 pré-gravado, e o texto da resposta é o que faz o áudio tocar.
     const intencao = casarIntencao(texto);
+
+    // 2.5º) Tinha cara de comando e não casou em lugar nenhum: responde de
+    // graça com a lista do que ele entende, em vez de mandar para o chat com
+    // IA — que é pago. Custo zero é regra, então tentativa de comando escrita
+    // torto não pode virar chamada cobrada sem ninguém pedir.
+    if (!intencao && pareceComando(texto)) {
+      setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("atencao", poseId)); setPoseOpacity(1); }, 200);
+      setMsgs(m => [...m, { role: "urbi", texto: AJUDA_COMANDOS }]);
+      anunciar("URBI respondeu.");
+      if (permiteAudio && !speech.mudo) falar(AJUDA_COMANDOS);
+      registrarComando({ texto, origem, acao_tipo: "nao_entendido", executado: false });
+      return;
+    }
     if (intencao) {
       const resposta = intencao.resposta ?? "Ok.";
       setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
@@ -701,36 +840,28 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           type="button"
           className="urbi-focavel"
           onClick={alternarEscuta}
-          disabled={!speech.suportaSTT || speech.transcrevendo}
+          disabled={!speech.suportaSTT}
           title={
             !speech.suportaSTT
-              ? "Este navegador não permite usar o microfone"
-              : speech.transcrevendo
-                ? "Transcrevendo o que você falou…"
-                : speech.ouvindo
-                  ? (speech.motorSTT === "whisper" ? "Parar e transcrever" : "Parar de ouvir")
-                  : speech.motorSTT === "whisper"
-                    ? "Gravar um comando (clique de novo para enviar)"
-                    : "Falar com o URBI (microfone)"
+              ? "Este navegador não reconhece voz — digite o comando no campo abaixo"
+              : speech.ouvindo
+                ? "Parar de ouvir"
+                : "Falar com o URBI (microfone)"
           }
           aria-label="Microfone"
           aria-pressed={speech.ouvindo}
           style={{
-            background: speech.ouvindo ? "#dc2626" : speech.transcrevendo ? "#fef3c7" : "#e2e8f0",
-            color: speech.ouvindo ? "#ffffff" : speech.transcrevendo ? "#92400e" : "#1e293b",
+            background: speech.ouvindo ? "#dc2626" : "#e2e8f0",
+            color: speech.ouvindo ? "#ffffff" : "#1e293b",
             border: "none",
             borderRadius: 8,
             padding: "6px 10px",
-            cursor: !speech.suportaSTT || speech.transcrevendo ? "not-allowed" : "pointer",
+            cursor: speech.suportaSTT ? "pointer" : "not-allowed",
             fontSize: 14,
             opacity: speech.suportaSTT ? 1 : 0.4,
           }}
         >
-          {speech.transcrevendo
-            ? "⏳ Transcrevendo…"
-            : speech.ouvindo
-              ? (speech.motorSTT === "whisper" ? "● Gravando" : "● Ouvindo")
-              : "🎙"}
+          {speech.ouvindo ? "● Ouvindo" : "🎙"}
         </button>
 
         {/* Switch mudo/som (TTS) — some da tela inteira quando o admin não deu
@@ -772,6 +903,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         {speech.ultimoErroStt && (
           <span style={{ fontSize: 11, color: "#dc2626" }}>
             Mic: {speech.ultimoErroStt}
+          </span>
+        )}
+        {/* Navegador sem reconhecimento nativo: o URBI não grava áudio nem
+            manda para transcrição paga — pede para digitar, que faz
+            exatamente a mesma coisa e não custa nada. */}
+        {!speech.suportaSTT && (
+          <span style={{ fontSize: 11, color: "#64748b" }}>
+            Este navegador não reconhece voz — digite o comando.
           </span>
         )}
         {/* Seletor real de modo — ligado: BIP / Especialista em Legislação
