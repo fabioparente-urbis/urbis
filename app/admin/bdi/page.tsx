@@ -12,7 +12,11 @@ type Stats = {
   por_bairro: { bairro: string; total_processos: number; area_total: number; assunto: string }[];
   produtividade: { analista: string; gerencia: string; mes: number; ano: number; tipo_processo: string; total_despachos: number; total_pontos: number }[];
   analistas: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number; total_retornos: number; pontos_totais_mrp: number; despachos_mrp: number; assunto: string }[];
-  autores: { autor: string; registro: string; tipo_registro: string; total_processos: number; total_analises: number; total_nao_conformidades: number; erros_por_processo: number; assunto: string; status_processo: string }[];
+  retrabalho: { processo_codigo: string; virou_nao_conforme: number; foi_resolvido: number; trocas_totais: number }[];
+  exigencias_contexto: { tipo_processo: string; faixa_area: string; bairro: string | null; exigencia: string; vezes: number; processos: number }[];
+  desempenho_referencia: { referencia: string; reprovou: number; passou: number; processos: number; pct_reprova: number }[];
+  campos_criticos: { codigo: string; tipo_processo: string; campos_vazios: number; campos_em_x: number; campos_totais: number; area_maior_que_terreno: boolean | null }[];
+  numeracao: { tipo: string; ano: number; numero_inicial: number; numero_final: number; proximo: number; restantes: number; situacao: string }[];
   nao_conformidades: { grupo: string; texto: string; ref: string; assunto: string; frequencia: number }[];
 };
 
@@ -28,7 +32,7 @@ export default function BDIPage() {
   const [sessoes, setSessoes] = useState<any[]>([]);
   const [loadingSessoes, setLoadingSessoes] = useState(false);
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
-  const [subAba, setSubAba] = useState<"resumo"|"analistas"|"autores"|"conformidade"|"bairros"|"sessoes">("resumo");
+  const [subAba, setSubAba] = useState<"resumo"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
 
   useEffect(() => {
     (async () => {
@@ -158,7 +162,7 @@ export default function BDIPage() {
               <>
                 {/* Sub-abas de estatísticas */}
                 {(() => {
-                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["autores","✍️ Autores"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
+                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["retrabalho","🔁 Retrabalho"],["exigencias","📌 Exigências"],["qualidade","🧭 Qualidade"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
                   return (
                     <>
                       <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:"1px solid #ffffff11", paddingBottom:0 }}>
@@ -314,31 +318,129 @@ export default function BDIPage() {
                 </div>
                 </>}
 
-                {subAba === "autores" && <>
+                {subAba === "retrabalho" && <>
                 <div style={S.card}>
-                  <div style={{ ...S.label, marginBottom:4 }}>RANKING DE PROJETISTAS — CAU / CREA</div>
-                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>Ordenado por erros por processo (maior → menor risco)</div>
+                  <div style={{ ...S.label, marginBottom:4 }}>PROCESSOS COM MAIOR RETRABALHO</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>
+                    Contado do histórico do MAC: quantas vezes um item mudou de status. &quot;Voltou&quot; é item que
+                    estava conforme e virou não conforme; &quot;resolvido&quot; é o caminho contrário.
+                  </div>
                   <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                    <thead><tr>{["#","AUTOR","REGISTRO","TIPO","ASSUNTO","PROC.","NÃO CONF.","ERROS/PROC."].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{["#","PROCESSO","TROCAS","VOLTOU","RESOLVIDO"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
-                      {stats.autores.map((r,i)=>{
-                        const cor = r.erros_por_processo===0 ? "#22c55e" : r.erros_por_processo<=2 ? "#f59e0b" : "#ef4444";
+                      {stats.retrabalho.map((r,i)=>(
+                        <tr key={r.processo_codigo} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
+                          <td style={{...S.td,fontWeight:700,color:"#ffffff55",width:32}}>{i+1}</td>
+                          <td style={{...S.td,fontFamily:"monospace",fontSize:11}}>{r.processo_codigo}</td>
+                          <td style={{...S.td,textAlign:"center",fontWeight:700}}>{r.trocas_totais}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#ef4444"}}>{r.virou_nao_conforme}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#22c55e"}}>{r.foi_resolvido}</td>
+                        </tr>
+                      ))}
+                      {stats.retrabalho.length===0 && <tr><td colSpan={5} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem trocas registradas</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                {subAba === "exigencias" && <>
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:4 }}>EXIGÊNCIAS POR ASSUNTO, BAIRRO E FAIXA DE ÁREA</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>
+                    O que mais reprova em processo parecido. Vem do histórico do MAC, contando só marcação de não conforme.
+                  </div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["ASSUNTO","FAIXA DE ÁREA","BAIRRO","EXIGÊNCIA","PROC."].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.exigencias_contexto.map((r,i)=>(
+                        <tr key={i} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
+                          <td style={S.td}><span style={S.badge("#d946ef")}>{r.tipo_processo}</span></td>
+                          <td style={{...S.td,fontSize:11}}>{r.faixa_area}</td>
+                          <td style={{...S.td,fontSize:11,color:"#ffffff88"}}>{r.bairro || "—"}</td>
+                          <td style={{...S.td,fontSize:11}}>{String(r.exigencia).slice(0,90)}</td>
+                          <td style={{...S.td,textAlign:"center",fontWeight:700}}>{r.processos}</td>
+                        </tr>
+                      ))}
+                      {stats.exigencias_contexto.length===0 && <tr><td colSpan={5} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:4 }}>REFERÊNCIAS LEGAIS QUE MAIS REPROVAM</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>
+                    A referência é como foi gravada no checklist, às vezes com várias leis juntas — é o desempenho
+                    da combinação, não de artigo isolado. Só aparece referência presente em 3 ou mais processos.
+                  </div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["REFERÊNCIA","REPROVOU","PASSOU","PROC.","% REPROVA"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.desempenho_referencia.map((r,i)=>(
+                        <tr key={i} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
+                          <td style={{...S.td,fontSize:11}}>{r.referencia}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#ef4444",fontWeight:700}}>{r.reprovou}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#22c55e"}}>{r.passou}</td>
+                          <td style={{...S.td,textAlign:"center"}}>{r.processos}</td>
+                          <td style={{...S.td,textAlign:"center"}}>{r.pct_reprova}%</td>
+                        </tr>
+                      ))}
+                      {stats.desempenho_referencia.length===0 && <tr><td colSpan={5} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                </>}
+
+                {subAba === "qualidade" && <>
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:4 }}>NUMERAÇÃO</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>Faixa esgotada trava a emissão de documento.</div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["TIPO","ANO","FAIXA","PRÓXIMO","RESTANTES","SITUAÇÃO"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.numeracao.map((r,i)=>{
+                        const cor = r.situacao==="ESGOTADA" ? "#ef4444" : r.situacao==="CRITICO" ? "#f59e0b" : r.situacao==="ATENCAO" ? "#facc15" : "#22c55e";
                         return (
                         <tr key={i} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
-                          <td style={{...S.td,fontWeight:700,color:"#ffffff55",width:32}}>{i+1}</td>
-                          <td style={{...S.td,fontSize:11}}>{r.autor||"—"}</td>
-                          <td style={{...S.td,fontFamily:"monospace",fontSize:11,color:"#facc15"}}>{r.registro||"—"}</td>
-                          <td style={S.td}><span style={S.badge(r.tipo_registro==="CAU"?"#f59e0b":"#06b6d4")}>{r.tipo_registro}</span></td>
-                          <td style={S.td}><span style={S.badge("#d946ef")}>{r.assunto||"—"}</span></td>
-                          <td style={{...S.td,textAlign:"center"}}>{r.total_processos}</td>
-                          <td style={{...S.td,textAlign:"center",color:"#ef4444",fontWeight:700}}>{r.total_nao_conformidades}</td>
-                          <td style={{...S.td,textAlign:"center"}}>
-                            <span style={{...S.badge(cor), fontSize:13, fontWeight:800}}>{r.erros_por_processo}</span>
-                          </td>
+                          <td style={S.td}>{r.tipo}</td>
+                          <td style={{...S.td,textAlign:"center"}}>{r.ano}</td>
+                          <td style={{...S.td,fontFamily:"monospace",fontSize:11}}>{r.numero_inicial}–{r.numero_final}</td>
+                          <td style={{...S.td,textAlign:"center",fontFamily:"monospace"}}>{r.proximo}</td>
+                          <td style={{...S.td,textAlign:"center",fontWeight:700}}>{r.restantes}</td>
+                          <td style={S.td}><span style={S.badge(cor)}>{r.situacao}</span></td>
                         </tr>
                         );
                       })}
-                      {stats.autores.length===0 && <tr><td colSpan={8} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados de CAU/CREA — preencha o LIP com os responsáveis técnicos</td></tr>}
+                      {stats.numeracao.length===0 && <tr><td colSpan={6} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem faixas cadastradas</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={S.card}>
+                  <div style={{ ...S.label, marginBottom:4 }}>PREENCHIMENTO E QUALIDADE DOS DADOS</div>
+                  <div style={{ fontSize:11, color:"#ffffff55", marginBottom:14 }}>
+                    Campo vazio pode ser falha de leitura. Campo em X afirma que o documento não traz a
+                    informação — <b>não é erro</b>. As duas colunas são contadas separadas de propósito.
+                  </div>
+                  <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                    <thead><tr>{["PROCESSO","ASSUNTO","VAZIOS","EM X","CAMPOS","ÁREA > TERRENO"].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {stats.campos_criticos.map((r,i)=>(
+                        <tr key={r.codigo} style={{ background: i%2===0?"#ffffff08":"transparent" }}>
+                          <td style={{...S.td,fontFamily:"monospace",fontSize:11}}>{r.codigo}</td>
+                          <td style={{...S.td,fontSize:11}}>{r.tipo_processo}</td>
+                          <td style={{...S.td,textAlign:"center",color: r.campos_vazios>=10?"#f59e0b":"#ffffff99",fontWeight:700}}>{r.campos_vazios}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#06b6d4"}}>{r.campos_em_x}</td>
+                          <td style={{...S.td,textAlign:"center",color:"#ffffff55"}}>{r.campos_totais}</td>
+                          <td style={{...S.td,textAlign:"center"}}>
+                            {r.area_maior_que_terreno === true
+                              ? <span style={S.badge("#ef4444")}>SIM</span>
+                              : r.area_maior_que_terreno === null
+                                ? <span style={S.badge("#64748b")}>não deu p/ ler</span>
+                                : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                      {stats.campos_criticos.length===0 && <tr><td colSpan={6} style={{...S.td,color:"#ffffff33",textAlign:"center"}}>Sem dados</td></tr>}
                     </tbody>
                   </table>
                 </div>

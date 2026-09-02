@@ -27,21 +27,37 @@ export async function GET(req: NextRequest) {
   // acontecia antes desta correção.
   void assunto;
 
-  const [resumo, porAssunto, porAnalista, porBairro, produtividade, analistas, autores, naoConformidades] = await Promise.all([
+  // vw_bdi_autores saiu do painel em 02/09/2026 (decisão do Fábio). Dois
+  // motivos: a view agrupa pelo JSON serializado do campo em vez do nome, e
+  // infla erros_por_processo contando não-conformidades depois de juntar por
+  // análise; e, mesmo consertada, o autor aparece em 1 processo cada — não há
+  // densidade para ranquear ninguém. Ranking de pessoa com número errado é
+  // pior que nenhum ranking. A view continua no banco, só não é exibida.
+  const [resumo, porAssunto, porAnalista, porBairro, produtividade, analistas, naoConformidades,
+         retrabalho, exigenciasContexto, desempenhoReferencia, camposCriticos, numeracao] = await Promise.all([
     supabaseAdmin.from("vw_bdi_resumo_geral").select("*").maybeSingle(),
     supabaseAdmin.from("vw_bdi_por_assunto").select("*"),
     supabaseAdmin.from("vw_bdi_por_analista").select("*"),
     supabaseAdmin.from("vw_bdi_por_bairro").select("*").order("total_processos", { ascending: false }).limit(20),
     supabaseAdmin.from("vw_bdi_produtividade_mensal").select("*").order("ano", { ascending: false }).order("mes", { ascending: false }),
     supabaseAdmin.from("vw_bdi_analistas_desempenho").select("*"),
-    supabaseAdmin.from("vw_bdi_autores").select("*").order("total_processos", { ascending: false }).limit(50),
     supabaseAdmin.from("vw_bdi_nao_conformidades").select("*").limit(30),
+    // Views novas (migration 2026_09_02_bdi_views_vivas.sql): leem o que já
+    // estava gravado em mac_historico e nas faixas de numeração.
+    supabaseAdmin.from("vw_bdi_retrabalho").select("*").order("trocas_totais", { ascending: false }).limit(20),
+    supabaseAdmin.from("vw_bdi_exigencias_por_contexto").select("*").order("processos", { ascending: false }).limit(40),
+    supabaseAdmin.from("vw_bdi_desempenho_referencia").select("*").order("reprovou", { ascending: false }).limit(20),
+    supabaseAdmin.from("vw_bdi_campos_criticos").select("*").order("campos_vazios", { ascending: false }).limit(30),
+    supabaseAdmin.from("vw_bdi_numeracao_saldo").select("*").order("restantes", { ascending: true }),
   ]);
 
   const porView: Record<string, { error: { message: string } | null }> = {
     vw_bdi_resumo_geral: resumo, vw_bdi_por_assunto: porAssunto, vw_bdi_por_analista: porAnalista,
     vw_bdi_por_bairro: porBairro, vw_bdi_produtividade_mensal: produtividade,
-    vw_bdi_analistas_desempenho: analistas, vw_bdi_autores: autores, vw_bdi_nao_conformidades: naoConformidades,
+    vw_bdi_analistas_desempenho: analistas, vw_bdi_nao_conformidades: naoConformidades,
+    vw_bdi_retrabalho: retrabalho, vw_bdi_exigencias_por_contexto: exigenciasContexto,
+    vw_bdi_desempenho_referencia: desempenhoReferencia, vw_bdi_campos_criticos: camposCriticos,
+    vw_bdi_numeracao_saldo: numeracao,
   };
   const falhas = Object.entries(porView)
     .filter(([, r]) => r.error)
@@ -62,7 +78,11 @@ export async function GET(req: NextRequest) {
     por_bairro: porBairro.data ?? [],
     produtividade: produtividade.data ?? [],
     analistas: analistas.data ?? [],
-    autores: autores.data ?? [],
+    retrabalho: retrabalho.data ?? [],
+    exigencias_contexto: exigenciasContexto.data ?? [],
+    desempenho_referencia: desempenhoReferencia.data ?? [],
+    campos_criticos: camposCriticos.data ?? [],
+    numeracao: numeracao.data ?? [],
     nao_conformidades: naoConformidades.data ?? [],
   });
 }

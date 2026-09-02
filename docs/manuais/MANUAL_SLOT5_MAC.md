@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.19
-**Data:** 2026-08-27
+**Versão:** 1.20
+**Data:** 2026-09-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1257,6 +1257,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.20 | 2026-09-02 | Nenhuma mudança na tela nem nas rotas do MAC. Registrado por conferência: o `mac_historico` (10.320 linhas) passou a ser **lido** por views novas do BDI — `vw_bdi_retrabalho` (trocas de status por processo), `vw_bdi_exigencias_por_contexto` (o que mais reprova por assunto, bairro e faixa de área) e `vw_bdi_desempenho_referencia` (qual referência legal mais reprova). O dado sempre esteve lá; ninguém colhia. Duas correções de leitura que valem para quem for consultar essas tabelas: `tipo_processo` foi gravado em duas grafias (`regularizacao` e `REGULARIZACAO`) e precisa de `lower()`, e as áreas vêm com vírgula decimal ("375,00"), então cast direto para numeric estoura a consulta. O Vigia do processo consome essas views na tela do LIP — ver `MANUAL_SLOT5_LIP.md` v1.19. Migration `2026_09_02_bdi_views_vivas.sql`, aplicada; nenhuma alteração em `analises_mac`, `mac_resultados_item` ou no checklist |
 | 1.19 | 2026-08-27 | Seção 8: revisão da 1.18 — o Fábio corrigiu o desenho inicial. CRUD de Padrões de Despacho sai do modal de emissão (removido o link "📋 Padrões" de dentro dele) e passa a viver só em `/admin/despacho-padroes`, alcançado por um botão dentro de Configurações (`/admin/configuracoes`), com seletor em cascata Slot→Módulo→Tipo pra funcionar como destino direto do ADMIN. Dentro do modal de emissão só resta "usar" um padrão já criado. Criação/edição/exclusão de padrão agora dispara evento de auditoria no satélite MAP (`registrar()`, novas ações `PADRAO_DESPACHO_CRIADO/EDITADO/EXCLUIDO` em `lib/auditoria-tipos.ts`) |
 | 1.18 | 2026-08-27 | Seção 8: "Padrões de Despacho" — textos reutilizáveis para Despacho Interno e Despacho ao Interessado, isolados por (módulo LIP\|MAC × slot × interno\|externo), tabela nova `despacho_padroes`. No despacho ao interessado, escolher um padrão substitui inteiramente as exigências do checklist no documento (`paragrafoSimples()` em vez de `montarExigencias()`); no despacho interno é só preenchimento de formulário, texto continua editável. Corrigida também a descrição da seção 8.2, que estava desatualizada (dizia reusar `/api/despacho-interno`; a rota própria do Slot 5 já existia antes desta mudança) |
 | 1.17 | 2026-08-26 | Seção 14.17: `liberada` (botão Análise N) passa a checar despacho/parecer emitido na análise anterior (`numero_despacho`/`numero_parecer`), não a mera existência da linha — achado ao vivo: clique errado criou Análise 3 em branco sem a 2 sequer respondida. Reproduzido nos três slots (1, 2 e 5), com defesa em profundidade em `selecionarOuCriarAnalise` |

@@ -8,6 +8,7 @@ import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTe
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
+import VigiaProcesso from "@/components/bdi/VigiaProcesso";
 
 /**
  * De onde veio o valor que está no formulário.
@@ -2936,6 +2937,11 @@ export default function ProcessoClient() {
           Cadastrar
         </button>
       </div>
+
+      {/* VIGIA DO PROCESSO — só leitura, custo zero. Mostra fato verificável
+          com a origem de cada um, e a triagem por evidência. Nunca escreve
+          nada no processo. */}
+      {idUrl && <VigiaProcesso codigo={idUrl} />}
 
       {/* BLOCO LIP */}
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">

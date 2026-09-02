@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.18
-**Data:** 2026-08-27
+**Versão:** 1.19
+**Data:** 2026-09-02
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1088,10 +1088,61 @@ tem esse fluxo. A tabela nova `despacho_padroes` trava essa regra também no ban
 
 ---
 
+## 22. Vigia do processo (02/09/2026)
+
+Painel novo na tela do LIP, logo acima do bloco de leitura. Aparece em todos os
+slots, o Slot 5 incluído. **Só lê.** Não grava observação, não altera campo, não
+muda status, não sugere texto de despacho.
+
+**O que ele mostra, e de onde tira cada coisa**
+
+| Aviso | Origem declarada na tela |
+|---|---|
+| Campos vazios | campo do processo |
+| Campos marcados com X | campo do processo |
+| Incoerências (área construída maior que a do terreno; área que não dá para ler como número) | campo do processo |
+| Número de análises | campo do processo (tags) |
+| Retrabalho: trocas de status, itens que voltaram a não conforme | histórico do MAC |
+| Exigências recorrentes do assunto | view do BDI |
+| Referência legal | BIP |
+| Numeração esgotada ou perto do fim | view do BDI |
+
+**Duas regras de leitura que o painel respeita**
+
+O **X não é erro** — é afirmação de que o documento não traz aquela informação
+(convenção do Slot 5). Aparece separado dos vazios e com severidade "info". Quem
+merece olhar é o campo **vazio**, que pode ser falha de leitura.
+
+**Lei só com vínculo real.** A referência legal só é citada quando existe vínculo
+`mac_bip_vinculos` entre o item do checklist e um fragmento do BIP. Sem vínculo, o
+painel não cita lei nenhuma — nem "provavelmente é o artigo tal". Verificado em
+processo real: sem vínculo, nada é dito.
+
+**Triagem por evidência**
+
+Três classes — *mais simples para análise*, *exige atenção*, *maior risco de
+retrabalho* — sempre acompanhadas dos fatos que levaram até elas. **Nunca há
+porcentagem, probabilidade ou previsão de prazo**: não existe duração medida no
+banco que sustente previsão, e inventar número seria pior que não classificar.
+
+Os critérios ficam em `CRITERIOS`, em `lib/bdi/vigia.ts`, num objeto só, para
+poderem ser lidos e ajustados sem caçar regra espalhada pela tela.
+
+**Custo zero.** Tudo é SQL sobre dado já gravado. Nenhuma chamada a Gemini, Groq
+ou ElevenLabs — verificado medindo a rede do navegador com o painel aberto.
+
+**Permissão.** `GET /api/bdi/vigia` passa por `verificarOwnership`: analista só
+enxerga processo próprio (403 verificado em processo de terceiro); Administrador
+e Diretora passam. O aviso de numeração usa a faixa do próprio usuário logado,
+nunca a de outro.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.19 | 2026-09-02 | Tela do LIP (`ProcessoClient.tsx`, todos os slots) ganhou o **Vigia do processo**, logo acima do bloco LIP: painel só de leitura com fatos verificáveis — campos vazios, campos em X (mostrados como informação de ausência, nunca como erro), incoerências reais (ex.: área construída maior que a do terreno, lendo vírgula decimal), número de análises, retrabalho vindo do histórico do MAC, exigências recorrentes do assunto e aviso de numeração. Cada aviso declara a origem (campo do processo / histórico do MAC / checklist / BIP / view do BDI). Traz também a **triagem por evidência** (mais simples para análise · exige atenção · maior risco de retrabalho), sempre com os motivos listados e **sem porcentagem ou previsão de prazo**; critérios visíveis e ajustáveis em `lib/bdi/vigia.ts`. Referência legal só aparece quando existe vínculo real MAC × BIP — sem vínculo, nada é citado. Nada é escrito no processo. Custo zero: SQL puro, sem Gemini/Groq/ElevenLabs. Rota nova `GET /api/bdi/vigia` com `verificarOwnership` — analista não alcança processo de terceiro (403 verificado). Ver `MANUAL_SLOT5_MAC.md` v1.20 |
 | 1.18 | 2026-08-27 | Seção 21: revisão da 1.17 — o Fábio corrigiu o desenho inicial. O link "📋 Padrões" saiu do modal de Despacho Interno do LIP; o modal só usa padrões já criados. CRUD (criar/editar/excluir) vive só em `/admin/despacho-padroes`, alcançado por Configurações — ver `MANUAL_SLOT5_MAC.md` v1.19 |
 | 1.17 | 2026-08-27 | Seção 21: botão de Despacho Interno do LIP (`ProcessoClient.tsx`, todos os slots) ganhou seletor "Usar um padrão" + link "📋 Padrões" — tabela nova `despacho_padroes`, bucket `modulo=LIP&tipo_despacho=interno`, isolado por `assunto_id`. Sem lógica exclusiva do Slot 5; conferido que o botão de Despacho Interno do Slot 5 continua na rota própria `/api/mac/slot-05/despacho-interno`. Confirmado que o LIP não tem (nem terá) Despacho Externo — ver `MANUAL_SLOT5_MAC.md` v1.18 para o que mudou do lado MAC |
 | 1.16 | 2026-08-26 | Seção 20: `MAC →`/`MAC ↗`/"Ir assim mesmo" ganharam disabled+texto de carregamento durante o salvar() (sem isso o analista clicava várias vezes, empilhando POST e navegação); `GET /api/processo/exportar-lip` passou a filtrar `lip_abas` por `assunto_id` do processo (antes misturava campos de todos os slots) e a exigir sessão autenticada. Tela e rota compartilhadas pelos três slots, mas o Slot 5 é onde os dois doíam mais |
