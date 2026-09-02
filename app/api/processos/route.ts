@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
+import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from("processos")
-      .select("id, codigo, numero_sei, tipo_processo, assunto_id, status, criado_em, atualizado_em, dados, analista_id, tags, lip_incompleto")
+      .select("id, codigo, numero_sei, tipo_processo, assunto_id, status, criado_em, atualizado_em, dados, analista_id, tags, lip_incompleto, porte, area_construida")
       // Lixeira: o que foi excluído some da lista, mas continua no banco
       // e aparece em /admin/lixeira, de onde pode voltar.
       .is("excluido_em", null)
@@ -97,6 +98,36 @@ export async function GET(req: NextRequest) {
         );
       });
     }
+
+    // Classificação do vigia (lib/bdi/vigia.ts), a mesma usada em /api/bdi/vigia
+    // (um processo por vez): aqui roda para a lista inteira já visível, numa
+    // única consulta extra a vw_bdi_retrabalho — é contagem agregada, sem
+    // recorte de perfil, então busca sem restrição de analista/gerência.
+    const codigos = resultado.map((p: any) => p.codigo).filter(Boolean);
+    const retrabalhoPorCodigo = new Map<string, LinhaRetrabalho>();
+    if (codigos.length > 0) {
+      const { data: linhasRetrabalho } = await supabase
+        .from("vw_bdi_retrabalho")
+        .select("processo_codigo, trocas_totais, virou_nao_conforme")
+        .in("processo_codigo", codigos);
+      for (const linha of linhasRetrabalho ?? []) {
+        retrabalhoPorCodigo.set((linha as any).processo_codigo, linha as LinhaRetrabalho);
+      }
+    }
+
+    resultado = resultado.map((p: any) => {
+      const entrada: EntradaVigia = {
+        processo: {
+          codigo: p.codigo,
+          tipo_processo: p.tipo_processo,
+          area_construida: p.area_construida,
+          dados: p.dados,
+          tags: p.tags,
+        },
+        retrabalho: retrabalhoPorCodigo.get(p.codigo) ?? { trocas_totais: 0, virou_nao_conforme: 0 },
+      };
+      return { ...p, triagem: triar(entrada).classe };
+    });
 
     return NextResponse.json({ ok: true, data: resultado });
   } catch (e: any) {

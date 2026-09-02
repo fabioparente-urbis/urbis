@@ -27,6 +27,11 @@ type Processo = {
   dados?: Record<string, any>;
   tags?: ProcessoTag[];
   lip_incompleto?: boolean;
+  /** Colunas diretas de `processos`, agora selecionadas por /api/processos. */
+  porte?: "PP" | "MP" | "GP" | null;
+  area_construida?: number | string | null;
+  /** Classe calculada pelo vigia (lib/bdi/vigia.ts) — já vem pronta da API. */
+  triagem?: "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
 };
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
@@ -145,6 +150,9 @@ function ProcessosConteudo() {
   // compartilhado entre o widget e esta página.
   const searchParams = useSearchParams();
   const [filtrosUrl, setFiltrosUrl] = useState<FiltrosPilha>({});
+  // Critérios escolhidos diretamente na tela. Eles recortam apenas a lista
+  // já autorizada pela API; nunca ampliam o acesso de ninguém.
+  const [filtrosTriagem, setFiltrosTriagem] = useState<FiltrosPilha>({});
   const [status, setStatus] = useState("");
   const [analista, setAnalista] = useState("");
   const [deletando, setDeletando] = useState<string | null>(null);
@@ -231,18 +239,33 @@ function ProcessosConteudo() {
   useEffect(() => {
     const f = queryParaFiltros(new URLSearchParams(searchParams?.toString() ?? ""));
     setFiltrosUrl(f);
+    setFiltrosTriagem({});
     setBusca(f.busca ?? "");
     setTipo(f.tipo ?? "");
   }, [searchParams]);
 
   // Recorte de apresentação sobre a lista que a API já devolveu — e a API é
   // quem aplica a permissão. Filtrar aqui não amplia o que a pessoa enxerga.
-  const processosVisiveis = aplicarFiltrosLocais(processos as any[], filtrosUrl) as typeof processos;
+  const filtrosAtivos: FiltrosPilha = { ...filtrosUrl, ...filtrosTriagem };
+  const processosVisiveis = aplicarFiltrosLocais(processos as any[], filtrosAtivos) as typeof processos;
 
   const rotulosFiltro: string[] = [];
-  if (filtrosUrl.tag) rotulosFiltro.push({ despacho: "despacho", despacho_interno: "despacho interno", indeferimento: "indeferimento", laudo: "laudo" }[filtrosUrl.tag] ?? filtrosUrl.tag);
-  if (filtrosUrl.analise !== undefined) rotulosFiltro.push(`análise ${filtrosUrl.analise}`);
-  if (filtrosUrl.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos" }[filtrosUrl.ordenar]);
+  if (filtrosAtivos.tag) rotulosFiltro.push({ despacho: "despacho", despacho_interno: "despacho interno", indeferimento: "indeferimento", laudo: "laudo" }[filtrosAtivos.tag] ?? filtrosAtivos.tag);
+  if (filtrosAtivos.analise !== undefined) rotulosFiltro.push(`análise ${filtrosAtivos.analise}`);
+  if (filtrosAtivos.analisesMinimas) rotulosFiltro.push("2 ou mais análises");
+  if (filtrosAtivos.triagem === "mais_simples") rotulosFiltro.push("mais simples por critérios");
+  if (filtrosAtivos.faixaArea) rotulosFiltro.push({ ate_250: "até 250 m²", de_251_a_1000: "251 a 1.000 m²", acima_1000: "acima de 1.000 m²" }[filtrosAtivos.faixaArea]);
+  if (filtrosAtivos.usoSolo) rotulosFiltro.push(filtrosAtivos.usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
+  if (filtrosAtivos.classificacaoVigia) rotulosFiltro.push(filtrosAtivos.classificacaoVigia);
+  if (filtrosAtivos.porte) rotulosFiltro.push(`porte ${filtrosAtivos.porte}`);
+  if (filtrosAtivos.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos", analises_desc: "mais análises", analises_asc: "menos análises" }[filtrosAtivos.ordenar]);
+
+  function limparTriagem() {
+    setFiltrosTriagem({});
+    if (filtrosUrl.tag || filtrosUrl.analise !== undefined || filtrosUrl.ordenar || filtrosUrl.triagem || filtrosUrl.faixaArea || filtrosUrl.usoSolo || filtrosUrl.analisesMinimas || filtrosUrl.classificacaoVigia || filtrosUrl.porte) {
+      router.push("/processos");
+    }
+  }
 
   async function deletar(p: Processo) {
     const num = p.codigo || p.numero_sei;
@@ -342,8 +365,8 @@ function ProcessosConteudo() {
             🏠 Home
           </button>
           <div>
-            <h1 className="text-2xl font-bold">📋 Processos</h1>
-            <p className="text-[var(--text-muted)] text-sm">Todos os processos cadastrados no URBIS</p>
+            <h1 className="text-2xl font-bold">📋 Pilha de Processo</h1>
+            <p className="text-[var(--text-muted)] text-sm">Processos cadastrados no URBIS</p>
           </div>
         </div>
         <span className="text-[var(--text-muted)] text-sm">{processosVisiveis.length} processo(s)</span>
@@ -355,7 +378,7 @@ function ProcessosConteudo() {
           {rotulosFiltro.map((r) => (
             <span key={r} className="text-xs px-2 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)]">{r}</span>
           ))}
-          <button onClick={() => router.push("/processos")}
+          <button onClick={limparTriagem}
             className="ml-auto text-xs px-2 py-1 rounded bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)]">
             Limpar filtros
           </button>
@@ -387,6 +410,94 @@ function ProcessosConteudo() {
           </select>
         )}
       </div>
+
+      {/* TRIAGEM — leitura apenas. Não atribui nota, não altera status e não
+          decide resultado: deixa explícitos os critérios usados para ordenar. */}
+      <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div>
+            <h2 className="text-sm font-bold text-[var(--text-primary)]">Triagem da Pilha</h2>
+            <p className="text-xs text-[var(--text-muted)]">Filtros por fatos registrados. “Mais simples” não é previsão de aprovação.</p>
+          </div>
+          {(Object.keys(filtrosTriagem).length > 0 || rotulosFiltro.length > 0) && (
+            <button onClick={limparTriagem}
+              className="text-xs px-2.5 py-1.5 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]">
+              Limpar critérios
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <select value={filtrosTriagem.triagem ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, triagem: e.target.value === "mais_simples" ? "mais_simples" : undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Triagem: todas</option>
+            <option value="mais_simples">Mais simples para começar</option>
+          </select>
+          <select value={filtrosTriagem.faixaArea ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, faixaArea: (e.target.value || undefined) as FiltrosPilha["faixaArea"] }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Área no LIP: todas</option>
+            <option value="ate_250">Até 250 m²</option>
+            <option value="de_251_a_1000">De 251 a 1.000 m²</option>
+            <option value="acima_1000">Acima de 1.000 m²</option>
+          </select>
+          <select value={filtrosTriagem.classificacaoVigia ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, classificacaoVigia: (e.target.value || undefined) as FiltrosPilha["classificacaoVigia"] }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">🧭 Classificação: todas</option>
+            <option value="mais simples para análise">Mais simples para análise</option>
+            <option value="exige atenção">Exige atenção</option>
+            <option value="maior risco de retrabalho">Maior risco de retrabalho</option>
+          </select>
+          <select value={filtrosTriagem.porte ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, porte: (e.target.value || undefined) as FiltrosPilha["porte"] }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Porte: todos</option>
+            <option value="PP">PP — até 540 m²</option>
+            <option value="MP">MP — até 2.000 m²</option>
+            <option value="GP">GP — acima de 2.000 m²</option>
+          </select>
+          <select value={filtrosTriagem.usoSolo ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, usoSolo: (e.target.value || undefined) as FiltrosPilha["usoSolo"] }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Uso do Solo: todos</option>
+            <option value="com">Com documento de Uso do Solo</option>
+            <option value="sem">Sem documento de Uso do Solo</option>
+          </select>
+          <select value={filtrosTriagem.tag ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, tag: e.target.value || undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Documento/resultado: todos</option>
+            <option value="laudo">Com laudo</option>
+            <option value="despacho">Com despacho</option>
+            <option value="despacho_interno">Com despacho interno</option>
+            <option value="indeferimento">Com indeferimento</option>
+          </select>
+          <select value={filtrosTriagem.analise?.toString() ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, analise: e.target.value ? Number(e.target.value) : undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Análise: todas</option>
+            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}ª análise</option>)}
+          </select>
+          <select value={filtrosTriagem.analisesMinimas?.toString() ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, analisesMinimas: e.target.value ? 2 : undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Histórico: todos</option>
+            <option value="2">2 ou mais análises</option>
+          </select>
+          <select value={filtrosTriagem.ordenar ?? ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, ordenar: (e.target.value || undefined) as FiltrosPilha["ordenar"] }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">Ordenar por padrão</option>
+            <option value="area_asc">Menor área</option>
+            <option value="area_desc">Maior área</option>
+            <option value="analises_desc">Mais análises</option>
+            <option value="analises_asc">Menos análises</option>
+            <option value="data_desc">Mais novos</option>
+            <option value="data_asc">Mais antigos</option>
+          </select>
+        </div>
+      </section>
 
       {/* LISTA */}
       {carregando ? (

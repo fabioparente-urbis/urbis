@@ -20,7 +20,16 @@
  * (CADASTRADO), então filtrar por ele não separa nada.
  */
 
-export type OrdemPilha = "area_desc" | "area_asc" | "data_desc" | "data_asc";
+export type OrdemPilha = "area_desc" | "area_asc" | "data_desc" | "data_asc" | "analises_desc" | "analises_asc";
+export type FaixaAreaPilha = "ate_250" | "de_251_a_1000" | "acima_1000";
+export type FiltroUsoSolo = "com" | "sem";
+export type TriagemPilha = "mais_simples";
+/** As mesmas 3 classes que `triar()` (lib/bdi/vigia.ts) devolve — repetidas
+ *  aqui como literal (em vez de importar o tipo) para este arquivo continuar
+ *  sem nenhuma dependência de módulo com regra própria; qualquer mudança nos
+ *  literais do vigia precisa ser espelhada aqui à mão. */
+export type ClassificacaoVigiaPilha = "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
+export type PortePilha = "PP" | "MP" | "GP";
 
 export type FiltrosPilha = {
   busca?: string;
@@ -28,6 +37,18 @@ export type FiltrosPilha = {
   tag?: string;
   analise?: number;
   ordenar?: OrdemPilha;
+  /** Número mínimo de análises já registradas nas tags do processo. */
+  analisesMinimas?: number;
+  /** Faixa da área informada no LIP; não presume área quando o campo falta. */
+  faixaArea?: FaixaAreaPilha;
+  /** Presença do documento de Uso do Solo no campo real `dados.usoSolo`. */
+  usoSolo?: FiltroUsoSolo;
+  /** Atalho transparente, composto por área menor, histórico e ausência de indeferimento. */
+  triagem?: TriagemPilha;
+  /** Classe calculada pelo vigia (`/api/processos` já roda `triar()` por item da lista). */
+  classificacaoVigia?: ClassificacaoVigiaPilha;
+  /** Porte real da coluna `processos.porte` (PP/MP/GP). */
+  porte?: PortePilha;
 };
 
 export type ComandoNavegacao =
@@ -108,6 +129,8 @@ function acharAnalise(t: string): number | null {
 }
 
 function acharOrdem(t: string): OrdemPilha | null {
+  if (/\b(mais|maior)\s+(analise|analises)\b/.test(t) || /\b(mais|maior)\s+numero\s+de\s+analises\b/.test(t)) return "analises_desc";
+  if (/\b(menos|menor)\s+(analise|analises)\b/.test(t) || /\b(menos|menor)\s+numero\s+de\s+analises\b/.test(t)) return "analises_asc";
   if (/\b(maior|maiores)\s+(area|areas)\b/.test(t) || /\barea\s+(maior|decrescente)\b/.test(t)) return "area_desc";
   if (/\b(menor|menores)\s+(area|areas)\b/.test(t) || /\barea\s+(menor|crescente)\b/.test(t)) return "area_asc";
   if (/\bmais\s+(novo|novos|recente|recentes)\b/.test(t)) return "data_desc";
@@ -204,25 +227,48 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
   const tag = acharTag(t);
   const analise = acharAnalise(t);
   const ordem = acharOrdem(t);
+  const triagem = /\b(mais\s+faceis|mais\s+fáceis|mais\s+simples|simples\s+para\s+analise|simples\s+para\s+análise)\b/.test(t)
+    ? "mais_simples" as const
+    : undefined;
+  const usoSolo = /\bsem\s+uso\s+do\s+solo\b/.test(t)
+    ? "sem" as const
+    : /\bcom\s+uso\s+do\s+solo\b/.test(t) ? "com" as const : undefined;
+  const faixaArea = /\b(ate|até)\s+250\b/.test(t)
+    ? "ate_250" as const
+    : /\b(acima|mais\s+de)\s+1000\b/.test(t)
+      ? "acima_1000" as const
+      : /\b(entre\s+)?251\s+(e|a)\s+1000\b/.test(t) ? "de_251_a_1000" as const : undefined;
+  const analisesMinimas = /\b(duas|2|dois)\s+ou\s+mais\s+analises\b/.test(t) || /\ba\s+partir\s+da\s+segunda\s+analise\b/.test(t)
+    ? 2 : undefined;
   const mencionaPilha = /\b(pilha|processos|lista)\b/.test(t);
 
-  if (tag || analise !== null || ordem || (tipo && mencionaPilha)) {
+  if (tag || analise !== null || ordem || triagem || usoSolo || faixaArea || analisesMinimas || (tipo && mencionaPilha)) {
     const filtros: FiltrosPilha = {};
     if (tipo) filtros.tipo = tipo.valor;
     if (tag) filtros.tag = tag.valor;
     if (analise !== null) filtros.analise = analise;
     if (ordem) filtros.ordenar = ordem;
+    if (triagem) filtros.triagem = triagem;
+    if (usoSolo) filtros.usoSolo = usoSolo;
+    if (faixaArea) filtros.faixaArea = faixaArea;
+    if (analisesMinimas) filtros.analisesMinimas = analisesMinimas;
 
     const partes: string[] = [];
     if (tipo) partes.push(tipo.rotulo);
     if (tag) partes.push(`com ${tag.rotulo}`);
     if (analise !== null) partes.push(`na análise ${analise}`);
+    if (triagem) partes.push("mais simples pelos critérios visíveis");
+    if (usoSolo) partes.push(usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
+    if (faixaArea) partes.push(faixaArea === "ate_250" ? "até 250 m²" : faixaArea === "de_251_a_1000" ? "de 251 a 1.000 m²" : "acima de 1.000 m²");
+    if (analisesMinimas) partes.push("com 2 ou mais análises");
     if (ordem) {
       partes.push(
         ordem === "area_desc" ? "da maior para a menor área"
         : ordem === "area_asc" ? "da menor para a maior área"
         : ordem === "data_desc" ? "do mais novo para o mais antigo"
-        : "do mais antigo para o mais novo",
+        : ordem === "data_asc" ? "do mais antigo para o mais novo"
+        : ordem === "analises_desc" ? "com mais análises primeiro"
+        : "com menos análises primeiro",
       );
     }
     return {
@@ -277,7 +323,7 @@ export function pareceComando(textoOriginal: string): boolean {
 export const AJUDA_COMANDOS =
   "Não entendi esse comando. Eu sei: abrir Home, Pilha, BDI, BIP, MRP e MDP; voltar; " +
   "localizar processo por número ou por nome; filtrar a pilha por tipo, laudo, indeferimento, " +
-  "despacho e análise 1 a 5; ordenar por maior ou menor área e por mais novo ou mais antigo; " +
+  "despacho, Uso do Solo e análise 1 a 5; mostrar os mais simples por critérios; ordenar por área, análises ou data; " +
   "abrir um resultado; e limpar filtros.";
 
 // ------------------------------------------------- aplicação dos filtros
@@ -288,7 +334,46 @@ type ProcessoParaFiltro = {
   criado_em?: string | null;
   atualizado_em?: string | null;
   tags?: unknown;
+  dados?: Record<string, any> | null;
+  /** Classe calculada pelo vigia (`triar()`), quando a API já devolveu. */
+  triagem?: string | null;
+  /** Coluna direta `processos.porte`. */
+  porte?: string | null;
 };
+
+function numeroArea(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const texto = v.trim();
+  if (!texto) return null;
+  const normalizado = texto.includes(",") ? texto.replace(/\./g, "").replace(",", ".") : texto;
+  const n = Number(normalizado);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** A área pode chegar da coluna histórica ou do campo real do LIP. */
+function areaDoProcesso(p: ProcessoParaFiltro): number | null {
+  return numeroArea(p.area_construida ?? p.dados?.areaTotal?.valor ?? p.dados?.areaConstruida?.valor ?? null);
+}
+
+function numeroAnalises(tags: unknown): number {
+  if (!Array.isArray(tags)) return 0;
+  return tags.reduce((maior, tag: any) => {
+    const n = Number(tag?.numero_analise);
+    return Number.isFinite(n) && n > maior ? n : maior;
+  }, 0);
+}
+
+function temTag(tags: unknown, tipo: string): boolean {
+  return Array.isArray(tags) && tags.some((tag: any) => tag && typeof tag === "object" && tag.tipo === tipo);
+}
+
+function temUsoSolo(p: ProcessoParaFiltro): boolean {
+  const valor = p.dados?.usoSolo?.valor;
+  if (typeof valor !== "string") return false;
+  const limpo = valor.trim().toUpperCase();
+  return Boolean(limpo && limpo !== "X" && limpo !== "NP");
+}
 
 /**
  * Aplica tag/análise/ordenação sobre a lista que a API já devolveu.
@@ -305,6 +390,41 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
 ): T[] {
   let saida = [...lista];
 
+  if (filtros.triagem === "mais_simples") {
+    // Atalho deliberadamente conservador: não dá nota nem previsão. Só traz
+    // processos menores, já revisados ao menos uma vez e sem indeferimento.
+    saida = saida.filter((p) => {
+      const area = areaDoProcesso(p);
+      return area !== null && area <= 250 && numeroAnalises(p.tags) >= 2 && !temTag(p.tags, "indeferimento");
+    });
+  }
+
+  if (filtros.analisesMinimas !== undefined) {
+    saida = saida.filter((p) => numeroAnalises(p.tags) >= filtros.analisesMinimas!);
+  }
+
+  if (filtros.faixaArea) {
+    saida = saida.filter((p) => {
+      const area = areaDoProcesso(p);
+      if (area === null) return false;
+      if (filtros.faixaArea === "ate_250") return area <= 250;
+      if (filtros.faixaArea === "de_251_a_1000") return area > 250 && area <= 1000;
+      return area > 1000;
+    });
+  }
+
+  if (filtros.usoSolo) {
+    saida = saida.filter((p) => filtros.usoSolo === "com" ? temUsoSolo(p) : !temUsoSolo(p));
+  }
+
+  if (filtros.classificacaoVigia) {
+    saida = saida.filter((p) => p.triagem === filtros.classificacaoVigia);
+  }
+
+  if (filtros.porte) {
+    saida = saida.filter((p) => p.porte === filtros.porte);
+  }
+
   if (filtros.tag || filtros.analise !== undefined) {
     saida = saida.filter((p) => {
       const tags = Array.isArray(p.tags) ? p.tags : [];
@@ -320,10 +440,6 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
   }
 
   if (filtros.ordenar) {
-    const num = (v: unknown) => {
-      const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN;
-      return Number.isFinite(n) ? n : null;
-    };
     const data = (p: ProcessoParaFiltro) =>
       new Date(p.criado_em ?? p.atualizado_em ?? 0).getTime() || 0;
 
@@ -331,8 +447,8 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
       switch (filtros.ordenar) {
         case "area_desc":
         case "area_asc": {
-          const va = num(a.area_construida);
-          const vb = num(b.area_construida);
+          const va = areaDoProcesso(a);
+          const vb = areaDoProcesso(b);
           // Processo sem área vai para o fim nos dois sentidos: some do topo
           // em vez de fingir que tem área zero.
           if (va === null && vb === null) return 0;
@@ -342,6 +458,8 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
         }
         case "data_desc": return data(b) - data(a);
         case "data_asc": return data(a) - data(b);
+        case "analises_desc": return numeroAnalises(b.tags) - numeroAnalises(a.tags);
+        case "analises_asc": return numeroAnalises(a.tags) - numeroAnalises(b.tags);
         default: return 0;
       }
     });
@@ -358,6 +476,12 @@ export function filtrosParaQuery(filtros: FiltrosPilha): string {
   if (filtros.tag) p.set("tag", filtros.tag);
   if (filtros.analise !== undefined) p.set("analise", String(filtros.analise));
   if (filtros.ordenar) p.set("ordenar", filtros.ordenar);
+  if (filtros.analisesMinimas !== undefined) p.set("analisesMinimas", String(filtros.analisesMinimas));
+  if (filtros.faixaArea) p.set("faixaArea", filtros.faixaArea);
+  if (filtros.usoSolo) p.set("usoSolo", filtros.usoSolo);
+  if (filtros.triagem) p.set("triagem", filtros.triagem);
+  if (filtros.classificacaoVigia) p.set("classificacaoVigia", filtros.classificacaoVigia);
+  if (filtros.porte) p.set("porte", filtros.porte);
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -370,13 +494,31 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   const tag = params.get("tag");
   const analise = params.get("analise");
   const ordenar = params.get("ordenar");
+  const analisesMinimas = params.get("analisesMinimas");
+  const faixaArea = params.get("faixaArea");
+  const usoSolo = params.get("usoSolo");
+  const triagem = params.get("triagem");
+  const classificacaoVigia = params.get("classificacaoVigia");
+  const porte = params.get("porte");
 
   if (busca) f.busca = busca;
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
   if (tag && TAGS.some(x => x.valor === tag)) f.tag = tag;
   if (analise && /^[1-5]$/.test(analise)) f.analise = Number(analise);
-  if (ordenar && ["area_desc", "area_asc", "data_desc", "data_asc"].includes(ordenar)) {
+  if (ordenar && ["area_desc", "area_asc", "data_desc", "data_asc", "analises_desc", "analises_asc"].includes(ordenar)) {
     f.ordenar = ordenar as OrdemPilha;
   }
+  if (analisesMinimas === "2") f.analisesMinimas = 2;
+  if (faixaArea && ["ate_250", "de_251_a_1000", "acima_1000"].includes(faixaArea)) f.faixaArea = faixaArea as FaixaAreaPilha;
+  if (usoSolo === "com" || usoSolo === "sem") f.usoSolo = usoSolo;
+  if (triagem === "mais_simples") f.triagem = triagem;
+  if (
+    classificacaoVigia === "mais simples para análise" ||
+    classificacaoVigia === "exige atenção" ||
+    classificacaoVigia === "maior risco de retrabalho"
+  ) {
+    f.classificacaoVigia = classificacaoVigia;
+  }
+  if (porte === "PP" || porte === "MP" || porte === "GP") f.porte = porte;
   return f;
 }
