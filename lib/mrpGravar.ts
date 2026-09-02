@@ -14,6 +14,7 @@ import {
   type TipoDespacho,
 } from "@/lib/mrp";
 import { resolverSlot } from "@/lib/assuntos";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
 export type GravarRegistroInput = {
   processo_codigo: string;
@@ -41,8 +42,8 @@ function parseDataBR(s?: string | null): Date | null {
  */
 export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ ok: boolean; motivo?: string }> {
   try {
-    const analistaId = input.cookie_header.match(/urbis_id=([^;]+)/)?.[1];
-    if (!analistaId) return { ok: false, motivo: "sem urbis_id no cookie" };
+    const analistaId = await resolverUsuarioIdPorCookie(input.cookie_header);
+    if (!analistaId) return { ok: false, motivo: "sessão inválida" };
 
     // 1) Carrega análise correspondente (para puxar numero_analise, criado_em)
     let analise: any = null;

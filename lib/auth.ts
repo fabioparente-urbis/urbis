@@ -24,9 +24,14 @@ export type AuthContext = {
 };
 
 /**
- * Identifica o usuario logado via cookie urbis_id (mesmo padrao de /api/auth/me)
- * e busca o perfil direto no banco — o cookie urbis_perfil tem httpOnly:false
- * e e adulteravel pelo cliente, entao nao deve ser fonte de autoridade.
+ * Identifica o usuario logado validando o token de sessão do Supabase
+ * (cookie urbis_token) direto no servidor de Auth — nunca confia em
+ * urbis_id/urbis_perfil/urbis_nome, que são cookies httpOnly:false e portanto
+ * adulteráveis pelo cliente (bastava enviar `Cookie: urbis_id=<uuid-alheio>`
+ * para uma requisição direta à API ser aceita como qualquer usuário, perfil
+ * incluído — inclusive Administrador). A identidade confiável é sempre a que
+ * o Supabase Auth devolve para o token validado, mapeada para `usuarios` pelo
+ * e-mail (usuarios.id não é o mesmo id de auth.users).
  *
  * Em caso de falha, retorna NextResponse com 401. Em sucesso, retorna AuthContext.
  */
@@ -34,8 +39,15 @@ export async function autenticar(
   req: NextRequest,
 ): Promise<AuthContext | NextResponse> {
   const cookieHeader = req.headers.get("cookie") || "";
-  const userId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1];
-  if (!userId) {
+  const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
+  if (!token) {
+    return NextResponse.json(
+      { ok: false, erro: "SESSAO_EXPIRADA" },
+      { status: 401 },
+    );
+  }
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !authData?.user?.email) {
     return NextResponse.json(
       { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
@@ -43,8 +55,8 @@ export async function autenticar(
   }
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
-    .select("perfil, perfis, gerencia")
-    .eq("id", userId)
+    .select("id, perfil, perfis, gerencia")
+    .eq("email", authData.user.email)
     .maybeSingle();
   if (error || !usuario) {
     return NextResponse.json(
@@ -52,6 +64,7 @@ export async function autenticar(
       { status: 401 },
     );
   }
+  const userId = usuario.id as string;
   // `perfis` é o array canônico; `perfil` (legado) é mantido por compatibilidade.
   // Se um deles vier preenchido e o outro não, união dos dois.
   const perfisArr: string[] = Array.isArray((usuario as any).perfis)
@@ -76,6 +89,25 @@ export async function autenticar(
     gerencia,
     _renovarCookie: true, // sinal para a rota renovar o cookie urbis_id
   };
+}
+
+/**
+ * Versão enxuta de `autenticar()` para código que só tem o header Cookie cru
+ * (não um NextRequest) — os gravadores server-only dos satélites (MDP, MRP)
+ * e as rotas de numeração. Mesma validação: token do Supabase, nunca
+ * `urbis_id`. Devolve só o id em `usuarios`, ou null se a sessão não valida.
+ */
+export async function resolverUsuarioIdPorCookie(cookieHeader: string): Promise<string | null> {
+  const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
+  if (!token) return null;
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !authData?.user?.email) return null;
+  const { data: usuario } = await supabaseAdmin
+    .from("usuarios")
+    .select("id")
+    .eq("email", authData.user.email)
+    .maybeSingle();
+  return usuario?.id ?? null;
 }
 
 /** Aplica renovação do cookie urbis_id na response (estende por mais 8h). */

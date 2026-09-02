@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isPerfilIrrestrito, gerenciaDoPerfil } from "@/lib/perfis";
 import { normalizarBusca } from "@/lib/texto";
+import { usuarioDaRequisicao } from "@/lib/autorizacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,21 +27,9 @@ async function interessadoDoProcesso(
   return typeof nome === "string" && nome.trim() ? nome.trim() : null;
 }
 
-async function getUsuario(req: NextRequest) {
-  const cookie = req.headers.get("cookie") ?? "";
-  const userId = cookie.match(/urbis_id=([^;]+)/)?.[1];
-  if (!userId) return null;
-  const { data } = await supabase
-    .from("usuarios")
-    .select("id, perfis, gerencia")
-    .eq("id", userId)
-    .maybeSingle();
-  return data as { id: string; perfis: string[]; gerencia: string | null } | null;
-}
-
 // POST — salva registro MDP (chamado após geração do documento)
 export async function POST(req: NextRequest) {
-  const usuario = await getUsuario(req);
+  const usuario = await usuarioDaRequisicao(req);
   if (!usuario) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
 
   const body = await req.json();
@@ -101,7 +90,7 @@ export async function POST(req: NextRequest) {
 
 // GET — lista registros (com filtro de acesso por perfil)
 export async function GET(req: NextRequest) {
-  const usuario = await getUsuario(req);
+  const usuario = await usuarioDaRequisicao(req);
   if (!usuario) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
 
   const url = new URL(req.url);

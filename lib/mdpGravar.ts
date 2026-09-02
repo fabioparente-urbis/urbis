@@ -14,6 +14,7 @@
 // ============================================================
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizarBusca } from "@/lib/texto";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
 export type GravarMDPLaudoInput = {
   processo_codigo: string;
@@ -27,8 +28,8 @@ export async function gravarRegistroMDPLaudo(
   input: GravarMDPLaudoInput,
 ): Promise<{ ok: boolean; motivo?: string }> {
   try {
-    const usuarioId = input.cookie_header.match(/urbis_id=([^;]+)/)?.[1];
-    if (!usuarioId) return { ok: false, motivo: "sem urbis_id no cookie" };
+    const usuarioId = await resolverUsuarioIdPorCookie(input.cookie_header);
+    if (!usuarioId) return { ok: false, motivo: "sessão inválida" };
 
     const interessado =
       typeof input.interessado === "string" && input.interessado.trim()

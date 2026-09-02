@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { enviarEmail } from "@/lib/email";
 import { normalizarBusca } from "@/lib/texto";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
 const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -116,8 +117,7 @@ export async function POST(req: NextRequest) {
 
     // ── MDP: registra o despacho interno (falha silenciosa) ──
     try {
-      const cookieHdr = req.headers.get("cookie") ?? "";
-      const usuarioId = cookieHdr.match(/urbis_id=([^;]+)/)?.[1] ?? null;
+      const usuarioId = await resolverUsuarioIdPorCookie(req.headers.get("cookie") ?? "");
       if (usuarioId) {
         await supabase.from("mdp_registros").insert({
           processo_codigo: codigo,

@@ -27,16 +27,24 @@ export type UsuarioReq = {
   gerenciaDoPerfil: string | null;
 };
 
-/** Usuário da requisição, pelo cookie `urbis_id`. Devolve null se não houver sessão. */
+/**
+ * Usuário da requisição, validado pelo token de sessão do Supabase (cookie
+ * `urbis_token`) — nunca pelo `urbis_id`, que é httpOnly:false e adulterável
+ * (uma requisição direta com `Cookie: urbis_id=<uuid-alheio>` seria aceita
+ * como qualquer usuário). Devolve null se não houver sessão válida.
+ */
 export async function usuarioDaRequisicao(req: NextRequest): Promise<UsuarioReq | null> {
   const cookie = req.headers.get("cookie") ?? "";
-  const userId = cookie.match(/urbis_id=([^;]+)/)?.[1];
-  if (!userId || !/^[0-9a-f-]{36}$/i.test(userId)) return null;
+  const token = cookie.match(/urbis_token=([^;]+)/)?.[1];
+  if (!token) return null;
+
+  const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+  if (authError || !authData?.user?.email) return null;
 
   const { data } = await supabaseAdmin
     .from("usuarios")
     .select("id, perfis, gerencia")
-    .eq("id", userId)
+    .eq("email", authData.user.email)
     .maybeSingle();
   if (!data) return null;
 

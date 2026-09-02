@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Identidade sempre validada pelo token do Supabase — nunca pelo urbis_id
+// do cookie (httpOnly:false, adulterável), que deixaria consumir a faixa de
+// numeração de outro usuário só forjando o cookie numa requisição direta.
 async function getUsuarioId(req: NextRequest): Promise<string | null> {
-  const cookieHeader = req.headers.get("cookie") ?? "";
-  const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
-  const userId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1];
-  if (!token || !userId) return null;
-  return userId;
+  return resolverUsuarioIdPorCookie(req.headers.get("cookie") ?? "");
 }
 
 export async function GET(req: NextRequest) {

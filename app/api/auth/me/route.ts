@@ -1,24 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { autenticar } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const cookieHeader = req.headers.get("cookie") || "";
-  const token = cookieHeader.match(/urbis_token=([^;]+)/)?.[1];
-  const userId = cookieHeader.match(/urbis_id=([^;]+)/)?.[1];
-
-  if (!token || !userId) {
-    return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
-  }
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
 
   const { data, error } = await supabase
     .from("usuarios")
     .select("id, nome, email, perfil, perfis, cargo, matricula, gerencia, urbi_ativo, urbi_voz, urbi_mudo, urbi_bip, urbi_modo_audio, tema")
-    .eq("id", userId)
+    .eq("id", ctx.userId)
     .maybeSingle();
 
   if (error || !data) {
