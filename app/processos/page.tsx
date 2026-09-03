@@ -592,9 +592,13 @@ function ProcessosConteudo() {
                     MAC: {p.situacao_mac || "—"}
                   </span>
                 </div>
+                {/* Some no telão (lg+) quando repete literalmente o texto do badge MAC
+                    acima (situacaoGeral espelha situacaoMac em "Aguardando retorno" e
+                    "Arquivado/indeferido", lib/bdi/situacao.ts) — continua visível em
+                    telas menores, onde o par LIP/MAC fica oculto e este é o único resumo. */}
                 <span
                   title={p.situacao_motivo}
-                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_geral && p.situacao_geral === p.situacao_mac ? "lg:hidden" : ""} ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.situacao_geral || "—"}
                 </span>
 
