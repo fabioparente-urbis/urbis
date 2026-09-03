@@ -111,7 +111,13 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"b
 // urbi_comandos_voz (ver a migration 2026_09_02_urbi_comandos_voz.sql).
 type OrigemComando = "webspeech" | "whisper" | "texto";
 
-type Msg = { role: "user"|"urbi"; texto: string };
+type Msg = {
+  role: "user"|"urbi"; texto: string;
+  // Marca vinda de app/api/urbi/chat (campo `dossie` da resposta) — só diz SE a
+  // resposta usou o dossiê factual do processo e se a leitura veio completa,
+  // nunca expõe o conteúdo do dossiê em si.
+  usouDossie?: boolean; dossieCompleto?: boolean;
+};
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
   usuario: { nome: string; perfil: string; id?: string; urbi_mudo?: boolean; urbi_bip?: boolean; urbi_modo_audio?: "nenhum" | "navegador" };
@@ -694,7 +700,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       if (json.ok) {
         const tipo = detectTipo(json.resposta);
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
-        setMsgs(m => [...m, { role: "urbi", texto: json.resposta }]);
+        setMsgs(m => [...m, { role: "urbi", texto: json.resposta, usouDossie: json.dossie?.usado === true, dossieCompleto: json.dossie?.completo !== false }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
         anunciar("URBI respondeu.");
         if (permiteAudio && !speech.mudo) falar(json.resposta);
@@ -784,7 +790,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
       }}>
         {msgs.map((msg, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start", gap: 2 }}>
             <div style={{
               maxWidth: "88%",
               background: msg.role === "user" ? "#1d4ed8" : "#f1f5f9",
@@ -793,6 +799,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               padding: "7px 11px", fontSize: 12, lineHeight: 1.6,
               fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap",
             }}>{msg.texto}</div>
+            {msg.role === "urbi" && msg.usouDossie && (
+              <span
+                title={msg.dossieCompleto ? "Consultou o dossiê factual deste processo (leitura completa)." : "Consultou o dossiê deste processo — leitura parcial, algumas fontes indisponíveis."}
+                style={{ fontSize: 10, color: msg.dossieCompleto ? "#64748b" : "#b45309", fontFamily: "system-ui, sans-serif" }}
+              >
+                📋 usou dados deste processo{!msg.dossieCompleto && " (parcial)"}
+              </span>
+            )}
           </div>
         ))}
         {carregando && (

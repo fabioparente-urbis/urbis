@@ -43,9 +43,13 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("mdp_registros").select("tipo, numero, data_despacho, criado_em").eq("processo_codigo", codigo).order("criado_em", { ascending: true }),
     supabaseAdmin.from("mrp_registros").select("tipo_despacho, numero_despacho, numero_analise, data_despacho, pontos").eq("processo_codigo", codigo).order("data_despacho", { ascending: true }),
     supabaseAdmin.from("mhd_documentos").select("id, papel, rotulo, status, escopo, atualizado_em").eq("processo_codigo", codigo).order("atualizado_em", { ascending: false }),
+    // vw_bdi_aguardando_retorno (supabase/migrations/2026_09_03_bdi_aguardando_retorno.sql,
+    // já aplicada) — pedido explícito do dossiê original ("tempo aguardando retorno quando
+    // houver base"), faltava nesta rota. security_invoker=true, mesma sessão do usuário.
+    supabaseAdmin.from("vw_bdi_aguardando_retorno").select("analise_que_gerou_despacho, despacho_emitido_em, proxima_analise, proxima_analise_iniciada_em, dias_aguardando_retorno, situacao").eq("processo_codigo", codigo),
   ]);
 
-  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd"];
+  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno"];
   const fontesIndisponiveis = consultas
     .map((resultado, i) => resultado.error ? `${nomesFontes[i]}: ${resultado.error.message}` : null)
     .filter(Boolean);
@@ -57,6 +61,7 @@ export async function GET(req: NextRequest) {
   const mdp = consultas[4].data ?? [];
   const mrp = consultas[5].data ?? [];
   const mhdDocumentos = (consultas[6].data ?? []) as any[];
+  const aguardandoRetorno = (consultas[7].data ?? []) as any[];
   const ultima = analises.length ? analises[analises.length - 1] : null;
 
   // versão/hash vigente de cada documento — pedido explícito da Fase 3 original ("versão/hash dos
@@ -195,6 +200,13 @@ export async function GET(req: NextRequest) {
         retrabalho_entre_passadas: retrabalho,
         documentos_emitidos: documentosEmitidos,
         documentos_mhd: mhd,
+        aguardando_retorno: aguardandoRetorno.map((r: any) => ({
+          analise: r.analise_que_gerou_despacho,
+          despacho_emitido_em: r.despacho_emitido_em,
+          proxima_analise: r.proxima_analise,
+          dias: r.dias_aguardando_retorno,
+          situacao: r.situacao, // "retornou" | "ainda aguardando" | "base insuficiente"
+        })),
       },
       cobertura: {
         fontes_indisponiveis: fontesIndisponiveis,

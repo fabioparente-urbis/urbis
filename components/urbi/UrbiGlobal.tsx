@@ -66,7 +66,7 @@ export default function UrbiGlobal() {
   }, [urbiAberto]);
 
   useEffect(() => {
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     processoIdRef.current = codigo;
     // Mesmo valor do ref, mas em state — é o que vira prop de UrbiChat (ref não

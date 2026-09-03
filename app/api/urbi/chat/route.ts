@@ -164,6 +164,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise
         retrabalho_entre_passadas: (d.fluxo?.retrabalho_entre_passadas ?? []).slice(0, 20),
         documentos_emitidos: d.fluxo?.documentos_emitidos,
         documentos_mhd: d.fluxo?.documentos_mhd,
+        aguardando_retorno: d.fluxo?.aguardando_retorno,
       },
       cobertura: d.cobertura,
     };
@@ -392,6 +393,8 @@ Regras de uso do dossiê:
 - Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
+- Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
+- Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
 
 DOSSIÊ FACTUAL (JSON):
 ${dossie.contexto}`;
@@ -440,7 +443,12 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     const sair = texto.includes("[URBI_SAIR]");
     const resposta = texto.replace("[URBI_SAIR]", "").trim();
 
-    return NextResponse.json({ ok: true, resposta, sair });
+    // Marca simples pedida no plano do Co-Analista: a interface pode informar ao
+    // analista que esta resposta usou o dossiê do processo — nunca expõe o conteúdo
+    // do dossiê em si, só o fato de ter sido consultado (e se a leitura veio completa).
+    const usouDossie = dossie ? { usado: true, completo: dossie.status === "ok" } : { usado: false };
+
+    return NextResponse.json({ ok: true, resposta, sair, dossie: usouDossie });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e?.message }, { status: 500 });
   }
