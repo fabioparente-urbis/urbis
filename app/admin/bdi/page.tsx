@@ -583,6 +583,11 @@ export default function BDIPage() {
                   titulo="Referências legais que mais reprovam"
                   descricao="A referência é como foi gravada no checklist, às vezes com várias leis juntas — é o desempenho da combinação, não de artigo isolado. Só aparece referência presente em 3 ou mais processos."
                 >
+                  {assuntoSelecionado && (
+                    <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      ⚠ Mostrando <b>todos os assuntos</b>, não só {stats.assunto_filtrado?.nome ?? assuntoSelecionado} — esta tabela ainda não guarda de qual assunto cada linha veio, não dá pra filtrar sem alterar a view.
+                    </div>
+                  )}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-[var(--border)]">{["REFERÊNCIA","REPROVOU","PASSOU","PROC.","% REPROVA"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
@@ -605,6 +610,11 @@ export default function BDIPage() {
 
                 {subAba === "qualidade" && <>
                 <Secao titulo="Numeração" descricao="Faixa esgotada trava a emissão de documento.">
+                  {assuntoSelecionado && (
+                    <div className="mx-5 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      ⚠ Mostrando <b>todos os assuntos</b>, não só {stats.assunto_filtrado?.nome ?? assuntoSelecionado} — numeração é compartilhada entre os slots por desenho do sistema (CLAUDE.md), não pertence a um assunto.
+                    </div>
+                  )}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-[var(--border)]">{["TIPO","ANO","FAIXA","PRÓXIMO","RESTANTES","SITUAÇÃO"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
