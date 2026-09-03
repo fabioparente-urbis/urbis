@@ -233,12 +233,28 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // vw_bdi_analises_em_andamento (supabase/migrations/2026_09_02_bdi_analises_em_andamento.sql)
+  // — NÃO APLICADA ainda. Consultada à parte, isolada, porque uma falha
+  // aqui (view não existe) não pode derrubar o resto do painel — é a
+  // diferença entre "esta seção está pendente" e "o BDI inteiro quebrou".
+  // Assim que a migration for aplicada, esta consulta passa a funcionar
+  // sozinha, sem precisar de mais nenhuma mudança de código.
+  let qAnalisesEmAndamento = supabaseAdmin.from("vw_bdi_analises_em_andamento").select("*");
+  if (assuntoAtivo) qAnalisesEmAndamento = qAnalisesEmAndamento.eq("tipo_processo", assuntoSlug);
+  const { data: analisesEmAndamentoData, error: erroAnalisesEmAndamento } = await qAnalisesEmAndamento;
+  const analisesEmAndamentoPendente = !!erroAnalisesEmAndamento;
+  if (erroAnalisesEmAndamento) {
+    console.warn("[bdi/stats] vw_bdi_analises_em_andamento indisponível (migration não aplicada?):", erroAnalisesEmAndamento.message);
+  }
+
   return NextResponse.json({
     ok: true,
     assunto_filtrado: assuntoAtivo ? { slug: assuntoSlug, nome: assuntoAtivo.nome } : null,
     // Views que continuam mostrando o total mesmo com um assunto selecionado
     // — ver auditoria no cabeçalho do arquivo.
     nao_filtraveis: ["vw_bdi_desempenho_referencia", "vw_bdi_numeracao_saldo"],
+    analises_em_andamento: analisesEmAndamentoData ?? [],
+    analises_em_andamento_pendente: analisesEmAndamentoPendente,
     resumo: resumo.data ?? {},
     por_assunto: porAssunto.data ?? [],
     por_analista: porAnalista.data ?? [],

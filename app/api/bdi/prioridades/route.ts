@@ -53,26 +53,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Acesso restrito ao Administrador." }, { status: 403 });
   }
 
-  const assuntoSlug = (new URL(req.url).searchParams.get("assunto") || "").trim();
+  const url = new URL(req.url);
+  const assuntoSlug = (url.searchParams.get("assunto") || "").trim();
+  // Paginação real (revisão de 02/09/2026 — antes era um .limit(200) fixo,
+  // sem contagem nem aviso). Cada processo dispara consultas em lote (não
+  // por linha), mas o CUSTO daquelas consultas cresce com o tamanho da
+  // página — por isso um teto bem menor que o antigo, com offset pra
+  // navegar, e o total real devolvido pra tela avisar quando cortou.
+  const LIMITE_PADRAO = 100, LIMITE_MAXIMO = 300;
+  const limite = Math.min(LIMITE_MAXIMO, Math.max(1, Number(url.searchParams.get("limit")) || LIMITE_PADRAO));
+  const offset = Math.max(0, Number(url.searchParams.get("offset")) || 0);
 
   let query = supabaseAdmin
     .from("processos")
-    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags")
+    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags", { count: "exact" })
     .is("excluido_em", null)
     .order("atualizado_em", { ascending: false })
-    .limit(200);
+    .range(offset, offset + limite - 1);
   if (assuntoSlug) query = query.eq("tipo_processo", assuntoSlug);
 
-  const { data: processos, error: erroProcessos } = await query;
-  if (erroProcessos) {
+  const { data: processos, error: erroProcessos, count: totalDisponivel } = await query;
+  // "Requested range not satisfiable": offset além do total (achado ao
+  // testar — o.range(100,199) contra 80 linhas reais devolve ERRO, não
+  // lista vazia). Uma página fora do alcance é dado insuficiente, não
+  // falha — não pode virar 500 só porque alguém pediu a página seguinte
+  // depois que a lista encolheu (filtro de Assunto mudou, processo foi
+  // excluído entretanto).
+  const forRangeErr = erroProcessos && /range not satisfiable/i.test(erroProcessos.message);
+  if (erroProcessos && !forRangeErr) {
     return NextResponse.json({ ok: false, erro: `Falha ao carregar processos: ${erroProcessos.message}` }, { status: 500 });
   }
-  const lista = processos ?? [];
+  const lista = forRangeErr ? [] : (processos ?? []);
   const codigos = lista.map((p) => p.codigo).filter(Boolean);
   const tiposDistintos = [...new Set(lista.map((p) => (p.tipo_processo || "").toLowerCase()).filter(Boolean))];
+  const paginacao = { limite, offset, total_disponivel: totalDisponivel ?? lista.length, mostrando: lista.length };
 
   if (codigos.length === 0) {
-    return NextResponse.json({ ok: true, data: [] });
+    return NextResponse.json({ ok: true, data: [], paginacao });
   }
 
   const [
@@ -135,6 +152,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Cobertura de vínculo legal (BIP) POR ASSUNTO — 1 consulta por tipo_processo
+  // distinto, não por processo. Achado da revisão de 02/09/2026: os 727
+  // vínculos de mac_bip_vinculos são 100% do checklist do Slot 5 — Regularização
+  // e Aceite SEI têm ZERO. Isso não é bug de chave (testado item por item, a
+  // FK funciona certo); é ausência de dado — a vinculação nunca foi feita pra
+  // esses dois assuntos. Calculado aqui pra dar um motivo real quando
+  // `vinculos_legais` vier vazio, em vez de só mostrar "nada encontrado".
+  const coberturaBipPorTipo = new Map<string, { itensAtivos: number; itensComVinculo: number }>();
+  await Promise.all(
+    tiposDistintos.map(async (tipo) => {
+      const { data: modelo } = await supabaseAdmin.from("mac_checklist_modelos").select("id").eq("tipo_processo", tipo).maybeSingle();
+      if (!modelo?.id) { coberturaBipPorTipo.set(tipo, { itensAtivos: 0, itensComVinculo: 0 }); return; }
+      const { data: itensDoModelo } = await supabaseAdmin.from("mac_checklist_itens").select("id").eq("modelo_id", modelo.id).eq("ativo", true);
+      const idsModelo = new Set((itensDoModelo ?? []).map((i: any) => i.id));
+      const comVinculo = [...idsModelo].filter((id) => vinculosPorItem.has(id)).length;
+      coberturaBipPorTipo.set(tipo, { itensAtivos: idsModelo.size, itensComVinculo: comVinculo });
+    }),
+  );
+
   // Cobertura de satélite por processo — mesma lógica de vw_bdi_cobertura_satelite,
   // rodada por linha em vez de agregada. Chave de presença: (processo_codigo, numero).
   const chaveMdp = new Set((linhasMdp ?? []).map((l: any) => `${l.processo_codigo}::${l.numero}`));
@@ -146,6 +182,11 @@ export async function GET(req: NextRequest) {
     camposPorCodigo.set(ll.codigo, { campos_vazios: Number(ll.campos_vazios) || 0, campos_em_x: Number(ll.campos_em_x) || 0, campos_totais: Number(ll.campos_totais) || 0 });
   }
   const ultimaPassadaPorCodigo = new Map<string, UltimaPassadaMac & { numero_despacho_interno?: string | null }>();
+  // Todas as passadas do processo, não só a mais recente — a checagem de
+  // MDP/MRP tem que olhar TODO documento já commitado (achado da revisão de
+  // 02/09/2026: um processo pode ter despacho da análise 1 sem MDP e a
+  // análise 2 já concluída; olhar só a última escondia isso).
+  const todasPassadasPorCodigo = new Map<string, { numero_analise: number; numero_despacho: string | null; numero_parecer: string | null; numero_despacho_interno: string | null }[]>();
   for (const l of linhasAnalises ?? []) {
     const ll = l as any;
     const atual = ultimaPassadaPorCodigo.get(ll.processo_codigo);
@@ -156,6 +197,13 @@ export async function GET(req: NextRequest) {
         numero_despacho_interno: ll.numero_despacho_interno ?? null,
       });
     }
+    const lista4 = todasPassadasPorCodigo.get(ll.processo_codigo) ?? [];
+    lista4.push({
+      numero_analise: Number(ll.numero_analise) || 0,
+      numero_despacho: ll.numero_despacho ?? null, numero_parecer: ll.numero_parecer ?? null,
+      numero_despacho_interno: ll.numero_despacho_interno ?? null,
+    });
+    todasPassadasPorCodigo.set(ll.processo_codigo, lista4);
   }
   const retrabalhoAgregadoPorCodigo = new Map<string, LinhaRetrabalho>();
   for (const l of linhasRetrabalhoAgregado ?? []) retrabalhoAgregadoPorCodigo.set((l as any).processo_codigo, l as any);
@@ -186,19 +234,39 @@ export async function GET(req: NextRequest) {
     // --- retrabalho comprovado entre análises (vw_bdi_retrabalho_por_passada)
     const retrabalhoComprovado = retrabalhoPorPassadaPorCodigo.get(codigo) ?? [];
 
-    // --- documento emitido sem MDP/MRP — mesma regra de vw_bdi_cobertura_satelite
-    const numeroEmitido = ultimaPassada?.numero_despacho || ultimaPassada?.numero_parecer || ultimaPassada?.numero_despacho_interno || null;
-    const satelite = numeroEmitido
-      ? {
-          numero: numeroEmitido,
-          tem_mdp: chaveMdp.has(`${codigo}::${numeroEmitido}`),
-          tem_mrp: chaveMrp.has(`${codigo}::${numeroEmitido}`),
-        }
-      : null;
+    // --- documento emitido sem MDP/MRP — TODO documento de TODA passada do
+    // processo (não só o mais recente, ver comentário acima), cada um
+    // checado separadamente: uma análise pode ter despacho E despacho
+    // interno ao mesmo tempo, e cada um tem que aparecer em MDP/MRP.
+    const documentosDoProcesso: { numero_analise: number; tipo_documento: string; numero: string }[] = [];
+    for (const passada of todasPassadasPorCodigo.get(codigo) ?? []) {
+      if (passada.numero_despacho) documentosDoProcesso.push({ numero_analise: passada.numero_analise, tipo_documento: "despacho", numero: passada.numero_despacho });
+      if (passada.numero_parecer) documentosDoProcesso.push({ numero_analise: passada.numero_analise, tipo_documento: "parecer", numero: passada.numero_parecer });
+      if (passada.numero_despacho_interno) documentosDoProcesso.push({ numero_analise: passada.numero_analise, tipo_documento: "despacho_interno", numero: passada.numero_despacho_interno });
+    }
+    const satelite = documentosDoProcesso.map((d) => ({
+      ...d,
+      tem_mdp: chaveMdp.has(`${codigo}::${d.numero}`),
+      tem_mrp: chaveMrp.has(`${codigo}::${d.numero}`),
+    }));
 
     // --- vínculo legal (BIP), agregado dos itens deste processo
     const idsDoProcesso = [...(itensPorProcesso.get(codigo) ?? [])];
     const vinculosLegais = idsDoProcesso.flatMap((id) => vinculosPorItem.get(id) ?? []).slice(0, 5);
+    const coberturaBip = coberturaBipPorTipo.get(tipo) ?? { itensAtivos: 0, itensComVinculo: 0 };
+    // "Base insuficiente" tem um motivo real, não um vazio genérico —
+    // distingue "este assunto não tem vínculo BIP nenhum" de "este processo
+    // específico não usou item vinculado, mas o assunto tem cobertura".
+    const vinculosLegaisInfo = vinculosLegais.length > 0
+      ? { categoria: "fato" as const, motivo: `${vinculosLegais.length} vínculo(s) real(is) encontrado(s) (mac_bip_vinculos).` }
+      : coberturaBip.itensComVinculo === 0
+        ? { categoria: "base_insuficiente" as const, motivo: `O assunto "${tipo}" não tem nenhum item de checklist vinculado ao BIP ainda (0 de ${coberturaBip.itensAtivos}) — vinculação nunca foi feita para este assunto.` }
+        : { categoria: "base_insuficiente" as const, motivo: `Este processo não usou item com vínculo BIP — o assunto tem ${coberturaBip.itensComVinculo} de ${coberturaBip.itensAtivos} itens vinculados, mas nenhum bateu aqui.` };
+
+    const exigenciasDoTipo = exigenciasPorTipo.get(tipo) ?? [];
+    const exigenciasInfo = exigenciasDoTipo.length > 0
+      ? { categoria: "fato" as const, motivo: `${exigenciasDoTipo.length} exigência(s) recorrente(s) no histórico deste assunto (vw_bdi_exigencias_por_contexto).` }
+      : { categoria: "base_insuficiente" as const, motivo: "Nenhuma exigência recorrente registrada ainda para este assunto." };
 
     // --- avisos e triagem (lib/bdi/vigia.ts) — IDÊNTICO ao Vigia de 1 processo
     const entrada: EntradaVigia = {
@@ -213,8 +281,9 @@ export async function GET(req: NextRequest) {
     // Peso só pra ORDENAR a lista — nunca exposto como número/percentual.
     // Fato objetivo, contado: quanto mais alerta e retrabalho comprovado,
     // mais cedo aparece. Não é chance de nada, é contagem de sinal real.
+    const documentosFaltando = satelite.filter((d) => !d.tem_mdp || !d.tem_mrp).length;
     const peso =
-      (satelite && !satelite.tem_mdp ? 1 : 0) + (satelite && !satelite.tem_mrp ? 1 : 0) +
+      documentosFaltando +
       retrabalhoComprovado.length +
       avisos.filter((a) => a.severidade === "alerta").length * 2 +
       avisos.filter((a) => a.severidade === "atencao").length +
@@ -232,8 +301,10 @@ export async function GET(req: NextRequest) {
       campos_totais: resumoCampos.totais,
       retrabalho_comprovado: retrabalhoComprovado,
       satelite,
-      exigencias_recorrentes: exigenciasPorTipo.get(tipo) ?? [],
+      exigencias_recorrentes: exigenciasDoTipo,
+      exigencias_recorrentes_info: exigenciasInfo,
       vinculos_legais: vinculosLegais,
+      vinculos_legais_info: vinculosLegaisInfo,
       avisos,
       triagem: triagem.classe,
       triagem_motivos: triagem.motivos,
@@ -243,5 +314,5 @@ export async function GET(req: NextRequest) {
 
   resultado.sort((a, b) => b._peso - a._peso);
 
-  return NextResponse.json({ ok: true, data: resultado.map(({ _peso, ...resto }) => resto) });
+  return NextResponse.json({ ok: true, data: resultado.map(({ _peso, ...resto }) => resto), paginacao });
 }

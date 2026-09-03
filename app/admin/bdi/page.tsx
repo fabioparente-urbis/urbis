@@ -10,6 +10,8 @@ type Assunto = { id: string; slug: string; nome: string; ativo: boolean };
 type Stats = {
   assunto_filtrado: { slug: string; nome: string } | null;
   nao_filtraveis: string[];
+  analises_em_andamento: { tipo_processo: string; processos_em_andamento: number; dias_media_em_aberto: number; dias_mais_antigo: number }[];
+  analises_em_andamento_pendente: boolean;
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
   por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
   por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
@@ -41,9 +43,12 @@ type Prioridade = {
   campos_em_x: string[];
   campos_totais: number;
   retrabalho_comprovado: { exigencia: string; aba: string | null; passada_anterior: number; passada_atual: number; voltou_em: string }[];
-  satelite: { numero: string; tem_mdp: boolean; tem_mrp: boolean } | null;
+  /** Todo documento de toda passada — não só o mais recente. */
+  satelite: { numero_analise: number; tipo_documento: string; numero: string; tem_mdp: boolean; tem_mrp: boolean }[];
   exigencias_recorrentes: { exigencia: string; vezes: number; processos: number }[];
+  exigencias_recorrentes_info: { categoria: "fato" | "base_insuficiente"; motivo: string };
   vinculos_legais: { referencia: string; confianca: string }[];
+  vinculos_legais_info: { categoria: "fato" | "base_insuficiente"; motivo: string };
   avisos: { id: string; titulo: string; detalhe: string; fonte: string; severidade: "info" | "atencao" | "alerta" }[];
   triagem: string;
   triagem_motivos: string[];
@@ -149,6 +154,8 @@ export default function BDIPage() {
   const [prioridades, setPrioridades] = useState<Prioridade[] | null>(null);
   const [loadingPrioridades, setLoadingPrioridades] = useState(false);
   const [expandido, setExpandido] = useState<string | null>(null);
+  const [paginacaoPrioridades, setPaginacaoPrioridades] = useState<{ limite: number; offset: number; total_disponivel: number; mostrando: number } | null>(null);
+  const [offsetPrioridades, setOffsetPrioridades] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -164,17 +171,23 @@ export default function BDIPage() {
     if (aba === "estatisticas") carregarStats();
   }, [aba, assuntoSelecionado]);
 
+  // Troca de assunto reseta a página — senão um offset de uma lista maior
+  // pode cair fora do alcance da lista filtrada, menor.
+  useEffect(() => { setOffsetPrioridades(0); }, [assuntoSelecionado]);
+
   useEffect(() => {
     if (aba === "estatisticas" && subAba === "prioridades") carregarPrioridades();
-  }, [aba, subAba, assuntoSelecionado]);
+  }, [aba, subAba, assuntoSelecionado, offsetPrioridades]);
 
   async function carregarPrioridades() {
     setLoadingPrioridades(true);
     try {
-      const qs = assuntoSelecionado ? `?assunto=${encodeURIComponent(assuntoSelecionado)}` : "";
-      const r = await fetch(`/api/bdi/prioridades${qs}`);
+      const params = new URLSearchParams();
+      if (assuntoSelecionado) params.set("assunto", assuntoSelecionado);
+      params.set("offset", String(offsetPrioridades));
+      const r = await fetch(`/api/bdi/prioridades?${params}`);
       const j = await r.json();
-      if (j.ok) setPrioridades(j.data);
+      if (j.ok) { setPrioridades(j.data); setPaginacaoPrioridades(j.paginacao ?? null); }
     } finally {
       setLoadingPrioridades(false);
     }
@@ -435,7 +448,14 @@ export default function BDIPage() {
                 {subAba === "prioridades" && <>
                 <Secao
                   titulo="Prioridades — onde olhar primeiro"
-                  descricao={<>Um processo por linha, ordenado por quantidade de fato objetivo (alerta, retrabalho comprovado, satélite faltando) — não é chance nem nota, é contagem. Nenhum nome de interessado aparece aqui, só o código do processo. Clique numa linha pra ver o motivo de cada coluna.</>}
+                  descricao={<>Um processo por linha, ordenado por quantidade de fato objetivo (alerta, retrabalho comprovado, documento sem satélite) — não é chance nem nota, é contagem. Nenhum nome de interessado aparece aqui, só o código do processo. Clique numa linha pra ver o motivo de cada coluna.</>}
+                  acao={
+                    <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
+                      <span className="inline-flex items-center gap-1"><Badge tom="ok">fato</Badge> confirmado no banco</span>
+                      <span className="inline-flex items-center gap-1"><Badge tom="erro">alerta</Badge> merece olhar</span>
+                      <span className="inline-flex items-center gap-1"><Badge tom="neutro">base insuficiente</Badge> sem dado pra concluir</span>
+                    </div>
+                  }
                 >
                   {loadingPrioridades && (
                     <div className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--text-muted)]">
@@ -443,13 +463,14 @@ export default function BDIPage() {
                     </div>
                   )}
                   {!loadingPrioridades && (
+                    <>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","ASSUNTO","SITUAÇÃO","TRIAGEM","ANÁLISES","LIP VAZIO","RETRABALHO","SATÉLITE"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
                         <tbody>
                           {(prioridades ?? []).map((p) => {
                             const tomTriagem = p.triagem === "maior risco de retrabalho" ? "erro" : p.triagem === "exige atenção" ? "aviso" : "ok";
-                            const semSatelite = p.satelite && (!p.satelite.tem_mdp || !p.satelite.tem_mrp);
+                            const documentosFaltando = p.satelite.filter(d => !d.tem_mdp || !d.tem_mrp).length;
                             const aberto = expandido === p.codigo;
                             return (
                               <React.Fragment key={p.codigo}>
@@ -462,9 +483,9 @@ export default function BDIPage() {
                                   <td className={`${TD} text-center ${p.campos_vazios.length>0 ? "font-semibold text-orange-600" : "text-[var(--text-muted)]"}`}>{p.campos_vazios.length}</td>
                                   <td className={`${TD} text-center ${p.retrabalho_comprovado.length>0 ? "font-semibold text-red-600" : "text-[var(--text-muted)]"}`}>{p.retrabalho_comprovado.length || "—"}</td>
                                   <td className={TD}>
-                                    {!p.satelite ? <span className="text-[var(--text-muted)]">—</span>
-                                      : semSatelite ? <Badge tom="erro">faltando</Badge>
-                                      : <Badge tom="ok">completo</Badge>}
+                                    {p.satelite.length === 0 ? <span className="text-[var(--text-muted)]">—</span>
+                                      : documentosFaltando > 0 ? <Badge tom="erro">{documentosFaltando} faltando</Badge>
+                                      : <Badge tom="ok">completo ({p.satelite.length})</Badge>}
                                   </td>
                                 </tr>
                                 {aberto && (
@@ -472,18 +493,22 @@ export default function BDIPage() {
                                     <td colSpan={8} className="bg-[var(--bg-secondary)] px-5 py-4 text-xs">
                                       <div className="grid gap-4 md:grid-cols-2">
                                         <div>
-                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Situação</p>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Situação <Badge tom="ok">fato</Badge></p>
                                           <p className="text-[var(--text-secondary)]">LIP: {p.situacao_lip} — {p.situacao_lip_motivo}</p>
                                           <p className="text-[var(--text-secondary)]">MAC: {p.situacao_mac} — {p.situacao_mac_motivo}</p>
                                           {p.campos_vazios.length > 0 && (
                                             <p className="mt-1 text-[var(--text-muted)]">Campos vazios: {p.campos_vazios.slice(0,15).join(", ")}{p.campos_vazios.length>15?"…":""}</p>
                                           )}
-                                          {p.satelite && (
-                                            <p className="mt-1 text-[var(--text-muted)]">Documento nº {p.satelite.numero} — MDP {p.satelite.tem_mdp?"✓":"✕ faltando"}, MRP {p.satelite.tem_mrp?"✓":"✕ faltando"}.</p>
+                                          {p.satelite.length > 0 && (
+                                            <div className="mt-1">
+                                              {p.satelite.map((d, i) => (
+                                                <p key={i} className="text-[var(--text-muted)]">{d.tipo_documento} nº {d.numero} (análise {d.numero_analise}) — MDP {d.tem_mdp?"✓":"✕ faltando"}, MRP {d.tem_mrp?"✓":"✕ faltando"}.</p>
+                                              ))}
+                                            </div>
                                           )}
                                         </div>
                                         <div>
-                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Retrabalho comprovado entre análises</p>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Retrabalho comprovado entre análises <Badge tom={p.retrabalho_comprovado.length>0?"erro":"ok"}>{p.retrabalho_comprovado.length>0?"alerta":"fato"}</Badge></p>
                                           {p.retrabalho_comprovado.length === 0
                                             ? <p className="text-[var(--text-muted)]">Nenhum.</p>
                                             : p.retrabalho_comprovado.map((r, i) => (
@@ -493,23 +518,31 @@ export default function BDIPage() {
                                         <div>
                                           <p className="mb-1 font-semibold text-[var(--text-primary)]">Avisos (fato + fonte)</p>
                                           {p.avisos.length === 0
-                                            ? <p className="text-[var(--text-muted)]">Nenhum aviso — nenhum sinal de retrabalho ou inconsistência encontrado.</p>
+                                            ? <p className="text-[var(--text-muted)]"><Badge tom="ok">fato</Badge> Nenhum sinal de retrabalho ou inconsistência encontrado.</p>
                                             : p.avisos.map((a) => (
                                                 <p key={a.id} className="text-[var(--text-secondary)]">
-                                                  <Badge tom={a.severidade === "alerta" ? "erro" : a.severidade === "atencao" ? "aviso" : "neutro"}>{a.titulo}</Badge>{" "}
+                                                  <Badge tom={a.severidade === "alerta" ? "erro" : a.severidade === "atencao" ? "aviso" : "ok"}>{a.severidade === "info" ? "fato" : a.severidade}</Badge>{" "}
+                                                  <b>{a.titulo}</b>{" "}
                                                   <span className="text-[var(--text-muted)]">— {a.detalhe} ({a.fonte})</span>
                                                 </p>
                                               ))}
                                         </div>
                                         <div>
-                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Exigências recorrentes neste assunto</p>
-                                          {(p.exigencias_recorrentes.length === 0)
-                                            ? <p className="text-[var(--text-muted)]">Base insuficiente ainda.</p>
-                                            : p.exigencias_recorrentes.slice(0,5).map((e, i) => (
-                                                <p key={i} className="text-[var(--text-secondary)]">{e.exigencia.slice(0,80)} — {e.processos} processo(s)</p>
-                                              ))}
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">
+                                            Exigências recorrentes neste assunto{" "}
+                                            <Badge tom={p.exigencias_recorrentes_info.categoria === "fato" ? "ok" : "neutro"}>{p.exigencias_recorrentes_info.categoria === "fato" ? "fato" : "base insuficiente"}</Badge>
+                                          </p>
+                                          <p className="text-[var(--text-muted)]">{p.exigencias_recorrentes_info.motivo}</p>
+                                          {p.exigencias_recorrentes.slice(0,5).map((e, i) => (
+                                            <p key={i} className="text-[var(--text-secondary)]">{e.exigencia.slice(0,80)} — {e.processos} processo(s)</p>
+                                          ))}
+                                          <p className="mt-2 font-semibold text-[var(--text-primary)]">
+                                            Referência legal (BIP){" "}
+                                            <Badge tom={p.vinculos_legais_info.categoria === "fato" ? "ok" : "neutro"}>{p.vinculos_legais_info.categoria === "fato" ? "fato" : "base insuficiente"}</Badge>
+                                          </p>
+                                          <p className="text-[var(--text-muted)]">{p.vinculos_legais_info.motivo}</p>
                                           {p.vinculos_legais.length > 0 && (
-                                            <p className="mt-1 text-[var(--text-muted)]">Referência legal vinculada (BIP): {p.vinculos_legais.map(v=>v.referencia).join(", ")}</p>
+                                            <p className="text-[var(--text-secondary)]">{p.vinculos_legais.map(v=>v.referencia).join(", ")}</p>
                                           )}
                                         </div>
                                       </div>
@@ -523,6 +556,21 @@ export default function BDIPage() {
                         </tbody>
                       </table>
                     </div>
+                    {paginacaoPrioridades && (
+                      <div className="flex items-center justify-between border-t border-[var(--border)] px-5 py-3 text-xs text-[var(--text-muted)]">
+                        <span>
+                          Mostrando {paginacaoPrioridades.mostrando} de {paginacaoPrioridades.total_disponivel} processo(s)
+                          {paginacaoPrioridades.total_disponivel > paginacaoPrioridades.mostrando && " — refine o filtro de Assunto pra ver o resto, ou navegue pela página"}.
+                        </span>
+                        <div className="flex gap-2">
+                          <button disabled={offsetPrioridades === 0} onClick={() => setOffsetPrioridades(Math.max(0, offsetPrioridades - paginacaoPrioridades.limite))}
+                            className={`${BTN_SECUNDARIO} disabled:opacity-40`}>← Anterior</button>
+                          <button disabled={offsetPrioridades + paginacaoPrioridades.mostrando >= paginacaoPrioridades.total_disponivel} onClick={() => setOffsetPrioridades(offsetPrioridades + paginacaoPrioridades.limite)}
+                            className={`${BTN_SECUNDARIO} disabled:opacity-40`}>Próxima →</button>
+                        </div>
+                      </div>
+                    )}
+                    </>
                   )}
                 </Secao>
                 </>}
@@ -560,11 +608,30 @@ export default function BDIPage() {
 
                 <Secao
                   titulo="Análises iniciadas e ainda sem conclusão"
-                  descricao={<>Depende da migration <code>2026_09_02_bdi_analises_em_andamento.sql</code>, ainda não aplicada — esta seção fica vazia até isso acontecer. Quando aplicada: conta processo com <code>analise_iniciada_em</code> gravado e <code>analise_concluida_em</code> ainda nulo, e há quantos dias isso é verdade. Não estima quando vai fechar.</>}
+                  descricao={<>Conta processo com <code>analise_iniciada_em</code> gravado, <code>analise_concluida_em</code> ainda nulo, <b>e a passada mais recente sem despacho/parecer commitado</b> — sem essa terceira condição, um processo que já teve despacho emitido (só não foi indeferido/arquivado) contava como &quot;em andamento&quot; por engano; corrigido depois de testar contra produção (achado: 15 dos 18 processos originais já estavam com despacho pronto). Não estima quando vai fechar.</>}
                 >
-                  <div className="px-5 py-4 text-xs text-[var(--text-muted)]">
-                    Prévia do dado real (lido direto do banco em 02/09/2026, fora desta tela): Regularização SEI tinha 17 processos nessa situação, média de 27,9 dias em aberto, o mais antigo com 42,9 dias. Slot 5 tinha 1, com 15,9 dias.
-                  </div>
+                  {stats.analises_em_andamento_pendente ? (
+                    <div className="px-5 py-4 text-xs text-[var(--text-muted)]">
+                      Depende da migration <code>2026_09_02_bdi_analises_em_andamento.sql</code>, ainda não aplicada — esta seção fica vazia até isso acontecer. Prévia do dado real corrigido (lido direto do banco em 02/09/2026, fora desta tela): Regularização SEI tinha 3 processos realmente em análise (não 17 — os outros 15 já tinham despacho), média de 22,7 dias em aberto, o mais antigo com 41,0 dias.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-[var(--border)]">{["ASSUNTO","PROCESSOS","MÉDIA DE DIAS EM ABERTO","MAIS ANTIGO (DIAS)"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {stats.analises_em_andamento.map((r,i)=>(
+                            <tr key={i} className={TR}>
+                              <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
+                              <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.processos_em_andamento}</td>
+                              <td className={`${TD} text-center`}>{r.dias_media_em_aberto}</td>
+                              <td className={`${TD} text-center`}>{r.dias_mais_antigo}</td>
+                            </tr>
+                          ))}
+                          {stats.analises_em_andamento.length===0 && <Vazio cols={4}>Nenhum processo em análise sem documento agora</Vazio>}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </Secao>
 
                 <Secao
