@@ -3,6 +3,7 @@ import { GEMINI_MODEL } from "@/lib/constants";
 import { registrarChamadaIA } from "@/lib/iaUso";
 import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { derivarSugestoesAutomaticas, registrarSugestoesAutomaticas } from "@/lib/urbi/sugestoes";
 
 export const maxDuration = 60;
 
@@ -165,6 +166,30 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
       return { status: "indisponivel", motivo: String(json?.erro ?? "Não foi possível carregar o dossiê factual.") };
     }
     const d = json.data;
+
+    // Sugestões/alertas automáticas: derivadas só de fato (nunca de IA), registradas de forma
+    // auditável em urbi_sugestoes — nunca bloqueia nem falha a resposta do chat (ver
+    // lib/urbi/sugestoes.ts). Roda toda vez que o Co-Analista está ativo pra este processo; o
+    // ON CONFLICT DO NOTHING evita duplicar a cada mensagem.
+    try {
+      await registrarSugestoesAutomaticas(codigo, derivarSugestoesAutomaticas(d));
+    } catch (erroSugestao: any) {
+      console.error("[urbi/chat] falha ao derivar/registrar sugestões automáticas:", erroSugestao?.message ?? erroSugestao);
+    }
+
+    // Redação pro Gemini: analista_nome (quem mudou o quê) e o texto livre de observação do MAC
+    // nunca vão pro modelo — o dossiê guarda o fato completo pra uso interno/futura tela do URBI,
+    // mas o Gemini só precisa do QUÊ e QUANDO, não de QUEM, nem do texto livre que um analista
+    // pode ter digitado (pode conter nome/contato que não foi filtrado como campo estruturado).
+    const semObservacaoTexto = (item: any) => {
+      const { observacao, ...resto } = item ?? {};
+      return observacao ? { ...resto, tem_observacao: true } : resto;
+    };
+    const semAnalista = (item: any) => {
+      const { analista_nome, ...resto } = item ?? {};
+      return resto;
+    };
+
     const marcacoes: any[] = Array.isArray(d.mac?.marcacoes_ultima_analise) ? d.mac.marcacoes_ultima_analise : [];
     const pendencias = (d.mac?.pendencias_ultima_analise ?? []).slice(0, 20);
     // "em_branco": itens ativos do modelo que o analista ainda não marcou nesta
@@ -189,6 +214,15 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
           })
           .slice(0, 15)
       : [];
+
+    const evolucaoBruta = d.mac?.evolucao ?? {};
+    const evolucao = {
+      itens_corrigidos: (evolucaoBruta.itens_corrigidos ?? []).slice(0, 15).map(semAnalista),
+      itens_voltaram_nao_conforme: (evolucaoBruta.itens_voltaram_nao_conforme ?? []).slice(0, 15).map(semAnalista),
+      itens_pendentes_mantidos: (evolucaoBruta.itens_pendentes_mantidos ?? []).slice(0, 15).map(semAnalista),
+    };
+    const historicoAlteracoesLipRecorte = (d.lip?.historico_alteracoes ?? []).slice(0, 10);
+
     const recorte = {
       processo: d.processo,
       situacoes: d.situacoes,
@@ -197,14 +231,16 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
         campos_em_x: d.lip?.campos_em_x,
         incoerencias: d.lip?.incoerencias,
         campos_tecnicos: d.lip?.campos_tecnicos,
+        historico_alteracoes: historicoAlteracoesLipRecorte,
       },
       mac: {
         numero_analises: d.mac?.numero_analises,
         ultima_analise: d.mac?.ultima_analise,
         resumo_ultima_analise: d.mac?.resumo_ultima_analise,
-        pendencias_ultima_analise: pendencias,
-        itens_em_branco: itensEmBranco,
-        itens_relacionados_pergunta: itensRelacionadosPergunta,
+        pendencias_ultima_analise: pendencias.map(semObservacaoTexto),
+        itens_em_branco: itensEmBranco.map(semObservacaoTexto),
+        itens_relacionados_pergunta: itensRelacionadosPergunta.map(semObservacaoTexto),
+        evolucao,
       },
       fluxo: {
         analises: d.fluxo?.analises,
@@ -443,6 +479,12 @@ VOCÊ NUNCA PODE, mesmo se o analista pedir diretamente:
 Se o analista pedir qualquer uma dessas ações, recuse com uma frase curta e explique que isso só se
 faz pela tela do processo — você só lê e explica, nunca executa.
 
+GRAU DE CERTEZA — use estas 5 palavras, sempre que comparar ou inferir algo (nunca invente outra):
+"confirmado" (fato direto de uma fonte do dossiê), "vale_conferir" (cruzamento/interpretação sua,
+nunca fato isolado), "base_insuficiente" (dado incompleto demais pra concluir), "nao_aplicavel", e
+"aguarda_confirmacao_humana" (você identificou algo mas só o analista decide o que fazer). Nunca
+diga "confirmado" para algo que é, na verdade, um cruzamento seu.
+
 Regras de uso do dossiê:
 - Diga sempre que uma informação vem do dossiê (ex.: "segundo o dossiê deste processo...").
 - Se "cobertura.completo" for false, avise que a leitura está parcial ANTES de responder com base nela — "fontes_indisponiveis" lista o que faltou.
@@ -451,6 +493,9 @@ Regras de uso do dossiê:
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
 - "itens_em_branco" são itens do checklist ainda SEM MARCAÇÃO nesta passada — "sem marcação" não é conforme nem aprovado, é ausência de decisão do analista até agora; é uma lista PARCIAL (o dossiê pode ter mais itens em branco do que os listados aqui), nunca afirme que ela é o total.
 - "itens_relacionados_pergunta" (quando presente) são itens do checklist que parecem ligados à pergunta atual do analista, por palavra-chave — pode incluir item conforme; sempre diga o status real de cada um, nunca assuma que aparecer aqui significa pendência.
+- "tem_observacao": true num item significa que o analista escreveu uma observação sobre ele na tela — você NÃO recebe o texto dela (não vai pro seu contexto por privacidade). Diga que existe uma observação registrada e sugira que o analista a releia na tela; nunca invente o que ela diz.
+- "mac.evolucao" compara a passada atual com o que o histórico (mac_historico) já sabia do item ANTES desta passada — grau_certeza "confirmado" nos 3 blocos, é fato direto: "itens_corrigidos" (estava não conforme, não está mais — pode dizer "foi corrigido", com "quando"), "itens_voltaram_nao_conforme" (tinha sido resolvido numa passada anterior e voltou a não conforme agora — alerte isso claramente, é informação operacional relevante), "itens_pendentes_mantidos" (segue não conforme desde uma passada anterior, sem mudança). Só compara item que tem "antes" real no histórico — se um item não aparece em nenhuma das 3 listas, não há comparação disponível pra ele, não conclua nada sobre evolução dele.
+- "lip.historico_alteracoes" só diz QUAIS campos do LIP mudaram e QUANDO — nunca invente um "antes"/"depois" de campo do LIP, você não recebe esse valor; se o analista perguntar o que mudou de fato, diga que só sabe QUE mudou, não PARA QUE valor. Essa lista costuma vir vazia mesmo em processo com LIP editado recentemente — não é prova de que nada mudou, é limite da fonte.
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
@@ -459,7 +504,7 @@ VERIFICAÇÃO DE COERÊNCIA (quando o analista pedir, ou quando você notar algo
 respondendo outra pergunta): cruze "lip.campos_tecnicos" (valor preenchido) com o texto de
 "mac.pendencias_ultima_analise" — o item do MAC e, se houver, o "trecho" de "vinculos_bip" —
 e com "lip.incoerencias" (já calculadas). Isso é INTERPRETAÇÃO SUA sobre fatos do dossiê, não um
-novo fato: sempre apresente como "vale conferir"/"pode valer a pena olhar de novo", nunca como
+novo fato: classifique sempre como grau_certeza "vale_conferir", nunca como
 "está errado" ou "está incoerente" de forma definitiva — você não decide isso, só aponta a leitura
 cruzada para o analista confirmar. Sempre cite os dois lados que comparou (campo do LIP + item do
 MAC ou trecho do BIP) para o analista poder checar rápido. Quando não achar nada digno de nota, diga
