@@ -19,6 +19,10 @@ type Stats = {
   campos_criticos: { codigo: string; tipo_processo: string; campos_vazios: number; campos_em_x: number; campos_totais: number; area_maior_que_terreno: boolean | null }[];
   numeracao: { tipo: string; ano: number; numero_inicial: number; numero_final: number; proximo: number; restantes: number; situacao: string }[];
   nao_conformidades: { grupo: string; texto: string; ref: string; assunto: string; frequencia: number }[];
+  tempo_etapas: { codigo: string; tipo_processo: string; analise_iniciada_em: string; analise_concluida_em: string; dias: number; marcacoes_no_mac: number }[];
+  retorno_por_slot: { tipo_processo: string; faixa_area: string; processos: number; processos_com_retorno: number; pct_retorno: number; media_passadas_quando_retorna: number | null; passadas_extras_total: number }[];
+  cobertura_satelite: { tipo_processo: string; tipo_documento: string; emitidos: number; com_mdp: number; com_mrp: number; faltando_mdp: number; faltando_mrp: number; pct_mdp: number; pct_mrp: number }[];
+  retrabalho_por_passada: { processo_codigo: string; exigencia: string; aba: string | null; referencia_legal: string | null; passada_anterior: number; status_na_passada_anterior: string; passada_atual: number; status_antes_da_volta: string; status_depois_da_volta: string; voltou_em: string }[];
 };
 
 const MESES = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -110,7 +114,7 @@ export default function BDIPage() {
   const [sessoes, setSessoes] = useState<any[]>([]);
   const [loadingSessoes, setLoadingSessoes] = useState(false);
   const [filtroAssunto, setFiltroAssunto] = useState("Todos");
-  const [subAba, setSubAba] = useState<"resumo"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
+  const [subAba, setSubAba] = useState<"resumo"|"eventos"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
 
   useEffect(() => {
     (async () => {
@@ -243,7 +247,7 @@ export default function BDIPage() {
               <>
                 {/* Sub-abas de estatísticas */}
                 {(() => {
-                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["analistas","👤 Analistas"],["retrabalho","🔁 Retrabalho"],["exigencias","📌 Exigências"],["qualidade","🧭 Qualidade"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
+                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["eventos","🕒 Eventos"],["analistas","👤 Analistas"],["retrabalho","🔁 Retrabalho"],["exigencias","📌 Exigências"],["qualidade","🧭 Qualidade"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
                   return (
                     <>
                       <div className="mb-6 flex gap-1 overflow-x-auto border-b border-[var(--border)] pb-3">
@@ -364,6 +368,95 @@ export default function BDIPage() {
                 </Secao>
                 </>}
 
+                {subAba === "eventos" && <>
+                <Secao
+                  titulo="Processos sem registro de MDP/MRP após emissão"
+                  descricao={<>Fato contado, não previsão: cruza o número do despacho já gravado em <code>analises_mac</code> com o que existe em <code>mdp_registros</code> e <code>mrp_registros</code> pelo mesmo número. Linha com % abaixo de 100 é emissão que saiu sem o satélite correspondente ter sido gravado — não diz por quê, só que falta.</>}
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-[var(--border)]">{["ASSUNTO","DOCUMENTO","EMITIDOS","COM MDP","FALTANDO MDP","% MDP","COM MRP","FALTANDO MRP","% MRP"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {stats.cobertura_satelite.map((r,i)=>{
+                          const tomPct = (p: number) => p >= 100 ? "ok" : p >= 80 ? "aviso" : "erro";
+                          return (
+                          <tr key={i} className={TR}>
+                            <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
+                            <td className={`${TD} text-xs`}>{r.tipo_documento}</td>
+                            <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.emitidos}</td>
+                            <td className={`${TD} text-center`}>{r.com_mdp}</td>
+                            <td className={`${TD} text-center ${r.faltando_mdp>0 ? "font-semibold text-red-600" : "text-[var(--text-muted)]"}`}>{r.faltando_mdp}</td>
+                            <td className={TD}><Badge tom={tomPct(r.pct_mdp)}>{r.pct_mdp}%</Badge></td>
+                            <td className={`${TD} text-center`}>{r.com_mrp}</td>
+                            <td className={`${TD} text-center ${r.faltando_mrp>0 ? "font-semibold text-red-600" : "text-[var(--text-muted)]"}`}>{r.faltando_mrp}</td>
+                            <td className={TD}><Badge tom={tomPct(r.pct_mrp)}>{r.pct_mrp}%</Badge></td>
+                          </tr>
+                          );
+                        })}
+                        {stats.cobertura_satelite.length===0 && <Vazio cols={9}>Sem dados</Vazio>}
+                      </tbody>
+                    </table>
+                  </div>
+                </Secao>
+
+                <Secao
+                  titulo="Análises iniciadas e ainda sem conclusão"
+                  descricao={<>Depende da migration <code>2026_09_02_bdi_analises_em_andamento.sql</code>, ainda não aplicada — esta seção fica vazia até isso acontecer. Quando aplicada: conta processo com <code>analise_iniciada_em</code> gravado e <code>analise_concluida_em</code> ainda nulo, e há quantos dias isso é verdade. Não estima quando vai fechar.</>}
+                >
+                  <div className="px-5 py-4 text-xs text-[var(--text-muted)]">
+                    Prévia do dado real (lido direto do banco em 02/09/2026, fora desta tela): Regularização SEI tinha 17 processos nessa situação, média de 27,9 dias em aberto, o mais antigo com 42,9 dias. Slot 5 tinha 1, com 15,9 dias.
+                  </div>
+                </Secao>
+
+                <Secao
+                  titulo="Tempo entre início e conclusão da análise"
+                  descricao={<>Só processo com início E fim gravados. <b>Ressalva importante</b>: hoje a maioria fecha em 0,0 dia porque a conclusão é carimbada na hora que o documento sai, e o analista costuma fazer tudo numa sentada — isto mede &quot;quando saiu o documento&quot;, não &quot;quanto tempo a análise levou&quot;. Não é métrica de desempenho do analista.</>}
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","ASSUNTO","INICIOU","CONCLUIU","DIAS","MARCAÇÕES MAC"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {stats.tempo_etapas.map((r,i)=>(
+                          <tr key={i} className={TR}>
+                            <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{r.codigo}</td>
+                            <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
+                            <td className={`${TD} text-xs`}>{r.analise_iniciada_em ? new Date(r.analise_iniciada_em).toLocaleDateString("pt-BR") : "—"}</td>
+                            <td className={`${TD} text-xs`}>{r.analise_concluida_em ? new Date(r.analise_concluida_em).toLocaleDateString("pt-BR") : "—"}</td>
+                            <td className={`${TD} text-center font-semibold ${Number(r.dias) > 1 ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>{r.dias}</td>
+                            <td className={`${TD} text-center`}>{r.marcacoes_no_mac}</td>
+                          </tr>
+                        ))}
+                        {stats.tempo_etapas.length===0 && <Vazio cols={6}>Nenhum processo com início e conclusão gravados ainda</Vazio>}
+                      </tbody>
+                    </table>
+                  </div>
+                </Secao>
+
+                <Secao
+                  titulo="Retorno por slot e faixa de área"
+                  descricao={<>Fato contado: processo com mais de uma passada em <code>analises_mac</code>. Não distingue &quot;voltou do SEI&quot; de &quot;analista abriu de novo&quot; — é a única coisa que o banco hoje consegue provar. Linha com &quot;amostra baixa&quot; tem menos de 5 processos: percentual ali não é conclusivo, só está aqui pra não esconder o dado.</>}
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-[var(--border)]">{["ASSUNTO","FAIXA DE ÁREA","PROCESSOS","COM RETORNO","% RETORNO","MÉDIA PASSADAS"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {stats.retorno_por_slot.map((r,i)=>(
+                          <tr key={i} className={TR}>
+                            <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
+                            <td className={`${TD} text-xs`}>{r.faixa_area}</td>
+                            <td className={`${TD} text-center`}>{r.processos}{r.processos < 5 && <span className="ml-1"><Badge tom="neutro">amostra baixa</Badge></span>}</td>
+                            <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.processos_com_retorno}</td>
+                            <td className={TD}>{r.processos >= 5 ? <Badge tom={r.pct_retorno >= 30 ? "aviso" : "ok"}>{r.pct_retorno}%</Badge> : <span className="text-[var(--text-muted)]">{r.pct_retorno}%</span>}</td>
+                            <td className={`${TD} text-center`}>{r.media_passadas_quando_retorna ?? "—"}</td>
+                          </tr>
+                        ))}
+                        {stats.retorno_por_slot.length===0 && <Vazio cols={6}>Sem dados</Vazio>}
+                      </tbody>
+                    </table>
+                  </div>
+                </Secao>
+                </>}
+
                 {subAba === "analistas" && <>
                 <Secao titulo="Desempenho por analista">
                   <div className="overflow-x-auto">
@@ -409,6 +502,32 @@ export default function BDIPage() {
                           </tr>
                         ))}
                         {stats.retrabalho.length===0 && <Vazio cols={5}>Sem trocas registradas</Vazio>}
+                      </tbody>
+                    </table>
+                  </div>
+                </Secao>
+
+                <Secao
+                  titulo="Retrabalho comprovado entre passadas"
+                  descricao={<>Só o item que mudou de status DEPOIS que uma passada nova começou — o analista mudando de ideia na mesma passada não entra aqui, é o trabalho normal acontecendo. Não diz se foi o interessado que corrigiu ou o analista que reconsiderou; só que a marca mudou depois do retorno. Cobertura do dado: 98,3% das trocas do histórico ligam a uma análise real (4.439 de 4.518) — o resto fica de fora, não distorce o número.</>}
+                >
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","EXIGÊNCIA","ABA","VOLTOU DA PASSADA","STATUS","QUANDO"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                      <tbody>
+                        {stats.retrabalho_por_passada.map((r,i)=>(
+                          <tr key={i} className={TR}>
+                            <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{r.processo_codigo}</td>
+                            <td className={`${TD} max-w-[320px] text-xs`} title={r.exigencia}>{r.exigencia.slice(0,110)}{r.exigencia.length>110?"…":""}</td>
+                            <td className={`${TD} text-xs text-[var(--text-muted)]`}>{r.aba || "—"}</td>
+                            <td className={`${TD} text-center`}><Badge tom="aviso">{r.passada_anterior} → {r.passada_atual}</Badge></td>
+                            <td className={`${TD} text-xs`}>
+                              <span className="text-red-600">{r.status_antes_da_volta}</span> → <span className="text-emerald-600">{r.status_depois_da_volta}</span>
+                            </td>
+                            <td className={`${TD} text-xs text-[var(--text-muted)]`}>{new Date(r.voltou_em).toLocaleDateString("pt-BR")}</td>
+                          </tr>
+                        ))}
+                        {stats.retrabalho_por_passada.length===0 && <Vazio cols={6}>Sem retrabalho entre passadas registrado</Vazio>}
                       </tbody>
                     </table>
                   </div>

@@ -34,7 +34,8 @@ export async function GET(req: NextRequest) {
   // densidade para ranquear ninguém. Ranking de pessoa com número errado é
   // pior que nenhum ranking. A view continua no banco, só não é exibida.
   const [resumo, porAssunto, porAnalista, porBairro, produtividade, analistas, naoConformidades,
-         retrabalho, exigenciasContexto, desempenhoReferencia, camposCriticos, numeracao] = await Promise.all([
+         retrabalho, exigenciasContexto, desempenhoReferencia, camposCriticos, numeracao,
+         tempoEtapas, retornoPorSlot, coberturaSatelite, retrabalhoPorPassada] = await Promise.all([
     supabaseAdmin.from("vw_bdi_resumo_geral").select("*").maybeSingle(),
     supabaseAdmin.from("vw_bdi_por_assunto").select("*"),
     supabaseAdmin.from("vw_bdi_por_analista").select("*"),
@@ -49,6 +50,17 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("vw_bdi_desempenho_referencia").select("*").order("reprovou", { ascending: false }).limit(20),
     supabaseAdmin.from("vw_bdi_campos_criticos").select("*").order("campos_vazios", { ascending: false }).limit(30),
     supabaseAdmin.from("vw_bdi_numeracao_saldo").select("*").order("restantes", { ascending: true }),
+    // Recorte "BDI vivo — inteligência por evidência" (02/09/2026): views
+    // aplicadas nas duas migrations anteriores (bdi_views_vivas e
+    // bdi_retorno_cobertura), lidas mas nunca ligadas a esta rota até agora.
+    supabaseAdmin.from("vw_bdi_tempo_etapas").select("*").order("dias", { ascending: false }).limit(30),
+    supabaseAdmin.from("vw_bdi_retorno_por_slot").select("*"),
+    supabaseAdmin.from("vw_bdi_cobertura_satelite").select("*"),
+    // vw_bdi_retrabalho_por_passada (02/09/2026): separa troca de status
+    // dentro da mesma passada de troca que só veio depois que uma passada
+    // nova começou — retrabalho de verdade, com a exigência e a passada em
+    // que voltou.
+    supabaseAdmin.from("vw_bdi_retrabalho_por_passada").select("*"),
   ]);
 
   const porView: Record<string, { error: { message: string } | null }> = {
@@ -57,7 +69,9 @@ export async function GET(req: NextRequest) {
     vw_bdi_analistas_desempenho: analistas, vw_bdi_nao_conformidades: naoConformidades,
     vw_bdi_retrabalho: retrabalho, vw_bdi_exigencias_por_contexto: exigenciasContexto,
     vw_bdi_desempenho_referencia: desempenhoReferencia, vw_bdi_campos_criticos: camposCriticos,
-    vw_bdi_numeracao_saldo: numeracao,
+    vw_bdi_numeracao_saldo: numeracao, vw_bdi_tempo_etapas: tempoEtapas,
+    vw_bdi_retorno_por_slot: retornoPorSlot, vw_bdi_cobertura_satelite: coberturaSatelite,
+    vw_bdi_retrabalho_por_passada: retrabalhoPorPassada,
   };
   const falhas = Object.entries(porView)
     .filter(([, r]) => r.error)
@@ -84,5 +98,9 @@ export async function GET(req: NextRequest) {
     campos_criticos: camposCriticos.data ?? [],
     numeracao: numeracao.data ?? [],
     nao_conformidades: naoConformidades.data ?? [],
+    tempo_etapas: tempoEtapas.data ?? [],
+    retorno_por_slot: retornoPorSlot.data ?? [],
+    cobertura_satelite: coberturaSatelite.data ?? [],
+    retrabalho_por_passada: retrabalhoPorPassada.data ?? [],
   });
 }
