@@ -396,6 +396,16 @@ Regras de uso do dossiê:
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
 
+VERIFICAÇÃO DE COERÊNCIA (quando o analista pedir, ou quando você notar algo digno de nota
+respondendo outra pergunta): cruze "lip.campos_tecnicos" (valor preenchido) com o texto de
+"mac.pendencias_ultima_analise" — o item do MAC e, se houver, o "trecho" de "vinculos_bip" —
+e com "lip.incoerencias" (já calculadas). Isso é INTERPRETAÇÃO SUA sobre fatos do dossiê, não um
+novo fato: sempre apresente como "vale conferir"/"pode valer a pena olhar de novo", nunca como
+"está errado" ou "está incoerente" de forma definitiva — você não decide isso, só aponta a leitura
+cruzada para o analista confirmar. Sempre cite os dois lados que comparou (campo do LIP + item do
+MAC ou trecho do BIP) para o analista poder checar rápido. Quando não achar nada digno de nota, diga
+isso claramente em vez de forçar uma observação.
+
 DOSSIÊ FACTUAL (JSON):
 ${dossie.contexto}`;
       } else {

@@ -628,7 +628,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     }
   }
 
-  async function enviar(textoForcado?: string, origem: OrigemComando = "texto") {
+  async function enviar(textoForcado?: string, origem: OrigemComando = "texto", pularInterpretacaoDeComando = false) {
     const texto = (textoForcado ?? input).trim();
     if (!texto || carregando) return;
     resetIdleTimer();
@@ -640,7 +640,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     // pilha. Vem ANTES do casador de intenções porque ele casa por substring —
     // "pilha de processos indeferidos" bateria em "pilha de processos" e o
     // filtro se perderia no caminho. Nenhuma IA aqui: é tabela e regex.
-    const comandoNav = interpretar(texto);
+    // `pularInterpretacaoDeComando` é só para pergunta pronta de botão (ex.:
+    // "Verificar coerência") — texto que EU escrevi, não o analista, e que por
+    // acaso bate em palavra-chave de navegação (ex.: "legislação" abre o BIP).
+    // Nunca usar em texto que o analista digitou ou falou.
+    const comandoNav = pularInterpretacaoDeComando ? null : interpretar(texto);
     if (comandoNav) {
       setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("positivo", poseId)); setPoseOpacity(1); }, 200);
       await executarComandoNavegacao(comandoNav, texto, origem);
@@ -649,13 +653,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
 
     // 2º) Intenções fixas do catálogo (silenciar, tchau, poses) — várias têm
     // mp3 pré-gravado, e o texto da resposta é o que faz o áudio tocar.
-    const intencao = casarIntencao(texto);
+    const intencao = pularInterpretacaoDeComando ? null : casarIntencao(texto);
 
     // 2.5º) Tinha cara de comando e não casou em lugar nenhum: responde de
     // graça com a lista do que ele entende, em vez de mandar para o chat com
     // IA — que é pago. Custo zero é regra, então tentativa de comando escrita
     // torto não pode virar chamada cobrada sem ninguém pedir.
-    if (!intencao && pareceComando(texto)) {
+    if (!pularInterpretacaoDeComando && !intencao && pareceComando(texto)) {
       setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose("atencao", poseId)); setPoseOpacity(1); }, 200);
       setMsgs(m => [...m, { role: "urbi", texto: AJUDA_COMANDOS }]);
       anunciar("URBI respondeu.");
@@ -934,6 +938,25 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           <span style={{ fontSize: 11, color: "#64748b" }}>
             Este navegador não reconhece voz — digite o comando.
           </span>
+        )}
+        {/* Atalho de verificação de coerência — só existe em modo Co-Analista
+            (processoCodigo presente, ver UrbiGlobal). Manda uma pergunta pronta pro
+            chat, mesmo caminho de uma mensagem digitada — o dossiê já tem os campos
+            do LIP, os itens do MAC e os fragmentos do BIP vinculados; quem julga a
+            coerência é o Gemini, lendo o dossiê, nunca uma regra fixa daqui. Usa
+            `pularInterpretacaoDeComando=true` porque a frase contém "legislação",
+            que bate na navegação determinística pro BIP (lib/urbi/navegacao.ts) —
+            aqui o texto é meu, curado, não algo que o analista digitou. */}
+        {processoCodigo && (
+          <button
+            type="button"
+            className="urbi-focavel"
+            onClick={() => enviar("Existe alguma incoerência entre os campos do LIP e o que o MAC exige aqui, considerando a legislação já vinculada?", "texto", true)}
+            disabled={carregando}
+            title="Pede ao URBI para cruzar os campos do LIP com os itens do MAC deste processo e a legislação já vinculada, e apontar o que parecer incoerente."
+            style={{ background: "#e2e8f0", color: "#1e293b", border: "none", borderRadius: 8, padding: "6px 10px", cursor: carregando ? "default" : "pointer", fontSize: 14, opacity: carregando ? 0.6 : 1 }}>
+            🔍 Verificar coerência
+          </button>
         )}
         {/* Seletor real de modo — ligado: BIP / Especialista em Legislação
             (só o BIP, exige fonte); desligado: Assistente de análise. */}
