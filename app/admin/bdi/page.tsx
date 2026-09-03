@@ -6,7 +6,10 @@ import { Database, Loader2, RefreshCw, Search, Users, Scale, Bot, BookOpen, Arro
 
 type Historico = { id: string; usuario_nome: string; linha: string; mensagem_usuario: string; resposta_urbi: string; criado_em: string };
 type UsuarioResumo = { id: string; urbi_ativo?: boolean };
+type Assunto = { id: string; slug: string; nome: string; ativo: boolean };
 type Stats = {
+  assunto_filtrado: { slug: string; nome: string } | null;
+  nao_filtraveis: string[];
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
   por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
   por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
@@ -113,8 +116,12 @@ export default function BDIPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [sessoes, setSessoes] = useState<any[]>([]);
   const [loadingSessoes, setLoadingSessoes] = useState(false);
-  const [filtroAssunto, setFiltroAssunto] = useState("Todos");
   const [subAba, setSubAba] = useState<"resumo"|"eventos"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
+  // Filtro global de Assunto — dinâmico, sem hardcode de slot: vem da mesma
+  // tabela `assuntos` que já alimenta o dropdown "ABRIR PROCESSO" da Home e
+  // o filtro de tipo da Pilha. "" = Tudo.
+  const [assuntos, setAssuntos] = useState<Assunto[]>([]);
+  const [assuntoSelecionado, setAssuntoSelecionado] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -123,11 +130,12 @@ export default function BDIPage() {
       if (!json.ok || json.data?.perfil !== "Administrador") { router.push("/"); return; }
       carregarTudo();
     })();
+    fetch("/api/admin/assuntos").then(r => r.json()).then(j => { if (j.ok) setAssuntos(j.data ?? []); }).catch(() => {});
   }, []);
 
   useEffect(() => {
-    if (aba === "estatisticas" && !stats) carregarStats();
-  }, [aba]);
+    if (aba === "estatisticas") carregarStats();
+  }, [aba, assuntoSelecionado]);
 
   async function carregarSessoes() {
     if (loadingSessoes) return;
@@ -149,7 +157,8 @@ export default function BDIPage() {
   async function carregarStats() {
     setLoadingStats(true);
     try {
-      const r = await fetch("/api/bdi/stats");
+      const qs = assuntoSelecionado ? `?assunto=${encodeURIComponent(assuntoSelecionado)}` : "";
+      const r = await fetch(`/api/bdi/stats${qs}`);
       const j = await r.json();
       if (j.ok) setStats(j);
     } finally {
@@ -159,11 +168,9 @@ export default function BDIPage() {
 
   const totalConversas = historico.length;
   const usuariosComUrbiAtivo = usuarios.filter(u => u.urbi_ativo).length;
-  // Stats filtradas por assunto
-  const assuntosDisponiveis = ["Todos", ...Array.from(new Set((stats?.por_assunto ?? []).map(x => x.assunto)))];
-  const porBairroFiltrado = filtroAssunto === "Todos"
-    ? stats?.por_bairro ?? []
-    : (stats?.por_bairro ?? []).filter(b => b.assunto === filtroAssunto);
+  // Por assunto já vem filtrada pelo servidor quando um assunto está
+  // selecionado (?assunto= na API) — só agrupa por porte aqui, não filtra de
+  // novo no client (antes havia um segundo filtro local, redundante).
   const porAssuntoAgrupado = (stats?.por_assunto ?? []).reduce((acc, row) => {
     if (!acc[row.assunto]) acc[row.assunto] = { assunto: row.assunto, total_processos: 0, area_total: 0, total_retornos: 0 };
     acc[row.assunto].total_processos += Number(row.total_processos);
@@ -172,13 +179,15 @@ export default function BDIPage() {
     return acc;
   }, {} as Record<string, { assunto: string; total_processos: number; area_total: number; total_retornos: number }>);
 
-  const selectAssunto = (
+  const seletorAssuntoGlobal = (
     <select
-      value={filtroAssunto}
-      onChange={e => setFiltroAssunto(e.target.value)}
-      className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+      value={assuntoSelecionado}
+      onChange={e => setAssuntoSelecionado(e.target.value)}
+      title="Filtra TODAS as estatísticas, tabelas e abas por um assunto (slot) só. Vazio = Tudo."
+      className="rounded-lg border border-[var(--accent)] bg-[var(--bg-card)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
     >
-      {assuntosDisponiveis.map(a => <option key={a} value={a}>{a}</option>)}
+      <option value="">🗂 Tudo</option>
+      {assuntos.filter(a => a.ativo).map(a => <option key={a.id} value={a.slug}>{a.nome}</option>)}
     </select>
   );
 
@@ -238,6 +247,18 @@ export default function BDIPage() {
 
         {aba === "estatisticas" && (
           <div>
+            {/* Filtro global de Assunto — vale pra TODAS as sub-abas abaixo, refaz a
+                consulta no servidor (não é filtro de apresentação). */}
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+              <span className="text-xs font-bold text-[var(--text-secondary)]">FILTRAR POR ASSUNTO</span>
+              {seletorAssuntoGlobal}
+              {stats?.assunto_filtrado && (
+                <span className="text-xs text-[var(--text-muted)]">
+                  Mostrando só <b className="text-[var(--text-primary)]">{stats.assunto_filtrado.nome}</b>. Duas seções continuam com o total de todos os assuntos — numeração (não pertence a um assunto) e desempenho por referência legal (a view não guarda o assunto de cada linha ainda).
+                </span>
+              )}
+            </div>
+
             {loadingStats && (
               <div className="flex items-center justify-center gap-2 py-16 text-sm text-[var(--text-muted)]">
                 <Loader2 size={16} className="animate-spin" /> Carregando estatísticas…
@@ -320,14 +341,14 @@ export default function BDIPage() {
                 </Secao>
 
                 {/* Top bairros */}
-                <Secao titulo="Top bairros" acao={selectAssunto}>
+                <Secao titulo="Top bairros">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-[var(--border)]">{["BAIRRO","PROCESSOS","ÁREA TOTAL (m²)","ASSUNTO"].map(h => <th key={h} className={TH}>{h}</th>)}</tr>
                       </thead>
                       <tbody>
-                        {porBairroFiltrado.map(row => (
+                        {(stats.por_bairro ?? []).map(row => (
                           <tr key={row.bairro + row.assunto} className={TR}>
                             <td className={`${TD} font-medium text-[var(--text-primary)]`}>{row.bairro}</td>
                             <td className={TD}>{row.total_processos}</td>
@@ -335,7 +356,7 @@ export default function BDIPage() {
                             <td className={TD}><Badge tom="aviso">{row.assunto}</Badge></td>
                           </tr>
                         ))}
-                        {porBairroFiltrado.length === 0 && <Vazio cols={4}>Sem dados</Vazio>}
+                        {(stats.por_bairro ?? []).length === 0 && <Vazio cols={4}>Sem dados</Vazio>}
                       </tbody>
                     </table>
                   </div>
@@ -661,12 +682,12 @@ export default function BDIPage() {
                 </>}
 
                 {subAba === "bairros" && <>
-                <Secao titulo="Distribuição por bairro" acao={selectAssunto}>
+                <Secao titulo="Distribuição por bairro">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-[var(--border)]">{["BAIRRO","PROCESSOS","ÁREA TOTAL (m²)","ASSUNTO"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
                       <tbody>
-                        {porBairroFiltrado.map(row=>(
+                        {(stats.por_bairro ?? []).map(row=>(
                           <tr key={row.bairro+row.assunto} className={TR}>
                             <td className={`${TD} font-medium text-[var(--text-primary)]`}>{row.bairro}</td>
                             <td className={TD}>{row.total_processos}</td>
@@ -674,7 +695,7 @@ export default function BDIPage() {
                             <td className={TD}><Badge tom="aviso">{row.assunto}</Badge></td>
                           </tr>
                         ))}
-                        {porBairroFiltrado.length===0 && <Vazio cols={4}>Sem dados</Vazio>}
+                        {(stats.por_bairro ?? []).length===0 && <Vazio cols={4}>Sem dados</Vazio>}
                       </tbody>
                     </table>
                   </div>
