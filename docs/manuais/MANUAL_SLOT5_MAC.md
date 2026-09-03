@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.20
-**Data:** 2026-09-02
+**Versão:** 1.21
+**Data:** 2026-09-03
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -272,6 +272,30 @@ cada item efetivamente lê agora. Testes de `scripts/testar_mac_motor_slot5.mts`
 mesmas 18 seções, só trocando o par `areaTerreno+areaPermeavelProjetada` pelo valor já subtraído)
 — `areaTerreno` continua existindo em `EntradaPilotoSlot5` porque `MAC_ITEM_DIMENSOES_TERRENO`
 (item 1 da seção 4.2) ainda depende dele, só a caixa de recarga parou de usar.
+
+### 4.5 Arquétipo 4 — `carimboMetadados.ts`, experimental e isolado (03/09/2026)
+
+Autorizado pelo Fábio como extensão do motor piloto: "biblioteca isolada, com evidência, página,
+região, confiança e abstenção — não ligar à tela nem alterar fluxo do Slot 5 nesta rodada". Novo
+arquivo `lib/mac-motor/slot5/experimental/carimboMetadados.ts` — **nenhum arquivo existente foi
+alterado**, não é importado por `index.ts` nem por rota nem por tela nenhuma. Mesmo padrão de
+`comparadorQuadroCarimbo.ts` (arquétipo 3, seção 4.2): sem `mac_item_id`, sem gravação em
+`mac_resultados_item`.
+
+Extrai só metadado NÃO pessoal do carimbo (número do projeto/protocolo, número da prancha, escala,
+data de emissão, título do projeto) — prompt proíbe explicitamente ler nome, CPF, CREA/CAU ou
+endereço do proprietário/responsável técnico. Comparador puro `compararConsistenciaCarimbo()`
+verifica se o número do projeto é o MESMO em todas as páginas com carimbo lido (sinal prático de
+prancha errada/misturada — nunca decisão de conformidade). 9 testes de fixture passando, sem rede.
+
+**`alturaDaEdificacao` foi cogitada e descartada** para esta rodada: cortes reais têm várias cotas
+de altura (total, entrepiso, platibanda) e escolher qual delas corresponde à definição do Fábio para
+`outorgaOnerosa` (seção 4.3) é decisão de conteúdo, não só leitura — risco real de decidir outorga
+onerosa errado. Fica como PENDENTE_VISAO, sem mudança.
+
+**Não testado contra Gemini de verdade ainda** — só a lógica determinística (comparador) tem teste.
+A extração em si (prompt → Gemini → fato) precisa de validação com prancha real antes de qualquer
+wiring, mesmo padrão que os arquétipos 1 e 2 já passaram (seção 5).
 
 ---
 
@@ -1257,6 +1281,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.21 | 2026-09-03 | Seção 4.5: arquétipo 4 do motor piloto — `lib/mac-motor/slot5/experimental/carimboMetadados.ts`, biblioteca isolada e experimental (autorização explícita do Fábio), extrai metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título) e compara consistência entre páginas. Sem `mac_item_id`, não gravado, não wired a nenhuma tela nem rota, nenhum arquivo existente alterado. `alturaDaEdificacao` cogitada e descartada por ambiguidade de qual cota extrair. Extração ainda não validada contra Gemini/documento real — só a lógica determinística tem teste |
 | 1.20 | 2026-09-02 | Nenhuma mudança na tela nem nas rotas do MAC. Registrado por conferência: o `mac_historico` (10.320 linhas) passou a ser **lido** por views novas do BDI — `vw_bdi_retrabalho` (trocas de status por processo), `vw_bdi_exigencias_por_contexto` (o que mais reprova por assunto, bairro e faixa de área) e `vw_bdi_desempenho_referencia` (qual referência legal mais reprova). O dado sempre esteve lá; ninguém colhia. Duas correções de leitura que valem para quem for consultar essas tabelas: `tipo_processo` foi gravado em duas grafias (`regularizacao` e `REGULARIZACAO`) e precisa de `lower()`, e as áreas vêm com vírgula decimal ("375,00"), então cast direto para numeric estoura a consulta. O Vigia do processo consome essas views na tela do LIP — ver `MANUAL_SLOT5_LIP.md` v1.19. Migration `2026_09_02_bdi_views_vivas.sql`, aplicada; nenhuma alteração em `analises_mac`, `mac_resultados_item` ou no checklist |
 | 1.19 | 2026-08-27 | Seção 8: revisão da 1.18 — o Fábio corrigiu o desenho inicial. CRUD de Padrões de Despacho sai do modal de emissão (removido o link "📋 Padrões" de dentro dele) e passa a viver só em `/admin/despacho-padroes`, alcançado por um botão dentro de Configurações (`/admin/configuracoes`), com seletor em cascata Slot→Módulo→Tipo pra funcionar como destino direto do ADMIN. Dentro do modal de emissão só resta "usar" um padrão já criado. Criação/edição/exclusão de padrão agora dispara evento de auditoria no satélite MAP (`registrar()`, novas ações `PADRAO_DESPACHO_CRIADO/EDITADO/EXCLUIDO` em `lib/auditoria-tipos.ts`) |
 | 1.18 | 2026-08-27 | Seção 8: "Padrões de Despacho" — textos reutilizáveis para Despacho Interno e Despacho ao Interessado, isolados por (módulo LIP\|MAC × slot × interno\|externo), tabela nova `despacho_padroes`. No despacho ao interessado, escolher um padrão substitui inteiramente as exigências do checklist no documento (`paragrafoSimples()` em vez de `montarExigencias()`); no despacho interno é só preenchimento de formulário, texto continua editável. Corrigida também a descrição da seção 8.2, que estava desatualizada (dizia reusar `/api/despacho-interno`; a rota própria do Slot 5 já existia antes desta mudança) |

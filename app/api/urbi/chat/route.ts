@@ -20,7 +20,7 @@ async function chatDentroDoBudget(): Promise<{ ok: true } | { ok: false; status:
     .from("urbis_api_calls")
     .select("*", { count: "exact", head: true })
     .eq("modulo", "URBI")
-    .in("operacao", ["chat_geral", "chat_bip", "chat_onmount"])
+    .in("operacao", ["chat_geral", "chat_bip", "chat_onmount", "chat_coanalista", "chat_coanalista_bip"])
     .gte("criado_em", umaHoraAtras)
     .eq("status", "ok");
   if (error) {
@@ -127,12 +127,59 @@ async function buscarNoBip(
   return { status: "ok", contexto: parts.join("\n\n"), fontes };
 }
 
+type ResultadoDossie =
+  | { status: "ok"; contexto: string }
+  | { status: "indisponivel"; motivo: string };
+
+/** O chat só recebe o dossiê já autorizado e redigido pela rota própria. */
+async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise<ResultadoDossie> {
+  try {
+    const destino = new URL(`/api/urbi/dossie?codigo=${encodeURIComponent(codigo)}`, req.url);
+    const resposta = await fetch(destino, {
+      headers: { cookie: req.headers.get("cookie") ?? "" },
+      cache: "no-store",
+    });
+    const json = await resposta.json().catch(() => null);
+    if (!resposta.ok || !json?.ok || !json?.data) {
+      return { status: "indisponivel", motivo: String(json?.erro ?? "Não foi possível carregar o dossiê factual.") };
+    }
+    const d = json.data;
+    const recorte = {
+      processo: d.processo,
+      situacoes: d.situacoes,
+      lip: {
+        campos_vazios: d.lip?.campos_vazios,
+        campos_em_x: d.lip?.campos_em_x,
+        incoerencias: d.lip?.incoerencias,
+        campos_tecnicos: d.lip?.campos_tecnicos,
+      },
+      mac: {
+        numero_analises: d.mac?.numero_analises,
+        ultima_analise: d.mac?.ultima_analise,
+        resumo_ultima_analise: d.mac?.resumo_ultima_analise,
+        pendencias_ultima_analise: (d.mac?.pendencias_ultima_analise ?? []).slice(0, 20),
+      },
+      fluxo: {
+        analises: d.fluxo?.analises,
+        retrabalho_entre_passadas: (d.fluxo?.retrabalho_entre_passadas ?? []).slice(0, 20),
+        documentos_emitidos: d.fluxo?.documentos_emitidos,
+        documentos_mhd: d.fluxo?.documentos_mhd,
+      },
+      cobertura: d.cobertura,
+    };
+    return { status: "ok", contexto: JSON.stringify(recorte).slice(0, 18000) };
+  } catch (erro: any) {
+    console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
+    return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const ctx = await autenticar(req);
     if (ctx instanceof NextResponse) return ctx;
 
-    const { message, history, usuario, tipo, assunto_id, modo_bip } = await req.json();
+    const { message, history, usuario, tipo, assunto_id, modo_bip, codigo } = await req.json();
 
     // Chave-mestra de custo: desligada por padrão. Enquanto
     // "chat_gemini_ativo" não for "true" em urbi_config, NENHUMA chamada ao
@@ -263,7 +310,18 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
     // o comportamento da resposta.
     const modoBipAtivo = modo_bip === true;
     let systemPromptFinal = systemPrompt;
-    const operacao = modoBipAtivo ? "chat_bip" : "chat_geral";
+
+    // Co-Analista: só ativa quando a tela atual sabe de qual processo se trata
+    // (UrbiGlobal deriva `codigo` da própria URL — ver components/urbi/UrbiGlobal.tsx —
+    // nunca é o usuário digitando um código no chat). O dossiê em si é sempre lido pela
+    // rota própria (autenticação e permissão de acesso ao processo resolvidas lá,
+    // nunca aqui — ver app/api/urbi/dossie/route.ts), então esta chamada nunca decide
+    // sozinha se o analista pode ver este processo.
+    const codigoLimpo = typeof codigo === "string" ? codigo.trim() : "";
+    const dossie = codigoLimpo ? await buscarDossieDoProcesso(req, codigoLimpo) : null;
+    const operacao = codigoLimpo
+      ? (modoBipAtivo ? "chat_coanalista_bip" : "chat_coanalista")
+      : (modoBipAtivo ? "chat_bip" : "chat_geral");
 
     if (modoBipAtivo) {
       const resultado = await buscarNoBip(message, undefined);
@@ -302,6 +360,49 @@ Você NÃO tem acesso à base jurídica do BIP neste modo. Nunca afirme disposit
 como se fosse fonte própria — isso é exclusivo do modo BIP. Ajude com o que puder de forma geral.`;
       if (detectarIntentLei(message)) {
         systemPromptFinal += `\n\nEssa pergunta parece ser sobre legislação/norma técnica. Ao final da resposta, em 1 frase curta, sugira ao analista ativar o modo BIP (botão "⚖️ Ativar BIP" no chat) para uma resposta com fonte recuperada e citável. Não responda como se já tivesse consultado a legislação.`;
+      }
+    }
+
+    // Bloco Co-Analista: some ao final do prompt já montado acima (BIP ou Assistente),
+    // nunca o substitui — o analista pode estar dentro de um processo E com o modo BIP
+    // ligado ao mesmo tempo. Regra do Fábio (03/09/2026): "ligando-a ao URBI apenas para
+    // leitura, detecção, explicação e sugestão — nunca para alterar, decidir, emitir ou
+    // pontuar." As instruções abaixo existem para isso, não são decoração.
+    if (dossie) {
+      if (dossie.status === "ok") {
+        systemPromptFinal += `
+
+MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo}.
+Você recebeu um DOSSIÊ FACTUAL deste processo, montado por consulta direta ao banco (não por você,
+não é sua interpretação). Use-o SOMENTE para: explicar a situação do processo, apontar o que está
+pendente, sugerir o que verificar a seguir, e apoiar dúvida técnica sobre ele.
+
+VOCÊ NUNCA PODE, mesmo se o analista pedir diretamente:
+- decidir, aprovar, reprovar ou concluir uma análise;
+- gerar, emitir ou redigir despacho, parecer ou qualquer documento;
+- atribuir ou calcular pontuação (MRP);
+- alterar, preencher ou corrigir um campo do LIP ou um item do MAC;
+- consumir ou sugerir número de numeração.
+Se o analista pedir qualquer uma dessas ações, recuse com uma frase curta e explique que isso só se
+faz pela tela do processo — você só lê e explica, nunca executa.
+
+Regras de uso do dossiê:
+- Diga sempre que uma informação vem do dossiê (ex.: "segundo o dossiê deste processo...").
+- Se "cobertura.completo" for false, avise que a leitura está parcial ANTES de responder com base nela — "fontes_indisponiveis" lista o que faltou.
+- Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
+- "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
+- "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
+
+DOSSIÊ FACTUAL (JSON):
+${dossie.contexto}`;
+      } else {
+        systemPromptFinal += `
+
+MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo} — DOSSIÊ INDISPONÍVEL:
+${dossie.motivo}
+Informe ao analista que não conseguiu carregar os dados deste processo agora (pode ser falta de
+permissão, processo não encontrado, ou falha técnica — você não sabe qual) e sugira tentar de novo ou
+abrir o processo pela tela. NÃO responda perguntas específicas sobre este processo com suposição.`;
       }
     }
 

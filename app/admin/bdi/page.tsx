@@ -12,6 +12,8 @@ type Stats = {
   nao_filtraveis: string[];
   analises_em_andamento: { tipo_processo: string; processos_em_andamento: number; dias_media_em_aberto: number; dias_mais_antigo: number }[];
   analises_em_andamento_pendente: boolean;
+  aguardando_retorno: { processo_codigo: string; tipo_processo: string; analise_que_gerou_despacho: number | null; despacho_emitido_em: string; proxima_analise: number | null; proxima_analise_iniciada_em: string | null; dias_aguardando_retorno: number | null; situacao: "retornou" | "ainda aguardando" | "base insuficiente" }[];
+  aguardando_retorno_pendente: boolean;
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
   por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
   por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
@@ -628,6 +630,39 @@ export default function BDIPage() {
                             </tr>
                           ))}
                           {stats.analises_em_andamento.length===0 && <Vazio cols={4}>Nenhum processo em análise sem documento agora</Vazio>}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Secao>
+
+                <Secao
+                  titulo="Tempo aguardando retorno do interessado"
+                  descricao={<>Só conta a partir de quando o despacho JÁ SAIU — <code>urbis_numeracao_uso.emitido_em</code> — até a passada seguinte começar (<code>analises_mac.criado_em</code>). Não é tempo de análise do analista, é o relógio depois que a decisão já foi tomada. Confirma que o número é do despacho AO INTERESSADO (não despacho interno) cruzando com <code>analises_mac.numero_despacho</code> — os dois saem da mesma série de numeração, então não dá pra confiar só no tipo do documento.</>}
+                >
+                  {stats.aguardando_retorno_pendente ? (
+                    <div className="px-5 py-4 text-xs text-[var(--text-muted)]">
+                      Depende da migration <code>2026_09_03_bdi_aguardando_retorno.sql</code>, ainda não aplicada — esta seção fica vazia até isso acontecer. Prévia do dado real (lido direto do banco em 03/09/2026, fora desta tela): de 69 despachos ao interessado, 35 ainda aguardando (o mais antigo há 42,5 dias), 5 já retornaram (2,5 a 23,5 dias de espera), 29 com base insuficiente (sem número de análise registrado, ou não bateu com o despacho ao interessado).
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","ASSUNTO","PASSADA","DESPACHO EM","SITUAÇÃO","DIAS"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {stats.aguardando_retorno.map((r,i)=>{
+                            const tom = r.situacao === "ainda aguardando" ? "aviso" : r.situacao === "retornou" ? "ok" : "neutro";
+                            return (
+                            <tr key={i} className={TR}>
+                              <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{r.processo_codigo}</td>
+                              <td className={TD}><Badge tom="accent">{nomeTipoProcesso(r.tipo_processo)}</Badge></td>
+                              <td className={`${TD} text-center`}>{r.analise_que_gerou_despacho ?? "—"}</td>
+                              <td className={`${TD} text-xs`}>{new Date(r.despacho_emitido_em).toLocaleDateString("pt-BR")}</td>
+                              <td className={TD}><Badge tom={tom}>{r.situacao}</Badge></td>
+                              <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.dias_aguardando_retorno ?? "—"}</td>
+                            </tr>
+                            );
+                          })}
+                          {stats.aguardando_retorno.length===0 && <Vazio cols={6}>Sem dados</Vazio>}
                         </tbody>
                       </table>
                     </div>

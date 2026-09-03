@@ -247,6 +247,18 @@ export async function GET(req: NextRequest) {
     console.warn("[bdi/stats] vw_bdi_analises_em_andamento indisponível (migration não aplicada?):", erroAnalisesEmAndamento.message);
   }
 
+  // vw_bdi_aguardando_retorno (supabase/migrations/2026_09_03_bdi_aguardando_retorno.sql)
+  // — Fase 2 do recorte, NÃO APLICADA ainda. Mesmo padrão isolado acima:
+  // falha aqui não derruba o painel, e a consulta passa a funcionar
+  // sozinha assim que a migration for aplicada.
+  let qAguardandoRetorno = supabaseAdmin.from("vw_bdi_aguardando_retorno").select("*").limit(50);
+  if (assuntoAtivo) qAguardandoRetorno = qAguardandoRetorno.eq("tipo_processo", assuntoSlug);
+  const { data: aguardandoRetornoData, error: erroAguardandoRetorno } = await qAguardandoRetorno;
+  const aguardandoRetornoPendente = !!erroAguardandoRetorno;
+  if (erroAguardandoRetorno) {
+    console.warn("[bdi/stats] vw_bdi_aguardando_retorno indisponível (migration não aplicada?):", erroAguardandoRetorno.message);
+  }
+
   return NextResponse.json({
     ok: true,
     assunto_filtrado: assuntoAtivo ? { slug: assuntoSlug, nome: assuntoAtivo.nome } : null,
@@ -255,6 +267,8 @@ export async function GET(req: NextRequest) {
     nao_filtraveis: ["vw_bdi_desempenho_referencia", "vw_bdi_numeracao_saldo"],
     analises_em_andamento: analisesEmAndamentoData ?? [],
     analises_em_andamento_pendente: analisesEmAndamentoPendente,
+    aguardando_retorno: aguardandoRetornoData ?? [],
+    aguardando_retorno_pendente: aguardandoRetornoPendente,
     resumo: resumo.data ?? {},
     por_assunto: porAssunto.data ?? [],
     por_analista: porAnalista.data ?? [],

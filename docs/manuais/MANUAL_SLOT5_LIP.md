@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.19
-**Data:** 2026-09-02
+**Versão:** 1.20
+**Data:** 2026-09-03
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1142,6 +1142,7 @@ nunca a de outro.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.20 | 2026-09-03 | Nenhuma mudança na tela nem em `processos.dados` do LIP. Registrado por conferência: motor de execução do MAC (`lib/mac-motor/slot5/`) ganhou um 4º arquétipo experimental isolado (`carimboMetadados.ts`) — extrai só metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título), sem gravar nada, sem tocar em campo do LIP, sem wiring a nenhuma tela. Ver `MANUAL_SLOT5_MAC.md` v1.21 |
 | 1.19 | 2026-09-02 | Tela do LIP (`ProcessoClient.tsx`, todos os slots) ganhou o **Vigia do processo**, logo acima do bloco LIP: painel só de leitura com fatos verificáveis — campos vazios, campos em X (mostrados como informação de ausência, nunca como erro), incoerências reais (ex.: área construída maior que a do terreno, lendo vírgula decimal), número de análises, retrabalho vindo do histórico do MAC, exigências recorrentes do assunto e aviso de numeração. Cada aviso declara a origem (campo do processo / histórico do MAC / checklist / BIP / view do BDI). Traz também a **triagem por evidência** (mais simples para análise · exige atenção · maior risco de retrabalho), sempre com os motivos listados e **sem porcentagem ou previsão de prazo**; critérios visíveis e ajustáveis em `lib/bdi/vigia.ts`. Referência legal só aparece quando existe vínculo real MAC × BIP — sem vínculo, nada é citado. Nada é escrito no processo. Custo zero: SQL puro, sem Gemini/Groq/ElevenLabs. Rota nova `GET /api/bdi/vigia` com `verificarOwnership` — analista não alcança processo de terceiro (403 verificado). Ver `MANUAL_SLOT5_MAC.md` v1.20 |
 | 1.18 | 2026-08-27 | Seção 21: revisão da 1.17 — o Fábio corrigiu o desenho inicial. O link "📋 Padrões" saiu do modal de Despacho Interno do LIP; o modal só usa padrões já criados. CRUD (criar/editar/excluir) vive só em `/admin/despacho-padroes`, alcançado por Configurações — ver `MANUAL_SLOT5_MAC.md` v1.19 |
 | 1.17 | 2026-08-27 | Seção 21: botão de Despacho Interno do LIP (`ProcessoClient.tsx`, todos os slots) ganhou seletor "Usar um padrão" + link "📋 Padrões" — tabela nova `despacho_padroes`, bucket `modulo=LIP&tipo_despacho=interno`, isolado por `assunto_id`. Sem lógica exclusiva do Slot 5; conferido que o botão de Despacho Interno do Slot 5 continua na rota própria `/api/mac/slot-05/despacho-interno`. Confirmado que o LIP não tem (nem terá) Despacho Externo — ver `MANUAL_SLOT5_MAC.md` v1.18 para o que mudou do lado MAC |

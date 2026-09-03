@@ -119,6 +119,10 @@ type Props = {
   setAberto: (v: boolean) => void;
   modo?: "center" | "corner";
   assuntoId?: string | null;
+  // Código do processo da rota atual (ver UrbiGlobal) — quando presente, o chat pede o dossiê
+  // factual do processo (app/api/urbi/dossie) e passa a responder como Co-Analista: só leitura,
+  // detecção, explicação e sugestão, nunca decisão/emissão/pontuação (ver system prompt da rota).
+  processoCodigo?: string | null;
   urbiVoz?: boolean;
   // Um modal crítico do processo está aberto — recolhe o URBI para um
   // ícone discreto em vez de cobrir o modal. Só se aplica no modo "corner".
@@ -149,7 +153,7 @@ function lerCornerPosSalvo(): { bottom: number; right: number } {
   return DEFAULT_CORNER;
 }
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
   // Permissão de áudio: decidida só pelo administrador (urbi_modo_audio) pra
   // qualquer usuário, ele mesmo incluído — o Administrador concede ou remove
@@ -684,7 +688,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         // history é só a conversa do modo ATIVO — trocar de modo troca de
         // qual histórico este `history` aponta (ver derivação acima), então
         // o modo anterior nunca é enviado ao modelo.
-        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId, modo_bip: modoBip }),
+        body: JSON.stringify({ message: texto, history, usuario, assunto_id: assuntoId, modo_bip: modoBip, codigo: processoCodigo }),
       });
       const json = await res.json();
       if (json.ok) {

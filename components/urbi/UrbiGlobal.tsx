@@ -21,6 +21,7 @@ export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
   const [urbiAberto, setUrbiAberto] = useState<boolean>(lerUrbiAbertoSalvo);
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
+  const [processoCodigo, setProcessoCodigo] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const pathname = usePathname();
   const isHome = pathname === "/";
@@ -66,7 +67,12 @@ export default function UrbiGlobal() {
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei)\/([^/?]+)/);
-    processoIdRef.current = match ? decodeURIComponent(match[2]) : null;
+    const codigo = match ? decodeURIComponent(match[2]) : null;
+    processoIdRef.current = codigo;
+    // Mesmo valor do ref, mas em state — é o que vira prop de UrbiChat (ref não
+    // dispara nova leitura de prop; só usado aqui para o chat saber de qual
+    // processo pedir o dossiê factual, ver app/api/urbi/dossie).
+    setProcessoCodigo(codigo);
   }, [pathname]);
 
   useEffect(() => {
@@ -325,6 +331,7 @@ export default function UrbiGlobal() {
         setAberto={setUrbiAberto}
         modo={isHome ? "center" : "corner"}
         assuntoId={assuntoId}
+        processoCodigo={processoCodigo}
         urbiVoz={usuario?.urbi_voz ?? false}
         modalAberto={modalAberto}
         mensagemInicial={mensagemInicial}
