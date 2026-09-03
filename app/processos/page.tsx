@@ -592,13 +592,17 @@ function ProcessosConteudo() {
                     MAC: {p.situacao_mac || "—"}
                   </span>
                 </div>
-                {/* Some no telão (lg+) quando repete literalmente o texto do badge MAC
-                    acima (situacaoGeral espelha situacaoMac em "Aguardando retorno" e
-                    "Arquivado/indeferido", lib/bdi/situacao.ts) — continua visível em
-                    telas menores, onde o par LIP/MAC fica oculto e este é o único resumo. */}
+                {/* Some no telão (lg+) sempre que o MAC já começou — a partir daí
+                    situacaoGeral() é sempre DERIVADA do MAC (lib/bdi/situacao.ts:
+                    "Em análise" -> "MAC em análise", "Aguardando retorno" e
+                    "Arquivado/indeferido" ficam com o mesmo nome), então o badge MAC
+                    acima já conta o mesmo fato. Só quando MAC ainda é "Não iniciado" a
+                    geral traz informação NOVA (resume o LIP: "LIP pendente"/"Em
+                    cadastro") — aí continua aparecendo. Em telas menores (sem o par
+                    LIP/MAC) ela sempre aparece, é o único resumo ali. */}
                 <span
                   title={p.situacao_motivo}
-                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_geral && p.situacao_geral === p.situacao_mac ? "lg:hidden" : ""} ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_mac && p.situacao_mac !== "Não iniciado" ? "lg:hidden" : ""} ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.situacao_geral || "—"}
                 </span>
 
