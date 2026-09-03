@@ -1,4 +1,5 @@
 import type { EventoMacHistorico } from "../dossieProcesso";
+import type { EventoCatalogo } from "./tipos";
 
 /**
  * Forma comum de entrada dos 3 adaptadores — tudo que eles recebem já foi consultado pelo
@@ -15,4 +16,6 @@ export type EntradaAdaptador = {
   erroCoberturaBip: string | null;
   mdpRegistros: unknown[];
   mrpRegistros: unknown[];
+  /** mac_checklist_itens_historico do modelo deste slot — Fase D, trilha real (não inferida). */
+  eventosCatalogo: EventoCatalogo[];
 };

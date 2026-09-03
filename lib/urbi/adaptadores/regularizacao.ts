@@ -27,6 +27,7 @@ export function montarDossieTecnicoRegularizacao(entrada: EntradaAdaptador): Dos
       montarCobertura("mrp_registros", entrada.mrpRegistros, null),
     ],
     mudancas_estruturais: mudancasEstruturais,
+    eventos_catalogo_recentes: entrada.eventosCatalogo,
     observacoes_do_slot: [
       "Regularização SEI não tem leitura de documento estruturada (mhd_resultados_campo) — não é falha do processo, esse mecanismo hoje só existe pro Slot 5.",
       "Ausência de vínculo BIP aqui é o normal histórico (0% de cobertura confirmada em auditoria), não uma anomalia deste processo específico.",

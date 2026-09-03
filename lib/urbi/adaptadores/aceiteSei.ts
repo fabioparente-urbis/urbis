@@ -28,6 +28,7 @@ export function montarDossieTecnicoAceiteSei(entrada: EntradaAdaptador): DossieT
       montarCobertura("mrp_registros", entrada.mrpRegistros, null),
     ],
     mudancas_estruturais: mudancasEstruturais,
+    eventos_catalogo_recentes: entrada.eventosCatalogo,
     observacoes_do_slot: [
       "Aceite SEI tem pouca massa histórica no sistema (poucas dezenas de eventos no total, auditoria de 03/09/2026) — base insuficiente é o padrão aqui, não exceção; declare isso em vez de tratar ausência como anomalia.",
       "Aceite SEI não tem leitura de documento estruturada (mhd_resultados_campo) — mecanismo hoje só existe pro Slot 5.",

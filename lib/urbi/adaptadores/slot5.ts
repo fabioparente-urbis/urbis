@@ -29,6 +29,7 @@ export function montarDossieTecnicoSlot5(entrada: EntradaAdaptador): DossieTecni
       montarCobertura("mrp_registros", entrada.mrpRegistros, null),
     ],
     mudancas_estruturais: mudancasEstruturais,
+    eventos_catalogo_recentes: entrada.eventosCatalogo,
     observacoes_do_slot: [
       "Slot 5 é o único com leitura de documento estruturada (mhd_resultados_campo) hoje — cruzamento LIP×documento (Fase B) só produz resultado real aqui, nos outros 2 slots fica vazio (não é erro, é ausência real de fonte).",
       "Cobertura BIP historicamente alta (~85% dos itens ativos, auditoria de 03/09/2026) — ausência de vínculo num item específico deste processo é mais provável ser exceção real do que padrão do slot, diferente de Regularização/Aceite.",

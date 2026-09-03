@@ -29,6 +29,13 @@ export type MudancaEstrutural = {
   ultimo_registro_com_texto_antigo: string;
 };
 
+export type EventoCatalogo = {
+  item_id: string;
+  acao: "criado" | "atualizado" | "desativado" | "reativado";
+  campos_alterados: Record<string, { de: unknown; para: unknown }>;
+  criado_em: string;
+};
+
 export type DossieTecnicoSlot = {
   slot: string;
   nome_slot: string;
@@ -39,6 +46,15 @@ export type DossieTecnicoSlot = {
   };
   coberturas: CoberturaFonte[];
   mudancas_estruturais: MudancaEstrutural[];
+  /**
+   * Trilha REAL de mudança do catálogo deste slot (mac_checklist_itens_historico, Fase D —
+   * trigger de banco, existe desde 03/09/2026). Diferente de `mudancas_estruturais` (que
+   * INFERE divergência comparando texto histórico com o atual): isto é evento gravado de
+   * verdade, com ação e campo exato. Só cobre daqui pra frente — mudança de catálogo anterior
+   * a 03/09/2026 não tem linha aqui, só a inferência de `mudancas_estruturais` (quando o item
+   * chegou a ser marcado alguma vez).
+   */
+  eventos_catalogo_recentes: EventoCatalogo[];
   /** Nota de calibração — o que é normal esperar deste slot hoje, baseado em auditoria real, não em regra inventada. */
   observacoes_do_slot: string[];
 };
