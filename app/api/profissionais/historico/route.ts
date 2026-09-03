@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { autenticar } from "@/lib/auth";
 
 const SENTINELAS = new Set([
   "NP", "N.P.", "N.P", "CAU-NP", "CREA-NP", "N/A", "NA", "-", "--", "",
@@ -32,6 +33,9 @@ const ROTULO_PAPEL: Record<string, string> = {
  */
 export async function GET(req: NextRequest) {
   try {
+    const ctx = await autenticar(req);
+    if (ctx instanceof NextResponse) return ctx;
+
     const { searchParams } = new URL(req.url);
     const cau = searchParams.get("cau");
     const crea = searchParams.get("crea");
