@@ -28,6 +28,27 @@ type Stats = {
   retrabalho_por_passada: { processo_codigo: string; exigencia: string; aba: string | null; referencia_legal: string | null; passada_anterior: number; status_na_passada_anterior: string; passada_atual: number; status_antes_da_volta: string; status_depois_da_volta: string; voltou_em: string }[];
 };
 
+// "BDI — Co-Analista por evidência": um processo por linha, o motivo de
+// cada fato junto — nunca um número de chance, nunca um prazo estimado.
+type Prioridade = {
+  codigo: string;
+  tipo_processo: string;
+  situacao_geral: string; situacao_geral_motivo: string;
+  situacao_lip: string; situacao_lip_motivo: string;
+  situacao_mac: string; situacao_mac_motivo: string;
+  numero_analises: number;
+  campos_vazios: string[];
+  campos_em_x: string[];
+  campos_totais: number;
+  retrabalho_comprovado: { exigencia: string; aba: string | null; passada_anterior: number; passada_atual: number; voltou_em: string }[];
+  satelite: { numero: string; tem_mdp: boolean; tem_mrp: boolean } | null;
+  exigencias_recorrentes: { exigencia: string; vezes: number; processos: number }[];
+  vinculos_legais: { referencia: string; confianca: string }[];
+  avisos: { id: string; titulo: string; detalhe: string; fonte: string; severidade: "info" | "atencao" | "alerta" }[];
+  triagem: string;
+  triagem_motivos: string[];
+};
+
 const MESES = ["","Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 // ── Casca visual ────────────────────────────────────────────────────────────
@@ -116,12 +137,18 @@ export default function BDIPage() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [sessoes, setSessoes] = useState<any[]>([]);
   const [loadingSessoes, setLoadingSessoes] = useState(false);
-  const [subAba, setSubAba] = useState<"resumo"|"eventos"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
+  const [subAba, setSubAba] = useState<"resumo"|"prioridades"|"eventos"|"analistas"|"retrabalho"|"exigencias"|"qualidade"|"conformidade"|"bairros"|"sessoes">("resumo");
   // Filtro global de Assunto — dinâmico, sem hardcode de slot: vem da mesma
   // tabela `assuntos` que já alimenta o dropdown "ABRIR PROCESSO" da Home e
   // o filtro de tipo da Pilha. "" = Tudo.
   const [assuntos, setAssuntos] = useState<Assunto[]>([]);
   const [assuntoSelecionado, setAssuntoSelecionado] = useState("");
+  // Prioridades (recorte "Co-Analista por evidência") — carrega à parte de
+  // stats: é outra rota, outro payload, e só vale a pena buscar quando a
+  // aba é aberta de verdade.
+  const [prioridades, setPrioridades] = useState<Prioridade[] | null>(null);
+  const [loadingPrioridades, setLoadingPrioridades] = useState(false);
+  const [expandido, setExpandido] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -136,6 +163,22 @@ export default function BDIPage() {
   useEffect(() => {
     if (aba === "estatisticas") carregarStats();
   }, [aba, assuntoSelecionado]);
+
+  useEffect(() => {
+    if (aba === "estatisticas" && subAba === "prioridades") carregarPrioridades();
+  }, [aba, subAba, assuntoSelecionado]);
+
+  async function carregarPrioridades() {
+    setLoadingPrioridades(true);
+    try {
+      const qs = assuntoSelecionado ? `?assunto=${encodeURIComponent(assuntoSelecionado)}` : "";
+      const r = await fetch(`/api/bdi/prioridades${qs}`);
+      const j = await r.json();
+      if (j.ok) setPrioridades(j.data);
+    } finally {
+      setLoadingPrioridades(false);
+    }
+  }
 
   async function carregarSessoes() {
     if (loadingSessoes) return;
@@ -268,7 +311,7 @@ export default function BDIPage() {
               <>
                 {/* Sub-abas de estatísticas */}
                 {(() => {
-                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["eventos","🕒 Eventos"],["analistas","👤 Analistas"],["retrabalho","🔁 Retrabalho"],["exigencias","📌 Exigências"],["qualidade","🧭 Qualidade"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
+                  const subAbas: [string, string][] = [["resumo","📊 Resumo"],["prioridades","🎯 Prioridades"],["eventos","🕒 Eventos"],["analistas","👤 Analistas"],["retrabalho","🔁 Retrabalho"],["exigencias","📌 Exigências"],["qualidade","🧭 Qualidade"],["conformidade","⚠️ Conformidade"],["bairros","📍 Bairros"],["sessoes","🕑 Sessões"]];
                   return (
                     <>
                       <div className="mb-6 flex gap-1 overflow-x-auto border-b border-[var(--border)] pb-3">
@@ -386,6 +429,101 @@ export default function BDIPage() {
                       </tbody>
                     </table>
                   </div>
+                </Secao>
+                </>}
+
+                {subAba === "prioridades" && <>
+                <Secao
+                  titulo="Prioridades — onde olhar primeiro"
+                  descricao={<>Um processo por linha, ordenado por quantidade de fato objetivo (alerta, retrabalho comprovado, satélite faltando) — não é chance nem nota, é contagem. Nenhum nome de interessado aparece aqui, só o código do processo. Clique numa linha pra ver o motivo de cada coluna.</>}
+                >
+                  {loadingPrioridades && (
+                    <div className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--text-muted)]">
+                      <Loader2 size={16} className="animate-spin" /> Calculando prioridades…
+                    </div>
+                  )}
+                  {!loadingPrioridades && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","ASSUNTO","SITUAÇÃO","TRIAGEM","ANÁLISES","LIP VAZIO","RETRABALHO","SATÉLITE"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                        <tbody>
+                          {(prioridades ?? []).map((p) => {
+                            const tomTriagem = p.triagem === "maior risco de retrabalho" ? "erro" : p.triagem === "exige atenção" ? "aviso" : "ok";
+                            const semSatelite = p.satelite && (!p.satelite.tem_mdp || !p.satelite.tem_mrp);
+                            const aberto = expandido === p.codigo;
+                            return (
+                              <React.Fragment key={p.codigo}>
+                                <tr className={`${TR} cursor-pointer`} onClick={() => setExpandido(aberto ? null : p.codigo)}>
+                                  <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{aberto ? "▾" : "▸"} {p.codigo}</td>
+                                  <td className={TD}><Badge tom="accent">{nomeTipoProcesso(p.tipo_processo)}</Badge></td>
+                                  <td className={TD} title={p.situacao_geral_motivo}>{p.situacao_geral}</td>
+                                  <td className={TD}><Badge tom={tomTriagem}>{p.triagem}</Badge></td>
+                                  <td className={`${TD} text-center`}>{p.numero_analises || "—"}</td>
+                                  <td className={`${TD} text-center ${p.campos_vazios.length>0 ? "font-semibold text-orange-600" : "text-[var(--text-muted)]"}`}>{p.campos_vazios.length}</td>
+                                  <td className={`${TD} text-center ${p.retrabalho_comprovado.length>0 ? "font-semibold text-red-600" : "text-[var(--text-muted)]"}`}>{p.retrabalho_comprovado.length || "—"}</td>
+                                  <td className={TD}>
+                                    {!p.satelite ? <span className="text-[var(--text-muted)]">—</span>
+                                      : semSatelite ? <Badge tom="erro">faltando</Badge>
+                                      : <Badge tom="ok">completo</Badge>}
+                                  </td>
+                                </tr>
+                                {aberto && (
+                                  <tr className="border-b border-[var(--border)]">
+                                    <td colSpan={8} className="bg-[var(--bg-secondary)] px-5 py-4 text-xs">
+                                      <div className="grid gap-4 md:grid-cols-2">
+                                        <div>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Situação</p>
+                                          <p className="text-[var(--text-secondary)]">LIP: {p.situacao_lip} — {p.situacao_lip_motivo}</p>
+                                          <p className="text-[var(--text-secondary)]">MAC: {p.situacao_mac} — {p.situacao_mac_motivo}</p>
+                                          {p.campos_vazios.length > 0 && (
+                                            <p className="mt-1 text-[var(--text-muted)]">Campos vazios: {p.campos_vazios.slice(0,15).join(", ")}{p.campos_vazios.length>15?"…":""}</p>
+                                          )}
+                                          {p.satelite && (
+                                            <p className="mt-1 text-[var(--text-muted)]">Documento nº {p.satelite.numero} — MDP {p.satelite.tem_mdp?"✓":"✕ faltando"}, MRP {p.satelite.tem_mrp?"✓":"✕ faltando"}.</p>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Retrabalho comprovado entre análises</p>
+                                          {p.retrabalho_comprovado.length === 0
+                                            ? <p className="text-[var(--text-muted)]">Nenhum.</p>
+                                            : p.retrabalho_comprovado.map((r, i) => (
+                                                <p key={i} className="text-[var(--text-secondary)]">Análise {r.passada_anterior}→{r.passada_atual} ({r.aba || "—"}): {r.exigencia.slice(0,90)}</p>
+                                              ))}
+                                        </div>
+                                        <div>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Avisos (fato + fonte)</p>
+                                          {p.avisos.length === 0
+                                            ? <p className="text-[var(--text-muted)]">Nenhum aviso — nenhum sinal de retrabalho ou inconsistência encontrado.</p>
+                                            : p.avisos.map((a) => (
+                                                <p key={a.id} className="text-[var(--text-secondary)]">
+                                                  <Badge tom={a.severidade === "alerta" ? "erro" : a.severidade === "atencao" ? "aviso" : "neutro"}>{a.titulo}</Badge>{" "}
+                                                  <span className="text-[var(--text-muted)]">— {a.detalhe} ({a.fonte})</span>
+                                                </p>
+                                              ))}
+                                        </div>
+                                        <div>
+                                          <p className="mb-1 font-semibold text-[var(--text-primary)]">Exigências recorrentes neste assunto</p>
+                                          {(p.exigencias_recorrentes.length === 0)
+                                            ? <p className="text-[var(--text-muted)]">Base insuficiente ainda.</p>
+                                            : p.exigencias_recorrentes.slice(0,5).map((e, i) => (
+                                                <p key={i} className="text-[var(--text-secondary)]">{e.exigencia.slice(0,80)} — {e.processos} processo(s)</p>
+                                              ))}
+                                          {p.vinculos_legais.length > 0 && (
+                                            <p className="mt-1 text-[var(--text-muted)]">Referência legal vinculada (BIP): {p.vinculos_legais.map(v=>v.referencia).join(", ")}</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </React.Fragment>
+                            );
+                          })}
+                          {(prioridades ?? []).length === 0 && <Vazio cols={8}>Sem processos nesta seleção</Vazio>}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </Secao>
                 </>}
 
