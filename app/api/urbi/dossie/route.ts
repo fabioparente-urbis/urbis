@@ -7,6 +7,7 @@ import {
   evolucaoChecklist, anexarObservacoes, historicoAlteracoesLip, selecionarEmLotes,
 } from "@/lib/urbi/dossieProcesso";
 import { cruzarLipComDocumento, cruzarItensMacComBip, cruzarEvolucaoChecklist } from "@/lib/urbi/cruzamento";
+import { montarDossieTecnico } from "@/lib/urbi/adaptadores";
 
 /**
  * Dossiê factual do URBI — somente leitura.
@@ -135,10 +136,22 @@ export async function GET(req: NextRequest) {
   // selecionarEmLotes em lib/urbi/dossieProcesso.ts).
   const { data: itensChecklist, erro: erroItens } = idsItens.length
     ? await selecionarEmLotes(idsItens, 150, (lote) =>
-        supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref, fundamento_legal, chave_lip").in("id", lote)
+        supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref, fundamento_legal, chave_lip, ativo, atualizado_em").in("id", lote)
       )
     : { data: [] as any[], erro: null };
   if (erroItens) fontesIndisponiveis.push(`checklist: ${erroItens}`);
+
+  // Cobertura BIP de TODOS os itens ativos do modelo (não só os não conformes desta passada,
+  // que é o que `vinculos` abaixo cobre) — Fase C, pra declarar "o que é normal esperar deste
+  // slot" com fato, não com regra fixa. Em lotes pelo mesmo motivo (Slot 5 passa de 500 itens).
+  const idsAtivosDoModelo = (itensAtivosDoModelo ?? []).map((i: any) => String(i.id));
+  const { data: vinculosDoModelo, erro: erroCoberturaBip } = idsAtivosDoModelo.length
+    ? await selecionarEmLotes(idsAtivosDoModelo, 150, (lote) =>
+        supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id").in("mac_item_id", lote)
+      )
+    : { data: [] as any[], erro: null };
+  const itensComVinculoBipAprovado = new Set((vinculosDoModelo ?? []).map((v: any) => v.mac_item_id)).size;
+  if (erroCoberturaBip) fontesIndisponiveis.push(`cobertura_bip: ${erroCoberturaBip}`);
 
   const idsNaoConformes = idsItens.filter((id) => itensUltima[id] === "nao_conforme");
   const { data: vinculos, erro: erroVinculos } = idsNaoConformes.length
@@ -231,6 +244,23 @@ export async function GET(req: NextRequest) {
   const cruzamentosEvolucao = cruzarEvolucaoChecklist(evolucao);
   const cruzamentos = [...cruzamentosLipDocumento, ...cruzamentosMacBip, ...cruzamentosEvolucao];
 
+  // Adaptador técnico por slot (Fase C) — catálogo vigente, cobertura por fonte pra ESTE
+  // processo, e mudança estrutural do item entre o histórico e o catálogo de agora.
+  const itemAtualPorId = new Map(
+    (itensChecklist ?? []).map((item: any) => [item.id as string, { texto: item.texto as string, ativo: item.ativo !== false }]),
+  );
+  const tecnico = montarDossieTecnico(processo.tipo_processo, {
+    itensAtivosNoModelo: (itensAtivosDoModelo ?? []).length,
+    historicoMac,
+    itemAtualPorId,
+    resultadosDocumento,
+    erroResultadosDocumento: consultas[10].error?.message ?? null,
+    itensComVinculoBipAprovado,
+    erroCoberturaBip: erroCoberturaBip,
+    mdpRegistros: mdp as any[],
+    mrpRegistros: mrp as any[],
+  });
+
   const situacoes = {
     geral: situacaoGeral(resumoCampos, ultimaPassada, tags as any),
     lip: situacaoLip(resumoCampos),
@@ -301,6 +331,10 @@ export async function GET(req: NextRequest) {
       // Cruzamento determinístico LIP × MAC × BIP × documentos (Fase B) — nunca decide, só
       // classifica fato já lido em cima; ver lib/urbi/cruzamento.ts pra vocabulário e regra.
       cruzamentos,
+      // Adaptador técnico por slot (Fase C) — catálogo vigente (lido ao vivo, nunca fixo),
+      // cobertura por fonte pra ESTE processo, mudança estrutural do item detectada contra o
+      // histórico. Ver lib/urbi/adaptadores/.
+      tecnico,
       cobertura: {
         fontes_indisponiveis: fontesIndisponiveis,
         completo: fontesIndisponiveis.length === 0,
