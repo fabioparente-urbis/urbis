@@ -276,6 +276,13 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
       .slice(0, 20)
       .map((c: any) => ({ tipo: c.tipo, chave: c.chave, resultado: c.resultado, motivo: c.motivo, regra: c.regra }));
 
+    // Adaptador técnico do slot (Fase C) — catálogo vigente, cobertura por fonte, mudança
+    // estrutural do item entre histórico e catálogo atual. Nada pessoal aqui (é sobre o
+    // checklist, não sobre pessoa), só limita mudancas_estruturais pra não estourar contexto.
+    const tecnicoRecorte = d.tecnico
+      ? { ...d.tecnico, mudancas_estruturais: (d.tecnico.mudancas_estruturais ?? []).slice(0, 10) }
+      : null;
+
     const recorte = {
       processo: d.processo,
       situacoes: d.situacoes,
@@ -303,6 +310,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
         aguardando_retorno: d.fluxo?.aguardando_retorno,
       },
       cruzamentos: cruzamentosRecorte,
+      tecnico: tecnicoRecorte,
       cobertura: d.cobertura,
     };
     const serializado = JSON.stringify(recorte);
@@ -551,6 +559,8 @@ Regras de uso do dossiê:
 - "mac.evolucao" compara a passada atual com o que o histórico (mac_historico) já sabia do item ANTES desta passada — grau_certeza "confirmado" nos 3 blocos, é fato direto: "itens_corrigidos" (estava não conforme, não está mais — pode dizer "foi corrigido", com "quando"), "itens_voltaram_nao_conforme" (tinha sido resolvido numa passada anterior e voltou a não conforme agora — alerte isso claramente, é informação operacional relevante), "itens_pendentes_mantidos" (segue não conforme desde uma passada anterior, sem mudança). Só compara item que tem "antes" real no histórico — se um item não aparece em nenhuma das 3 listas, não há comparação disponível pra ele, não conclua nada sobre evolução dele.
 - "lip.historico_alteracoes" só diz QUAIS campos do LIP mudaram e QUANDO — nunca invente um "antes"/"depois" de campo do LIP, você não recebe esse valor; se o analista perguntar o que mudou de fato, diga que só sabe QUE mudou, não PARA QUE valor. Essa lista costuma vir vazia mesmo em processo com LIP editado recentemente — não é prova de que nada mudou, é limite da fonte.
 - "cruzamentos" são comparações determinísticas já feitas por código (nunca por você) entre o LIP e o que a leitura de documento encontrou, e entre item do MAC e vínculo BIP aprovado — nunca regra jurídica nova, só presença/ausência ou igualdade/diferença de valor já normalizado. "resultado: possivel_divergencia" é sempre grau_certeza "vale_conferir" (cite os dois lados do "motivo", nunca diga que um está certo e o outro errado); "resultado: base_juridica_ausente" é grau_certeza "confirmado" (fato: o item não tem vínculo BIP aprovado hoje — não decida se isso invalida a exigência, só informe).
+- "tecnico" é o retrato do que este SLOT específico sustenta agora — regra suprema: o catálogo de LIP/MAC é vivo, pode ganhar/perder/mudar campo e item a qualquer momento; "tecnico.catalogo" foi lido do banco agora mesmo, nunca é uma lista fixa que você já "sabia" de antes — não afirme que um campo/item existe ou não existe sem checar aqui. "tecnico.coberturas" diz, fonte por fonte, se ESTE processo tem dado real nela — ausência aqui não é falha do processo nem do analista, é limite real da fonte pra este slot (leia "tecnico.observacoes_do_slot" antes de comentar isso, tem a calibração certa). "tecnico.mudancas_estruturais" lista item cujo texto mudou (ou sumiu do catálogo ativo) entre quando foi marcado numa passada antiga e o texto de agora — quando aparecer aqui, diga explicitamente "a estrutura deste item mudou desde então" ou "base histórica insuficiente pra comparar", NUNCA trate isso como erro de quem preencheu ou de quem analisou na época.
+- Você PODE, dentro da conversa, notar e comentar problema de REDAÇÃO do checklist/LIP (texto confuso, duplicidade aparente, item que se repete demais, campo que parece faltar, possível vínculo BIP que ainda não existe) — mas isso é só CONVERSA, sugestão pro analista levar a quem administra o catálogo: você nunca cria, remove, altera, marca ou decide item/campo, e nunca publica vínculo jurídico. Deixe claro que é uma observação sua (grau_certeza "vale_conferir" ou "aguarda_confirmacao_humana"), não um fato do dossiê.
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
