@@ -19,18 +19,11 @@ export const AREA_PP_MAX = 540;
 export const AREA_MP_MAX = 2000;
 
 // ─── Cálculo de pontos ─────────────────────────────────────
-// Regra: GP (área > 2000) → 4.5 pts | MP (540 a 2000) → 3.5 | PP → 2.5
-// Laudo segue o mesmo peso do despacho normal.
-//
-// As faixas são as mesmas de antes de 2026-07-24 — a separação entre porte e
-// gerência não alterou nenhuma pontuação. O parâmetro segue aceitando os
-// rótulos antigos de gerência para não quebrar registros ainda não migrados.
-export function calcularPontos(porte: string | null | undefined, area: number, tipoDespacho?: TipoDespacho): number {
-  const p = String(porte ?? '').toUpperCase();
-  if (p === 'GP' || p === 'GERAGP' || area > AREA_MP_MAX) return 4.5;
-  if (area > AREA_PP_MAX) return 3.5;
-  return 2.5;
-}
+// A fórmula real vive em lib/mrp-pontuacao.ts (tabela mrp_pontuacao +
+// histórico de vigência mrp_pontuacao_historico) — é a ÚNICA fonte, usada
+// tanto pelo caminho cliente (/api/mrp/registros) quanto pela rede de
+// segurança do servidor (lib/mrpGravar.ts). Havia aqui uma versão hardcoded
+// à parte que podia divergir; foi removida em 2026-09-02.
 
 export function inferirPorte(area: number, porteInformado?: string | null): Porte {
   const p = String(porteInformado ?? '').toUpperCase();
@@ -126,7 +119,7 @@ export function calcularProjecao(
 ): number {
   if (diasEfetivosPassados <= 0) return pontosAcumulados;
   const ritmo = pontosAcumulados / diasEfetivosPassados;
-  return Math.round((pontosAcumulados + ritmo * diasEfetivosRestantes) * 10) / 10;
+  return Math.round((pontosAcumulados + ritmo * diasEfetivosRestantes) * 100) / 100;
 }
 
 // ─── Status (EXCELENTE/OK/RUIM) com base na projeção ───────
@@ -145,7 +138,7 @@ export function pontosPorDiaNecessarios(
 ): number {
   if (diasEfetivosRestantes <= 0) return 0;
   const falta = Math.max(0, metaEfetiva - pontosAcumulados);
-  return Math.round((falta / diasEfetivosRestantes) * 10) / 10;
+  return Math.round((falta / diasEfetivosRestantes) * 100) / 100;
 }
 
 // ─── Score de complexidade ─────────────────────────────────

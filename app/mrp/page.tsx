@@ -8,6 +8,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { PainelResposta, StatusMRP } from "@/lib/mrp";
+import { calcularPontos, type RegraPontuacao, type VigenciaPontuacao } from "@/lib/mrp-pontuacao";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 import MrpEquipeView from "@/components/MrpEquipeView";
 
@@ -149,6 +150,8 @@ function MrpInner() {
   });
   const [salvandoManual, setSalvandoManual] = useState(false);
   const [msgManual, setMsgManual] = useState("");
+  const [regrasPontuacao, setRegrasPontuacao] = useState<RegraPontuacao[]>([]);
+  const [historicoPontuacao, setHistoricoPontuacao] = useState<VigenciaPontuacao[]>([]);
   const hoje = new Date();
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [ano, setAno] = useState(hoje.getFullYear());
@@ -191,8 +194,30 @@ function MrpInner() {
         }
       } catch { /* usa lista vazia */ }
     }
+    if (regrasPontuacao.length === 0) {
+      try {
+        const r = await fetch("/api/mrp/pontuacao");
+        const j = await r.json();
+        if (j.ok) {
+          setRegrasPontuacao(j.data ?? []);
+          setHistoricoPontuacao(j.historico ?? []);
+        }
+      } catch { /* sem sugestão automática se falhar */ }
+    }
     setMsgManual("");
     setModalAberto(true);
+  }
+
+  // Sugestão automática de pontos pela tabela vigente na data escolhida —
+  // mesma fórmula do cálculo automático (lib/mrp-pontuacao.ts). O campo
+  // continua editável: é só o ponto de partida, não trava o analista.
+  function sugerirPontos(tipo: string, area: string, dataISO: string) {
+    if (regrasPontuacao.length === 0) return;
+    const pts = calcularPontos(
+      tipo, Number(area) || 0, regrasPontuacao,
+      new Date(dataISO + "T12:00:00").toISOString(), historicoPontuacao,
+    );
+    setFormManual((f) => ({ ...f, pontos: String(pts) }));
   }
 
   async function salvarManual() {
@@ -338,7 +363,11 @@ function MrpInner() {
                 <input
                   type="date"
                   value={formManual.data_despacho}
-                  onChange={(e) => setFormManual((f) => ({ ...f, data_despacho: e.target.value }))}
+                  onChange={(e) => {
+                    const data = e.target.value;
+                    setFormManual((f) => ({ ...f, data_despacho: data }));
+                    sugerirPontos(formManual.tipo_despacho, formManual.area_construida, data);
+                  }}
                   className="w-full border rounded px-3 py-2 text-sm"
                   required
                 />
@@ -392,7 +421,11 @@ function MrpInner() {
                     type="number"
                     step="0.01"
                     value={formManual.area_construida}
-                    onChange={(e) => setFormManual((f) => ({ ...f, area_construida: e.target.value }))}
+                    onChange={(e) => {
+                      const area = e.target.value;
+                      setFormManual((f) => ({ ...f, area_construida: area }));
+                      sugerirPontos(formManual.tipo_despacho, area, formManual.data_despacho);
+                    }}
                     placeholder="Ex.: 278.70"
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
@@ -418,7 +451,11 @@ function MrpInner() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
                   <select
                     value={formManual.tipo_despacho}
-                    onChange={(e) => setFormManual((f) => ({ ...f, tipo_despacho: e.target.value }))}
+                    onChange={(e) => {
+                      const tipo = e.target.value;
+                      setFormManual((f) => ({ ...f, tipo_despacho: tipo }));
+                      sugerirPontos(tipo, formManual.area_construida, formManual.data_despacho);
+                    }}
                     className="w-full border rounded px-3 py-2 text-sm">
                     {TIPOS_DESPACHO_MANUAL.map(([v, l]) => (
                       <option key={v} value={v}>{l}</option>
@@ -549,7 +586,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
               </div>
               <div className="text-3xl font-bold text-gray-800">
                 {data.isento_de_meta
-                  ? `${data.pontos_acumulados.toFixed(1)} pts`
+                  ? `${data.pontos_acumulados.toFixed(2)} pts`
                   : `${data.meta_efetiva.toFixed(0)} pts`}
               </div>
               {data.isento_de_meta ? (
@@ -569,7 +606,7 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
 
           {!data.isento_de_meta && <div className="mt-4">
             <div className="flex justify-between text-sm text-gray-600 mb-1">
-              <span>{data.pontos_acumulados.toFixed(1)} pts</span>
+              <span>{data.pontos_acumulados.toFixed(2)} pts</span>
               <span>{pct.toFixed(0)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded h-3 overflow-hidden">
@@ -581,18 +618,18 @@ function Dashboard({ mes, ano, usuarioId, somenteLeitura, isAdminOuDiretora }: {
             <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent)]/10 px-5 py-4 flex items-center justify-between gap-4">
               <div>
                 <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Projeção para o fim do mês</div>
-                <div className={"text-4xl font-black " + (data.projecao >= data.meta_efetiva * 1.2 ? "text-emerald-500" : data.projecao >= data.meta_efetiva ? "text-yellow-500" : "text-rose-500")}>{data.projecao.toFixed(1)} pts</div>
+                <div className={"text-4xl font-black " + (data.projecao >= data.meta_efetiva * 1.2 ? "text-emerald-500" : data.projecao >= data.meta_efetiva ? "text-yellow-500" : "text-rose-500")}>{data.projecao.toFixed(2)} pts</div>
                 <div className="text-xs text-[var(--text-muted)] mt-1">de {data.meta_efetiva} pts de meta efetiva</div>
               </div>
               <div className="text-right">
                 <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] font-semibold mb-1">Necessário/dia</div>
-                <div className={"text-2xl font-bold " + (data.status === "RUIM" ? "text-rose-500" : "text-emerald-500")}>{data.pontos_necessarios_por_dia.toFixed(1)} pts</div>
+                <div className={"text-2xl font-bold " + (data.status === "RUIM" ? "text-rose-500" : "text-emerald-500")}>{data.pontos_necessarios_por_dia.toFixed(2)} pts</div>
                 <div className="text-xs text-[var(--text-muted)] mt-1">{data.dias_efetivos_restantes} dias efetivos restantes</div>
               </div>
             </div>
             {data.status === "RUIM" && data.dias_efetivos_restantes > 0 && (
               <p className="mt-2 text-xs text-rose-600 font-medium">
-                ⚠ Você precisa de <strong>{data.pontos_necessarios_por_dia.toFixed(1)} pts/dia</strong> para atingir a meta.
+                ⚠ Você precisa de <strong>{data.pontos_necessarios_por_dia.toFixed(2)} pts/dia</strong> para atingir a meta.
               </p>
             )}
           </div>}
@@ -970,7 +1007,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                   <Td className="text-right">{Number(r.area_construida) > 0 ? Number(r.area_construida).toLocaleString("pt-BR") : "—"}</Td>
                   <Td>{["interno","arquivamento","laudo"].includes(r.tipo_despacho) ? "Gerência" : "Interessado"}</Td>
                   <Td>{new Date(r.data_despacho.slice(0,10) + "T12:00:00").toLocaleDateString("pt-BR")}</Td>
-                  <Td className="text-right font-semibold">{Number(r.pontos).toFixed(1)}</Td>
+                  <Td className="text-right font-semibold">{Number(r.pontos).toFixed(2)}</Td>
                   {isAdmin && (
                     <Td>
                       <div className="flex gap-1">
@@ -991,7 +1028,7 @@ function Listona({ mes, ano, usuarioId, isAdmin }: { mes: number; ano: number; u
                 <Td colSpan={5} className="text-right">Total ({regs.length} despachos):</Td>
                 <Td className="text-right">{regs.reduce((a, r) => a + Number(r.area_construida ?? 0), 0).toLocaleString("pt-BR")} m²</Td>
                 <Td></Td><Td></Td>
-                <Td className="text-right">{(Math.round(regs.reduce((a, r) => a + Number(r.pontos ?? 0), 0) * 10) / 10).toFixed(1)} pts</Td>
+                <Td className="text-right">{(Math.round(regs.reduce((a, r) => a + Number(r.pontos ?? 0), 0) * 100) / 100).toFixed(2)} pts</Td>
               </tr>
             </tfoot>
           )}

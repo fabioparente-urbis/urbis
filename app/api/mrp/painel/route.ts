@@ -104,8 +104,8 @@ export async function GET(req: NextRequest) {
   const linhas = (registros ?? []) as any[];
 
   const pontosAcumulados = Math.round(
-    linhas.reduce((acc, r) => acc + Number(r.pontos ?? 0), 0) * 10,
-  ) / 10;
+    linhas.reduce((acc, r) => acc + Number(r.pontos ?? 0), 0) * 100,
+  ) / 100;
   const areaTotal = Math.round(
     linhas.reduce((acc, r) => acc + Number(r.area_construida ?? 0), 0) * 100,
   ) / 100;
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
       .select("pontos")
       .eq("usuario_id", alvoId)
       .eq("ano", a).eq("mes", m);
-    const pts = Math.round((rs ?? []).reduce((acc, r: any) => acc + Number(r.pontos ?? 0), 0) * 10) / 10;
+    const pts = Math.round((rs ?? []).reduce((acc, r: any) => acc + Number(r.pontos ?? 0), 0) * 100) / 100;
     // Meta daquele mês e daquela pessoa — não a de hoje.
     const regra = resolverMetaDoMes(historicoMetas, alvoId, a, m);
     const metaDoMes = regra.isento ? 0 : calcularMetaEfetiva(reducao, regra.metaBase);
@@ -178,7 +178,7 @@ export async function GET(req: NextRequest) {
   };
 
   const porTipoDespacho = Array.from(acc("tipo_despacho").entries()).map(([tipo, v]) => ({
-    tipo, count: v.count, pontos: Math.round(v.pontos * 10) / 10,
+    tipo, count: v.count, pontos: Math.round(v.pontos * 100) / 100,
   }));
   const porTipoProcesso = Array.from(acc("tipo_processo").entries()).map(([tipo, v]) => ({
     tipo, count: v.count, area_total: Math.round(v.area_total * 100) / 100,

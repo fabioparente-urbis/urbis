@@ -101,9 +101,18 @@ export async function POST(req: NextRequest) {
 
   // Se auto_gerado e pontos não informados, calcula pela tabela ANTES da validação
   if (body.auto_gerado && body.pontos === undefined) {
-    const { data: tabela } = await supabaseAdmin.from("mrp_pontuacao").select("*").order("ordem");
+    const [{ data: tabela }, { data: historico }] = await Promise.all([
+      supabaseAdmin.from("mrp_pontuacao").select("*").order("ordem"),
+      supabaseAdmin.from("mrp_pontuacao_historico").select("regra_id, pontos, vigente_desde"),
+    ]);
     if (tabela) {
-      body.pontos = calcularPontos(body.tipo_despacho || "", Number(body.area_construida || 0), tabela);
+      body.pontos = calcularPontos(
+        body.tipo_despacho || "",
+        Number(body.area_construida || 0),
+        tabela,
+        body.data_despacho ?? new Date().toISOString(),
+        historico ?? [],
+      );
     }
   }
   if (!body.processo_codigo || !body.tipo_despacho || body.pontos === undefined) {

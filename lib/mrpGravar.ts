@@ -8,11 +8,8 @@
 // se o MRP estiver indisponível.
 // ============================================================
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import {
-  calcularPontos,
-  extrairMetricasProcesso,
-  type TipoDespacho,
-} from "@/lib/mrp";
+import { extrairMetricasProcesso, type TipoDespacho } from "@/lib/mrp";
+import { calcularPontos, type RegraPontuacao, type VigenciaPontuacao } from "@/lib/mrp-pontuacao";
 import { resolverSlot } from "@/lib/assuntos";
 import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
@@ -83,7 +80,6 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     });
 
     const metricas = extrairMetricasProcesso((proc as any).dados);
-    const pontos = calcularPontos(metricas.porte, metricas.area);
     const usuarioId = analise?.analista_id || (proc as any).analista_id || analistaId;
 
     // Gerência de quem assina, congelada nesta data. Vem do cadastro do
@@ -95,6 +91,23 @@ export async function gravarRegistroMRP(input: GravarRegistroInput): Promise<{ o
     const numeroRev = input.numero_revisao ?? analise?.numero_revisao ?? null;
     // Data de emissão escolhida no modal; sem ela, "agora".
     const agora = parseDataBR(input.data_despacho) ?? new Date();
+
+    // Mesma tabela + histórico que /api/mrp/registros usa — fonte única de
+    // cálculo. Antes esta rede de segurança usava uma fórmula hardcoded à
+    // parte (ignorava tipo_despacho), que podia divergir do valor "oficial".
+    const [{ data: tabela }, { data: historicoRaw }] = await Promise.all([
+      supabaseAdmin.from("mrp_pontuacao").select("*").order("ordem"),
+      supabaseAdmin.from("mrp_pontuacao_historico").select("regra_id, pontos, vigente_desde"),
+    ]);
+    const pontos = tabela
+      ? calcularPontos(
+          input.tipo_despacho || "",
+          metricas.area,
+          tabela as RegraPontuacao[],
+          agora.toISOString(),
+          (historicoRaw ?? []) as VigenciaPontuacao[],
+        )
+      : 0;
 
     // 3) Upsert idempotente
     const payload = {

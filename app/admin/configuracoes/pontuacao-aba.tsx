@@ -13,9 +13,11 @@ type Regra = {
 };
 
 export function AbaPontuacao() {
+  const hoje = new Date().toISOString().slice(0, 10);
   const [regras, setRegras] = useState<Regra[]>([]);
   const [loading, setLoading] = useState(true);
   const [edicao, setEdicao] = useState<Record<string, string>>({});
+  const [vigenciaEdicao, setVigenciaEdicao] = useState<Record<string, string>>({});
   const [salvando, setSalvando] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState<string | null>(null);
   const [erro, setErro] = useState("");
@@ -45,7 +47,12 @@ export function AbaPontuacao() {
     const res = await fetch("/api/mrp/pontuacao", {
       method: "PUT", credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: r.id, pontos: parseFloat(edicao[r.id] || "0"), descricao: r.descricao }),
+      body: JSON.stringify({
+        id: r.id,
+        pontos: parseFloat(edicao[r.id] || "0"),
+        descricao: r.descricao,
+        vigente_desde: vigenciaEdicao[r.id] || hoje,
+      }),
     });
     const j = await res.json();
     setSalvando(null);
@@ -79,8 +86,9 @@ export function AbaPontuacao() {
     <div>
       <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-1">Tabela de Pontuação MRP</h2>
       <p className="text-sm text-[var(--text-muted)] mb-6">
-        Pontos atribuídos automaticamente ao gerar despacho, baseados no tipo e área construída.
-        Fórmula: ATENDIMENTO → 0.5 pts · área &gt; 2000m² → 4.5 pts · área &lt; 540m² → 2.5 pts · demais → 3.5 pts.
+        Pontos atribuídos automaticamente ao gerar despacho, baseados no tipo e área construída
+        (tabela abaixo). Cada alteração tem uma data de vigência — não reescreve pontos já gravados
+        em despachos anteriores à mudança.
       </p>
 
       <div className="mb-6 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface)] flex items-center gap-4">
@@ -103,16 +111,17 @@ export function AbaPontuacao() {
       {erro && <div className="mb-4 text-sm text-red-300 bg-red-900/30 border border-red-800 rounded-lg px-4 py-2">{erro}</div>}
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] overflow-hidden">
-        <div className="grid grid-cols-[40px_1fr_200px_120px_100px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+        <div className="grid grid-cols-[40px_1fr_200px_120px_130px_100px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
           <div>#</div>
           <div>Condição</div>
           <div>Descrição</div>
           <div className="text-center">Pontos</div>
+          <div className="text-center">Vigente desde</div>
           <div className="text-right pr-2">Ação</div>
         </div>
 
         {regras.map(r => (
-          <div key={r.id} className="grid grid-cols-[40px_1fr_200px_120px_100px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-0">
+          <div key={r.id} className="grid grid-cols-[40px_1fr_200px_120px_130px_100px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-0">
             <div className="text-[var(--text-muted)] text-sm">{r.ordem}</div>
 
             <div className="text-sm text-[var(--text-primary)]">
@@ -133,13 +142,22 @@ export function AbaPontuacao() {
             <div className="flex justify-center">
               <div className="flex items-center gap-1 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-1.5">
                 <input
-                  type="number" step="0.5" min="0" max="10"
+                  type="number" step="0.25" min="0" max="20"
                   value={edicao[r.id] ?? String(r.pontos)}
                   onChange={e => setEdicao(prev => ({ ...prev, [r.id]: e.target.value }))}
                   className="w-14 bg-transparent text-[var(--text-primary)] text-sm font-semibold text-center focus:outline-none"
                 />
                 <span className="text-[var(--text-muted)] text-xs">pts</span>
               </div>
+            </div>
+
+            <div className="flex justify-center">
+              <input
+                type="date"
+                value={vigenciaEdicao[r.id] ?? hoje}
+                onChange={e => setVigenciaEdicao(prev => ({ ...prev, [r.id]: e.target.value }))}
+                className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-2 py-1.5 text-xs text-[var(--text-primary)] focus:outline-none w-full"
+              />
             </div>
 
             <div className="flex justify-end pr-2">
