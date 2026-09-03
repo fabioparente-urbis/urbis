@@ -153,6 +153,19 @@ export async function GET(req: NextRequest) {
   const itensComVinculoBipAprovado = new Set((vinculosDoModelo ?? []).map((v: any) => v.mac_item_id)).size;
   if (erroCoberturaBip) fontesIndisponiveis.push(`cobertura_bip: ${erroCoberturaBip}`);
 
+  // Trilha REAL de mudança do catálogo (Fase D — trigger de banco, existe desde 03/09/2026;
+  // só cobre daqui pra frente). Por modelo do slot, não só pelos itens deste processo — é
+  // mudança do CATÁLOGO, compartilhado por todo processo que usa o mesmo checklist.
+  const { data: eventosCatalogoBrutos, error: erroEventosCatalogo } = ultima?.modelo_id
+    ? await supabaseAdmin
+        .from("mac_checklist_itens_historico")
+        .select("item_id, acao, campos_alterados, criado_em")
+        .eq("modelo_id", ultima.modelo_id)
+        .order("criado_em", { ascending: false })
+        .limit(30)
+    : { data: [] as any[], error: null };
+  if (erroEventosCatalogo) fontesIndisponiveis.push(`eventos_catalogo: ${erroEventosCatalogo.message}`);
+
   const idsNaoConformes = idsItens.filter((id) => itensUltima[id] === "nao_conforme");
   const { data: vinculos, erro: erroVinculos } = idsNaoConformes.length
     ? await selecionarEmLotes(idsNaoConformes, 150, (lote) =>
@@ -259,6 +272,7 @@ export async function GET(req: NextRequest) {
     erroCoberturaBip: erroCoberturaBip,
     mdpRegistros: mdp as any[],
     mrpRegistros: mrp as any[],
+    eventosCatalogo: eventosCatalogoBrutos ?? [],
   });
 
   const situacoes = {
