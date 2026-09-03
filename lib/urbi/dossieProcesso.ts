@@ -93,6 +93,31 @@ export function ordenarAnalises<T extends { numero_analise?: unknown }>(linhas: 
   return [...linhas].sort((a, b) => Number(a.numero_analise ?? 0) - Number(b.numero_analise ?? 0));
 }
 
+// -------------------------------------------------- .in() com lista grande
+
+/**
+ * `.in()` do PostgREST vira parte da URL (é sempre GET) — lista longa de UUID estoura limite de
+ * tamanho de URL/cabeçalho. Achado real (Fase C, 03/09/2026): falha a partir de ~390 UUIDs
+ * (~14.800 caracteres) — o Slot 5 tem 539 itens ativos no checklist, ultrapassa isso sempre.
+ * Quebra em lotes e junta o resultado; mesma query, nenhuma mudança de comportamento além de
+ * não quebrar mais. Reaproveitável por qualquer consulta do dossiê (ou de fora) que filtre por
+ * uma lista de id que pode crescer.
+ */
+export async function selecionarEmLotes<T>(
+  ids: string[],
+  tamanhoLote: number,
+  buscar: (lote: string[]) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+): Promise<{ data: T[]; erro: string | null }> {
+  const saida: T[] = [];
+  for (let i = 0; i < ids.length; i += tamanhoLote) {
+    const lote = ids.slice(i, i + tamanhoLote);
+    const { data, error } = await buscar(lote);
+    if (error) return { data: saida, erro: error.message };
+    saida.push(...(data ?? []));
+  }
+  return { data: saida, erro: null };
+}
+
 // ---------------------------------------------------- grau de certeza (comum)
 
 /**

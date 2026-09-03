@@ -4,7 +4,7 @@ import { podeAcessarProcesso, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { situacaoGeral, situacaoLip, situacaoMac } from "@/lib/bdi/situacao";
 import {
   fatosDoLip, ordenarAnalises, resumoChecklist,
-  evolucaoChecklist, anexarObservacoes, historicoAlteracoesLip,
+  evolucaoChecklist, anexarObservacoes, historicoAlteracoesLip, selecionarEmLotes,
 } from "@/lib/urbi/dossieProcesso";
 import { cruzarLipComDocumento, cruzarItensMacComBip, cruzarEvolucaoChecklist } from "@/lib/urbi/cruzamento";
 
@@ -130,19 +130,26 @@ export async function GET(req: NextRequest) {
     ...Object.keys(itensUltima),
     ...(itensAtivosDoModelo ?? []).map((item: any) => String(item.id)),
   ])];
-  const { data: itensChecklist, error: erroItens } = idsItens.length
-    ? await supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref, fundamento_legal, chave_lip").in("id", idsItens)
-    : { data: [], error: null };
-  if (erroItens) fontesIndisponiveis.push(`checklist: ${erroItens.message}`);
+  // Em lotes: idsItens pode passar de 500 no Slot 5 (539 itens ativos no modelo) — .in() é GET,
+  // uma lista grande de UUID estoura o limite de tamanho de URL (achado real desta fase; ver
+  // selecionarEmLotes em lib/urbi/dossieProcesso.ts).
+  const { data: itensChecklist, erro: erroItens } = idsItens.length
+    ? await selecionarEmLotes(idsItens, 150, (lote) =>
+        supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref, fundamento_legal, chave_lip").in("id", lote)
+      )
+    : { data: [] as any[], erro: null };
+  if (erroItens) fontesIndisponiveis.push(`checklist: ${erroItens}`);
 
   const idsNaoConformes = idsItens.filter((id) => itensUltima[id] === "nao_conforme");
-  const { data: vinculos, error: erroVinculos } = idsNaoConformes.length
-    ? await supabaseAdmin
-        .from("mac_bip_vinculos")
-        .select("mac_item_id, confianca, bdi_lei_fragmentos(referencia, texto)")
-        .in("mac_item_id", idsNaoConformes)
-    : { data: [], error: null };
-  if (erroVinculos) fontesIndisponiveis.push(`bip: ${erroVinculos.message}`);
+  const { data: vinculos, erro: erroVinculos } = idsNaoConformes.length
+    ? await selecionarEmLotes(idsNaoConformes, 150, (lote) =>
+        supabaseAdmin
+          .from("mac_bip_vinculos")
+          .select("mac_item_id, confianca, bdi_lei_fragmentos(referencia, texto)")
+          .in("mac_item_id", lote)
+      )
+    : { data: [] as any[], erro: null };
+  if (erroVinculos) fontesIndisponiveis.push(`bip: ${erroVinculos}`);
 
   const leisPorItem = new Map<string, any[]>();
   for (const vinculo of vinculos ?? []) {
