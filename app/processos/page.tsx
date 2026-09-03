@@ -36,6 +36,11 @@ type Processo = {
   situacao_geral?: SituacaoGeral;
   /** De onde a situação saiu — mostrado no title do badge, pra poder conferir. */
   situacao_motivo?: string;
+  /** LIP e MAC separados (mesma lógica, lib/bdi/situacao.ts) — pro card mostrar os dois lado a lado. */
+  situacao_lip?: SituacaoLip;
+  situacao_lip_motivo?: string;
+  situacao_mac?: SituacaoMac;
+  situacao_mac_motivo?: string;
 };
 
 type SituacaoGeral =
@@ -44,6 +49,9 @@ type SituacaoGeral =
   | "MAC em análise"
   | "LIP pendente"
   | "Em cadastro";
+
+type SituacaoLip = "Não iniciado" | "Incompleto" | "Completo";
+type SituacaoMac = "Não iniciado" | "Em análise" | "Aguardando retorno do interessado" | "Arquivado/indeferido";
 
 const SITUACAO_OPCOES: SituacaoGeral[] = [
   "Em cadastro", "LIP pendente", "MAC em análise",
@@ -54,6 +62,19 @@ const SITUACAO_COR: Record<SituacaoGeral, string> = {
   "Em cadastro": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
   "LIP pendente": "bg-[var(--warning-bg)] text-[var(--warning)]",
   "MAC em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
+  "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
+  "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
+};
+
+const SITUACAO_LIP_COR: Record<SituacaoLip, string> = {
+  "Não iniciado": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
+  "Incompleto": "bg-[var(--warning-bg)] text-[var(--warning)]",
+  "Completo": "bg-[var(--success-bg)] text-[var(--success)]",
+};
+
+const SITUACAO_MAC_COR: Record<SituacaoMac, string> = {
+  "Não iniciado": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
+  "Em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
   "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
   "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
 };
@@ -558,7 +579,19 @@ function ProcessosConteudo() {
                   {rotuloTipo(p.tipo_processo)}
                 </span>
 
-                {/* Situação — calculada (lib/bdi/situacao.ts), não o antigo processos.status */}
+                {/* Situação — LIP, MAC e geral separados (lib/bdi/situacao.ts), não o
+                    antigo processos.status. LIP/MAC escondidos em telas pequenas —
+                    a geral já resume os dois; título de cada um traz o motivo. */}
+                <div className="hidden lg:flex items-center gap-1">
+                  <span title={p.situacao_lip_motivo ? `LIP: ${p.situacao_lip_motivo}` : undefined}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${p.situacao_lip ? SITUACAO_LIP_COR[p.situacao_lip] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                    LIP: {p.situacao_lip || "—"}
+                  </span>
+                  <span title={p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${p.situacao_mac ? SITUACAO_MAC_COR[p.situacao_mac] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                    MAC: {p.situacao_mac || "—"}
+                  </span>
+                </div>
                 <span
                   title={p.situacao_motivo}
                   className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -173,12 +173,22 @@ export async function GET(req: NextRequest) {
         retrabalho: retrabalhoPorCodigo.get(p.codigo) ?? { trocas_totais: 0, virou_nao_conforme: 0 },
       };
       const tags: TagProcesso[] = Array.isArray(p.tags) ? p.tags.filter((t: any) => t && typeof t === "object") : [];
-      const situacao = situacaoGeral(
-        camposPorCodigo.get(p.codigo) ?? null,
-        ultimaPassadaPorCodigo.get(p.codigo) ?? null,
-        tags,
-      );
-      return { ...p, triagem: triar(entrada).classe, situacao_geral: situacao.classe, situacao_motivo: situacao.motivo };
+      const campos = camposPorCodigo.get(p.codigo) ?? null;
+      const ultimaPassada = ultimaPassadaPorCodigo.get(p.codigo) ?? null;
+      // As 3 situações (lib/bdi/situacao.ts) — LIP e MAC separadas, mais a
+      // geral (que já é composta das duas). Mesma lógica, sem recalcular
+      // nada: situacaoGeral() por dentro já chama situacaoMac(), mas o card
+      // da Pilha quer ver LIP e MAC lado a lado, não só o resumo.
+      const sitGeral = situacaoGeral(campos, ultimaPassada, tags);
+      const sitLip = situacaoLip(campos);
+      const sitMac = situacaoMac(ultimaPassada, tags);
+      return {
+        ...p,
+        triagem: triar(entrada).classe,
+        situacao_geral: sitGeral.classe, situacao_motivo: sitGeral.motivo,
+        situacao_lip: sitLip.classe, situacao_lip_motivo: sitLip.motivo,
+        situacao_mac: sitMac.classe, situacao_mac_motivo: sitMac.motivo,
+      };
     });
 
     if (situacaoFiltro) {

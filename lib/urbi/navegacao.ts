@@ -17,7 +17,13 @@
  *                    não existe processo nenhum com ele)
  *   area_construida→ preenchida em 75 de 79
  * `status` ficou de fora de propósito: tem um único valor no banco inteiro
- * (CADASTRADO), então filtrar por ele não separa nada.
+ * (CADASTRADO), então filtrar por ele não separa nada. No lugar dele, desde
+ * 02/09/2026, existe `situacaoGeral` — as 5 classes de lib/bdi/situacao.ts
+ * (Em cadastro, LIP pendente, MAC em análise, Aguardando retorno do
+ * interessado, Arquivado/indeferido), já calculadas por processo pela API
+ * (`/api/processos` devolve `situacao_geral` em cada linha) — aqui só
+ * reconhece a frase e filtra pelo valor que já veio pronto, não recalcula
+ * nada.
  */
 
 export type OrdemPilha = "area_desc" | "area_asc" | "data_desc" | "data_asc" | "analises_desc" | "analises_asc";
@@ -30,6 +36,16 @@ export type TriagemPilha = "mais_simples";
  *  literais do vigia precisa ser espelhada aqui à mão. */
 export type ClassificacaoVigiaPilha = "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
 export type PortePilha = "PP" | "MP" | "GP";
+/** As mesmas 5 classes de `situacaoGeral()` (lib/bdi/situacao.ts) — repetidas
+ *  aqui como literal, mesmo motivo do comentário de ClassificacaoVigiaPilha
+ *  acima: este arquivo não importa módulo com regra própria. Mudar os
+ *  literais de lib/bdi/situacao.ts precisa ser espelhado aqui à mão. */
+export type SituacaoGeralPilha =
+  | "Em cadastro"
+  | "LIP pendente"
+  | "MAC em análise"
+  | "Aguardando retorno do interessado"
+  | "Arquivado/indeferido";
 
 export type FiltrosPilha = {
   busca?: string;
@@ -49,6 +65,8 @@ export type FiltrosPilha = {
   classificacaoVigia?: ClassificacaoVigiaPilha;
   /** Porte real da coluna `processos.porte` (PP/MP/GP). */
   porte?: PortePilha;
+  /** Situação real do processo (`/api/processos` já roda `situacaoGeral()` por item — lib/bdi/situacao.ts). */
+  situacaoGeral?: SituacaoGeralPilha;
 };
 
 export type ComandoNavegacao =
@@ -135,6 +153,27 @@ function acharOrdem(t: string): OrdemPilha | null {
   if (/\b(menor|menores)\s+(area|areas)\b/.test(t) || /\barea\s+(menor|crescente)\b/.test(t)) return "area_asc";
   if (/\bmais\s+(novo|novos|recente|recentes)\b/.test(t)) return "data_desc";
   if (/\bmais\s+(antigo|antigos|velho|velhos)\b/.test(t)) return "data_asc";
+  return null;
+}
+
+/**
+ * As 5 situações reais (lib/bdi/situacao.ts), não confundir com `acharTag`
+ * (que reconhece TAG do processo — despacho/indeferimento/etc. — um fato
+ * isolado, não a situação atual). Frases mais específicas primeiro: "em
+ * analise" bare é comum demais pra vir antes de "aguardando retorno", que
+ * tem prioridade lógica (passada já fechou, não é mais "em análise").
+ * "Arquivado/indeferido" exige frase de situação (não só "indeferido" solto)
+ * de propósito — isso já significa outra coisa aqui (`acharTag`), e trocar
+ * o sentido de um comando que já funciona não é o objetivo deste recorte.
+ */
+function acharSituacaoGeral(t: string): SituacaoGeralPilha | null {
+  if (/\baguardando\s+(o\s+)?retorno(\s+do\s+interessado)?\b/.test(t)) return "Aguardando retorno do interessado";
+  if (/\b(situacao\s+)?arquivad[oa]s?\s+(ou|e)\s+indeferid[oa]s?\b/.test(t)
+    || /\bindeferid[oa]s?\s+(ou|e)\s+arquivad[oa]s?\b/.test(t)
+    || /\bsituacao\s+(de\s+)?(arquivad|indeferid)/.test(t)) return "Arquivado/indeferido";
+  if (/\blip\s+pendente\b/.test(t) || /\blip\s+incompleto\b/.test(t)) return "LIP pendente";
+  if (/\bmac\s+em\s+analise\b/.test(t) || /\bem\s+analise\b/.test(t)) return "MAC em análise";
+  if (/\bem\s+cadastro\b/.test(t) || /\brecem[\s-]?cadastrad[oa]s?\b/.test(t)) return "Em cadastro";
   return null;
 }
 
@@ -240,9 +279,10 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
       : /\b(entre\s+)?251\s+(e|a)\s+1000\b/.test(t) ? "de_251_a_1000" as const : undefined;
   const analisesMinimas = /\b(duas|2|dois)\s+ou\s+mais\s+analises\b/.test(t) || /\ba\s+partir\s+da\s+segunda\s+analise\b/.test(t)
     ? 2 : undefined;
+  const situacaoGeral = acharSituacaoGeral(t);
   const mencionaPilha = /\b(pilha|processos|lista)\b/.test(t);
 
-  if (tag || analise !== null || ordem || triagem || usoSolo || faixaArea || analisesMinimas || (tipo && mencionaPilha)) {
+  if (tag || analise !== null || ordem || triagem || usoSolo || faixaArea || analisesMinimas || situacaoGeral || (tipo && mencionaPilha)) {
     const filtros: FiltrosPilha = {};
     if (tipo) filtros.tipo = tipo.valor;
     if (tag) filtros.tag = tag.valor;
@@ -252,6 +292,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (usoSolo) filtros.usoSolo = usoSolo;
     if (faixaArea) filtros.faixaArea = faixaArea;
     if (analisesMinimas) filtros.analisesMinimas = analisesMinimas;
+    if (situacaoGeral) filtros.situacaoGeral = situacaoGeral;
 
     const partes: string[] = [];
     if (tipo) partes.push(tipo.rotulo);
@@ -261,6 +302,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (usoSolo) partes.push(usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
     if (faixaArea) partes.push(faixaArea === "ate_250" ? "até 250 m²" : faixaArea === "de_251_a_1000" ? "de 251 a 1.000 m²" : "acima de 1.000 m²");
     if (analisesMinimas) partes.push("com 2 ou mais análises");
+    if (situacaoGeral) partes.push(`com situação "${situacaoGeral}"`);
     if (ordem) {
       partes.push(
         ordem === "area_desc" ? "da maior para a menor área"
@@ -323,7 +365,9 @@ export function pareceComando(textoOriginal: string): boolean {
 export const AJUDA_COMANDOS =
   "Não entendi esse comando. Eu sei: abrir Home, Pilha, BDI, BIP, MRP e MDP; voltar; " +
   "localizar processo por número ou por nome; filtrar a pilha por tipo, laudo, indeferimento, " +
-  "despacho, Uso do Solo e análise 1 a 5; mostrar os mais simples por critérios; ordenar por área, análises ou data; " +
+  "despacho, Uso do Solo e análise 1 a 5; filtrar por situação (em cadastro, LIP pendente, " +
+  "MAC em análise, aguardando retorno do interessado, arquivado ou indeferido); " +
+  "mostrar os mais simples por critérios; ordenar por área, análises ou data; " +
   "abrir um resultado; e limpar filtros.";
 
 // ------------------------------------------------- aplicação dos filtros
@@ -339,6 +383,8 @@ type ProcessoParaFiltro = {
   triagem?: string | null;
   /** Coluna direta `processos.porte`. */
   porte?: string | null;
+  /** Situação real calculada por `situacaoGeral()`, quando a API já devolveu. */
+  situacao_geral?: string | null;
 };
 
 function numeroArea(v: unknown): number | null {
@@ -421,6 +467,10 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
     saida = saida.filter((p) => p.triagem === filtros.classificacaoVigia);
   }
 
+  if (filtros.situacaoGeral) {
+    saida = saida.filter((p) => p.situacao_geral === filtros.situacaoGeral);
+  }
+
   if (filtros.porte) {
     saida = saida.filter((p) => p.porte === filtros.porte);
   }
@@ -482,6 +532,7 @@ export function filtrosParaQuery(filtros: FiltrosPilha): string {
   if (filtros.triagem) p.set("triagem", filtros.triagem);
   if (filtros.classificacaoVigia) p.set("classificacaoVigia", filtros.classificacaoVigia);
   if (filtros.porte) p.set("porte", filtros.porte);
+  if (filtros.situacaoGeral) p.set("situacaoGeral", filtros.situacaoGeral);
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -500,6 +551,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   const triagem = params.get("triagem");
   const classificacaoVigia = params.get("classificacaoVigia");
   const porte = params.get("porte");
+  const situacaoGeral = params.get("situacaoGeral");
 
   if (busca) f.busca = busca;
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
@@ -520,5 +572,14 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
     f.classificacaoVigia = classificacaoVigia;
   }
   if (porte === "PP" || porte === "MP" || porte === "GP") f.porte = porte;
+  if (
+    situacaoGeral === "Em cadastro" ||
+    situacaoGeral === "LIP pendente" ||
+    situacaoGeral === "MAC em análise" ||
+    situacaoGeral === "Aguardando retorno do interessado" ||
+    situacaoGeral === "Arquivado/indeferido"
+  ) {
+    f.situacaoGeral = situacaoGeral;
+  }
   return f;
 }
