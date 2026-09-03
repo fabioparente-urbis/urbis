@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
+import { escaparValorFiltroOr } from "@/lib/mac/vinculosFila";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,10 @@ export async function GET(req: NextRequest) {
     .eq("lip_abas.assunto_id", assuntoId)
     .eq("ativo", true)
     .limit(60);
-  if (q.length >= 2) query = query.or(`chave.ilike.%${q}%,label.ilike.%${q}%`);
+  if (q.length >= 2) {
+    const qEscapado = escaparValorFiltroOr(q);
+    query = query.or(`chave.ilike."%${qEscapado}%",label.ilike."%${qEscapado}%"`);
+  }
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });

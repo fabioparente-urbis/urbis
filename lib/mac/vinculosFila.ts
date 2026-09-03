@@ -13,6 +13,18 @@
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+/**
+ * Escapa um valor de busca livre do usuário antes de entrar num filtro `.or()`
+ * do PostgREST (buscar-bip/buscar-lip) — sem isso, vírgula/parênteses em `q`
+ * são sintaxe de filtro, não texto: um `q` como `x,and(1,eq,1)` vira uma
+ * condição extra de verdade, não uma busca por esse texto literal. O valor
+ * entre aspas duplas do PostgREST aceita vírgula/parênteses/ponto como
+ * literais; só `"` e `\` dentro dele precisam de escape.
+ */
+export function escaparValorFiltroOr(valor: string): string {
+  return valor.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 /** Únicos assuntos autorizados para esta fila — Slot 5 já tem seu próprio mecanismo
  *  (app/api/mac/slot-05/bip-vinculos), não usa esta fila. */
 export const ASSUNTOS_PERMITIDOS_NA_FILA = ["regularizacao", "aceite_sei"] as const;

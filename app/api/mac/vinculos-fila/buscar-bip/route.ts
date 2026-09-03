@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
+import { escaparValorFiltroOr } from "@/lib/mac/vinculosFila";
 
 export const runtime = "nodejs";
 
@@ -19,11 +20,12 @@ export async function GET(req: NextRequest) {
 
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (q.length < 2) return NextResponse.json({ ok: true, resultados: [] });
+  const qEscapado = escaparValorFiltroOr(q);
 
   const { data, error } = await supabaseAdmin
     .from("bdi_lei_fragmentos")
     .select("id, referencia, texto, documento_id")
-    .or(`referencia.ilike.%${q}%,texto.ilike.%${q}%`)
+    .or(`referencia.ilike."%${qEscapado}%",texto.ilike."%${qEscapado}%"`)
     .limit(20);
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
