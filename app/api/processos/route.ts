@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
+import { situacaoGeral, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,8 +23,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const busca = searchParams.get("busca") || "";
     const tipo = searchParams.get("tipo") || "";
-    const status = searchParams.get("status") || "";
     const analista = searchParams.get("analista") || "";
+    // "situacao" substitui o antigo filtro por processos.status (02/09/2026):
+    // essa coluna tem um único valor no banco inteiro ('CADASTRADO'), então
+    // filtrar por ela nunca separou nada — ver lib/bdi/situacao.ts.
+    const situacaoFiltro = searchParams.get("situacao") || "";
 
     let query = supabase
       .from("processos")
@@ -40,7 +44,6 @@ export async function GET(req: NextRequest) {
     // volume de processos é pequeno, filtramos em memória após a query.
     const buscaLimpa = busca.replace(/[,()*]/g, " ").trim().toLowerCase();
     if (tipo) query = query.eq("tipo_processo", tipo);
-    if (status) query = query.eq("status", status);
 
     // Visibilidade de processos (briefing Cowork — item 2):
     // - Admin / Diretora / Diretor       → todos (perfis irrestritos)
@@ -115,6 +118,49 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Situação geral (lib/bdi/situacao.ts) — substitui o antigo processos.status
+    // morto. Duas consultas extras, mesma trave de "sem recorte de perfil"
+    // do bloco de retrabalho acima: vw_bdi_campos_criticos (preenchimento
+    // real do LIP) e analises_mac (passada mais recente + status), pelos
+    // mesmos códigos já autorizados pela query principal.
+    const camposPorCodigo = new Map<string, ResumoCamposLip>();
+    const ultimaPassadaPorCodigo = new Map<string, UltimaPassadaMac>();
+    if (codigos.length > 0) {
+      const [{ data: linhasCampos }, { data: linhasAnalises }] = await Promise.all([
+        supabase
+          .from("vw_bdi_campos_criticos")
+          .select("codigo, campos_vazios, campos_em_x, campos_totais")
+          .in("codigo", codigos),
+        supabase
+          .from("analises_mac")
+          .select("processo_codigo, numero_analise, status, numero_despacho, numero_parecer")
+          .in("processo_codigo", codigos)
+          .is("excluido_em", null),
+      ]);
+      for (const linha of linhasCampos ?? []) {
+        const l = linha as any;
+        camposPorCodigo.set(l.codigo, {
+          campos_vazios: Number(l.campos_vazios) || 0,
+          campos_em_x: Number(l.campos_em_x) || 0,
+          campos_totais: Number(l.campos_totais) || 0,
+        });
+      }
+      // A view não agrega por processo — reduz aqui pra achar a passada de
+      // maior numero_analise de cada um (a "atual").
+      for (const linha of linhasAnalises ?? []) {
+        const l = linha as any;
+        const atual = ultimaPassadaPorCodigo.get(l.processo_codigo);
+        if (!atual || Number(l.numero_analise) > atual.numero_analise) {
+          ultimaPassadaPorCodigo.set(l.processo_codigo, {
+            numero_analise: Number(l.numero_analise) || 0,
+            status: l.status,
+            numero_despacho: l.numero_despacho ?? null,
+            numero_parecer: l.numero_parecer ?? null,
+          });
+        }
+      }
+    }
+
     resultado = resultado.map((p: any) => {
       const entrada: EntradaVigia = {
         processo: {
@@ -126,8 +172,18 @@ export async function GET(req: NextRequest) {
         },
         retrabalho: retrabalhoPorCodigo.get(p.codigo) ?? { trocas_totais: 0, virou_nao_conforme: 0 },
       };
-      return { ...p, triagem: triar(entrada).classe };
+      const tags: TagProcesso[] = Array.isArray(p.tags) ? p.tags.filter((t: any) => t && typeof t === "object") : [];
+      const situacao = situacaoGeral(
+        camposPorCodigo.get(p.codigo) ?? null,
+        ultimaPassadaPorCodigo.get(p.codigo) ?? null,
+        tags,
+      );
+      return { ...p, triagem: triar(entrada).classe, situacao_geral: situacao.classe, situacao_motivo: situacao.motivo };
     });
+
+    if (situacaoFiltro) {
+      resultado = resultado.filter((p: any) => p.situacao_geral === situacaoFiltro);
+    }
 
     return NextResponse.json({ ok: true, data: resultado });
   } catch (e: any) {

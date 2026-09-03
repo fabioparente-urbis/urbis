@@ -32,6 +32,30 @@ type Processo = {
   area_construida?: number | string | null;
   /** Classe calculada pelo vigia (lib/bdi/vigia.ts) — já vem pronta da API. */
   triagem?: "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
+  /** Situação real (lib/bdi/situacao.ts), substitui o antigo `status` — já vem pronta da API. */
+  situacao_geral?: SituacaoGeral;
+  /** De onde a situação saiu — mostrado no title do badge, pra poder conferir. */
+  situacao_motivo?: string;
+};
+
+type SituacaoGeral =
+  | "Arquivado/indeferido"
+  | "Aguardando retorno do interessado"
+  | "MAC em análise"
+  | "LIP pendente"
+  | "Em cadastro";
+
+const SITUACAO_OPCOES: SituacaoGeral[] = [
+  "Em cadastro", "LIP pendente", "MAC em análise",
+  "Aguardando retorno do interessado", "Arquivado/indeferido",
+];
+
+const SITUACAO_COR: Record<SituacaoGeral, string> = {
+  "Em cadastro": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
+  "LIP pendente": "bg-[var(--warning-bg)] text-[var(--warning)]",
+  "MAC em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
+  "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
+  "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
 };
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
@@ -71,20 +95,6 @@ type Usuario = {
   perfil: string;
 };
 
-const STATUS_OPCOES = [
-  "CADASTRADO", "EM_ANALISE", "CONCLUIDO", "PENDENTE",
-  "cancelado", "arquivado_duplicado", "aguardando_assinaturas"
-];
-
-const STATUS_COR: Record<string, string> = {
-  EM_ANALISE: "bg-[var(--accent)] text-[var(--accent-fg)]",
-  CONCLUIDO: "bg-[var(--success-bg)] text-[var(--success)]",
-  PENDENTE: "bg-[var(--warning-bg)] text-[var(--warning)]",
-  cancelado: "bg-[var(--error-bg)] text-[var(--error)]",
-  CADASTRADO: "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
-  arquivado_duplicado: "bg-[var(--warning-bg)] text-[var(--warning)]",
-  aguardando_assinaturas: "bg-[var(--ia-bg)] text-[var(--ia)]",
-};
 
 const TIPO_COR: Record<string, string> = {
   regularizacao: "bg-[var(--ia-bg)] text-[var(--ia)]",
@@ -153,11 +163,12 @@ function ProcessosConteudo() {
   // Critérios escolhidos diretamente na tela. Eles recortam apenas a lista
   // já autorizada pela API; nunca ampliam o acesso de ninguém.
   const [filtrosTriagem, setFiltrosTriagem] = useState<FiltrosPilha>({});
-  const [status, setStatus] = useState("");
+  // Situação real (lib/bdi/situacao.ts) — substitui o antigo filtro por
+  // processos.status, que nunca separou nada (coluna morta, sempre 'CADASTRADO').
+  const [situacao, setSituacao] = useState("");
   const [analista, setAnalista] = useState("");
   const [deletando, setDeletando] = useState<string | null>(null);
   const [editando, setEditando] = useState<Processo | null>(null);
-  const [novoStatus, setNovoStatus] = useState("");
   const [novoAnalista, setNovoAnalista] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [perfil, setPerfil] = useState<string | null>(null);
@@ -201,7 +212,7 @@ function ProcessosConteudo() {
       const params = new URLSearchParams();
       if (busca) params.set("busca", busca);
       if (tipo) params.set("tipo", tipo);
-      if (status) params.set("status", status);
+      if (situacao) params.set("situacao", situacao);
       if (analista) params.set("analista", analista);
       const res = await fetch(`/api/processos?${params}`);
       const json = await res.json();
@@ -232,7 +243,7 @@ function ProcessosConteudo() {
   }
 
   useEffect(() => { carregarUsuarios(); carregarPerfil(); }, []);
-  useEffect(() => { carregar(); }, [busca, tipo, status, analista]);
+  useEffect(() => { carregar(); }, [busca, tipo, situacao, analista]);
 
   // A URL manda nos campos: o que o URBI pediu vira o estado visível dos
   // filtros, então a pessoa vê exatamente por que aquela lista está ali.
@@ -287,7 +298,6 @@ function ProcessosConteudo() {
 
   function abrirEditar(p: Processo) {
     setEditando(p);
-    setNovoStatus(p.status || "");
     setNovoAnalista(p.analista_id || "");
   }
 
@@ -296,16 +306,6 @@ function ProcessosConteudo() {
     setSalvando(true);
     try {
       const erros: string[] = [];
-      // Atualizar status: PUT genérico em /api/processos (somente quando mudou).
-      if (novoStatus && novoStatus !== editando.status) {
-        const resStatus = await fetch("/api/processos", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: editando.id, status: novoStatus }),
-        });
-        const jsonStatus = await resStatus.json().catch(() => ({ ok: false, erro: "Resposta inválida" }));
-        if (!jsonStatus.ok) erros.push(jsonStatus.erro || "Falha ao atualizar status");
-      }
       // Atualizar analista: rota dedicada, com autenticação e checagem de perfil.
       const novoAnalistaNorm = novoAnalista || null;
       if (novoAnalistaNorm !== (editando.analista_id || null)) {
@@ -397,10 +397,11 @@ function ProcessosConteudo() {
             <option key={a.id} value={a.slug}>{a.nome}</option>
           ))}
         </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)}
+        <select value={situacao} onChange={(e) => setSituacao(e.target.value)}
+          title="Situação calculada a partir de fato real — LIP preenchido, análise em andamento, despacho emitido. Não é o antigo campo de status."
           className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="">Todos os status</option>
-          {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+          <option value="">Todas as situações</option>
+          {SITUACAO_OPCOES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         {podeFiltrarAnalista && (
           <select value={analista} onChange={(e) => setAnalista(e.target.value)}
@@ -557,9 +558,11 @@ function ProcessosConteudo() {
                   {rotuloTipo(p.tipo_processo)}
                 </span>
 
-                {/* Status */}
-                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${STATUS_COR[p.status] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-                  {p.status?.replace(/_/g, " ") || "—"}
+                {/* Situação — calculada (lib/bdi/situacao.ts), não o antigo processos.status */}
+                <span
+                  title={p.situacao_motivo}
+                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                  {p.situacao_geral || "—"}
                 </span>
 
                 {/* Data */}
@@ -594,15 +597,6 @@ function ProcessosConteudo() {
             <p className="text-[var(--accent)] font-mono text-sm mb-4">{editando.codigo || editando.numero_sei}</p>
 
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Status</label>
-                <select value={novoStatus} onChange={(e) => setNovoStatus(e.target.value)}
-                  className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-                  <option value="">Manter atual</option>
-                  {STATUS_OPCOES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
-                </select>
-              </div>
-
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Atribuir Analista</label>
                 <select value={novoAnalista} onChange={(e) => setNovoAnalista(e.target.value)}
