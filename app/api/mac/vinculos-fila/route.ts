@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const { data: itens, error: erroItens } = await supabaseAdmin
     .from("mac_checklist_itens")
-    .select("id, grupo, texto, chave_lip")
+    .select("id, grupo, texto, chave_lip, ref, fundamento_legal")
     .eq("modelo_id", modelo.id).eq("ativo", true);
   if (erroItens) return NextResponse.json({ ok: false, erro: erroItens.message }, { status: 500 });
   const todosOsItens = itens ?? [];
@@ -52,13 +52,33 @@ export async function GET(req: NextRequest) {
   const itensComPropostaPendenteLip = new Set((propostas ?? []).filter((p: any) => p.tipo === "LIP").map((p: any) => p.mac_item_id));
   const itensComPropostaPendenteBip = new Set((propostas ?? []).filter((p: any) => p.tipo === "BIP").map((p: any) => p.mac_item_id));
 
-  const fila: { itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP" }[] = [];
+  const fila: {
+    itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP";
+    referenciaChecklist: string | null; fundamentoLegalCadastrado: string | null; campoLipRelacionado: string | null;
+  }[] = [];
   for (const item of todosOsItens) {
     const precisaLip = !itensComVinculoLip.has(item.id) && !itensComPropostaPendenteLip.has(item.id);
     const precisaBip = !itensComVinculoBip.has(item.id) && !itensComPropostaPendenteBip.has(item.id);
-    if ((!tipoFiltro || tipoFiltro === "LIP") && precisaLip) fila.push({ itemId: item.id, grupo: item.grupo, texto: item.texto, tipo: "LIP" });
-    if ((!tipoFiltro || tipoFiltro === "BIP") && precisaBip) fila.push({ itemId: item.id, grupo: item.grupo, texto: item.texto, tipo: "BIP" });
+    const base = {
+      itemId: item.id, grupo: item.grupo, texto: item.texto,
+      referenciaChecklist: (item as any).ref ?? null,
+      fundamentoLegalCadastrado: (item as any).fundamento_legal ?? null,
+      campoLipRelacionado: item.chave_lip && item.chave_lip.trim() !== "" ? item.chave_lip : null,
+    };
+    if ((!tipoFiltro || tipoFiltro === "LIP") && precisaLip) fila.push({ ...base, tipo: "LIP" });
+    if ((!tipoFiltro || tipoFiltro === "BIP") && precisaBip) fila.push({ ...base, tipo: "BIP" });
   }
+
+  // Cobertura por assunto — pedido explícito do Fábio ("mostrar cobertura por slot"). Mesma
+  // conta que app/api/bdi/prioridades/route.ts já faz por tipo_processo, só que aqui já temos
+  // os sets prontos, sem precisar de query nova.
+  const semNenhumVinculo = todosOsItens.filter((i) => !itensComVinculoLip.has(i.id) && !itensComVinculoBip.has(i.id)).length;
+  const cobertura = {
+    total_itens: todosOsItens.length,
+    lip: { vinculado: itensComVinculoLip.size, sem_vinculo: todosOsItens.length - itensComVinculoLip.size },
+    bip: { vinculado: itensComVinculoBip.size, sem_vinculo: todosOsItens.length - itensComVinculoBip.size },
+    sem_nenhum_vinculo: semNenhumVinculo,
+  };
 
   const itemPorId = new Map(todosOsItens.map((i) => [i.id, i]));
   const fragmentoIds = [...new Set((propostas ?? []).filter((p: any) => p.bip_fragmento_id).map((p: any) => p.bip_fragmento_id))];
@@ -98,6 +118,7 @@ export async function GET(req: NextRequest) {
     ok: true,
     assunto, assuntoId: modelo.assunto_id,
     totalItensAtivos: todosOsItens.length,
+    cobertura,
     fila, pendentes,
   });
 }
