@@ -128,7 +128,7 @@ async function buscarNoBip(
 }
 
 type ResultadoDossie =
-  | { status: "ok"; contexto: string }
+  | { status: "ok"; contexto: string; truncado: boolean }
   | { status: "indisponivel"; motivo: string };
 
 /** O chat só recebe o dossiê já autorizado e redigido pela rota própria. */
@@ -168,7 +168,16 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise
       },
       cobertura: d.cobertura,
     };
-    return { status: "ok", contexto: JSON.stringify(recorte).slice(0, 18000) };
+    const serializado = JSON.stringify(recorte);
+    const LIMITE_CONTEXTO = 18000;
+    const truncado = serializado.length > LIMITE_CONTEXTO;
+    // Não faz o modelo acreditar que recebeu o processo inteiro quando o
+    // teto de contexto precisou cortar material. O aviso entra no próprio
+    // texto e também volta para a interface como leitura parcial.
+    const contexto = truncado
+      ? `${serializado.slice(0, LIMITE_CONTEXTO)}\n[RECORTE INTERROMPIDO POR LIMITE DE CONTEXTO — não conclua sobre o que não apareceu.]`
+      : serializado;
+    return { status: "ok", contexto, truncado };
   } catch (erro: any) {
     console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
     return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
@@ -390,6 +399,7 @@ faz pela tela do processo — você só lê e explica, nunca executa.
 Regras de uso do dossiê:
 - Diga sempre que uma informação vem do dossiê (ex.: "segundo o dossiê deste processo...").
 - Se "cobertura.completo" for false, avise que a leitura está parcial ANTES de responder com base nela — "fontes_indisponiveis" lista o que faltou.
+- Se o dossiê indicar que o RECORTE foi interrompido por limite de contexto, avise que a leitura está parcial e não conclua sobre o trecho que não veio.
 - Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
@@ -456,7 +466,9 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     // Marca simples pedida no plano do Co-Analista: a interface pode informar ao
     // analista que esta resposta usou o dossiê do processo — nunca expõe o conteúdo
     // do dossiê em si, só o fato de ter sido consultado (e se a leitura veio completa).
-    const usouDossie = dossie ? { usado: true, completo: dossie.status === "ok" } : { usado: false };
+    const usouDossie = dossie?.status === "ok"
+      ? { usado: true, completo: !dossie.truncado }
+      : { usado: false };
 
     return NextResponse.json({ ok: true, resposta, sair, dossie: usouDossie });
   } catch (e: any) {
