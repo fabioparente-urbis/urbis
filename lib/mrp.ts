@@ -14,9 +14,9 @@ export type Gerencia = 'GERECCO' | 'GERAED' | 'GERAGP';
 export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo';
 export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 
-/** Faixas de área que definem o porte. Fonte única — usada no cálculo e na inferência. */
+/** Faixas de área que definem o rótulo de porte (PP/MP/GP) — só classificação/estatística, não pontuação (ver lib/mrp-pontuacao.ts). */
 export const AREA_PP_MAX = 540;
-export const AREA_MP_MAX = 2000;
+export const AREA_MP_MAX = 5000;
 
 // ─── Cálculo de pontos ─────────────────────────────────────
 // A fórmula real vive em lib/mrp-pontuacao.ts (tabela mrp_pontuacao +
