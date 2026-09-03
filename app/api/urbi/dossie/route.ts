@@ -2,7 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { podeAcessarProcesso, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { situacaoGeral, situacaoLip, situacaoMac } from "@/lib/bdi/situacao";
-import { fatosDoLip, ordenarAnalises, resumoChecklist } from "@/lib/urbi/dossieProcesso";
+import {
+  fatosDoLip, ordenarAnalises, resumoChecklist,
+  evolucaoChecklist, anexarObservacoes, historicoAlteracoesLip,
+} from "@/lib/urbi/dossieProcesso";
 
 /**
  * Dossiê factual do URBI — somente leitura.
@@ -38,7 +41,7 @@ export async function GET(req: NextRequest) {
   const consultas = await Promise.all([
     supabaseAdmin.from("assuntos").select("nome, slug").eq("id", processo.assunto_id).maybeSingle(),
     supabaseAdmin.from("vw_bdi_campos_criticos").select("campos_vazios, campos_em_x, campos_totais").eq("codigo", codigo).maybeSingle(),
-    supabaseAdmin.from("analises_mac").select("id, numero_analise, status, itens, criado_em, atualizado_em, numero_despacho, numero_parecer, numero_despacho_interno, modelo_id").eq("processo_codigo", codigo).is("excluido_em", null),
+    supabaseAdmin.from("analises_mac").select("id, numero_analise, status, itens, criado_em, atualizado_em, numero_despacho, numero_parecer, numero_despacho_interno, modelo_id, observacoes_por_item, observacoes_por_aba").eq("processo_codigo", codigo).is("excluido_em", null),
     supabaseAdmin.from("vw_bdi_retrabalho_por_passada").select("exigencia, aba, referencia_legal, passada_anterior, passada_atual, status_anterior, status_novo, voltou_em").eq("processo_codigo", codigo).order("voltou_em", { ascending: false }).limit(100),
     supabaseAdmin.from("mdp_registros").select("tipo, numero, data_despacho, criado_em").eq("processo_codigo", codigo).order("criado_em", { ascending: true }),
     supabaseAdmin.from("mrp_registros").select("tipo_despacho, numero_despacho, numero_analise, data_despacho, pontos").eq("processo_codigo", codigo).order("data_despacho", { ascending: true }),
@@ -47,9 +50,19 @@ export async function GET(req: NextRequest) {
     // já aplicada) — pedido explícito do dossiê original ("tempo aguardando retorno quando
     // houver base"), faltava nesta rota. security_invoker=true, mesma sessão do usuário.
     supabaseAdmin.from("vw_bdi_aguardando_retorno").select("analise_que_gerou_despacho, despacho_emitido_em, proxima_analise, proxima_analise_iniciada_em, dias_aguardando_retorno, situacao").eq("processo_codigo", codigo),
+    // mac_historico — log de mudança de status por item, gravado por Regularização SEI e Aceite SEI
+    // (app/api/analise-regularizacao|analise-aceite-sei/route.ts) e também pelo Slot 5
+    // (app/api/mac/slot-05/analise/route.ts): já é transversal aos 3 slots, sem adapter nenhum.
+    // Base de evolucaoChecklist() (lib/urbi/dossieProcesso.ts).
+    supabaseAdmin.from("mac_historico").select("analise_id, checklist_item_id, item_texto, status_novo, analista_nome, criado_em").eq("processo_codigo", codigo).order("criado_em", { ascending: true }),
+    // processo_historico — achado real (03/09/2026): não é mais alimentado por nenhum caminho de
+    // código atual (0 linhas novas desde 08/2026; ProcessoClient.tsx não manda mais
+    // `camposAlterados`) e as poucas linhas antigas guardam valor real por campo (`{campo,de,para}`),
+    // não só o nome da chave — historicoAlteracoesLip() nunca expõe de/para por isso (ver função).
+    supabaseAdmin.from("processo_historico").select("criado_em, detalhe").eq("processo_id", processo.id).order("criado_em", { ascending: false }).limit(15),
   ]);
 
-  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno"];
+  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno", "mac_historico", "processo_historico"];
   const fontesIndisponiveis = consultas
     .map((resultado, i) => resultado.error ? `${nomesFontes[i]}: ${resultado.error.message}` : null)
     .filter(Boolean);
@@ -62,6 +75,8 @@ export async function GET(req: NextRequest) {
   const mrp = consultas[5].data ?? [];
   const mhdDocumentos = (consultas[6].data ?? []) as any[];
   const aguardandoRetorno = (consultas[7].data ?? []) as any[];
+  const historicoMac = (consultas[8].data ?? []) as any[];
+  const historicoLipBruto = (consultas[9].data ?? []) as any[];
   const ultima = analises.length ? analises[analises.length - 1] : null;
 
   // versão/hash vigente de cada documento — pedido explícito da Fase 3 original ("versão/hash dos
@@ -138,7 +153,7 @@ export async function GET(req: NextRequest) {
   }
 
   const itemPorId = new Map((itensChecklist ?? []).map((item: any) => [item.id, item]));
-  const marcacoesMac = idsItens.map((id) => {
+  const marcacoesMacBase = idsItens.map((id) => {
     const item: any = itemPorId.get(id);
     return {
       item_id: id,
@@ -151,9 +166,30 @@ export async function GET(req: NextRequest) {
       vinculos_bip: leisPorItem.get(id) ?? [],
     };
   });
+  // Observação por item (Slot 5) ou por aba/grupo (Regularização/Aceite SEI) — desvio por
+  // tipo_processo dentro da leitura, colunas continuam isoladas por slot (ver anexarObservacoes).
+  const observacaoPorItemId = anexarObservacoes(
+    marcacoesMacBase.map((m) => ({ item_id: m.item_id, grupo: m.grupo })),
+    processo.tipo_processo,
+    (ultima as any)?.observacoes_por_item ?? null,
+    (ultima as any)?.observacoes_por_aba ?? null,
+  );
+  const marcacoesMac = marcacoesMacBase.map((m) => {
+    const observacao = observacaoPorItemId.get(m.item_id);
+    return observacao ? { ...m, observacao } : m;
+  });
   const pendenciasMac = idsNaoConformes.map((id) => {
     return marcacoesMac.find((item) => item.item_id === id)!;
   });
+
+  // Evolução: compara o estado atual de cada item com o que mac_historico já sabia dele ANTES
+  // desta passada (ver evolucaoChecklist em lib/urbi/dossieProcesso.ts para a regra completa).
+  const statusAtualPorItem = new Map(marcacoesMac.map((m) => [m.item_id, m.status]));
+  const evolucao = evolucaoChecklist(historicoMac, statusAtualPorItem, ultima?.id ?? null);
+
+  // Histórico raso de alteração do LIP — só quais campos mudaram, nunca o valor (a tabela não
+  // guarda isso, ver historicoAlteracoesLip).
+  const historicoLip = historicoAlteracoesLip(historicoLipBruto as any);
 
   const numerosMdp = new Set((mdp as any[]).map((linha) => String(linha.numero ?? "")).filter(Boolean));
   const numerosMrp = new Set((mrp as any[]).map((linha) => String(linha.numero_despacho ?? "")).filter(Boolean));
@@ -192,7 +228,11 @@ export async function GET(req: NextRequest) {
       lip: {
         ...lip,
         marcado_incompleto_pelo_analista: processo.lip_incompleto,
-        fonte: "processos.dados + vw_bdi_campos_criticos",
+        // Só quais campos mudaram e quando/quem — processo_historico não guarda valor
+        // anterior/novo (ver historicoAlteracoesLip). Interno: "quem" fica aqui pro dossiê próprio
+        // do processo; o recorte que o chat manda ao Gemini remove essa identificação.
+        historico_alteracoes: historicoLip,
+        fonte: "processos.dados + vw_bdi_campos_criticos + processo_historico",
       },
       mac: {
         numero_analises: analises.length,
@@ -203,8 +243,12 @@ export async function GET(req: NextRequest) {
         // campo LIP relacionado para caber no contexto do modelo.
         marcacoes_ultima_analise: marcacoesMac,
         pendencias_ultima_analise: pendenciasMac,
+        // Comparação com o que mac_historico já sabia do item antes desta passada (corrigido /
+        // voltou a não conforme / continua pendente). Transversal aos 3 slots — mac_historico é
+        // gravado por Regularização, Aceite SEI e Slot 5 igual.
+        evolucao,
         marcado_incompleto_pelo_analista: processo.mac_incompleto,
-        fonte: "analises_mac + mac_checklist_itens + mac_bip_vinculos + bdi_lei_fragmentos",
+        fonte: "analises_mac + mac_checklist_itens + mac_bip_vinculos + bdi_lei_fragmentos + mac_historico",
       },
       fluxo: {
         analises: analises.map((a: any) => ({
@@ -235,6 +279,7 @@ export async function GET(req: NextRequest) {
           "Lei só aparece quando existe vínculo real entre o item do MAC e um fragmento do BIP.",
           "Ausência de vínculo BIP não significa conformidade nem ausência de fundamento legal.",
           "Este dossiê não prevê prazo, não julga e não altera o processo.",
+          "lip.historico_alteracoes só lista o RÓTULO do campo que mudou e quando — nunca o valor anterior/novo, mesmo quando a fonte tem esse dado, por privacidade. A fonte (processo_historico) hoje não recebe linha nova de nenhum caminho de código conhecido — ausência de item aqui não prova ausência de alteração real no processo.",
         ],
       },
     },
