@@ -85,9 +85,16 @@ export async function POST(req: NextRequest) {
       .from("mac_bip_vinculos").select("id").eq("mac_item_id", itemId).eq("bip_fragmento_id", fragmentoId).maybeSingle();
     if (existente) return NextResponse.json({ ok: true, id: existente.id, jaExistia: true });
 
+    // Achado real (Fase A, 03/09/2026): confianca aqui era "MANUAL", mas a CHECK de
+    // mac_bip_vinculos só aceita ALTA/MEDIA/BAIXA (confirmado contra o banco: zero linhas com
+    // "MANUAL" existem, porque todo insert com esse valor falhava com 500). "confianca" é nível
+    // de confiança, não proveniência — um Administrador escolhendo o fragmento certo à mão pra
+    // este item é o caso de maior confiança possível, por isso ALTA (não precisa de campo novo
+    // nem de migration pra guardar "foi manual": todo vínculo criado por esta rota só existe
+    // porque alguém escolheu manualmente, a rota inteira É o caminho manual).
     const { data, error } = await supabaseAdmin
       .from("mac_bip_vinculos")
-      .insert({ mac_item_id: itemId, bip_fragmento_id: fragmentoId, confianca: "MANUAL" })
+      .insert({ mac_item_id: itemId, bip_fragmento_id: fragmentoId, confianca: "ALTA" })
       .select("id").single();
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
