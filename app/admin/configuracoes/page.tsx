@@ -4,7 +4,8 @@ import { AbaPontuacao } from "./pontuacao-aba";
 import { AbaObsCod } from "./obs-cod-aba";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle } from "lucide-react";
+import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle, Bot } from "lucide-react";
+import { isPerfilIrrestrito } from "@/lib/perfis";
 
 // `nome` é o nome de TELA. `nome_documento` (quando existe) é o texto que
 // sai no cabeçalho "Assunto:" dos documentos — ver migration
@@ -29,6 +30,9 @@ function ConfiguracoesInner() {
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
   const [sucessoId, setSucessoId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  // Administrador OU Diretora — mais amplo que isAdmin (só "Administrador"), usado só
+  // pro atalho do módulo URBI (pedido explícito do Fábio: Administrador/Diretora).
+  const [irrestrito, setIrrestrito] = useState(false);
   const [metaMensal, setMetaMensal] = useState<number>(100);
   const [metaInput, setMetaInput] = useState<string>("100");
   const [salvandoMeta, setSalvandoMeta] = useState(false);
@@ -97,6 +101,7 @@ function ConfiguracoesInner() {
       if (j.ok && Array.isArray(j.data?.perfis)) {
         const admin = j.data.perfis.includes("Administrador");
         setIsAdmin(admin);
+        setIrrestrito(isPerfilIrrestrito(j.data.perfis));
         if (admin) {
           fetch("/api/admin/config").then(r => r.json()).then(cfg => {
             if (cfg.ok && cfg.data?.meta_processos_mensal) {
@@ -258,6 +263,7 @@ function ConfiguracoesInner() {
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
           {isAdmin && <button onClick={() => router.push("/admin/lixeira")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🗑️ Lixeira</button>}
           {isAdmin && abaAtual !== "auditoria" && <button onClick={() => router.push("/admin/backup")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">💾 Backups</button>}
+          {irrestrito && <button onClick={() => router.push("/admin/urbi")} className="inline-flex items-center gap-1 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"><Bot size={14} /> URBI</button>}
         </div>
       </header>
 

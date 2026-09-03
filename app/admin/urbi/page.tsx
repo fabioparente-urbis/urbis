@@ -67,6 +67,24 @@ function fmtData(iso?: string | null): string {
   if (!iso) return "—";
   try { return new Date(iso).toLocaleString("pt-BR"); } catch { return iso; }
 }
+/**
+ * `urbis_api_calls.motivo_erro` guarda o corpo bruto de erro da API externa
+ * (Gemini/Groq), normalmente JSON pretty-printed — ex.:
+ * `{"error":{"code":503,"message":"...","status":"UNAVAILABLE"}}`. Extrai só
+ * a mensagem (+status/code, quando existir) pra exibição curta; o bruto
+ * continua disponível expandindo o `<details>` que usa isto.
+ */
+function resumirMotivoErro(motivoErro: string | null): string {
+  if (!motivoErro) return "—";
+  try {
+    const parsed = JSON.parse(motivoErro);
+    const msg = parsed?.error?.message;
+    const rotulo = parsed?.error?.status ?? parsed?.error?.code;
+    if (typeof msg === "string" && msg.trim()) return rotulo ? `${msg} (${rotulo})` : msg;
+  } catch { /* não era JSON — cai no truncado abaixo */ }
+  const limpo = motivoErro.trim();
+  return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
+}
 
 type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "config";
 
@@ -130,7 +148,7 @@ function AbaVisaoGeral() {
               <Metrica label="Chamadas" valor={dados.uso_7dias.total} />
               <Metrica label="OK" valor={dados.uso_7dias.ok} />
               <Metrica label="Erro" valor={dados.uso_7dias.erro} />
-              <Metrica label="Custo estimado" valor={`US$ ${dados.uso_7dias.custo_total_usd.toFixed(4)}`} />
+              <Metrica label="Estimativa histórica de uso" valor={`US$ ${dados.uso_7dias.custo_total_usd.toFixed(4)}`} fonte="registro calculado a partir do uso — não é fatura nem cobrança atual" />
             </div>
             {Object.keys(dados.uso_7dias.por_operacao).length > 0 && (
               <div className="flex flex-wrap gap-2 px-5 pb-5">
@@ -159,7 +177,14 @@ function AbaVisaoGeral() {
                   : dados.erros_recentes.map((e, i) => (
                     <tr key={i} className={TR}>
                       <td className={TD}>{e.operacao}</td>
-                      <td className={TD}>{e.motivo_erro ?? "—"}</td>
+                      <td className={`${TD} max-w-md`}>
+                        {e.motivo_erro ? (
+                          <details>
+                            <summary className="cursor-pointer">{resumirMotivoErro(e.motivo_erro)}</summary>
+                            <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--bg-primary)] p-2 text-[10px] text-[var(--text-muted)]">{e.motivo_erro}</pre>
+                          </details>
+                        ) : "—"}
+                      </td>
                       <td className={TD}>{fmtData(e.criado_em)}</td>
                     </tr>
                   ))}
@@ -458,7 +483,7 @@ function AbaUso() {
         {dados && (
           <div className="grid grid-cols-2 gap-3 p-5 md:grid-cols-4">
             <Metrica label="Chamadas" valor={dados.total_chamadas} />
-            <Metrica label="Custo estimado" valor={`US$ ${dados.custo_total_usd.toFixed(4)}`} />
+            <Metrica label="Estimativa histórica de uso" valor={`US$ ${dados.custo_total_usd.toFixed(4)}`} fonte="registro calculado a partir do uso — não é fatura nem cobrança atual" />
             <Metrica label="Duração média" valor={dados.duracao_media_ms != null ? `${dados.duracao_media_ms} ms` : "—"} />
             <Metrica label="Período" valor={`${dados.periodo_dias} dias`} />
           </div>
@@ -469,7 +494,7 @@ function AbaUso() {
         <div className="grid gap-3 md:grid-cols-2">
           <Secao titulo="Por operação">
             <table className="w-full text-xs">
-              <thead><tr><th className={TH}>Operação</th><th className={TH}>Chamadas</th><th className={TH}>OK</th><th className={TH}>Erro</th><th className={TH}>Custo</th></tr></thead>
+              <thead><tr><th className={TH}>Operação</th><th className={TH}>Chamadas</th><th className={TH}>OK</th><th className={TH}>Erro</th><th className={TH} title="Estimativa histórica calculada — não é fatura nem cobrança atual">Custo</th></tr></thead>
               <tbody>
                 {Object.keys(dados.por_operacao).length === 0
                   ? <Vazio cols={5}>Sem chamadas no período.</Vazio>
@@ -481,7 +506,7 @@ function AbaUso() {
           </Secao>
           <Secao titulo="Por modelo">
             <table className="w-full text-xs">
-              <thead><tr><th className={TH}>Modelo</th><th className={TH}>Chamadas</th><th className={TH}>Custo</th></tr></thead>
+              <thead><tr><th className={TH}>Modelo</th><th className={TH}>Chamadas</th><th className={TH} title="Estimativa histórica calculada — não é fatura nem cobrança atual">Custo</th></tr></thead>
               <tbody>
                 {Object.keys(dados.por_modelo).length === 0
                   ? <Vazio cols={3}>Sem chamadas no período.</Vazio>
@@ -497,7 +522,7 @@ function AbaUso() {
       {dados && (
         <Secao titulo="Chamadas recentes">
           <table className="w-full text-xs">
-            <thead><tr><th className={TH}>Operação</th><th className={TH}>Modelo</th><th className={TH}>Status</th><th className={TH}>Processo</th><th className={TH}>Duração</th><th className={TH}>Custo</th><th className={TH}>Quando</th></tr></thead>
+            <thead><tr><th className={TH}>Operação</th><th className={TH}>Modelo</th><th className={TH}>Status</th><th className={TH}>Processo</th><th className={TH}>Duração</th><th className={TH} title="Estimativa histórica calculada — não é fatura nem cobrança atual">Custo</th><th className={TH}>Quando</th></tr></thead>
             <tbody>
               {dados.recentes.length === 0
                 ? <Vazio cols={7}>Nenhuma chamada no período.</Vazio>

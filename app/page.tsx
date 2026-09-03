@@ -24,6 +24,7 @@ import {
   FileText,
   type LucideIcon,
   Route,
+  Bot,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 import { perfilDe, validarNumero, normalizarNumero } from "@/lib/numeracao";
@@ -152,6 +153,9 @@ export default function Home() {
     { chave: "admin", nome: "ADMIN", descricao: "Configurações do sistema", Icone: Settings2, rota: "/admin/configuracoes", visivel: souAdmin || irrestrito },
     // Matriz de rastreabilidade: a especificação de como o URBIS decide cada campo.
     { chave: "rastreabilidade", nome: "RASTREABILIDADE", descricao: "Slot 5 — como cada campo é preenchido", Icone: Route, rota: "/admin/rastreabilidade", visivel: souAdmin || irrestrito },
+    // Módulo administrativo do assistente/Co-Analista — mesmo gate de BIP (só irrestrito:
+    // Administrador/Diretora), pedido explícito do Fábio de não depender de digitar a URL.
+    { chave: "urbi", nome: "URBI", descricao: "Conversas, sugestões, uso e custo do assistente", Icone: Bot, rota: "/admin/urbi", visivel: irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);
