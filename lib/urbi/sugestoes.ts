@@ -5,7 +5,9 @@ export type TipoSugestao =
   | "item_voltou_nao_conforme"
   | "documento_sem_registro"
   | "aguardando_retorno_base_insuficiente"
-  | "incoerencia_lip_mac";
+  | "incoerencia_lip_mac"
+  | "divergencia_lip_documento"
+  | "item_sem_base_juridica";
 
 export type SugestaoAutomatica = {
   tipo: TipoSugestao;
@@ -37,6 +39,14 @@ type DossieParaSugestoes = {
   lip?: {
     incoerencias?: { campo: string; explicacao: string }[];
   };
+  cruzamentos?: {
+    tipo: string;
+    chave: string;
+    resultado: string;
+    motivo: string;
+    campos_comparados: string[];
+    fontes: string[];
+  }[];
 };
 
 /**
@@ -92,6 +102,33 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
       fontes: ["vw_bdi_aguardando_retorno"],
       grau_certeza: "base_insuficiente",
     });
+  }
+
+  // Fase B — cruzamento determinístico (lib/urbi/cruzamento.ts). Só os 2 resultados que
+  // merecem virar sugestão: divergência real (vale conferir) e item sem base jurídica
+  // aprovada (fato confirmado — a ausência de vínculo é dado direto, não interpretação).
+  for (const c of dossie.cruzamentos ?? []) {
+    if (c.tipo === "lip_x_documento" && c.resultado === "possivel_divergencia") {
+      saida.push({
+        tipo: "divergencia_lip_documento",
+        chave: c.chave,
+        sugestao: `O campo "${c.chave}" do LIP diverge do que a leitura do documento encontrou. ${c.motivo}`,
+        motivo_factual: c.motivo,
+        campos_comparados: c.campos_comparados,
+        fontes: c.fontes,
+        grau_certeza: "vale_conferir",
+      });
+    } else if (c.tipo === "mac_item_x_bip" && c.resultado === "base_juridica_ausente") {
+      saida.push({
+        tipo: "item_sem_base_juridica",
+        chave: c.chave,
+        sugestao: c.motivo,
+        motivo_factual: c.motivo,
+        campos_comparados: c.campos_comparados,
+        fontes: c.fontes,
+        grau_certeza: "confirmado",
+      });
+    }
   }
 
   (dossie.lip?.incoerencias ?? []).forEach((inc, i) => {

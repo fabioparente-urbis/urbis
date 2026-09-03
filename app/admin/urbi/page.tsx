@@ -332,6 +332,8 @@ const ROTULO_TIPO_SUGESTAO: Record<string, string> = {
   documento_sem_registro: "Documento sem registro (MDP/MRP)",
   aguardando_retorno_base_insuficiente: "Aguardando retorno — base insuficiente",
   incoerencia_lip_mac: "Incoerência LIP",
+  divergencia_lip_documento: "Divergência LIP × documento",
+  item_sem_base_juridica: "Item sem base jurídica (BIP)",
 };
 const TOM_GRAU: Record<string, string> = {
   confirmado: "ok", vale_conferir: "aviso", base_insuficiente: "alerta", nao_aplicavel: "neutro", aguarda_confirmacao_humana: "info",
