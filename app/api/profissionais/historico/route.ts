@@ -94,11 +94,14 @@ export async function GET(req: NextRequest) {
 
     const { data: vinculos } = await supabaseAdmin
       .from("processo_profissionais")
-      .select("processo_id, papel, processos!inner(codigo, tipo_processo)")
+      .select("processo_id, papel, processos!inner(codigo, tipo_processo, excluido_em, tags)")
       .eq("profissional_id", profId)
       .eq("ativo", true);
 
-    const outros = (vinculos ?? []).filter((v: any) => v.processos?.codigo !== processoAtualCodigo);
+    // Processo excluído não conta pro histórico do profissional.
+    const outros = (vinculos ?? []).filter(
+      (v: any) => v.processos?.codigo !== processoAtualCodigo && !v.processos?.excluido_em
+    );
 
     if (outros.length === 0) {
       return NextResponse.json({ ok: true, encontrado: false });
@@ -107,12 +110,18 @@ export async function GET(req: NextRequest) {
     // Um mesmo processo pode gerar 2 vínculos (ex: arquiteto E engenheiro
     // no mesmo processo) — contar processos distintos, não vínculos.
     const codigos = [...new Set(outros.map((v: any) => v.processos.codigo))];
-    const { data: analises } = await supabaseAdmin
-      .from("analises_mac")
-      .select("processo_codigo, status")
-      .in("processo_codigo", codigos);
 
-    const indeferidos = new Set((analises ?? []).filter((a: any) => a.status === "indeferido").map((a: any) => a.processo_codigo)).size;
+    // Indeferimento vem da tag em processos.tags, NUNCA de analises_mac.status
+    // — lib/bdi/situacao.ts já provou que esse status não é confiável (93%
+    // das análises com despacho já commitado continuam "em_andamento").
+    const tagsPorCodigo = new Map<string, unknown>();
+    for (const v of outros as any[]) {
+      if (!tagsPorCodigo.has(v.processos.codigo)) tagsPorCodigo.set(v.processos.codigo, v.processos.tags);
+    }
+    const indeferidos = codigos.filter((codigo) => {
+      const tags = tagsPorCodigo.get(codigo);
+      return Array.isArray(tags) && tags.some((t: any) => t?.tipo === "indeferimento");
+    }).length;
     const papeis = [...new Set(outros.map((v: any) => ROTULO_PAPEL[v.papel] ?? v.papel))];
 
     const partes: string[] = [];
