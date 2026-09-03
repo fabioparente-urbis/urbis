@@ -127,6 +127,11 @@ export type ItemEvolucao = {
   para: string;
   quando: string;
   analista_nome: string | null;
+  /** Análise em que este fato foi observado — usado, entre outras coisas, pra
+   *  dedupe de sugestão sem perder a linha do tempo quando o mesmo item volta
+   *  a não conforme mais de uma vez em análises diferentes (ver
+   *  lib/urbi/sugestoes.ts). */
+  analise_id: string;
 };
 
 export type EvolucaoChecklist = {
@@ -191,6 +196,12 @@ export function evolucaoChecklist(
     const base: ItemEvolucao = {
       item_id: itemId, texto, de: estadoAnterior, para: estadoAtual,
       quando: eventoReferencia.criado_em, analista_nome: eventoReferencia.analista_nome,
+      // Análise em que o fato foi OBSERVADO (a atual, sempre — não a análise do
+      // evento de referência, que pode ser anterior quando o item foi
+      // carregado sem evento novo nesta passada). Garante uma instância por
+      // passada mesmo que o item repita o mesmo "de/para" em análises
+      // diferentes.
+      analise_id: analiseAtualId,
     };
 
     if (estadoAnterior === "nao_conforme" && estadoAtual !== "nao_conforme" && estadoAtual !== "em_branco") {

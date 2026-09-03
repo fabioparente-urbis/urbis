@@ -21,7 +21,7 @@ export type SugestaoAutomatica = {
 type DossieParaSugestoes = {
   mac?: {
     evolucao?: {
-      itens_voltaram_nao_conforme?: { item_id: string; texto: string; quando: string }[];
+      itens_voltaram_nao_conforme?: { item_id: string; texto: string; quando: string; analise_id: string }[];
     };
   };
   fluxo?: {
@@ -52,7 +52,11 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
   for (const item of dossie.mac?.evolucao?.itens_voltaram_nao_conforme ?? []) {
     saida.push({
       tipo: "item_voltou_nao_conforme",
-      chave: item.item_id,
+      // Inclui a análise, não só o item: o mesmo item pode voltar a não
+      // conforme em mais de uma passada (corrigido, voltou, corrigido de
+      // novo, voltou de novo) — chave só por item_id colapsaria tudo na
+      // primeira ocorrência e perderia a linha do tempo real.
+      chave: `${item.item_id}:${item.analise_id}`,
       sugestao: `O item "${item.texto}" voltou a não conforme — estava resolvido numa passada anterior.`,
       motivo_factual: `mac_historico registra mudança para "nao_conforme" em ${item.quando}.`,
       campos_comparados: [item.item_id],
