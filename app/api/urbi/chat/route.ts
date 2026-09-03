@@ -4,6 +4,7 @@ import { registrarChamadaIA } from "@/lib/iaUso";
 import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { derivarSugestoesAutomaticas, registrarSugestoesAutomaticas } from "@/lib/urbi/sugestoes";
+import { gerarEmbeddingConsulta } from "@/lib/bdi/embeddingConsulta";
 
 export const maxDuration = 60;
 
@@ -88,30 +89,72 @@ async function buscarNoBip(
     return { status: "sem_resultado", contexto: "", fontes: [] };
   const idsAlvo = leisAlvo.map((l: any) => l.id);
 
-  const stopwords = new Set(["o","a","os","as","de","do","da","em","no","na","que","para","com","por","se","um","uma","é","e","ou","ao","às","dos","das"]);
-  const palavrasChave = pergunta
-    .toLowerCase()
-    .replace(/[^a-záéíóúãõâêîôûç\s]/g, " ")
-    .split(/\s+/)
-    .filter(p => p.length > 3 && !stopwords.has(p))
-    .slice(0, 5);
-  if (palavrasChave.length === 0)
-    return { status: "sem_resultado", contexto: "", fontes: [] };
+  // Busca vetorial primeiro (semântica, sobre a pergunta inteira — usa o índice HNSW que já
+  // existia mas nunca era chamado, ver migration 2026_09_03_buscar_bip_fragmentos_similares).
+  // Cai pra busca textual (ilike, como sempre foi) se não houver chave, o embedding falhar, a
+  // RPC falhar, ou não achar nada — nunca vira erro só por isso, é degradação silenciosa e
+  // segura. Gasto real de Gemini aqui é 1 embedding pequeno por pergunta em modo BIP — já
+  // coberto pelo mesmo kill switch (chat_gemini_ativo) e teto por hora do resto do chat.
+  let frags: { id: string; documento_id: string; referencia: string | null; texto: string }[] | null = null;
+  let viaVetor = false;
+  const apiKeyEmbedding = process.env.GEMINI_API_KEY;
+  if (apiKeyEmbedding) {
+    const t0Embed = Date.now();
+    const embedding = await gerarEmbeddingConsulta(pergunta, apiKeyEmbedding);
+    if (embedding.status === "ok") {
+      const { data: vetorResultado, error: erroVetor } = await supabaseAdmin.rpc("buscar_bip_fragmentos_similares", {
+        query_embedding: embedding.vetor,
+        match_count: 8,
+        filtro_documento_ids: idsAlvo,
+      });
+      await registrarChamadaIA({
+        modulo: "URBI", operacao: "bip_embedding_consulta", modelo: "gemini-embedding-001",
+        duracaoMs: Date.now() - t0Embed, status: erroVetor ? "erro" : "ok",
+        motivoErro: erroVetor?.message?.slice(0, 500),
+      });
+      if (erroVetor) {
+        console.error("[urbi:buscarNoBip] RPC de busca vetorial falhou, caindo pra busca textual:", erroVetor.message);
+      } else if (vetorResultado && vetorResultado.length > 0) {
+        frags = vetorResultado;
+        viaVetor = true;
+      }
+    } else {
+      await registrarChamadaIA({
+        modulo: "URBI", operacao: "bip_embedding_consulta", modelo: "gemini-embedding-001",
+        duracaoMs: Date.now() - t0Embed, status: "erro", motivoErro: embedding.motivo.slice(0, 500),
+      });
+      console.error("[urbi:buscarNoBip] embedding de consulta falhou, caindo pra busca textual:", embedding.motivo);
+    }
+  }
 
-  // Schema real de bdi_lei_fragmentos (confirmado em app/api/bdi/indexar-lei/route.ts
-  // e em todos os demais consumidores do BIP): id, documento_id, referencia, texto, embedding.
-  const { data: frags, error: erroFrags } = await supabaseAdmin
-    .from("bdi_lei_fragmentos")
-    .select("id, documento_id, referencia, texto")
-    .in("documento_id", idsAlvo)
-    .ilike("texto", `%${palavrasChave[0]}%`)
-    .limit(8);
-  if (erroFrags) {
-    console.error("[urbi:buscarNoBip] falha ao consultar bdi_lei_fragmentos:", erroFrags.message);
-    return { status: "erro", contexto: "", fontes: [] };
+  if (!frags) {
+    const stopwords = new Set(["o","a","os","as","de","do","da","em","no","na","que","para","com","por","se","um","uma","é","e","ou","ao","às","dos","das"]);
+    const palavrasChave = pergunta
+      .toLowerCase()
+      .replace(/[^a-záéíóúãõâêîôûç\s]/g, " ")
+      .split(/\s+/)
+      .filter(p => p.length > 3 && !stopwords.has(p))
+      .slice(0, 5);
+    if (palavrasChave.length === 0)
+      return { status: "sem_resultado", contexto: "", fontes: [] };
+
+    // Schema real de bdi_lei_fragmentos (confirmado em app/api/bdi/indexar-lei/route.ts
+    // e em todos os demais consumidores do BIP): id, documento_id, referencia, texto, embedding.
+    const { data, error: erroFrags } = await supabaseAdmin
+      .from("bdi_lei_fragmentos")
+      .select("id, documento_id, referencia, texto")
+      .in("documento_id", idsAlvo)
+      .ilike("texto", `%${palavrasChave[0]}%`)
+      .limit(8);
+    if (erroFrags) {
+      console.error("[urbi:buscarNoBip] falha ao consultar bdi_lei_fragmentos:", erroFrags.message);
+      return { status: "erro", contexto: "", fontes: [] };
+    }
+    frags = data;
   }
   if (!frags || frags.length === 0)
     return { status: "sem_resultado", contexto: "", fontes: [] };
+  console.log(`[urbi:buscarNoBip] resultado via ${viaVetor ? "busca vetorial" : "busca textual (fallback)"} — ${frags.length} fragmento(s).`);
 
   const fontes: string[] = [];
   const parts: string[] = [];
