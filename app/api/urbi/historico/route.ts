@@ -12,6 +12,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const analista = searchParams.get("analista");
   const linha = searchParams.get("linha");
+  // Busca livre em mensagem/resposta — usada pelo módulo /admin/urbi (aba
+  // Conversas). Escapa "%"/"_"/"," antes do .or() pelo mesmo motivo de
+  // lib/mac/vinculosFila.ts: caractere de curinga/separador do PostgREST não
+  // filtrado vira busca errada ou erro de sintaxe, nunca vazamento de dado,
+  // mas o resultado fica errado em silêncio se não escapar.
+  const busca = searchParams.get("busca")?.trim();
   const limitParam = parseInt(searchParams.get("limit") ?? "50", 10);
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 200) : 50;
 
@@ -28,6 +34,10 @@ export async function GET(req: NextRequest) {
     query = query.eq("usuario_id", ctx.userId);
   }
   if (linha) query = query.eq("linha", linha);
+  if (busca) {
+    const escapado = busca.replace(/[%_,]/g, (c) => `\\${c}`);
+    query = query.or(`mensagem_usuario.ilike.%${escapado}%,resposta_urbi.ilike.%${escapado}%`);
+  }
 
   const { data, error } = await query;
   if (error) {
