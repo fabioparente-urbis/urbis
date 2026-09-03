@@ -97,7 +97,18 @@ export async function GET(req: NextRequest) {
   const itensUltima = (ultima?.itens && typeof ultima.itens === "object" && !Array.isArray(ultima.itens))
     ? ultima.itens as Record<string, unknown>
     : {};
-  const idsItens = Object.keys(itensUltima);
+  // Inventário COMPLETO da análise atual: não só pendências. O mapa `itens`
+  // guarda apenas o que foi marcado; os itens ativos do modelo que não estão
+  // nele aparecem como `em_branco`. É assim que o URBI pode responder sobre
+  // tudo que está marcado ou ainda falta marcar, sem tratar ausência como OK.
+  const { data: itensAtivosDoModelo, error: erroModeloItens } = ultima?.modelo_id
+    ? await supabaseAdmin.from("mac_checklist_itens").select("id").eq("modelo_id", ultima.modelo_id).eq("ativo", true)
+    : { data: [] as any[], error: null };
+  if (erroModeloItens) fontesIndisponiveis.push(`itens_ativos_modelo: ${erroModeloItens.message}`);
+  const idsItens = [...new Set([
+    ...Object.keys(itensUltima),
+    ...(itensAtivosDoModelo ?? []).map((item: any) => String(item.id)),
+  ])];
   const { data: itensChecklist, error: erroItens } = idsItens.length
     ? await supabaseAdmin.from("mac_checklist_itens").select("id, grupo, texto, ref, fundamento_legal, chave_lip").in("id", idsItens)
     : { data: [], error: null };
@@ -127,17 +138,21 @@ export async function GET(req: NextRequest) {
   }
 
   const itemPorId = new Map((itensChecklist ?? []).map((item: any) => [item.id, item]));
-  const pendenciasMac = idsNaoConformes.map((id) => {
+  const marcacoesMac = idsItens.map((id) => {
     const item: any = itemPorId.get(id);
     return {
       item_id: id,
       grupo: item?.grupo ?? null,
       texto: item?.texto ?? "Item sem cadastro localizado.",
+      status: typeof itensUltima[id] === "string" ? itensUltima[id] : "em_branco",
       referencia_do_checklist: item?.ref ?? null,
       fundamento_legal_cadastrado: item?.fundamento_legal ?? null,
       campo_lip_relacionado: item?.chave_lip ?? null,
       vinculos_bip: leisPorItem.get(id) ?? [],
     };
+  });
+  const pendenciasMac = idsNaoConformes.map((id) => {
+    return marcacoesMac.find((item) => item.item_id === id)!;
   });
 
   const numerosMdp = new Set((mdp as any[]).map((linha) => String(linha.numero ?? "")).filter(Boolean));
@@ -182,7 +197,11 @@ export async function GET(req: NextRequest) {
       mac: {
         numero_analises: analises.length,
         ultima_analise: ultima ? { numero_analise: ultima.numero_analise, status: ultima.status, criado_em: ultima.criado_em, atualizado_em: ultima.atualizado_em } : null,
-        resumo_ultima_analise: resumoChecklist(itensUltima),
+        resumo_ultima_analise: resumoChecklist(Object.fromEntries(marcacoesMac.map((item) => [item.item_id, item.status]))),
+        // Inventário completo, usado pelo recorte seguro do chat. A interface
+        // não despeja essa lista: o URBI seleciona por pergunta, status e
+        // campo LIP relacionado para caber no contexto do modelo.
+        marcacoes_ultima_analise: marcacoesMac,
         pendencias_ultima_analise: pendenciasMac,
         marcado_incompleto_pelo_analista: processo.mac_incompleto,
         fonte: "analises_mac + mac_checklist_itens + mac_bip_vinculos + bdi_lei_fragmentos",

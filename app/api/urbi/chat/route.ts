@@ -131,8 +131,29 @@ type ResultadoDossie =
   | { status: "ok"; contexto: string; truncado: boolean }
   | { status: "indisponivel"; motivo: string };
 
+// Palavras curtas demais para funcionar como palavra-chave de busca nos itens
+// do checklist — ficariam batendo em quase todo texto.
+const PARADAS_PERGUNTA = new Set([
+  "para", "como", "onde", "quando", "desse", "dessa", "deste", "desta",
+  "aquele", "aquela", "sobre", "porque", "pode", "posso", "preciso",
+  "gostaria", "fazer", "esse", "essa", "isso", "aqui", "ainda", "alguma",
+  "algum", "alguns", "algumas", "muito", "pouco", "apenas", "também",
+  "depois", "antes", "agora", "assim", "então", "qual", "quais", "está",
+  "estão", "processo", "analise", "análise",
+]);
+
+function palavrasChaveDaPergunta(pergunta: string): string[] {
+  const normalizada = pergunta
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  return [...new Set(
+    normalizada.split(/[^a-z0-9]+/).filter((p) => p.length >= 4 && !PARADAS_PERGUNTA.has(p))
+  )];
+}
+
 /** O chat só recebe o dossiê já autorizado e redigido pela rota própria. */
-async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise<ResultadoDossie> {
+async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta: string): Promise<ResultadoDossie> {
   try {
     const destino = new URL(`/api/urbi/dossie?codigo=${encodeURIComponent(codigo)}`, req.url);
     const resposta = await fetch(destino, {
@@ -144,6 +165,30 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise
       return { status: "indisponivel", motivo: String(json?.erro ?? "Não foi possível carregar o dossiê factual.") };
     }
     const d = json.data;
+    const marcacoes: any[] = Array.isArray(d.mac?.marcacoes_ultima_analise) ? d.mac.marcacoes_ultima_analise : [];
+    const pendencias = (d.mac?.pendencias_ultima_analise ?? []).slice(0, 20);
+    // "em_branco": itens ativos do modelo que o analista ainda não marcou nesta
+    // passada (ver app/api/urbi/dossie/route.ts) — é o que falta olhar, não é
+    // conformidade nem pendência.
+    const itensEmBranco = marcacoes.filter((m: any) => m.status === "em_branco").slice(0, 25);
+    const idsJaSelecionados = new Set([
+      ...pendencias.map((p: any) => p.item_id),
+      ...itensEmBranco.map((i: any) => i.item_id),
+    ]);
+    // Seleção por pergunta: nunca despeja o inventário completo do checklist
+    // (pode ter dezenas de itens e estourar o teto de contexto) — só os itens
+    // cujo texto ou campo do LIP relacionado batem com palavra-chave da
+    // pergunta atual do analista.
+    const palavrasChave = palavrasChaveDaPergunta(pergunta);
+    const itensRelacionadosPergunta = palavrasChave.length
+      ? marcacoes
+          .filter((m: any) => {
+            if (idsJaSelecionados.has(m.item_id)) return false;
+            const alvo = `${m.texto ?? ""} ${m.campo_lip_relacionado ?? ""}`.toLowerCase();
+            return palavrasChave.some((p) => alvo.includes(p));
+          })
+          .slice(0, 15)
+      : [];
     const recorte = {
       processo: d.processo,
       situacoes: d.situacoes,
@@ -157,7 +202,9 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string): Promise
         numero_analises: d.mac?.numero_analises,
         ultima_analise: d.mac?.ultima_analise,
         resumo_ultima_analise: d.mac?.resumo_ultima_analise,
-        pendencias_ultima_analise: (d.mac?.pendencias_ultima_analise ?? []).slice(0, 20),
+        pendencias_ultima_analise: pendencias,
+        itens_em_branco: itensEmBranco,
+        itens_relacionados_pergunta: itensRelacionadosPergunta,
       },
       fluxo: {
         analises: d.fluxo?.analises,
@@ -328,7 +375,7 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
     // nunca aqui — ver app/api/urbi/dossie/route.ts), então esta chamada nunca decide
     // sozinha se o analista pode ver este processo.
     const codigoLimpo = typeof codigo === "string" ? codigo.trim() : "";
-    const dossie = codigoLimpo ? await buscarDossieDoProcesso(req, codigoLimpo) : null;
+    const dossie = codigoLimpo ? await buscarDossieDoProcesso(req, codigoLimpo, typeof message === "string" ? message : "") : null;
     const operacao = codigoLimpo
       ? (modoBipAtivo ? "chat_coanalista_bip" : "chat_coanalista")
       : (modoBipAtivo ? "chat_bip" : "chat_geral");
@@ -402,6 +449,8 @@ Regras de uso do dossiê:
 - Se o dossiê indicar que o RECORTE foi interrompido por limite de contexto, avise que a leitura está parcial e não conclua sobre o trecho que não veio.
 - Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
+- "itens_em_branco" são itens do checklist ainda SEM MARCAÇÃO nesta passada — "sem marcação" não é conforme nem aprovado, é ausência de decisão do analista até agora; é uma lista PARCIAL (o dossiê pode ter mais itens em branco do que os listados aqui), nunca afirme que ela é o total.
+- "itens_relacionados_pergunta" (quando presente) são itens do checklist que parecem ligados à pergunta atual do analista, por palavra-chave — pode incluir item conforme; sempre diga o status real de cada um, nunca assuma que aparecer aqui significa pendência.
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.

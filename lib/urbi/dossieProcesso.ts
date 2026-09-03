@@ -17,6 +17,7 @@ export type ResumoChecklist = {
   conforme: number;
   nao_conforme: number;
   nao_aplica: number;
+  em_branco: number;
   outros: number;
 };
 
@@ -55,8 +56,12 @@ export function camposTecnicosDoLip(
 }
 
 export function resumoChecklist(itens: Record<string, unknown> | null | undefined): ResumoChecklist {
-  const resumo: ResumoChecklist = { total_marcado: 0, conforme: 0, nao_conforme: 0, nao_aplica: 0, outros: 0 };
+  const resumo: ResumoChecklist = { total_marcado: 0, conforme: 0, nao_conforme: 0, nao_aplica: 0, em_branco: 0, outros: 0 };
   for (const status of Object.values(itens ?? {})) {
+    // "em_branco" é item ativo do modelo que o analista ainda não marcou (ver
+    // app/api/urbi/dossie/route.ts) — não é marcação real, então fica fora de
+    // total_marcado/outros para não mascarar status realmente inesperado.
+    if (status === "em_branco") { resumo.em_branco += 1; continue; }
     resumo.total_marcado += 1;
     if (status === "conforme") resumo.conforme += 1;
     else if (status === "nao_conforme") resumo.nao_conforme += 1;
