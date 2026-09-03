@@ -38,7 +38,11 @@ function Secao({ titulo, descricao, children }: { titulo: string; descricao?: Re
 
 const ASSUNTOS = [{ slug: "regularizacao", nome: "Regularização SEI" }, { slug: "aceite_sei", nome: "Aceite SEI" }];
 
-type ItemFila = { itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP" };
+type ItemFila = {
+  itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP";
+  referenciaChecklist: string | null; fundamentoLegalCadastrado: string | null; campoLipRelacionado: string | null;
+};
+type Cobertura = { total_itens: number; lip: { vinculado: number; sem_vinculo: number }; bip: { vinculado: number; sem_vinculo: number }; sem_nenhum_vinculo: number };
 type Pendente = {
   propostaId: string; itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP";
   lipChave: string | null; papel: string | null; obrigatorio: boolean | null;
@@ -56,6 +60,7 @@ export default function VinculosLipBipPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [itemAberto, setItemAberto] = useState<ItemFila | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [cobertura, setCobertura] = useState<Cobertura | null>(null);
 
   async function carregar() {
     setCarregando(true);
@@ -67,6 +72,7 @@ export default function VinculosLipBipPage() {
       setFila(j.fila);
       setPendentes(j.pendentes);
       setAssuntoId(j.assuntoId);
+      setCobertura(j.cobertura ?? null);
     } catch (e: any) {
       setErro(e.message);
     } finally {
@@ -112,6 +118,27 @@ export default function VinculosLipBipPage() {
         ))}
       </div>
 
+      {cobertura && (
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Itens ativos</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.total_itens}</div>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Cobertura LIP</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.lip.vinculado} <span className="text-xs font-normal text-[var(--text-muted)]">de {cobertura.total_itens}</span></div>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Cobertura BIP</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.bip.vinculado} <span className="text-xs font-normal text-[var(--text-muted)]">de {cobertura.total_itens}</span></div>
+          </div>
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Sem nenhum vínculo (LIP e BIP)</div>
+            <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.sem_nenhum_vinculo}</div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)]">
         {(["fila", "pendentes"] as const).map((t) => (
           <button key={t} onClick={() => setAba(t)}
@@ -134,8 +161,14 @@ export default function VinculosLipBipPage() {
               {fila.map((i) => (
                 <li key={`${i.itemId}:${i.tipo}`} className="flex items-center justify-between gap-3 px-5 py-3">
                   <div className="min-w-0">
-                    <div className="text-xs font-medium text-[var(--text-primary)]">{i.grupo}</div>
+                    <div className="text-xs font-medium text-[var(--text-primary)]">{i.grupo} {i.referenciaChecklist && <span className="text-[var(--text-muted)]">· {i.referenciaChecklist}</span>}</div>
                     <div className="truncate text-xs text-[var(--text-muted)]">{i.texto}</div>
+                    {(i.fundamentoLegalCadastrado || i.campoLipRelacionado) && (
+                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-[10px] text-[var(--text-muted)]">
+                        {i.fundamentoLegalCadastrado && <span>fundamento já cadastrado: {i.fundamentoLegalCadastrado}</span>}
+                        {i.campoLipRelacionado && <span>campo LIP: <code>{i.campoLipRelacionado}</code></span>}
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tom={i.tipo === "LIP" ? "info" : "aviso"}>{i.tipo}</Badge>
@@ -196,6 +229,11 @@ function PropostaModal({ item, assuntoId, onFechar, onEnviado }: { item: ItemFil
   const [justificativa, setJustificativa] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Busca por similaridade (embedding real, custo real) é SEMPRE ação explícita — nunca liga
+  // no debounce automático abaixo, que continua ilike/gratuito. Ver
+  // app/api/mac/vinculos-fila/buscar-bip/route.ts.
+  const [viaSimilaridade, setViaSimilaridade] = useState(false);
+  const [buscandoSimilar, setBuscandoSimilar] = useState(false);
 
   useEffect(() => {
     if (busca.trim().length < 2) { setResultados([]); return; }
@@ -205,10 +243,22 @@ function PropostaModal({ item, assuntoId, onFechar, onEnviado }: { item: ItemFil
         : `/api/mac/vinculos-fila/buscar-bip?q=${encodeURIComponent(busca)}`;
       const r = await fetch(url);
       const j = await r.json();
-      if (j.ok) setResultados(j.resultados);
+      if (j.ok) { setResultados(j.resultados); setViaSimilaridade(false); }
     }, 250);
     return () => clearTimeout(t);
   }, [busca, item.tipo, assuntoId]);
+
+  async function buscarPorSimilaridade() {
+    if (busca.trim().length < 2) return;
+    setBuscandoSimilar(true);
+    try {
+      const r = await fetch(`/api/mac/vinculos-fila/buscar-bip?q=${encodeURIComponent(busca)}&modo=similaridade`);
+      const j = await r.json();
+      if (j.ok) { setResultados(j.resultados); setViaSimilaridade(!!j.por_similaridade); }
+    } finally {
+      setBuscandoSimilar(false);
+    }
+  }
 
   async function enviar() {
     if (!escolhido || !justificativa.trim()) return;
@@ -235,11 +285,27 @@ function PropostaModal({ item, assuntoId, onFechar, onEnviado }: { item: ItemFil
         <label className="mb-1 block text-[11px] font-medium text-[var(--text-muted)]">
           {item.tipo === "LIP" ? "Buscar campo do LIP" : "Buscar fragmento do BIP (artigo/palavra-chave)"}
         </label>
-        <div className="relative mb-2">
-          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
-          <input value={busca} onChange={(e) => { setBusca(e.target.value); setEscolhido(null); }}
-            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] py-1.5 pl-7 pr-2 text-xs" placeholder="digite ao menos 2 caracteres" />
+        <div className="relative mb-2 flex gap-1.5">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]" />
+            <input value={busca} onChange={(e) => { setBusca(e.target.value); setEscolhido(null); setViaSimilaridade(false); }}
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-page)] py-1.5 pl-7 pr-2 text-xs" placeholder="digite ao menos 2 caracteres" />
+          </div>
+          {item.tipo === "BIP" && (
+            <button
+              type="button"
+              onClick={buscarPorSimilaridade}
+              disabled={busca.trim().length < 2 || buscandoSimilar}
+              title="Busca semântica por IA (gera custo pequeno de embedding) — a busca automática acima é sempre a textual, gratuita."
+              className="whitespace-nowrap rounded-lg border border-[var(--border)] px-2 py-1.5 text-[11px] font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-50"
+            >
+              {buscandoSimilar ? "Buscando…" : "🔎 Por similaridade (IA)"}
+            </button>
+          )}
         </div>
+        {viaSimilaridade && resultados.length > 0 && !escolhido && (
+          <div className="mb-1 text-[10px] text-[var(--text-muted)]">Resultado por similaridade semântica — confira o trecho antes de propor, é sugestão, não vínculo.</div>
+        )}
         {resultados.length > 0 && !escolhido && (
           <ul className="mb-3 max-h-40 overflow-y-auto rounded-lg border border-[var(--border)]">
             {resultados.map((r) => (
