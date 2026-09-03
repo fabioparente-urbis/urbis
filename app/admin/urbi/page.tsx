@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "config";
 
 // =====================================================================
 // Visão geral
@@ -548,6 +548,109 @@ function AbaUso() {
 }
 
 // =====================================================================
+// Mudanças de catálogo (Fase D)
+// =====================================================================
+
+type MudancaCatalogo = {
+  id: string;
+  criado_em: string;
+  slot: string | null;
+  item_grupo: string | null;
+  item_texto_atual: string;
+  acao: "criado" | "atualizado" | "desativado" | "reativado";
+  campos_alterados: Record<string, { de: unknown; para: unknown }>;
+};
+
+const NOME_SLOT: Record<string, string> = {
+  regularizacao: "Regularização SEI",
+  aceite_sei: "Aceite SEI",
+  slot_05: "Aprovação de Projeto",
+};
+const TOM_ACAO: Record<string, string> = {
+  criado: "ok", atualizado: "info", desativado: "erro", reativado: "aviso",
+};
+
+function AbaCatalogo() {
+  const [linhas, setLinhas] = useState<MudancaCatalogo[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [slotFiltro, setSlotFiltro] = useState("");
+  const [acaoFiltro, setAcaoFiltro] = useState("");
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const params = new URLSearchParams({ limit: "150" });
+      if (slotFiltro) params.set("slot", slotFiltro);
+      if (acaoFiltro) params.set("acao", acaoFiltro);
+      const res = await fetch(`/api/admin/urbi/catalogo?${params}`);
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setLinhas(json.data ?? []);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, [slotFiltro, acaoFiltro]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <Secao
+      titulo="Mudanças de catálogo (LIP/MAC)"
+      descricao={<>Trilha real do checklist — item criado, atualizado, desativado ou reativado (fonte: <code>mac_checklist_itens_historico</code>, trigger de banco desde 03/09/2026). Isto é sobre o CATÁLOGO, nunca sobre um processo ou interessado específico — nenhuma coluna aqui se refere a isso.</>}
+      acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}
+    >
+      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+        <select value={slotFiltro} onChange={(e) => setSlotFiltro(e.target.value)} className={INPUT}>
+          <option value="">Todos os slots</option>
+          <option value="regularizacao">Regularização SEI</option>
+          <option value="aceite_sei">Aceite SEI</option>
+          <option value="slot_05">Aprovação de Projeto</option>
+        </select>
+        <select value={acaoFiltro} onChange={(e) => setAcaoFiltro(e.target.value)} className={INPUT}>
+          <option value="">Toda ação</option>
+          <option value="criado">criado</option>
+          <option value="atualizado">atualizado</option>
+          <option value="desativado">desativado</option>
+          <option value="reativado">reativado</option>
+        </select>
+        <button onClick={carregar} className={BTN_PRIMARIO}>Filtrar</button>
+      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr>
+            <th className={TH}>Quando</th><th className={TH}>Slot</th><th className={TH}>Item</th>
+            <th className={TH}>Ação</th><th className={TH}>Campos alterados</th>
+          </tr>
+        </thead>
+        <tbody>
+          {erro && <Vazio cols={5}>{erro}</Vazio>}
+          {!erro && carregando && linhas.length === 0 && <Vazio cols={5}>Carregando…</Vazio>}
+          {!erro && !carregando && linhas.length === 0 && <Vazio cols={5}>Nenhuma mudança de catálogo registrada ainda neste filtro — a trilha começou a valer em 03/09/2026, mudança anterior a isso não aparece aqui.</Vazio>}
+          {linhas.map((l) => (
+            <tr key={l.id} className={TR}>
+              <td className={TD}>{fmtData(l.criado_em)}</td>
+              <td className={TD}>{l.slot ? (NOME_SLOT[l.slot] ?? l.slot) : "—"}</td>
+              <td className={`${TD} max-w-xs`}>
+                <div className="truncate" title={l.item_texto_atual}>{l.item_texto_atual}</div>
+                {l.item_grupo && <div className="text-[10px] text-[var(--text-muted)]">{l.item_grupo}</div>}
+              </td>
+              <td className={TD}><Badge tom={TOM_ACAO[l.acao] ?? "neutro"}>{l.acao}</Badge></td>
+              <td className={`${TD} max-w-sm`}>
+                {Object.entries(l.campos_alterados ?? {}).map(([campo, v]) => (
+                  <div key={campo} className="mb-0.5">
+                    <code>{campo}</code>: <span className="text-[var(--text-muted)]">{String(v?.de ?? "—")}</span> → {String(v?.para ?? "—")}
+                  </div>
+                ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Secao>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -686,7 +789,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["config", "Configurações"],
   ];
 
   return (
@@ -717,6 +820,7 @@ export default function UrbiAdminPage() {
         {aba === "conversas" && <AbaConversas />}
         {aba === "sugestoes" && <AbaSugestoes />}
         {aba === "uso" && <AbaUso />}
+        {aba === "catalogo" && <AbaCatalogo />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>
