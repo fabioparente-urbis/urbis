@@ -266,6 +266,16 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     };
     const historicoAlteracoesLipRecorte = (d.lip?.historico_alteracoes ?? []).slice(0, 10);
 
+    // Cruzamento determinístico (Fase B, lib/urbi/cruzamento.ts) — só os resultados que
+    // merecem atenção do analista (divergência real, item sem base jurídica). "consistente" e
+    // "dado_ausente" não vão pro modelo — não têm nada de novo pra dizer, só ruído de contexto.
+    // "corrigido_entre_passadas"/"pendencia_mantida" também ficam de fora daqui: já estão em
+    // "mac.evolucao" acima, mandar de novo seria duplicar.
+    const cruzamentosRecorte = (d.cruzamentos ?? [])
+      .filter((c: any) => c.resultado === "possivel_divergencia" || c.resultado === "base_juridica_ausente")
+      .slice(0, 20)
+      .map((c: any) => ({ tipo: c.tipo, chave: c.chave, resultado: c.resultado, motivo: c.motivo, regra: c.regra }));
+
     const recorte = {
       processo: d.processo,
       situacoes: d.situacoes,
@@ -292,6 +302,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
         documentos_mhd: d.fluxo?.documentos_mhd,
         aguardando_retorno: d.fluxo?.aguardando_retorno,
       },
+      cruzamentos: cruzamentosRecorte,
       cobertura: d.cobertura,
     };
     const serializado = JSON.stringify(recorte);
@@ -539,6 +550,7 @@ Regras de uso do dossiê:
 - "tem_observacao": true num item significa que o analista escreveu uma observação sobre ele na tela — você NÃO recebe o texto dela (não vai pro seu contexto por privacidade). Diga que existe uma observação registrada e sugira que o analista a releia na tela; nunca invente o que ela diz.
 - "mac.evolucao" compara a passada atual com o que o histórico (mac_historico) já sabia do item ANTES desta passada — grau_certeza "confirmado" nos 3 blocos, é fato direto: "itens_corrigidos" (estava não conforme, não está mais — pode dizer "foi corrigido", com "quando"), "itens_voltaram_nao_conforme" (tinha sido resolvido numa passada anterior e voltou a não conforme agora — alerte isso claramente, é informação operacional relevante), "itens_pendentes_mantidos" (segue não conforme desde uma passada anterior, sem mudança). Só compara item que tem "antes" real no histórico — se um item não aparece em nenhuma das 3 listas, não há comparação disponível pra ele, não conclua nada sobre evolução dele.
 - "lip.historico_alteracoes" só diz QUAIS campos do LIP mudaram e QUANDO — nunca invente um "antes"/"depois" de campo do LIP, você não recebe esse valor; se o analista perguntar o que mudou de fato, diga que só sabe QUE mudou, não PARA QUE valor. Essa lista costuma vir vazia mesmo em processo com LIP editado recentemente — não é prova de que nada mudou, é limite da fonte.
+- "cruzamentos" são comparações determinísticas já feitas por código (nunca por você) entre o LIP e o que a leitura de documento encontrou, e entre item do MAC e vínculo BIP aprovado — nunca regra jurídica nova, só presença/ausência ou igualdade/diferença de valor já normalizado. "resultado: possivel_divergencia" é sempre grau_certeza "vale_conferir" (cite os dois lados do "motivo", nunca diga que um está certo e o outro errado); "resultado: base_juridica_ausente" é grau_certeza "confirmado" (fato: o item não tem vínculo BIP aprovado hoje — não decida se isso invalida a exigência, só informe).
 - "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
