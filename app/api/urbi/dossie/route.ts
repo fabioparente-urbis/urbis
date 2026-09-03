@@ -6,6 +6,7 @@ import {
   fatosDoLip, ordenarAnalises, resumoChecklist,
   evolucaoChecklist, anexarObservacoes, historicoAlteracoesLip,
 } from "@/lib/urbi/dossieProcesso";
+import { cruzarLipComDocumento, cruzarItensMacComBip, cruzarEvolucaoChecklist } from "@/lib/urbi/cruzamento";
 
 /**
  * Dossiê factual do URBI — somente leitura.
@@ -60,9 +61,13 @@ export async function GET(req: NextRequest) {
     // `camposAlterados`) e as poucas linhas antigas guardam valor real por campo (`{campo,de,para}`),
     // não só o nome da chave — historicoAlteracoesLip() nunca expõe de/para por isso (ver função).
     supabaseAdmin.from("processo_historico").select("criado_em, detalhe").eq("processo_id", processo.id).order("criado_em", { ascending: false }).limit(15),
+    // mhd_resultados_campo, só vigente — base real pro cruzamento LIP x documento (Fase B).
+    // Hoje só tem massa pro Slot 5 (não é alimentada por Regularização/Aceite), mas a consulta
+    // não sabe disso e não precisa saber: pra quem não tem dado, só vem vazio.
+    supabaseAdmin.from("mhd_resultados_campo").select("chave, valor, fonte").eq("processo_codigo", codigo).eq("vigente", true),
   ]);
 
-  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno", "mac_historico", "processo_historico"];
+  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno", "mac_historico", "processo_historico", "mhd_resultados_campo"];
   const fontesIndisponiveis = consultas
     .map((resultado, i) => resultado.error ? `${nomesFontes[i]}: ${resultado.error.message}` : null)
     .filter(Boolean);
@@ -77,6 +82,7 @@ export async function GET(req: NextRequest) {
   const aguardandoRetorno = (consultas[7].data ?? []) as any[];
   const historicoMac = (consultas[8].data ?? []) as any[];
   const historicoLipBruto = (consultas[9].data ?? []) as any[];
+  const resultadosDocumento = (consultas[10].data ?? []) as any[];
   const ultima = analises.length ? analises[analises.length - 1] : null;
 
   // versão/hash vigente de cada documento — pedido explícito da Fase 3 original ("versão/hash dos
@@ -204,6 +210,20 @@ export async function GET(req: NextRequest) {
   }));
 
   const lip = fatosDoLip(processo as any);
+
+  // Cruzamento determinístico LIP × MAC × BIP × documentos — Fase B. Pura classificação de
+  // fato já lido acima, sem regra jurídica nova (lib/urbi/cruzamento.ts).
+  const cruzamentosLipDocumento = cruzarLipComDocumento(
+    Object.fromEntries(Object.entries(lip.campos_tecnicos).map(([chave, c]: [string, any]) => [chave, { chave, valor: c.valor, fonte: c.fonte }])),
+    resultadosDocumento,
+  );
+  const cruzamentosMacBip = cruzarItensMacComBip(
+    pendenciasMac.map((p) => ({ item_id: p.item_id, texto: p.texto })),
+    new Map(pendenciasMac.map((p) => [p.item_id, (p.vinculos_bip ?? []).map((v: any) => ({ referencia: v.referencia, confianca: v.confianca_vinculo }))])),
+  );
+  const cruzamentosEvolucao = cruzarEvolucaoChecklist(evolucao);
+  const cruzamentos = [...cruzamentosLipDocumento, ...cruzamentosMacBip, ...cruzamentosEvolucao];
+
   const situacoes = {
     geral: situacaoGeral(resumoCampos, ultimaPassada, tags as any),
     lip: situacaoLip(resumoCampos),
@@ -271,6 +291,9 @@ export async function GET(req: NextRequest) {
           situacao: r.situacao, // "retornou" | "ainda aguardando" | "base insuficiente"
         })),
       },
+      // Cruzamento determinístico LIP × MAC × BIP × documentos (Fase B) — nunca decide, só
+      // classifica fato já lido em cima; ver lib/urbi/cruzamento.ts pra vocabulário e regra.
+      cruzamentos,
       cobertura: {
         fontes_indisponiveis: fontesIndisponiveis,
         completo: fontesIndisponiveis.length === 0,
