@@ -2,6 +2,13 @@
  * app/api/mac/vinculos-fila/route.ts — passo 1 do procedimento manual de vinculação LIP/BIP
  * (Regularização SEI / Aceite SEI). Lista os itens do checklist ainda sem vínculo E sem proposta
  * pendente ("fila" de trabalho), e as propostas já feitas aguardando decisão administrativa.
+ *
+ * Fase Q (05/09/2026): a fila ganhou PRIORIDADE — item que já recorreu como "não conforme" em
+ * mais processos distintos (mac_historico, mesma fonte da aba Recorrência de /admin/urbi) sobe
+ * pro topo, porque é aí que a falta de base legal citável dói mais na prática (interessado
+ * questiona, analista não tem artigo pra apontar). `gera_indeferimento` foi cogitado como 2º
+ * sinal de prioridade e DESCARTADO: auditado em 05/09/2026, a coluna existe mas está 0/0/0 nos
+ * 3 assuntos — nenhum item marca isso hoje, sinal vazio não prioriza nada de verdade.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -52,32 +59,75 @@ export async function GET(req: NextRequest) {
   const itensComPropostaPendenteLip = new Set((propostas ?? []).filter((p: any) => p.tipo === "LIP").map((p: any) => p.mac_item_id));
   const itensComPropostaPendenteBip = new Set((propostas ?? []).filter((p: any) => p.tipo === "BIP").map((p: any) => p.mac_item_id));
 
+  // Prioridade (Fase Q) — recorrência real do item em mac_historico, mesma fonte/regra da aba
+  // Recorrência (app/api/admin/urbi/recorrencia). Só os itens deste modelo, então nunca esbarra
+  // no limite de 1000 linhas do PostgREST (achado antigo daquela rota) — o filtro por item já
+  // reduz o resultado a, no máximo, o volume de eventos destes ~55 itens.
+  const recorrenciaPorItem = new Map<string, Set<string>>();
+  if (idsDoModelo.length) {
+    const { data: historico, error: erroHistorico } = await supabaseAdmin
+      .from("mac_historico")
+      .select("processo_codigo, checklist_item_id")
+      .eq("status_novo", "nao_conforme")
+      .in("checklist_item_id", idsDoModelo);
+    if (erroHistorico) return NextResponse.json({ ok: false, erro: erroHistorico.message }, { status: 500 });
+    for (const h of (historico ?? []) as any[]) {
+      if (!recorrenciaPorItem.has(h.checklist_item_id)) recorrenciaPorItem.set(h.checklist_item_id, new Set());
+      recorrenciaPorItem.get(h.checklist_item_id)!.add(h.processo_codigo);
+    }
+  }
+  const recorrenciaDoItem = (itemId: string) => recorrenciaPorItem.get(itemId)?.size ?? 0;
+
   const fila: {
-    itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP";
+    itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP"; slot: AssuntoPermitidoNaFila;
     referenciaChecklist: string | null; fundamentoLegalCadastrado: string | null; campoLipRelacionado: string | null;
+    prioridade: { recorrenciaProcessosDistintos: number; motivo: string };
   }[] = [];
   for (const item of todosOsItens) {
     const precisaLip = !itensComVinculoLip.has(item.id) && !itensComPropostaPendenteLip.has(item.id);
     const precisaBip = !itensComVinculoBip.has(item.id) && !itensComPropostaPendenteBip.has(item.id);
+    const recorrencia = recorrenciaDoItem(item.id);
     const base = {
-      itemId: item.id, grupo: item.grupo, texto: item.texto,
+      itemId: item.id, grupo: item.grupo, texto: item.texto, slot: assunto as AssuntoPermitidoNaFila,
       referenciaChecklist: (item as any).ref ?? null,
       fundamentoLegalCadastrado: (item as any).fundamento_legal ?? null,
       campoLipRelacionado: item.chave_lip && item.chave_lip.trim() !== "" ? item.chave_lip : null,
+      prioridade: {
+        recorrenciaProcessosDistintos: recorrencia,
+        motivo: recorrencia > 0
+          ? `recorreu como "não conforme" em ${recorrencia} processo${recorrencia > 1 ? "s" : ""} distinto${recorrencia > 1 ? "s" : ""} (mac_historico)`
+          : "sem recorrência registrada — prioridade só pela ordem do catálogo",
+      },
     };
     if ((!tipoFiltro || tipoFiltro === "LIP") && precisaLip) fila.push({ ...base, tipo: "LIP" });
     if ((!tipoFiltro || tipoFiltro === "BIP") && precisaBip) fila.push({ ...base, tipo: "BIP" });
   }
+  fila.sort((a, b) => b.prioridade.recorrenciaProcessosDistintos - a.prioridade.recorrenciaProcessosDistintos);
 
   // Cobertura por assunto — pedido explícito do Fábio ("mostrar cobertura por slot"). Mesma
   // conta que app/api/bdi/prioridades/route.ts já faz por tipo_processo, só que aqui já temos
   // os sets prontos, sem precisar de query nova.
   const semNenhumVinculo = todosOsItens.filter((i) => !itensComVinculoLip.has(i.id) && !itensComVinculoBip.has(i.id)).length;
+  // Fase Q — corte de 3 estados pedido explicitamente: aprovado / com candidato (proposta BIP já
+  // pendente, aguardando decisão) / sem nada ainda. "Com candidato" nunca é vínculo real — é
+  // exatamente o status 'pendente' de mac_vinculos_propostas, que só early-exit em .../decidir
+  // grava de verdade.
+  const bipAprovado = itensComVinculoBip.size;
+  const bipComCandidatoPendente = itensComPropostaPendenteBip.size;
+  const bipSemNada = todosOsItens.length - bipAprovado - bipComCandidatoPendente;
+  const itensPrioritariosSemFundamento = todosOsItens
+    .filter((i) => !itensComVinculoBip.has(i.id) && !itensComPropostaPendenteBip.has(i.id))
+    .map((i) => ({ itemId: i.id, grupo: i.grupo, texto: i.texto, recorrencia: recorrenciaDoItem(i.id) }))
+    .filter((i) => i.recorrencia > 0)
+    .sort((a, b) => b.recorrencia - a.recorrencia)
+    .slice(0, 10);
   const cobertura = {
     total_itens: todosOsItens.length,
     lip: { vinculado: itensComVinculoLip.size, sem_vinculo: todosOsItens.length - itensComVinculoLip.size },
     bip: { vinculado: itensComVinculoBip.size, sem_vinculo: todosOsItens.length - itensComVinculoBip.size },
     sem_nenhum_vinculo: semNenhumVinculo,
+    bip_por_estado: { aprovado: bipAprovado, com_candidato_pendente: bipComCandidatoPendente, sem_nada: bipSemNada },
+    itens_prioritarios_sem_fundamento: itensPrioritariosSemFundamento,
   };
 
   const itemPorId = new Map(todosOsItens.map((i) => [i.id, i]));
