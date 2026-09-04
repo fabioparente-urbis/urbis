@@ -1,8 +1,10 @@
 /**
- * scripts/testar_quadro_areas.mts — a Receita PREPARATÓRIA "quadro de áreas completo" (Fase K
- * da Inteligência URBIS, 03/09/2026). Só fixture sintética — sem PDF real, sem Gemini, sem
- * dado pessoal. Esta receita NÃO está em `RECEITAS` (lib/visao/receitas.ts): não há caminho
- * real pra exercitar contra documento de verdade ainda, de propósito.
+ * scripts/testar_quadro_areas.mts — a Receita "quadro de áreas completo" (preparada na Fase K,
+ * 03/09/2026; conectada ao catálogo — ainda desativada — na Fase O, 04/09/2026). Só fixture
+ * sintética — sem PDF real, sem Gemini, sem dado pessoal. Esta receita ESTÁ em `RECEITAS`
+ * (lib/visao/receitas.ts) desde a Fase O, mas com `ativa: false`: não há caminho real pra
+ * exercitar contra documento de verdade ainda, de propósito — ver CHECKLIST_ATIVACAO_VISAO em
+ * lib/visao/quadroAreas.ts pro que falta pra isso mudar.
  *
  *   npx tsx scripts/testar_quadro_areas.mts
  */
@@ -37,10 +39,12 @@ const interp = (texto: string): InterpretacaoQuadroAreas => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-secao("0 · isolamento — NÃO está ligada ao pipeline real");
+secao("0 · no catálogo, mas desligada — NÃO executa Gemini na próxima leitura de pasta");
 {
-  t("QUADRO_AREAS_COMPLETO não está em RECEITAS (não executa Gemini na próxima leitura de pasta)",
-    !RECEITAS.some((r) => r.id === QUADRO_AREAS_COMPLETO.id));
+  t("QUADRO_AREAS_COMPLETO está em RECEITAS (Fase O: conectada ao catálogo)",
+    RECEITAS.some((r) => r.id === QUADRO_AREAS_COMPLETO.id));
+  t("mas com ativa:false (executarVisao pula antes de checar orçamento ou chamar o modelo)",
+    QUADRO_AREAS_COMPLETO.ativa === false);
   t("papel é \"projeto\" (mesma família das outras 2 receitas de prancha)",
     QUADRO_AREAS_COMPLETO.papel === "projeto");
   t("declara os 6 campos escalares esperados", QUADRO_AREAS_COMPLETO.chaves.length === 6);

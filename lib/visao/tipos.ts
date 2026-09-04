@@ -79,6 +79,15 @@ export type Receita = {
   };
   prompt: string;
   modelo: string;
+  /**
+   * Interruptor POR RECEITA (Fase O da Inteligência URBIS, 04/09/2026) — diferente do interruptor
+   * GLOBAL `urbis_config.visao_ligada` (lib/visao/index.ts), que desliga TODAS de uma vez. Uma
+   * receita pode estar no catálogo (`RECEITAS`, versionada, com hash) sem nunca ter chamado o
+   * Gemini ainda: `ativa: false` garante que `executarVisao` pula ela sempre, mesmo com a visão
+   * geral ligada — é o estado de "conectada, mas não habilitada" enquanto o checklist de ativação
+   * (ver `CHECKLIST_ATIVACAO_VISAO` em lib/visao/quadroAreas.ts) não foi cumprido por um humano.
+   */
+  ativa: boolean;
   /** o que torna o valor de CADA campo aceitável. Valor fora disto é tratado como ilegível. */
   validadores: Record<string, (valor: string) => { ok: boolean; motivo?: string }>;
   /**

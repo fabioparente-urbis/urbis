@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.20
-**Data:** 2026-09-03
+**Versão:** 1.21
+**Data:** 2026-09-04
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -287,6 +287,19 @@ prancha, um ícone). Para esses, o URBIS tem um pipeline de leitura por imagem:
   trabalho ainda não feito. Ver `MANUAL_SLOT5_MAC.md` para o recorte do quadro ICCAP no contexto do
   MAC, que reaproveita `mupdf.Page.search()` mas com um papel diferente (ilustração da pergunta
   assistida, não insumo para decisão automática).
+- **3ª receita no catálogo, ainda desligada (04/09/2026)**: `prancha.quadro_areas_completo`
+  (`lib/visao/quadroAreas.ts`) — área do terreno/construída/permeável/impermeável/a regularizar +
+  áreas por pavimento (lista de tamanho variável) — entrou em `RECEITAS` (lib/visao/receitas.ts),
+  mas com o campo novo `Receita.ativa = false`. `executarVisao` checa esse campo **antes** de
+  checar orçamento ou montar o recorte e pula sempre que for `false`, mesmo com a visão geral
+  ligada — **nenhuma leitura de pasta chama Gemini por causa desta receita hoje**. Pra virar
+  `ativa: true`: `CHECKLIST_ATIVACAO_VISAO` (mesmo arquivo) lista o que falta — PDF de teste
+  autorizado, saída estruturada validada contra leitura humana em várias pranchas, confiança
+  mínima calibrada, revisão humana, registro de execução/custo e as 6 chaves novas na matriz
+  (ainda não registradas — é por isso que o teste "8 · a matriz continua coerente com a receita",
+  scripts/testar_visao.mts, ignora esta receita enquanto ela estiver desativada). Comparação ×
+  LIP/MAC/documento já testada em modo seco, sem chamar modelo (`lib/visao/
+  quadroAreasComparacao.ts`, scripts/testar_quadro_areas.mts seção 9).
 
 ---
 
@@ -1142,6 +1155,7 @@ nunca a de outro.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.21 | 2026-09-04 | Seção "Infra reaproveitável": receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lib/visao/receitas.ts) — 3ª receita do catálogo — mas com `Receita.ativa = false` (campo novo no tipo), e `executarVisao` (lib/visao/index.ts) passou a checar esse campo antes de orçamento/recorte, pulando a receita sempre que desativada. Nenhuma leitura de pasta chama Gemini por causa dela hoje; checklist de ativação em `CHECKLIST_ATIVACAO_VISAO` (lib/visao/quadroAreas.ts). Testado sem regressão: scripts/testar_visao.mts continua com as mesmas 11 falhas pré-existentes (nenhuma nova), scripts/testar_quadro_areas.mts com todas as asserções passando. Ver `MANUAL_SLOT5_MAC.md` v1.22 |
 | 1.20 | 2026-09-03 | Nenhuma mudança na tela nem em `processos.dados` do LIP. Registrado por conferência: motor de execução do MAC (`lib/mac-motor/slot5/`) ganhou um 4º arquétipo experimental isolado (`carimboMetadados.ts`) — extrai só metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título), sem gravar nada, sem tocar em campo do LIP, sem wiring a nenhuma tela. Ver `MANUAL_SLOT5_MAC.md` v1.21 |
 | 1.19 | 2026-09-02 | Tela do LIP (`ProcessoClient.tsx`, todos os slots) ganhou o **Vigia do processo**, logo acima do bloco LIP: painel só de leitura com fatos verificáveis — campos vazios, campos em X (mostrados como informação de ausência, nunca como erro), incoerências reais (ex.: área construída maior que a do terreno, lendo vírgula decimal), número de análises, retrabalho vindo do histórico do MAC, exigências recorrentes do assunto e aviso de numeração. Cada aviso declara a origem (campo do processo / histórico do MAC / checklist / BIP / view do BDI). Traz também a **triagem por evidência** (mais simples para análise · exige atenção · maior risco de retrabalho), sempre com os motivos listados e **sem porcentagem ou previsão de prazo**; critérios visíveis e ajustáveis em `lib/bdi/vigia.ts`. Referência legal só aparece quando existe vínculo real MAC × BIP — sem vínculo, nada é citado. Nada é escrito no processo. Custo zero: SQL puro, sem Gemini/Groq/ElevenLabs. Rota nova `GET /api/bdi/vigia` com `verificarOwnership` — analista não alcança processo de terceiro (403 verificado). Ver `MANUAL_SLOT5_MAC.md` v1.20 |
 | 1.18 | 2026-08-27 | Seção 21: revisão da 1.17 — o Fábio corrigiu o desenho inicial. O link "📋 Padrões" saiu do modal de Despacho Interno do LIP; o modal só usa padrões já criados. CRUD (criar/editar/excluir) vive só em `/admin/despacho-padroes`, alcançado por Configurações — ver `MANUAL_SLOT5_MAC.md` v1.19 |

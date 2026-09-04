@@ -1018,6 +1018,7 @@ function AbaDesempenhoProfissionais() {
 type ReceitaInfo = {
   id: string; versao: number; papel: string; chaves: string[]; alvo: string; modelo: string;
   status: "ativa" | "preparada"; observacao: string; cobertura?: string[]; limitacoes?: string[];
+  checklistAtivacao?: string[];
 };
 type ReceitasVisao = { ativas: ReceitaInfo[]; preparadas: ReceitaInfo[] };
 
@@ -1049,6 +1050,14 @@ function CardReceita({ r }: { r: ReceitaInfo }) {
           </ul>
         </div>
       )}
+      {r.checklistAtivacao && (
+        <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg-card-hover)] p-3">
+          <div className="text-[11px] font-medium text-[var(--text-primary)]">Checklist de ativação — nenhum item cumprido ainda</div>
+          <ul className="mt-1 list-disc space-y-1 pl-4 text-[11px] text-[var(--text-secondary)]">
+            {r.checklistAtivacao.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </div>
+      )}
       <p className="mt-3 text-[10px] italic text-[var(--text-muted)]">{r.observacao}</p>
     </div>
   );
@@ -1075,7 +1084,7 @@ function AbaLeituraVisual() {
   return (
     <div>
       <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
-        Esta aba só EXPLICA o que existe em <code>lib/visao/</code> — não tem botão de processamento, não chama Gemini e não lê documento nenhum. "Ativa" quer dizer que a receita já está no caminho real (Slot 5, ao ler uma pasta); "preparada" quer dizer que o contrato existe e foi testado com fixture sintética, mas ainda depende de decisão humana pra entrar em produção.
+        Esta aba só EXPLICA o que existe em <code>lib/visao/</code> — não tem botão de processamento, não chama Gemini e não lê documento nenhum. Todas as receitas abaixo vêm do mesmo catálogo (<code>RECEITAS</code>, lib/visao/receitas.ts) e têm hash de governança. "Ativa" quer dizer que a receita chama o Gemini de verdade na próxima leitura de pasta do Slot 5; "preparada" quer dizer que está no catálogo com <code>ativa: false</code> — testada com fixture sintética, sem nenhuma chamada real, até um humano cumprir o checklist de ativação.
       </div>
       {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
       {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}

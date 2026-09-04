@@ -1,16 +1,18 @@
 /**
- * lib/visao/quadroAreas.ts — Receita PREPARATÓRIA "quadro de áreas completo" (Fase K da
- * Inteligência URBIS, 03/09/2026).
+ * lib/visao/quadroAreas.ts — Receita "quadro de áreas completo" (preparada na Fase K, 03/09/2026;
+ * conectada ao catálogo — ainda desativada — na Fase O, 04/09/2026).
  *
- * ── ISTO NÃO ESTÁ LIGADO À EXECUÇÃO REAL ────────────────────────────────────────
- * De propósito NÃO exportado em `RECEITAS` (lib/visao/receitas.ts): aquele array é lido por
- * `executarVisao` (lib/visao/index.ts) e QUALQUER receita ali chama o Gemini de verdade contra
- * documento real, com custo real, na próxima leitura de pasta do Slot 5. Esta receita fica
- * neste arquivo separado até um humano decidir ativá-la — decisão que inclui registrar as 6
- * chaves novas na matriz (`lib/rastreabilidade/lipSlot5.ts`, ver `matriz("LIP","slot_05")` e o
- * teste "8 · a matriz continua coerente com a receita" em scripts/testar_visao.mts) e mover a
- * constante `QUADRO_AREAS_COMPLETO` pra dentro de `RECEITAS`. Nenhuma das duas coisas foi feita
- * aqui.
+ * ── NO CATÁLOGO, MAS DESLIGADA POR CONFIGURAÇÃO ─────────────────────────────────
+ * Desde a Fase O esta receita É exportada em `RECEITAS` (lib/visao/receitas.ts) — tem hash, entra
+ * na lista que `executarVisao` percorre a cada leitura de pasta do Slot 5. O que ainda impede
+ * qualquer chamada real ao Gemini é o campo `ativa: false` abaixo: `executarVisao` (lib/visao/
+ * index.ts) checa isso ANTES de checar orçamento ou montar o recorte, e pula sempre que for
+ * `false` — mesmo com a visão geral ligada (`urbis_config.visao_ligada`). "No catálogo" (versão,
+ * hash, elegível pra teste de coerência com a matriz) e "executando de verdade" são coisas
+ * diferentes agora, de propósito.
+ *
+ * Pra virar `ativa: true`, ver `CHECKLIST_ATIVACAO_VISAO` logo abaixo — nenhum item dele foi
+ * cumprido ainda.
  *
  * ── POR QUE UM CONTRATO PRÓPRIO, E NÃO SÓ chaves+porCampo ──────────────────────
  * As duas receitas existentes (CALCULO_DE_VAGAS, ICCAP) têm um número FIXO e conhecido de
@@ -103,6 +105,7 @@ export const QUADRO_AREAS_COMPLETO: Receita = {
   chaves: [...CHAVES_QUADRO_AREAS],
   estrategia: "VARREDURA_VISUAL",
   papel: "projeto",
+  ativa: false,
   localizacao: {
     alvo: "um quadro ou tabela de áreas do projeto — títulos comuns são \"QUADRO DE ÁREAS\", "
       + "\"QUADRO DE ÁREA\" ou uma tabela dentro do memorial descritivo com linhas de área do "
@@ -173,6 +176,33 @@ export const QUADRO_AREAS_COMPLETO: Receita = {
   // este arquivo não tem autoridade pra fixar — fica pra quem calibrar a receita contra dado
   // real antes de ativar (mesma reserva já registrada no achado de Fase K sobre a memória).
 };
+
+/**
+ * Checklist de ativação (Fase O, 04/09/2026) — condição pra um humano trocar `ativa` pra `true`
+ * acima. Cada item é uma verificação concreta, não uma intenção — "feito" quer dizer que existe
+ * prova, não que parece razoável. Nenhum item foi cumprido ainda.
+ */
+export const CHECKLIST_ATIVACAO_VISAO = [
+  "PDF de teste AUTORIZADO: uma prancha real de um processo já concluído (ou peça de teste " +
+    "explicitamente cedida pelo Fábio), com quadro de áreas legível, disponível pra rodar " +
+    "scripts/testar_visao.mts --com-modelo contra ela — sem isso não existe leitura real pra " +
+    "calibrar validador nenhum.",
+  "Saída estruturada validada: as 6 chaves escalares + areasPorPavimento batendo com o que um " +
+    "humano lê no mesmo PDF, em pelo menos 3 pranchas de layout diferente (não só a amostra " +
+    "usada pra escrever o prompt) — uma prancha só prova que o prompt decora aquele layout.",
+  "Confiança mínima calibrada: CONFIANCA_MINIMA_SEM_CONFERENCIA (hoje 0.85, um chute de partida) " +
+    "revista contra os falsos-positivos e falsos-negativos das pranchas de teste acima, não " +
+    "mantida só porque é o valor que já estava escrito.",
+  "Revisão humana: alguém com autoridade sobre o Slot 5 (não quem escreveu o código) confere as " +
+    "leituras estruturadas linha a linha contra os PDFs de teste e assina que aceita o resultado.",
+  "Registro de execução e custo: rodar com --com-modelo e guardar quantas chamadas, quantos " +
+    "tokens e quanto custou em dólar — o mesmo tipo de número que CALCULO_DE_VAGAS/ICCAP já " +
+    "produzem em produção, pra comparar orçamento antes de ligar pra valer.",
+  "Registrar as 6 chaves na matriz (lib/rastreabilidade/lipSlot5.ts, usaIA:true, " +
+    "metodos:['VISAO_LOCALIZADA']) — só depois disso o teste \"8 · a matriz continua coerente " +
+    "com a receita\" (scripts/testar_visao.mts) volta a cobrir esta receita; enquanto `ativa` " +
+    "for false, o teste a ignora de propósito (não executa, não precisa de entrada na matriz).",
+] as const;
 
 // ---------------------------------------------------------------- resultado (contrato completo)
 

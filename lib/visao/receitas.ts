@@ -17,6 +17,7 @@
 
 import { GEMINI_MODEL } from "@/lib/constants";
 import type { Receita } from "./tipos";
+import { QUADRO_AREAS_COMPLETO } from "./quadroAreas";
 
 /** Inteiro dentro de uma faixa plausível. Fora da faixa é leitura errada, não valor raro. */
 const inteiroEntre = (min: number, max: number, oQueE: string) => (bruto: string) => {
@@ -39,6 +40,7 @@ const CALCULO_DE_VAGAS: Receita = {
   chaves: ["vagasPcdExigido", "vagasIdosoExigido", "totalDeVagasExigidasParaEssas"],
   estrategia: "VARREDURA_VISUAL",
   papel: "projeto",
+  ativa: true,
   localizacao: {
     alvo: "um quadro/tabela com o título \"CÁLCULO DE VAGAS\", contendo linhas de ambientes com "
       + "áreas em m², uma linha destacada com o total de vagas de estacionamento, e uma seção "
@@ -102,6 +104,7 @@ const ICCAP: Receita = {
   chaves: ["areaImpermeabilizada"],
   estrategia: "VARREDURA_VISUAL",
   papel: "projeto",
+  ativa: true,
   localizacao: {
     alvo: "um quadro com o título \"Cálculo do Índice de Controle de Captação de Água Pluvial\", "
       + "contendo as linhas ÁREA DO TERRENO e ÁREA IMPERMEABILIZADA DO TERRENO",
@@ -139,7 +142,13 @@ const ICCAP: Receita = {
   },
 };
 
-export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS, ICCAP];
+/**
+ * Fase O da Inteligência URBIS (04/09/2026): QUADRO_AREAS_COMPLETO entra no catálogo real — está
+ * aqui, tem hash, aparece na lista que `executarVisao` percorre — mas com `ativa: false`
+ * (lib/visao/quadroAreas.ts), então `executarVisao` pula ela sempre, ANTES de checar orçamento
+ * ou chamar o Gemini. "No catálogo" e "executando" são coisas diferentes agora, de propósito.
+ */
+export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS, ICCAP, QUADRO_AREAS_COMPLETO];
 
 export const receitaDaChave = (chave: string) => RECEITAS.find((r) => r.chaves.includes(chave));
 

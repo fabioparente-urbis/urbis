@@ -175,6 +175,10 @@ export async function executarVisao(args: {
       // campo já resolvido por outro caminho não vale uma chamada paga
       if (receita.chaves.every((c) => out.campos[c] || args.jaResolvidos[c]?.valor)) continue;
 
+      // interruptor POR RECEITA (Fase O) — checado ANTES do global: uma receita no catálogo com
+      // `ativa: false` nunca chama o modelo, mesmo com a visão geral ligada. Ver lib/visao/tipos.ts.
+      if (!receita.ativa) { pular(receita, "DESLIGADA", `receita "${receita.id}" desativada individualmente (checklist de ativação pendente)`); continue; }
+
       if (!ligada) { pular(receita, "DESLIGADA", "visão desligada em urbis_config"); continue; }
       if (!process.env.GEMINI_API_KEY) { pular(receita, "SEM_CHAVE", "GEMINI_API_KEY ausente"); continue; }
 

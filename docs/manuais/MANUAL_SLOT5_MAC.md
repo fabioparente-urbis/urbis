@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.21
-**Data:** 2026-09-03
+**Versão:** 1.22
+**Data:** 2026-09-04
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -226,6 +226,12 @@ com processo real** antes de o plano mudar de direção (seção 5):
 Um 4º comparador (quadro de áreas × carimbo) é **experimental, sem vínculo MAC** — não corresponde a
 nenhum dos itens cadastrados no modelo, implementado em `comparadorQuadroCarimbo.ts` sem gravar em
 `mac_resultados_item`.
+
+**Conferido em 04/09/2026** (Fase O da Inteligência URBIS): a receita `prancha.quadro_areas_completo`
+entrou no catálogo `RECEITAS` (`lib/visao/receitas.ts`, lado LIP), ainda com `ativa: false` — **nada
+mudou no MAC**. `comparadorQuadroCarimbo.ts` (motor MAC, acima) e `lib/visao/
+quadroAreasComparacao.ts` (lado LIP, Fase K) continuam duas coisas separadas, sem ligação entre si;
+esta rodada não uniu os dois. Ver `MANUAL_SLOT5_LIP.md` v1.21 para o que mudou do lado LIP.
 
 **Prompts próprios e versionados** (`lib/mac-motor/slot5/prompts.ts`) — nunca reaproveitam o
 `P3_MAC` da Regularização/Aceite, hash FNV-1a próprio por prompt.
@@ -1281,6 +1287,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.22 | 2026-09-04 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.21): a receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lado LIP, `lib/visao/receitas.ts`), ainda com `ativa: false`. `comparadorQuadroCarimbo.ts` (motor MAC, seção 4) continua separado de `lib/visao/quadroAreasComparacao.ts` (lado LIP) — esta rodada não uniu os dois |
 | 1.21 | 2026-09-03 | Seção 4.5: arquétipo 4 do motor piloto — `lib/mac-motor/slot5/experimental/carimboMetadados.ts`, biblioteca isolada e experimental (autorização explícita do Fábio), extrai metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título) e compara consistência entre páginas. Sem `mac_item_id`, não gravado, não wired a nenhuma tela nem rota, nenhum arquivo existente alterado. `alturaDaEdificacao` cogitada e descartada por ambiguidade de qual cota extrair. Extração ainda não validada contra Gemini/documento real — só a lógica determinística tem teste |
 | 1.20 | 2026-09-02 | Nenhuma mudança na tela nem nas rotas do MAC. Registrado por conferência: o `mac_historico` (10.320 linhas) passou a ser **lido** por views novas do BDI — `vw_bdi_retrabalho` (trocas de status por processo), `vw_bdi_exigencias_por_contexto` (o que mais reprova por assunto, bairro e faixa de área) e `vw_bdi_desempenho_referencia` (qual referência legal mais reprova). O dado sempre esteve lá; ninguém colhia. Duas correções de leitura que valem para quem for consultar essas tabelas: `tipo_processo` foi gravado em duas grafias (`regularizacao` e `REGULARIZACAO`) e precisa de `lower()`, e as áreas vêm com vírgula decimal ("375,00"), então cast direto para numeric estoura a consulta. O Vigia do processo consome essas views na tela do LIP — ver `MANUAL_SLOT5_LIP.md` v1.19. Migration `2026_09_02_bdi_views_vivas.sql`, aplicada; nenhuma alteração em `analises_mac`, `mac_resultados_item` ou no checklist |
 | 1.19 | 2026-08-27 | Seção 8: revisão da 1.18 — o Fábio corrigiu o desenho inicial. CRUD de Padrões de Despacho sai do modal de emissão (removido o link "📋 Padrões" de dentro dele) e passa a viver só em `/admin/despacho-padroes`, alcançado por um botão dentro de Configurações (`/admin/configuracoes`), com seletor em cascata Slot→Módulo→Tipo pra funcionar como destino direto do ADMIN. Dentro do modal de emissão só resta "usar" um padrão já criado. Criação/edição/exclusão de padrão agora dispara evento de auditoria no satélite MAP (`registrar()`, novas ações `PADRAO_DESPACHO_CRIADO/EDITADO/EXCLUIDO` em `lib/auditoria-tipos.ts`) |

@@ -216,7 +216,10 @@ secao("7 · o fechamento em 136 sobrevive à visão");
 // ─────────────────────────────────────────────────────────────────────────────
 secao("8 · a matriz continua coerente com a receita");
 {
-  for (const r of RECEITAS) {
+  // Receita desativada (Fase O, `ativa: false`) nunca produz campo real — não faz sentido exigir
+  // entrada na matriz até o checklist de ativação (lib/visao/quadroAreas.ts) ser cumprido e ela
+  // virar `ativa: true`. Ver seção "0" de scripts/testar_quadro_areas.mts pro isolamento dela.
+  for (const r of RECEITAS.filter((r) => r.ativa)) {
     const campos = matriz("LIP", "slot_05")!.campos!;
     for (const chave of r.chaves) {
       const c = campos.find((x) => x.chave === chave);
