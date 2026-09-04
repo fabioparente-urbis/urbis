@@ -400,6 +400,7 @@ export default function VinculosLipBipPage() {
                                 <Badge tom={c.confiancaSugerida === "MEDIA" ? "aviso" : "neutro"}>{c.confiancaSugerida} · distância {c.distancia.toFixed(3)}</Badge>
                               </div>
                               <div className="mt-0.5 text-[var(--text-muted)]">{c.trecho}</div>
+                              <div className="mt-1 text-[10px] text-[var(--text-muted)]">origem: busca vetorial (gemini-embedding-001) contra bdi_lei_fragmentos — proposta, exige revisão humana antes de propor</div>
                               <button className="mt-1 text-[var(--accent)] underline" onClick={() => { setCandidatoParaModal(c); setItemAberto(i); }}>usar este candidato →</button>
                             </div>
                           ))}
