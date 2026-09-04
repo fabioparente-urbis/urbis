@@ -159,6 +159,67 @@ function lerCornerPosSalvo(): { bottom: number; right: number } {
   return DEFAULT_CORNER;
 }
 
+/**
+ * Painel curto "o que o URBI sabe e não sabe" — Fase S da Inteligência URBIS (05/09/2026),
+ * pedido explícito pra orientação do analista dentro do próprio widget (não só em /admin/urbi,
+ * que é restrito a Administrador/Diretora). Vocabulário sempre "vale conferir"/"base
+ * insuficiente"/"fonte" — nunca "erro" ou "reprovação" sem fato comprovado, mesmo regra do
+ * system prompt (app/api/urbi/chat/route.ts) e de lib/urbi/sugestoes.ts.
+ */
+function OrientacaoCoAnalista({ onFechar, small }: { onFechar: () => void; small?: boolean }) {
+  const Item = ({ titulo, children }: { titulo: string; children: React.ReactNode }) => (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 11, color: "#1e293b", marginBottom: 2 }}>{titulo}</div>
+      <div style={{ fontSize: 11, lineHeight: 1.55, color: "#475569" }}>{children}</div>
+    </div>
+  );
+  return (
+    <div style={{
+      flex: 1, overflowY: "auto", maxHeight: small ? 260 : 340,
+      paddingBottom: 8, fontFamily: "system-ui, sans-serif",
+    }}>
+      <Item titulo="O que o URBI sabe">
+        Só o que já está gravado no banco deste processo: campos do LIP, itens do MAC, análises,
+        documentos emitidos, tags e (quando existe) fragmento do BIP já <strong>aprovado</strong> pra
+        aquele item do checklist. Toda resposta diz de onde veio ("fonte").
+      </Item>
+      <Item titulo="O que o URBI NÃO sabe">
+        Não lê o que está escrito numa observação livre que você digitou (só sabe que ela existe).
+        Não sabe se um campo "em X" ou vazio é erro — pode ser ausência legítima. Não tem opinião
+        jurídica própria: um cruzamento entre LIP/MAC/BIP é sempre <strong>"vale conferir"</strong>,
+        nunca um veredito. Quando o dado é curto demais pra dizer qualquer coisa, ele diz{" "}
+        <strong>"base insuficiente"</strong> — isso é honestidade, não falha.
+      </Item>
+      <Item titulo="Como pedir uma análise de coerência">
+        Peça direto: "confere a coerência deste processo" ou pergunte sobre um campo específico
+        ("o campo X bate com o item Y do MAC?"). Ele cruza o que já está gravado e aponta os dois
+        lados da comparação — a leitura é sempre sua, ele só organiza o que já existe.
+      </Item>
+      <Item titulo="Como revisar uma sugestão">
+        Sugestões automáticas ficam em <strong>/admin/urbi → Sugestões</strong> (acesso
+        administrativo). Cada uma tem estado: <em>nova</em> → você marca <em>vista</em>,{" "}
+        <em>confirmada</em>, <em>descartada</em> ou <em>insuficiente</em>. Mudar o estado só
+        registra sua leitura humana — nunca altera processo, LIP, MAC ou despacho.
+      </Item>
+      <Item titulo="O que ele nunca faz sozinho">
+        Não decide, aprova, reprova nem conclui análise. Não gera, emite ou redige documento. Não
+        pontua MRP. Não altera ou preenche campo do LIP nem item do MAC. Não consome nem sugere
+        número de numeração. Tudo isso continua sendo ação sua, pela tela do processo.
+      </Item>
+      <button
+        type="button"
+        className="urbi-focavel"
+        onClick={onFechar}
+        style={{
+          marginTop: 4, background: "transparent", border: "1px solid #e2e8f0",
+          borderRadius: 8, color: "#1d4ed8", padding: "6px 10px", fontSize: 11,
+          cursor: "pointer", fontWeight: 600,
+        }}
+      >← voltar pra conversa</button>
+    </div>
+  );
+}
+
 export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
   // Permissão de áudio: decidida só pelo administrador (urbi_modo_audio) pra
@@ -187,6 +248,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // mantém sua própria conversa (mensagens exibidas + histórico enviado ao
   // modelo), isoladas uma da outra — nunca vazam entre si. Nada disso é
   // persistido além da sessão do componente (fechar o URBI já zera as duas).
+  // Fase S da Inteligência URBIS (05/09/2026) — painel curto "o que o Co-Analista sabe/não
+  // sabe", pedido explícito do Fábio pra orientar o analista dentro do próprio widget (não só
+  // em /admin/urbi, que é restrito a Administrador/Diretora). Nunca aberto sozinho.
+  const [mostrarOrientacao, setMostrarOrientacao] = useState(false);
   const [modoBip, setModoBip] = useState(false);
   const [msgsBip, setMsgsBip] = useState<Msg[]>([]);
   const [historyBip, setHistoryBip] = useState<GeminiMsg[]>([]);
@@ -787,8 +852,24 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         color: modoBip ? "#7c3aed" : "#1d4ed8",
       }}>
         <span aria-hidden="true">{modoBip ? "⚖️ " : "🧭 "}</span>
-        {modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}
+        <span style={{ flex: 1 }}>{modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}</span>
+        <button
+          type="button"
+          className="urbi-focavel"
+          aria-label={mostrarOrientacao ? "Voltar para a conversa" : "O que o URBI sabe e não sabe"}
+          title="O que o URBI sabe e não sabe"
+          onClick={() => setMostrarOrientacao((v) => !v)}
+          style={{
+            background: "transparent", border: "1px solid #e2e8f0", borderRadius: "50%",
+            width: 18, height: 18, lineHeight: 1, fontSize: 11, fontWeight: 700,
+            color: "#94a3b8", cursor: "pointer", padding: 0, flexShrink: 0,
+          }}
+        >?</button>
       </div>
+      {mostrarOrientacao ? (
+        <OrientacaoCoAnalista onFechar={() => setMostrarOrientacao(false)} small={small} />
+      ) : (
+      <>
       <div style={{
         flex: 1, overflowY: "auto", maxHeight: small ? 220 : 300,
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
@@ -856,6 +937,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           }}
         ><span aria-hidden="true">✕</span></button>
       </div>
+      </>
+      )}
       <div style={{
         display: "flex", gap: 8, paddingTop: 8, minHeight: 36,
         borderTop: "1px solid #f1f5f9", marginTop: 6,
