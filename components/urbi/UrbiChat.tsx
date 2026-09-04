@@ -853,20 +853,24 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       }}>
         <span aria-hidden="true">{modoBip ? "⚖️ " : "🧭 "}</span>
         <span style={{ flex: 1 }}>{modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}</span>
-        <button
-          type="button"
-          className="urbi-focavel"
-          aria-label={mostrarOrientacao ? "Voltar para a conversa" : "O que o URBI sabe e não sabe"}
-          title="O que o URBI sabe e não sabe"
-          onClick={() => setMostrarOrientacao((v) => !v)}
-          style={{
-            background: "transparent", border: "1px solid #e2e8f0", borderRadius: "50%",
-            width: 18, height: 18, lineHeight: 1, fontSize: 11, fontWeight: 700,
-            color: "#94a3b8", cursor: "pointer", padding: 0, flexShrink: 0,
-          }}
-        >?</button>
+        {/* Fase U (05/09/2026) — achado de auditoria: o painel fala "deste processo", então só
+            faz sentido aparecer com processo em contexto; fora disso a frase seria falsa. */}
+        {processoCodigo && (
+          <button
+            type="button"
+            className="urbi-focavel"
+            aria-label={mostrarOrientacao ? "Voltar para a conversa" : "O que o URBI sabe e não sabe"}
+            title="O que o URBI sabe e não sabe"
+            onClick={() => setMostrarOrientacao((v) => !v)}
+            style={{
+              background: "transparent", border: "1px solid #e2e8f0", borderRadius: "50%",
+              width: 18, height: 18, lineHeight: 1, fontSize: 11, fontWeight: 700,
+              color: "#94a3b8", cursor: "pointer", padding: 0, flexShrink: 0,
+            }}
+          >?</button>
+        )}
       </div>
-      {mostrarOrientacao ? (
+      {mostrarOrientacao && processoCodigo ? (
         <OrientacaoCoAnalista onFechar={() => setMostrarOrientacao(false)} small={small} />
       ) : (
       <>
