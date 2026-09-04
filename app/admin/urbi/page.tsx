@@ -103,10 +103,34 @@ type VisaoGeral = {
   erros_recentes_fonte: string;
   cobertura_coanalista: { processos_com_coanalista: number; processos_ativos_total: number };
   cobertura_coanalista_fonte: string;
+  cobertura_coanalista_por_slot: { slot: string; nome_slot: string; processos_com_coanalista: number; processos_ativos_total: number }[];
+  sugestoes_novas_por_slot: { slot: string; nome_slot: string; total: number }[];
+  sugestoes_novas_por_grau: { grau_certeza: string; total: number }[];
+  falhas_cobertura_mdp_mrp_por_slot: { slot: string; nome_slot: string; total: number }[];
+  falhas_cobertura_mdp_mrp_fonte: string;
+  mudancas_catalogo_7dias_por_slot: { slot: string; nome_slot: string; total: number }[];
+  mudancas_catalogo_7dias_fonte: string;
   fontes_indisponiveis: string[];
 };
 
-function AbaVisaoGeral() {
+function TabelaPorSlot<T extends { slot: string; nome_slot: string }>({ linhas, colunas }: { linhas: T[]; colunas: [keyof T, string][] }) {
+  if (linhas.length === 0) return <div className="px-5 pb-5 text-xs text-[var(--text-muted)]">Nenhum processo vivo em nenhum slot.</div>;
+  return (
+    <table className="w-full text-xs">
+      <thead><tr><th className={TH}>Slot</th>{colunas.map(([, label]) => <th key={label} className={TH}>{label}</th>)}</tr></thead>
+      <tbody>
+        {linhas.map((l) => (
+          <tr key={l.slot} className={TR}>
+            <td className={TD}>{l.nome_slot}</td>
+            {colunas.map(([chave, label]) => <td key={label} className={TD}>{String(l[chave])}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function AbaVisaoGeral({ onIrParaAba }: { onIrParaAba: (aba: AbaUrbi) => void }) {
   const [dados, setDados] = useState<VisaoGeral | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -167,6 +191,50 @@ function AbaVisaoGeral() {
               fonte={dados.cobertura_coanalista_fonte}
             />
           </div>
+
+          <Secao titulo="Cobertura do Co-Analista por slot" descricao={dados.cobertura_coanalista_fonte}>
+            <TabelaPorSlot
+              linhas={dados.cobertura_coanalista_por_slot.map((l) => ({ ...l, cobertura: `${l.processos_com_coanalista} de ${l.processos_ativos_total}` }))}
+              colunas={[["cobertura", "Processos com Co-Analista"]]}
+            />
+          </Secao>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <Secao titulo="Sugestões novas por slot" descricao={dados.sugestoes_novas_fonte} acao={<button onClick={() => onIrParaAba("sugestoes")} className={BTN_SECUNDARIO}>Ver sugestões</button>}>
+              <TabelaPorSlot linhas={dados.sugestoes_novas_por_slot} colunas={[["total", "Novas"]]} />
+            </Secao>
+            <Secao titulo="Sugestões novas por grau de certeza" descricao={dados.sugestoes_novas_fonte}>
+              <table className="w-full text-xs">
+                <thead><tr><th className={TH}>Grau</th><th className={TH}>Novas</th></tr></thead>
+                <tbody>
+                  {dados.sugestoes_novas_por_grau.length === 0
+                    ? <Vazio cols={2}>Nenhuma sugestão nova.</Vazio>
+                    : dados.sugestoes_novas_por_grau.map((g) => (
+                      <tr key={g.grau_certeza} className={TR}>
+                        <td className={TD}><Badge tom={TOM_GRAU[g.grau_certeza] ?? "neutro"}>{g.grau_certeza}</Badge></td>
+                        <td className={TD}>{g.total}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </Secao>
+          </div>
+
+          <Secao titulo="Falhas de cobertura MDP/MRP por slot" descricao={dados.falhas_cobertura_mdp_mrp_fonte}>
+            {dados.falhas_cobertura_mdp_mrp_por_slot.length === 0
+              ? <div className="px-5 pb-5 text-xs text-[var(--text-muted)]">Nenhum documento sem registro em MDP/MRP pendente de revisão hoje.</div>
+              : <TabelaPorSlot linhas={dados.falhas_cobertura_mdp_mrp_por_slot} colunas={[["total", "Documentos sem registro"]]} />}
+          </Secao>
+
+          <Secao
+            titulo="Mudanças de catálogo — últimos 7 dias, por slot"
+            descricao={dados.mudancas_catalogo_7dias_fonte}
+            acao={<button onClick={() => onIrParaAba("catalogo")} className={BTN_SECUNDARIO}>Ver mudanças</button>}
+          >
+            {dados.mudancas_catalogo_7dias_por_slot.length === 0
+              ? <div className="px-5 pb-5 text-xs text-[var(--text-muted)]">Nenhuma mudança de catálogo nos últimos 7 dias.</div>
+              : <TabelaPorSlot linhas={dados.mudancas_catalogo_7dias_por_slot} colunas={[["total", "Mudanças"]]} />}
+          </Secao>
 
           <Secao titulo="Erros recentes (URBI)" descricao={dados.erros_recentes_fonte}>
             <table className="w-full text-xs">
@@ -325,6 +393,7 @@ type Sugestao = {
   sugestao: string; motivo_factual: string; campos_comparados: string[]; fontes: string[];
   grau_certeza: string; estado: string; gerado_em: string;
   decidido_por: string | null; decidido_por_nome: string | null; decidido_em: string | null;
+  tipo_processo: string | null;
 };
 
 const ROTULO_TIPO_SUGESTAO: Record<string, string> = {
@@ -334,7 +403,9 @@ const ROTULO_TIPO_SUGESTAO: Record<string, string> = {
   incoerencia_lip_mac: "Incoerência LIP",
   divergencia_lip_documento: "Divergência LIP × documento",
   item_sem_base_juridica: "Item sem base jurídica (BIP)",
+  catalogo_alterado_apos_analise: "Catálogo alterado após análise fechada",
 };
+const GRAUS_CERTEZA = ["confirmado", "vale_conferir", "base_insuficiente", "nao_aplicavel", "aguarda_confirmacao_humana"] as const;
 const TOM_GRAU: Record<string, string> = {
   confirmado: "ok", vale_conferir: "aviso", base_insuficiente: "alerta", nao_aplicavel: "neutro", aguarda_confirmacao_humana: "info",
 };
@@ -344,10 +415,14 @@ const TOM_ESTADO: Record<string, string> = {
 const ESTADOS_HUMANOS = ["vista", "confirmada", "descartada", "insuficiente"] as const;
 
 function AbaSugestoes() {
+  const router = useRouter();
   const [linhas, setLinhas] = useState<Sugestao[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [estadoFiltro, setEstadoFiltro] = useState("");
   const [processoFiltro, setProcessoFiltro] = useState("");
+  const [slotFiltro, setSlotFiltro] = useState("");
+  const [tipoFiltro, setTipoFiltro] = useState("");
+  const [grauFiltro, setGrauFiltro] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
 
@@ -357,13 +432,16 @@ function AbaSugestoes() {
       const params = new URLSearchParams();
       if (estadoFiltro) params.set("estado", estadoFiltro);
       if (processoFiltro.trim()) params.set("processo", processoFiltro.trim());
+      if (slotFiltro) params.set("slot", slotFiltro);
+      if (tipoFiltro) params.set("tipo", tipoFiltro);
+      if (grauFiltro) params.set("grau_certeza", grauFiltro);
       const res = await fetch(`/api/admin/urbi/sugestoes?${params}`);
       const json = await res.json();
       if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
       setLinhas(json.data ?? []);
     } catch { setErro("Falha técnica ao carregar."); }
     finally { setCarregando(false); }
-  }, [estadoFiltro, processoFiltro]);
+  }, [estadoFiltro, processoFiltro, slotFiltro, tipoFiltro, grauFiltro]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -392,6 +470,20 @@ function AbaSugestoes() {
           <option value="nova">nova</option>
           {ESTADOS_HUMANOS.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
+        <select value={slotFiltro} onChange={(e) => setSlotFiltro(e.target.value)} className={INPUT}>
+          <option value="">Todos os slots</option>
+          <option value="regularizacao">Regularização SEI</option>
+          <option value="aceite_sei">Aceite SEI</option>
+          <option value="slot_05">Aprovação de Projeto</option>
+        </select>
+        <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className={INPUT}>
+          <option value="">Todos os tipos</option>
+          {Object.entries(ROTULO_TIPO_SUGESTAO).map(([valor, rotulo]) => <option key={valor} value={valor}>{rotulo}</option>)}
+        </select>
+        <select value={grauFiltro} onChange={(e) => setGrauFiltro(e.target.value)} className={INPUT}>
+          <option value="">Todo grau de certeza</option>
+          {GRAUS_CERTEZA.map((g) => <option key={g} value={g}>{g}</option>)}
+        </select>
         <input value={processoFiltro} onChange={(e) => setProcessoFiltro(e.target.value)} onKeyDown={(e) => e.key === "Enter" && carregar()}
           placeholder="Código do processo…" className={`${INPUT} w-52`} />
         <button onClick={carregar} className={BTN_PRIMARIO}>Filtrar</button>
@@ -409,7 +501,13 @@ function AbaSugestoes() {
           {!erro && !carregando && linhas.length === 0 && <Vazio cols={8}>Nenhuma sugestão encontrada — se o chat estiver desligado, é esperado não haver nenhuma nova.</Vazio>}
           {linhas.map((s) => (
             <tr key={s.id} className={TR}>
-              <td className={TD}>{s.processo_codigo}</td>
+              <td className={TD}>
+                {s.tipo_processo ? (
+                  <button className="underline decoration-dotted hover:text-[var(--text-primary)]" onClick={() => router.push(`/processo/${encodeURIComponent(s.processo_codigo)}?tipo=${encodeURIComponent(s.tipo_processo!)}`)} title="Abrir processo (a tela aplica o controle de acesso de sempre)">
+                    {s.processo_codigo}
+                  </button>
+                ) : s.processo_codigo}
+              </td>
               <td className={TD}>{ROTULO_TIPO_SUGESTAO[s.tipo] ?? s.tipo}</td>
               <td className={`${TD} max-w-sm`}>
                 <div>{s.sugestao}</div>
@@ -816,7 +914,7 @@ export default function UrbiAdminPage() {
           ))}
         </div>
 
-        {aba === "visao" && <AbaVisaoGeral />}
+        {aba === "visao" && <AbaVisaoGeral onIrParaAba={setAba} />}
         {aba === "conversas" && <AbaConversas />}
         {aba === "sugestoes" && <AbaSugestoes />}
         {aba === "uso" && <AbaUso />}
