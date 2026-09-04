@@ -643,19 +643,36 @@ Regras de uso do dossiê:
 - "tecnico.eventos_catalogo_recentes" é trilha REAL de mudança do catálogo (item criado/atualizado/desativado/reativado, com o campo exato que mudou) — existe desde 03/09/2026, só cobre daqui pra frente; mudança de catálogo anterior a essa data não aparece aqui, só a inferência por divergência de texto em "mudancas_estruturais". Quando os dois coincidirem pro mesmo item, prefira citar o evento real (mais preciso: diz a ação e o campo exato).
 - "tecnico" é o retrato do que este SLOT específico sustenta agora — regra suprema: o catálogo de LIP/MAC é vivo, pode ganhar/perder/mudar campo e item a qualquer momento; "tecnico.catalogo" foi lido do banco agora mesmo, nunca é uma lista fixa que você já "sabia" de antes — não afirme que um campo/item existe ou não existe sem checar aqui. "tecnico.coberturas" diz, fonte por fonte, se ESTE processo tem dado real nela — ausência aqui não é falha do processo nem do analista, é limite real da fonte pra este slot (leia "tecnico.observacoes_do_slot" antes de comentar isso, tem a calibração certa). "tecnico.mudancas_estruturais" lista item cujo texto mudou (ou sumiu do catálogo ativo) entre quando foi marcado numa passada antiga e o texto de agora — quando aparecer aqui, diga explicitamente "a estrutura deste item mudou desde então" ou "base histórica insuficiente pra comparar", NUNCA trate isso como erro de quem preencheu ou de quem analisou na época.
 - Você PODE, dentro da conversa, notar e comentar problema de REDAÇÃO do checklist/LIP (texto confuso, duplicidade aparente, item que se repete demais, campo que parece faltar, possível vínculo BIP que ainda não existe) — mas isso é só CONVERSA, sugestão pro analista levar a quem administra o catálogo: você nunca cria, remove, altera, marca ou decide item/campo, e nunca publica vínculo jurídico. Deixe claro que é uma observação sua (grau_certeza "vale_conferir" ou "aguarda_confirmacao_humana"), não um fato do dossiê.
-- "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado).
+- "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado). Cada campo tem "rotulo" (nome humano real, vindo do mesmo catálogo que nomeia o campo na tela do analista) — ao citar um campo pro analista ou na seção "Fontes consultadas", use SEMPRE "rotulo", NUNCA a chave do objeto (a chave — ex.: "areaArt", "bairro", "tombado" — é identificador técnico interno, só pra você indexar, nunca deve aparecer numa resposta). Quando "rotulo" vier exatamente "Campo sem rótulo cadastrado", o catálogo não tem entrada pra esta chave (campo legado ou falha de consulta) — trate a identificação deste campo como "base_insuficiente" e NUNCA cite a chave técnica como substituto do rótulo que falta.
 - Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
 
 VERIFICAÇÃO DE COERÊNCIA (quando o analista pedir, ou quando você notar algo digno de nota
-respondendo outra pergunta): cruze "lip.campos_tecnicos" (valor preenchido) com o texto de
-"mac.pendencias_ultima_analise" — o item do MAC e, se houver, o "trecho" de "vinculos_bip" —
-e com "lip.incoerencias" (já calculadas). Isso é INTERPRETAÇÃO SUA sobre fatos do dossiê, não um
-novo fato: classifique sempre como grau_certeza "vale_conferir", nunca como
-"está errado" ou "está incoerente" de forma definitiva — você não decide isso, só aponta a leitura
-cruzada para o analista confirmar. Sempre cite os dois lados que comparou (campo do LIP + item do
-MAC ou trecho do BIP) para o analista poder checar rápido. Quando não achar nada digno de nota, diga
-isso claramente em vez de forçar uma observação.
+respondendo outra pergunta): sua ÚNICA fonte de divergência/incoerência entre dois valores é
+"cruzamentos" (já calculado e validado por regra determinística de código, nunca por você) e
+"lip.incoerencias" (idem). Você pode juntar um cruzamento existente com o item do MAC ou o
+"trecho" de "vinculos_bip" relacionado, pra apresentar isso de forma legível ao analista, sempre
+grau_certeza "vale_conferir" (nunca "está errado" ou "está incoerente" de forma definitiva — você
+não decide isso, só relata o que o código já cruzou). Sempre cite os dois lados que o cruzamento
+comparou, pelo "rotulo" humano (nunca a chave técnica), pra o analista poder checar rápido. Quando
+"cruzamentos" e "lip.incoerencias" vierem vazios ou sem nada digno de nota, diga isso claramente
+em vez de forçar uma observação.
+
+REGRA ABSOLUTA — nunca comparar número bruto por conta própria: você NUNCA junta dois valores
+numéricos do dossiê (LIP × LIP, LIP × documento, LIP × item do MAC) numa frase de
+comparação/divergência por iniciativa própria, mesmo que pareçam tratar da mesma grandeza — nem
+dentro da "verificação de coerência" acima, nem respondendo qualquer outra pergunta. A ÚNICA fonte
+de divergência entre dois valores é o array "cruzamentos" (calculado e validado por um catálogo
+semântico de domínio, em código, nunca por você). Um valor numérico de "campos_tecnicos" ainda
+PODE aparecer como FATO isolado (grau_certeza "confirmado", cada um só descrevendo o processo,
+nunca dois juntos numa comparação) — mas se dois campos parecerem tratar da mesma grandeza e você
+NÃO encontrar uma entrada correspondente em "cruzamentos", diga exatamente "base insuficiente para
+comparar — não há regra semântica validada para estes dois campos", nunca "vale_conferir" pra uma
+comparação que você mesmo inventou. Isto vale nomeadamente para "areaArt"/"areaLaudo" (ou
+qualquer campo de levantamento/ART/laudo) versus "areaTotal"/"areaVertical" (ou qualquer campo de
+quadro de áreas/vistoria) — até existir uma regra semântica explícita aprovada pra esse par
+específico, cada um só aparece como fato separado, nunca como divergência.
+
 NUNCA compare dois campos que não têm a mesma semântica e unidade (ex.: área construída TOTAL —
 soma de todos os pavimentos — nunca é comparável com área do terreno ou com área ocupada; nada
 prova nem contradiz "ocupação do lote" só com o total construído). Em especial: NUNCA infira que
@@ -685,26 +702,58 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
       { role: "user", parts: [{ text: message }] },
     ];
 
+    // Fase AC (04/09/2026) — achado real do piloto humano: uma falha aqui (rede/timeout/DNS
+    // no `fetch`, ou resposta que não é JSON válido) lançava uma exceção que pulava direto pro
+    // catch-all do POST (linha ~830), SEM NUNCA chamar registrarChamadaIA — a chamada
+    // simplesmente sumia, sem nenhuma linha em urbis_api_calls, e o analista só via "Tive um
+    // problema técnico" genérico (fallback do cliente quando a resposta não tem `detalhe`).
+    // Confirmado contra o log real (urbis_api_calls): a pergunta de coerência do piloto na
+    // Regularização SEI não deixou NENHUM registro, nem "ok" nem "erro" — só é possível se a
+    // exceção aconteceu antes de qualquer chamada a registrarChamadaIA, exatamente este trecho.
+    // Try/catch aqui garante que toda falha (motivo real: rede, timeout, parsing — não dá pra
+    // saber qual sem isto) fica registrada e o cliente recebe um `detalhe` específico, nunca o
+    // fallback genérico.
     const t0 = Date.now();
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPromptFinal }] },
-          contents,
-        }),
-      }
-    );
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPromptFinal }] },
+            contents,
+          }),
+        }
+      );
+    } catch (erroRede: any) {
+      await registrarChamadaIA({ modulo: "URBI", operacao, modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: `falha de rede ao chamar o Gemini: ${erroRede?.message ?? erroRede}`.slice(0, 500) });
+      return NextResponse.json({
+        ok: false, erro: "FALHA_REDE_GEMINI",
+        detalhe: "Tive uma falha de conexão ao consultar a IA agora — pode ser uma instabilidade temporária de rede ou do serviço do Gemini. Tenta de novo em instantes.",
+      }, { status: 502 });
+    }
 
     if (!res.ok) {
       const err = await res.text();
       await registrarChamadaIA({ modulo: "URBI", operacao, modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500) });
-      return NextResponse.json({ ok: false, erro: err }, { status: 500 });
+      return NextResponse.json({
+        ok: false, erro: err,
+        detalhe: "A IA recusou ou falhou ao processar esta pergunta agora. Tenta de novo — se persistir, é um problema do serviço, não do processo.",
+      }, { status: 500 });
     }
 
-    const data = await res.json();
+    let data: any;
+    try {
+      data = await res.json();
+    } catch (erroParse: any) {
+      await registrarChamadaIA({ modulo: "URBI", operacao, modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: `resposta do Gemini não é JSON válido: ${erroParse?.message ?? erroParse}`.slice(0, 500) });
+      return NextResponse.json({
+        ok: false, erro: "RESPOSTA_INVALIDA_GEMINI",
+        detalhe: "A IA respondeu num formato que não consegui interpretar. Tenta de novo.",
+      }, { status: 502 });
+    }
     await registrarChamadaIA({
       modulo: "URBI", operacao, modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
       tokensEntrada: data.usageMetadata?.promptTokenCount ?? null,

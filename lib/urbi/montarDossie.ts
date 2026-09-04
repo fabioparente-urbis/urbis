@@ -73,9 +73,16 @@ export async function montarDossieFactual(
     supabaseAdmin.from("mac_historico").select("analise_id, checklist_item_id, item_texto, status_novo, analista_nome, criado_em").eq("processo_codigo", codigo).order("criado_em", { ascending: true }),
     supabaseAdmin.from("processo_historico").select("criado_em, detalhe").eq("processo_id", processo.id).order("criado_em", { ascending: false }).limit(15),
     supabaseAdmin.from("mhd_resultados_campo").select("chave, valor, fonte").eq("processo_codigo", codigo).eq("vigente", true),
+    // Fase AC (04/09/2026, achado real do piloto): rótulo humano de cada campo do LIP vem
+    // SEMPRE de `lip_campos.label` — a MESMA coluna que desenha a tela do analista
+    // (app/api/admin/lip/route.ts) — nunca de uma lista hardcoded no código do URBI. Join por
+    // `lip_abas.assunto_id` (o slot do processo), catálogo VIGENTE consultado agora mesmo, não
+    // uma cópia fixa. Falha aqui não derruba o dossiê: cai pra SEM_ROTULO_CADASTRADO por campo
+    // (ver lib/urbi/dossieProcesso.ts), nunca pra chave técnica bruta.
+    supabaseAdmin.from("lip_campos").select("chave, label, lip_abas!inner(assunto_id)").eq("lip_abas.assunto_id", processo.assunto_id),
   ]);
 
-  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno", "mac_historico", "processo_historico", "mhd_resultados_campo"];
+  const nomesFontes = ["assunto", "campos_criticos", "analises_mac", "retrabalho", "mdp", "mrp", "mhd", "aguardando_retorno", "mac_historico", "processo_historico", "mhd_resultados_campo", "lip_campos"];
   const fontesIndisponiveis = consultas
     .map((resultado, i) => resultado.error ? `${nomesFontes[i]}: ${resultado.error.message}` : null)
     .filter(Boolean) as string[];
@@ -91,6 +98,8 @@ export async function montarDossieFactual(
   const historicoMac = (consultas[8].data ?? []) as any[];
   const historicoLipBruto = (consultas[9].data ?? []) as any[];
   const resultadosDocumento = (consultas[10].data ?? []) as any[];
+  const camposCatalogoLip = (consultas[11].data ?? []) as any[];
+  const rotuloPorChaveLip = new Map(camposCatalogoLip.map((c: any) => [c.chave, c.label]));
   const ultima = analises.length ? analises[analises.length - 1] : null;
 
   const idsMhdDocs = mhdDocumentos.map((d) => d.id);
@@ -227,10 +236,10 @@ export async function montarDossieFactual(
     mrp_registrado: numerosMrp.has(doc.numero),
   }));
 
-  const lip = fatosDoLip(processo as any);
+  const lip = fatosDoLip(processo as any, rotuloPorChaveLip);
 
   const cruzamentosLipDocumento = cruzarLipComDocumento(
-    Object.fromEntries(Object.entries(lip.campos_tecnicos).map(([chave, c]: [string, any]) => [chave, { chave, valor: c.valor, fonte: c.fonte }])),
+    Object.fromEntries(Object.entries(lip.campos_tecnicos).map(([chave, c]: [string, any]) => [chave, { chave, valor: c.valor, fonte: c.fonte, rotulo: c.rotulo }])),
     resultadosDocumento,
   );
   const cruzamentosMacBip = cruzarItensMacComBip(

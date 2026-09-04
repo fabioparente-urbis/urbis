@@ -85,7 +85,7 @@ export function compararValores(
 
 // ---------------------------------------------------- LIP × documento (mhd_resultados_campo)
 
-export type CampoLipParaCruzar = { chave: string; valor: string | number | boolean; fonte: string | null };
+export type CampoLipParaCruzar = { chave: string; valor: string | number | boolean; fonte: string | null; rotulo: string };
 export type ResultadoCampoDocumento = { chave: string; valor: string | null; fonte: string | null };
 
 /**
@@ -111,10 +111,14 @@ export function cruzarLipComDocumento(
     saida.push({
       tipo: "lip_x_documento",
       chave,
-      rotulo: chave, // chave do LIP já é um identificador técnico legível (ex.: "areaTerreno"), não UUID — mantido como rótulo por falta de um "label" mais amigável disponível aqui
+      // Fase AC (04/09/2026, achado real do piloto): rótulo humano de verdade, vindo de
+      // `lip_campos.label` (ver lib/urbi/montarDossie.ts) — nunca mais a chave técnica bruta
+      // ("areaTerreno") como antes. `campoLip.rotulo` já vem SEM_ROTULO_CADASTRADO quando a
+      // chave não bate com nenhuma linha vigente do catálogo (nunca um UUID/chave crua).
+      rotulo: campoLip.rotulo,
       resultado: cmp.resultado,
       motivo: cmp.motivo,
-      campos_comparados: [chave],
+      campos_comparados: [campoLip.rotulo],
       fontes: [campoLip.fonte ?? "processos.dados", doDocumento.fonte ?? "mhd_resultados_campo"],
       regra: cmp.regra,
     });

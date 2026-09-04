@@ -10,7 +10,21 @@ export type CampoLipTecnico = {
   valor: string | number | boolean;
   fonte: string | null;
   origem: string | null;
+  /**
+   * Rótulo humano do campo (Fase AC, achado real do piloto: o Co-Analista citava a CHAVE
+   * técnica bruta — "areaArt", "bairro", "tombado" — como se fosse fonte, porque o dossiê nunca
+   * carregava o rótulo real). Fonte de verdade: `lip_campos.label` (a MESMA coluna que desenha
+   * a tela do analista, ver app/api/admin/lip/route.ts), consultada em lib/urbi/montarDossie.ts
+   * — nunca uma lista hardcoded aqui. `SEM_ROTULO_CADASTRADO` quando a chave não bate com
+   * nenhuma linha vigente de `lip_campos` para este slot (campo legado/órfão) — quem consome
+   * isso (prompt do Gemini) é instruído a tratar como base insuficiente, nunca a expor a chave.
+   */
+  rotulo: string;
 };
+
+/** Só usado quando a chave do LIP não corresponde a nenhum `lip_campos.chave` vigente deste
+ *  slot (campo legado/órfão, ou falha ao consultar o catálogo) — nunca a chave técnica bruta. */
+export const SEM_ROTULO_CADASTRADO = "Campo sem rótulo cadastrado";
 
 export type ResumoChecklist = {
   total_marcado: number;
@@ -39,6 +53,7 @@ function textoCurto(valor: unknown, limite = 500): string | number | boolean | n
  */
 export function camposTecnicosDoLip(
   dados: Record<string, unknown> | null | undefined,
+  rotuloPorChave: Map<string, string> | null | undefined,
 ): Record<string, CampoLipTecnico> {
   const saida: Record<string, CampoLipTecnico> = {};
   for (const [chave, bruto] of Object.entries(dados ?? {})) {
@@ -50,6 +65,7 @@ export function camposTecnicosDoLip(
       valor,
       fonte: typeof campo.fonte === "string" ? campo.fonte.slice(0, 120) : null,
       origem: typeof campo.origem === "string" ? campo.origem.slice(0, 120) : null,
+      rotulo: rotuloPorChave?.get(chave) ?? SEM_ROTULO_CADASTRADO,
     };
   }
   return saida;
@@ -71,17 +87,20 @@ export function resumoChecklist(itens: Record<string, unknown> | null | undefine
   return resumo;
 }
 
-export function fatosDoLip(processo: {
-  dados?: Record<string, unknown> | null;
-  area_construida?: unknown;
-  codigo: string;
-  tipo_processo?: string | null;
-  tags?: unknown;
-}) {
+export function fatosDoLip(
+  processo: {
+    dados?: Record<string, unknown> | null;
+    area_construida?: unknown;
+    codigo: string;
+    tipo_processo?: string | null;
+    tags?: unknown;
+  },
+  rotuloPorChave?: Map<string, string> | null,
+) {
   const resumo = resumirCampos(processo.dados as Record<string, any> | null | undefined);
   const incoerencias = acharIncoerencias(processo as any);
   return {
-    campos_tecnicos: camposTecnicosDoLip(processo.dados),
+    campos_tecnicos: camposTecnicosDoLip(processo.dados, rotuloPorChave),
     campos_vazios: resumo.vazios,
     campos_em_x: resumo.emX,
     campos_totais: resumo.totais,
