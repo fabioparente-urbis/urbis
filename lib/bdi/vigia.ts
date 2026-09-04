@@ -174,12 +174,15 @@ export function acharIncoerencias(p: DadosProcesso): Incoerencia[] {
       explicacao: `A área construída está gravada como "${p.area_construida}" e não dá para ler como número.`,
     });
   }
-  if (areaConstruida !== null && areaTerreno !== null && areaConstruida > areaTerreno) {
-    achados.push({
-      campo: "area_construida",
-      explicacao: `Área construída (${areaConstruida} m²) maior que a do terreno (${areaTerreno} m²).`,
-    });
-  }
+  // REMOVIDO em 05/09/2026 (piloto humano controlado, achado real): "área construída > área do
+  // terreno" NÃO é incoerência por si só — `area_construida` é o TOTAL construído somando todos
+  // os pavimentos, e `areaTerreno` é só a área do lote; uma edificação de vários pavimentos tem,
+  // legitimamente, área construída total maior que a do terreno. Os dois campos não têm a mesma
+  // semântica (um é soma de pavimentos, o outro é área de lote) e não podem ser comparados
+  // diretamente. Uma regra válida exigiria área OCUPADA (projeção no térreo) × área do terreno,
+  // ou taxa de ocupação × limite legal — nenhum desses dados está disponível aqui hoje; inventar
+  // essa regra sem base determinística explícita seria o mesmo erro, só disfarçado. Removida sem
+  // substituto até existir dado real pra sustentar uma regra nova.
   return achados;
 }
 

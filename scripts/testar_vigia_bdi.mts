@@ -42,10 +42,13 @@ conferir("conta X em maiúscula e minúscula", resumo.emX.sort(), ["seiCheadv", 
 conferir("total de campos", resumo.totais, 6);
 
 // ------------------------------------------------------------ incoerências
-conferir("área construída maior que terreno",
-  acharIncoerencias({ codigo: "A", area_construida: 900, dados: { areaTerreno: campo("500,00") } })
-    .map(i => i.campo),
-  ["area_construida"]);
+// Achado real do piloto humano controlado (05/09/2026): área construída (total, soma de
+// pavimentos) maior que área do terreno NÃO é incoerência — prédio de vários pavimentos tem
+// isso legitimamente. Regra removida de acharIncoerencias(); os dois casos abaixo confirmam
+// que NENHUM dos dois aciona incoerência por essa comparação, não importa a proporção.
+conferir("área construída maior que terreno NÃO acusa mais (removida — campos sem semântica comparável)",
+  acharIncoerencias({ codigo: "A", area_construida: 900, dados: { areaTerreno: campo("500,00") } }),
+  []);
 conferir("dentro do terreno não acusa",
   acharIncoerencias({ codigo: "A", area_construida: 300, dados: { areaTerreno: campo("500,00") } }),
   []);
@@ -110,10 +113,12 @@ const risco = triar({
 conferir("indeferimento + muita troca = risco", risco.classe, "maior risco de retrabalho");
 conferir("risco sempre explica por quê", risco.motivos.length > 0, true);
 
+// Antes usava a incoerência área-construída-x-terreno (removida) pra disparar "atenção" — agora
+// aciona pelo sinal legítimo de área grande (CRITERIOS.areaGrandeM2 = 1000).
 const atencao = triar({
-  processo: { codigo: "B", area_construida: 900, dados: { areaTerreno: campo("500,00") }, tags: [] },
+  processo: { codigo: "B", area_construida: 1200, dados: { areaTerreno: campo("500,00") }, tags: [] },
 });
-conferir("incoerência = exige atenção", atencao.classe, "exige atenção");
+conferir("área grande = exige atenção", atencao.classe, "exige atenção");
 
 const simples = triar({
   processo: { codigo: "C", area_construida: 120, dados: { x: campo("preenchido") },

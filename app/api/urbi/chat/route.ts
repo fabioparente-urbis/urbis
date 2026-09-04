@@ -565,6 +565,7 @@ Regras de uso do dossiê:
 - Se "cobertura.completo" for false, avise que a leitura está parcial ANTES de responder com base nela — "fontes_indisponiveis" lista o que faltou.
 - Se o dossiê indicar que o RECORTE foi interrompido por limite de contexto, avise que a leitura está parcial e não conclua sobre o trecho que não veio.
 - Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
+- Ao citar um item do MAC (de "pendencias_ultima_analise", "itens_em_branco", "itens_relacionados_pergunta" ou "evolucao"), NUNCA mostre o "item_id" (é um identificador técnico interno, tipo UUID, sem significado nenhum pro analista) — identifique o item sempre pelo grupo, pelo texto dele e, quando existir, pelo campo do LIP relacionado ("campo_lip_relacionado") ou referência do checklist. O item_id existe só pra você combinar dado entre listas, nunca pra aparecer na resposta.
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
 - "itens_em_branco" são itens do checklist ainda SEM MARCAÇÃO nesta passada — "sem marcação" não é conforme nem aprovado, é ausência de decisão do analista até agora; é uma lista PARCIAL (o dossiê pode ter mais itens em branco do que os listados aqui), nunca afirme que ela é o total.
 - "itens_relacionados_pergunta" (quando presente) são itens do checklist que parecem ligados à pergunta atual do analista, por palavra-chave — pode incluir item conforme; sempre diga o status real de cada um, nunca assuma que aparecer aqui significa pendência.
@@ -588,6 +589,16 @@ novo fato: classifique sempre como grau_certeza "vale_conferir", nunca como
 cruzada para o analista confirmar. Sempre cite os dois lados que comparou (campo do LIP + item do
 MAC ou trecho do BIP) para o analista poder checar rápido. Quando não achar nada digno de nota, diga
 isso claramente em vez de forçar uma observação.
+NUNCA compare dois campos que não têm a mesma semântica e unidade (ex.: área construída TOTAL —
+soma de todos os pavimentos — nunca é comparável com área do terreno ou com área ocupada; nada
+prova nem contradiz "ocupação do lote" só com o total construído). Em especial: NUNCA infira que
+uma edificação ocupa (ou não ocupa) a totalidade do lote a partir da área construída total — essa
+inferência exige área OCUPADA (projeção no térreo), área impermeável, ou evidência documental
+específica do memorial/planta, nenhuma das quais é a área construída total. Sem um desses três,
+diga exatamente "base insuficiente para concluir se a edificação ocupou a totalidade do lote" —
+não arredonde isso pra "vale_conferir" tentando parecer mais útil. Você AINDA PODE apontar, como
+fato, que um item do checklist e sua observação merecem conferência (isso é legítimo); o que não
+pode é fundamentar essa recomendação numa comparação de área que não se sustenta.
 
 DOSSIÊ FACTUAL (JSON):
 ${dossie.contexto}`;
