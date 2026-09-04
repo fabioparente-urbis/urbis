@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "leitura-visual" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "config";
 
 // =====================================================================
 // Visão geral
@@ -919,6 +919,99 @@ function AbaRecorrencia() {
 }
 
 // =====================================================================
+// Profissionais (Fase N — base auditável, nunca ranking)
+// =====================================================================
+
+type LinhaProfissional = {
+  profissional_id: string; nome: string; identidade_validada: boolean; processos_distintos: number;
+  primeira_passada_sem_retorno: number; retorno_comprovado: number; arquivado_indeferido: number;
+  sem_situacao_definida: number; amostra_suficiente: boolean;
+};
+type DesempenhoProfissionais = {
+  profissionais: LinhaProfissional[]; amostra_minima_processos: number;
+  resumo: { total_profissionais_vivos: number; com_identidade_validada: number; com_amostra_suficiente: number };
+  fonte: string;
+};
+
+function AbaDesempenhoProfissionais() {
+  const [dados, setDados] = useState<DesempenhoProfissionais | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/desempenho-profissionais");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json.data);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        Isto é <strong>base auditável</strong>, nunca ranking: nenhum profissional é rotulado "alto" ou "baixo desempenho" aqui, nem ordenado por volume — a lista sai em ordem alfabética. Cada número é fato bruto (processo distinto, passada, tag de arquivamento/indeferimento), nunca uma nota. "Identidade validada" quer dizer que o profissional tem CAU ou CREA gravado — nome sozinho já teve colisão nesta base antes do soft-merge existir.
+      </div>
+
+      <Secao
+        titulo="Cobertura da base"
+        descricao={dados?.fonte}
+        acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}
+      >
+        <div className="grid gap-3 p-4 sm:grid-cols-3">
+          <Metrica label="Profissionais na base" valor={dados?.resumo.total_profissionais_vivos ?? "—"} fonte="profissionais, soft-merge resolvido" />
+          <Metrica label="Com identidade validada" valor={dados?.resumo.com_identidade_validada ?? "—"} fonte="CAU ou CREA gravado" />
+          <Metrica label={`Com amostra suficiente (≥${dados?.amostra_minima_processos ?? "—"} processos)`} valor={dados?.resumo.com_amostra_suficiente ?? "—"} fonte="mesmo limiar da aba Recorrência" />
+        </div>
+        {dados && dados.resumo.com_amostra_suficiente === 0 && (
+          <div className="mx-4 mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-card-hover)] px-3 py-2 text-[11px] text-[var(--text-muted)]">
+            Nenhum profissional atinge a amostra mínima hoje — não é falha desta tela: a base (profissionais + processo_profissionais) veio de um backfill único em 17/07/2026, sem escrita nova desde então, e o máximo real é bem abaixo do limiar. A lacuna fica registrada aqui, não escondida.
+          </div>
+        )}
+      </Secao>
+
+      <Secao titulo="Profissionais (ordem alfabética)" descricao="Nenhuma coluna aqui é nota de desempenho — são contagens auditáveis.">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              <th className={TH}>Profissional</th>
+              <th className={TH}>Identidade</th>
+              <th className={TH}>Processos distintos</th>
+              <th className={TH}>1ª passada sem retorno</th>
+              <th className={TH}>Retorno comprovado</th>
+              <th className={TH}>Arquivado/indeferido</th>
+              <th className={TH}>Sem situação definida</th>
+              <th className={TH}>Amostra</th>
+            </tr>
+          </thead>
+          <tbody>
+            {erro && <Vazio cols={8}>{erro}</Vazio>}
+            {!erro && carregando && !dados && <Vazio cols={8}>Carregando…</Vazio>}
+            {!erro && dados && dados.profissionais.length === 0 && <Vazio cols={8}>Nenhum profissional na base.</Vazio>}
+            {(dados?.profissionais ?? []).map((p) => (
+              <tr key={p.profissional_id} className={TR}>
+                <td className={TD}>{p.nome}</td>
+                <td className={TD}><Badge tom={p.identidade_validada ? "ok" : "neutro"}>{p.identidade_validada ? "validada" : "só nome"}</Badge></td>
+                <td className={TD}>{p.processos_distintos}</td>
+                <td className={TD}>{p.primeira_passada_sem_retorno}</td>
+                <td className={TD}>{p.retorno_comprovado}</td>
+                <td className={TD}>{p.arquivado_indeferido}</td>
+                <td className={TD}>{p.sem_situacao_definida}</td>
+                <td className={TD}><Badge tom={p.amostra_suficiente ? "ok" : "neutro"}>{p.amostra_suficiente ? "suficiente" : "base insuficiente"}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Secao>
+    </div>
+  );
+}
+
+// =====================================================================
 // Leitura visual — receitas (Fase K, item 7: só explica, nunca processa)
 // =====================================================================
 
@@ -1152,7 +1245,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["leitura-visual", "Leitura visual"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["config", "Configurações"],
   ];
 
   return (
@@ -1185,6 +1278,7 @@ export default function UrbiAdminPage() {
         {aba === "uso" && <AbaUso />}
         {aba === "catalogo" && <AbaCatalogo />}
         {aba === "recorrencia" && <AbaRecorrencia />}
+        {aba === "profissionais" && <AbaDesempenhoProfissionais />}
         {aba === "leitura-visual" && <AbaLeituraVisual />}
         {aba === "config" && <AbaConfig />}
       </div>
