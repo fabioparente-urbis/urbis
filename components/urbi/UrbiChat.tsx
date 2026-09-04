@@ -252,6 +252,20 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // sabe", pedido explícito do Fábio pra orientar o analista dentro do próprio widget (não só
   // em /admin/urbi, que é restrito a Administrador/Diretora). Nunca aberto sozinho.
   const [mostrarOrientacao, setMostrarOrientacao] = useState(false);
+  // Piloto humano controlado (05/09/2026) — achado real: no balão pequeno (modo "docked"),
+  // o texto não dava pra selecionar (o wrapper de fora tem userSelect:"none", pra não
+  // atrapalhar o arrastar do balão) e não tinha jeito de ampliar pra colar uma resposta longa
+  // inteira. Duas correções pedidas: botão de copiar por mensagem, e alternar o tamanho do
+  // balão (dobra/volta ao original) — nunca persistido, reseta ao fechar o URBI.
+  const [expandido, setExpandido] = useState(false);
+  const [copiadoIndice, setCopiadoIndice] = useState<number | null>(null);
+  async function copiarMensagem(texto: string, indice: number) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoIndice(indice);
+      setTimeout(() => setCopiadoIndice((atual) => (atual === indice ? null : atual)), 1500);
+    } catch { /* clipboard indisponível (ex.: contexto não seguro) — falha silenciosa, sem alarme falso */ }
+  }
   const [modoBip, setModoBip] = useState(false);
   const [msgsBip, setMsgsBip] = useState<Msg[]>([]);
   const [historyBip, setHistoryBip] = useState<GeminiMsg[]>([]);
@@ -853,6 +867,18 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       }}>
         <span aria-hidden="true">{modoBip ? "⚖️ " : "🧭 "}</span>
         <span style={{ flex: 1 }}>{modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}</span>
+        <button
+          type="button"
+          className="urbi-focavel"
+          aria-label={expandido ? "Voltar a caixa ao tamanho original" : "Ampliar a caixa de conversa"}
+          title={expandido ? "Voltar ao tamanho original" : "Ampliar (pra ler/copiar resposta longa)"}
+          onClick={() => setExpandido((v) => !v)}
+          style={{
+            background: "transparent", border: "1px solid #e2e8f0", borderRadius: 4,
+            width: 18, height: 18, lineHeight: 1, fontSize: 11, fontWeight: 700,
+            color: "#94a3b8", cursor: "pointer", padding: 0, flexShrink: 0,
+          }}
+        >{expandido ? "⤡" : "⤢"}</button>
         {/* Fase U (05/09/2026) — achado de auditoria: o painel fala "deste processo", então só
             faz sentido aparecer com processo em contexto; fora disso a frase seria falsa. */}
         {processoCodigo && (
@@ -875,8 +901,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       ) : (
       <>
       <div style={{
-        flex: 1, overflowY: "auto", maxHeight: small ? 220 : 300,
+        flex: 1, overflowY: "auto", maxHeight: (small ? 220 : 300) * (expandido ? 2 : 1),
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
+        userSelect: "text",
       }}>
         {msgs.map((msg, i) => (
           <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: msg.role === "user" ? "flex-end" : "flex-start", gap: 2 }}>
@@ -888,6 +915,19 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               padding: "7px 11px", fontSize: 12, lineHeight: 1.6,
               fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap",
             }}>{msg.texto}</div>
+            {msg.role === "urbi" && (
+              <button
+                type="button"
+                className="urbi-focavel"
+                onClick={() => copiarMensagem(msg.texto, i)}
+                title="Copiar esta resposta"
+                aria-label="Copiar esta resposta"
+                style={{
+                  background: "transparent", border: "none", padding: 0, cursor: "pointer",
+                  fontSize: 10, color: "#94a3b8", fontFamily: "system-ui, sans-serif",
+                }}
+              >{copiadoIndice === i ? "✓ copiado" : "⧉ copiar"}</button>
+            )}
             {msg.role === "urbi" && msg.usouDossie && (
               <span
                 title={msg.dossieCompleto ? "Consultou o dossiê factual deste processo (leitura completa)." : "Consultou o dossiê deste processo — leitura parcial, algumas fontes indisponíveis."}
@@ -1087,7 +1127,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={{
               position: "relative",
               background: "#ffffff", borderRadius: 16,
-              padding: "14px 16px", width: 280, maxHeight: 360,
+              padding: "14px 16px", width: expandido ? 560 : 280, maxHeight: expandido ? 720 : 360,
               boxShadow: "0 8px 32px #00000033",
               display: "flex", flexDirection: "column",
               pointerEvents: "all",
@@ -1211,7 +1251,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
           <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={{
             pointerEvents: "all", position: "relative",
             background: "#ffffff", borderRadius: 16,
-            padding: "14px 16px", width: 420, maxHeight: 560,
+            padding: "14px 16px", width: expandido ? 720 : 420, maxHeight: expandido ? 900 : 560,
             boxShadow: "0 8px 32px #00000033",
             display: "flex", flexDirection: "column",
           }}>
