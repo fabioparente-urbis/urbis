@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "prontidao" | "config";
 
 // =====================================================================
 // Visão geral
@@ -1107,6 +1107,121 @@ function AbaLeituraVisual() {
 }
 
 // =====================================================================
+// Prontidão para piloto (Fase V — só leitura, nunca liga o chat sozinha)
+// =====================================================================
+
+type ProntidaoPiloto = {
+  chat_ativo: boolean; chat_ativo_fonte: string;
+  limite_chamadas_hora: number; chamadas_na_ultima_hora: number; limite_fonte: string;
+  dossie_por_slot: { slot: string; nome_slot: string; processos_com_dossie: number; processos_ativos_total: number }[];
+  dossie_fonte: string;
+  cobertura_bip_por_slot: { slot: string; nome_slot: string; total: number; vinculado: number }[];
+  sugestoes: { total: number; por_estado: { estado: string; total: number }[] };
+  sugestoes_fonte: string;
+  erros_recentes: { operacao: string; motivo_erro: string | null; criado_em: string }[];
+  erros_recentes_fonte: string;
+  checklist: { item: string; ok: boolean; decisao_humana: boolean; detalhe: string }[];
+};
+
+function AbaProntidaoPiloto() {
+  const [dados, setDados] = useState<ProntidaoPiloto | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/prontidao-piloto");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json.data);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        Este painel só LÊ — não muda <code>chat_gemini_ativo</code>, não chama Gemini e não altera teto nenhum. Ligar o chat é sempre <strong>decisão humana</strong>, sempre <strong>temporária</strong> (qualquer Administrador desliga a qualquer momento em Configurações) e sempre <strong>auditável</strong> (<code>urbi_config.atualizado_por</code> + evento em <code>auditoria_eventos</code>).
+      </div>
+      {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
+      {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
+      {dados && (
+        <>
+          <Secao titulo="Estado agora" acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}>
+            <div className="grid gap-3 p-4 sm:grid-cols-3">
+              <Metrica label="Chat com Gemini" valor={<Badge tom={dados.chat_ativo ? "erro" : "ok"}>{dados.chat_ativo ? "LIGADO — custo real" : "desligado"}</Badge>} fonte={dados.chat_ativo_fonte} />
+              <Metrica label="Uso do teto (última hora)" valor={`${dados.chamadas_na_ultima_hora} de ${dados.limite_chamadas_hora}`} fonte={dados.limite_fonte} />
+              <Metrica label="Sugestões já registradas (todas)" valor={dados.sugestoes.total} fonte={dados.sugestoes_fonte} />
+            </div>
+          </Secao>
+
+          <Secao titulo="Checklist antes de ligar o chat" descricao="Item com 'decisão humana' nunca fica ok sozinho — nenhum dado no banco prova isso por conta própria.">
+            <ul className="divide-y divide-[var(--border)]">
+              {dados.checklist.map((c, i) => (
+                <li key={i} className="flex items-start gap-3 px-5 py-3">
+                  <Badge tom={c.ok ? "ok" : c.decisao_humana ? "info" : "alerta"}>{c.ok ? "ok" : c.decisao_humana ? "decisão humana" : "pendente"}</Badge>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-[var(--text-primary)]">{c.item}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{c.detalhe}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Secao>
+
+          <Secao titulo="Processos com dossiê disponível por slot" descricao={dados.dossie_fonte}>
+            <TabelaPorSlot linhas={dados.dossie_por_slot.map((l) => ({ ...l, cobertura: `${l.processos_com_dossie} de ${l.processos_ativos_total}` }))} colunas={[["cobertura", "Com dossiê útil"]]} />
+          </Secao>
+
+          <Secao titulo="Cobertura BIP por slot">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Slot</th><th className={TH}>Itens ativos</th><th className={TH}>Vínculo BIP aprovado</th></tr></thead>
+              <tbody>
+                {dados.cobertura_bip_por_slot.map((c) => (
+                  <tr key={c.slot} className={TR}>
+                    <td className={TD}>{c.nome_slot}</td>
+                    <td className={TD}>{c.total}</td>
+                    <td className={TD}>{c.vinculado} de {c.total} ({Math.round(100 * c.vinculado / (c.total || 1))}%)</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Secao>
+
+          <Secao titulo="Sugestões por estado" descricao={dados.sugestoes_fonte}>
+            <div className="flex flex-wrap gap-2 p-4">
+              {dados.sugestoes.por_estado.length === 0
+                ? <span className="text-xs text-[var(--text-muted)]">nenhuma sugestão registrada ainda.</span>
+                : dados.sugestoes.por_estado.map((s) => <Badge key={s.estado} tom={TOM_ESTADO[s.estado] ?? "neutro"}>{s.estado}: {s.total}</Badge>)}
+            </div>
+          </Secao>
+
+          <Secao titulo="Últimos erros" descricao={dados.erros_recentes_fonte}>
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Operação</th><th className={TH}>Motivo</th><th className={TH}>Quando</th></tr></thead>
+              <tbody>
+                {dados.erros_recentes.length === 0
+                  ? <Vazio cols={3}>Nenhum erro recente.</Vazio>
+                  : dados.erros_recentes.map((e, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{e.operacao}</td>
+                      <td className={`${TD} max-w-md`}>{resumirMotivoErro(e.motivo_erro)}</td>
+                      <td className={TD}>{fmtData(e.criado_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -1254,7 +1369,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["config", "Configurações"],
   ];
 
   return (
@@ -1289,6 +1404,7 @@ export default function UrbiAdminPage() {
         {aba === "recorrencia" && <AbaRecorrencia />}
         {aba === "profissionais" && <AbaDesempenhoProfissionais />}
         {aba === "leitura-visual" && <AbaLeituraVisual />}
+        {aba === "prontidao" && <AbaProntidaoPiloto />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>

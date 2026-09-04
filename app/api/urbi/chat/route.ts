@@ -5,6 +5,7 @@ import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { derivarSugestoesAutomaticas, registrarSugestoesAutomaticas } from "@/lib/urbi/sugestoes";
 import { gerarEmbeddingConsulta } from "@/lib/bdi/embeddingConsulta";
+import { LIMITE_CHAMADAS_CHAT_HORA, OPERACOES_CHAT_URBI } from "@/lib/urbi/limites";
 
 export const maxDuration = 60;
 
@@ -13,8 +14,9 @@ export const maxDuration = 60;
 // chat): sem isolar por operação, uma sessão de leitura de PDF no LIP
 // consumiria o mesmo teto do chat, e vice-versa. Limite intencionalmente
 // mais alto que o do LIP (50/h): é conversa curta, não leitura de PDF —
-// ajustar aqui se o uso real mostrar que está errado.
-const LIMITE_CHAMADAS_HORA = 200;
+// ajustar aqui se o uso real mostrar que está errado. Valor em
+// lib/urbi/limites.ts (Fase V) — fonte única com o painel de prontidão.
+const LIMITE_CHAMADAS_HORA = LIMITE_CHAMADAS_CHAT_HORA;
 
 async function chatDentroDoBudget(): Promise<{ ok: true } | { ok: false; status: number; body: Record<string, unknown> }> {
   const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -22,7 +24,7 @@ async function chatDentroDoBudget(): Promise<{ ok: true } | { ok: false; status:
     .from("urbis_api_calls")
     .select("*", { count: "exact", head: true })
     .eq("modulo", "URBI")
-    .in("operacao", ["chat_geral", "chat_bip", "chat_onmount", "chat_coanalista", "chat_coanalista_bip"])
+    .in("operacao", OPERACOES_CHAT_URBI)
     .gte("criado_em", umaHoraAtras)
     .eq("status", "ok");
   if (error) {
