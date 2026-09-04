@@ -352,8 +352,15 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
 export function pareceComando(textoOriginal: string): boolean {
   const t = normalizar(textoOriginal);
   if (!t) return false;
+  // "processo"/"processos" SAÍRAM daqui em 05/09/2026 (piloto humano controlado, Etapa 2):
+  // achado real — qualquer pergunta livre sobre "este processo" (o uso mais básico do modo
+  // Co-Analista, ex.: "resuma este processo com base no dossiê") continha a palavra e batia
+  // aqui, nunca chegando no chat de IA. O comando de navegação de verdade ("abrir processo
+  // 12345") já é resolvido ANTES desta função, por `interpretar()` acima — que exige número +
+  // verbo de comando (linha ~260) — então tirar a palavra daqui não tira nada da navegação real,
+  // só para de confundir pergunta com comando mal digitado.
   const pistas = [
-    "pilha", "processo", "processos", "filtrar", "filtro", "ordenar", "ordem",
+    "pilha", "filtrar", "filtro", "ordenar", "ordem",
     "analise", "laudo", "indeferi", "despacho", "area", "abrir", "localizar",
     "procurar", "buscar", "achar", "encontrar", "limpar", "voltar", "navegar",
     "mais novo", "mais antigo", "maior", "menor",
