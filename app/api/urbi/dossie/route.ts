@@ -357,6 +357,7 @@ export async function GET(req: NextRequest) {
           "Lei só aparece quando existe vínculo real entre o item do MAC e um fragmento do BIP.",
           "Ausência de vínculo BIP não significa conformidade nem ausência de fundamento legal.",
           "Este dossiê não prevê prazo, não julga e não altera o processo.",
+          "Documento emitido sem registro em MDP/MRP (fluxo.documentos_emitidos) é ausência de FONTE satélite, não indício de erro do analista ou do interessado — pode ser lançamento pendente, registro em outro formato ou lacuna de integração ainda não coberta.",
           "lip.historico_alteracoes só lista o RÓTULO do campo que mudou e quando — nunca o valor anterior/novo, mesmo quando a fonte tem esse dado, por privacidade. A fonte (processo_historico) hoje não recebe linha nova de nenhum caminho de código conhecido — ausência de item aqui não prova ausência de alteração real no processo.",
         ],
       },

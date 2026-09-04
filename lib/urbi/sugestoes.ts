@@ -7,7 +7,8 @@ export type TipoSugestao =
   | "aguardando_retorno_base_insuficiente"
   | "incoerencia_lip_mac"
   | "divergencia_lip_documento"
-  | "item_sem_base_juridica";
+  | "item_sem_base_juridica"
+  | "catalogo_alterado_apos_analise";
 
 export type SugestaoAutomatica = {
   tipo: TipoSugestao;
@@ -25,6 +26,7 @@ type DossieParaSugestoes = {
     evolucao?: {
       itens_voltaram_nao_conforme?: { item_id: string; texto: string; quando: string; analise_id: string }[];
     };
+    marcacoes_ultima_analise?: { item_id: string; texto: string; status: string }[];
   };
   fluxo?: {
     documentos_emitidos?: {
@@ -35,6 +37,13 @@ type DossieParaSugestoes = {
       mrp_registrado: boolean;
     }[];
     aguardando_retorno?: { analise: number; situacao: string }[];
+    analises?: {
+      numero_analise: number;
+      atualizado_em: string;
+      numero_despacho: string | null;
+      numero_parecer: string | null;
+      numero_despacho_interno: string | null;
+    }[];
   };
   lip?: {
     incoerencias?: { campo: string; explicacao: string }[];
@@ -47,6 +56,9 @@ type DossieParaSugestoes = {
     campos_comparados: string[];
     fontes: string[];
   }[];
+  tecnico?: {
+    eventos_catalogo_recentes?: { item_id: string; acao: string; criado_em: string }[];
+  } | null;
 };
 
 /**
@@ -127,6 +139,43 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
         campos_comparados: c.campos_comparados,
         fontes: c.fontes,
         grau_certeza: "confirmado",
+      });
+    }
+  }
+
+  // Fase E — liga a trilha REAL de mudança de catálogo (mac_checklist_itens_historico, Fase D)
+  // a uma sugestão: item que foi marcado na análise mais recente e ESTA JÁ TEM documento
+  // emitido (despacho/parecer/despacho interno, mesmo sinal de "análise fechada" usado por
+  // lib/bdi/situacao.ts — status não é confiável pra isso) teve o catálogo alterado DEPOIS
+  // dessa análise ter sido tocada pela última vez. O evento em si é fato confirmado (trigger de
+  // banco); se ele invalida a análise já fechada é interpretação — por isso "vale_conferir",
+  // nunca "confirmado".
+  const ultimaAnalise = dossie.fluxo?.analises?.length
+    ? dossie.fluxo.analises[dossie.fluxo.analises.length - 1]
+    : null;
+  const analiseFechada = !!(
+    ultimaAnalise && (ultimaAnalise.numero_despacho || ultimaAnalise.numero_parecer || ultimaAnalise.numero_despacho_interno)
+  );
+  if (ultimaAnalise && analiseFechada) {
+    const itensRealmenteMarcados = new Set(
+      (dossie.mac?.marcacoes_ultima_analise ?? [])
+        .filter((m) => m.status !== "em_branco")
+        .map((m) => m.item_id),
+    );
+    const referencia = Date.parse(ultimaAnalise.atualizado_em);
+    for (const evento of dossie.tecnico?.eventos_catalogo_recentes ?? []) {
+      if (!itensRealmenteMarcados.has(evento.item_id)) continue;
+      if (!Number.isFinite(referencia) || Date.parse(evento.criado_em) <= referencia) continue;
+      saida.push({
+        tipo: "catalogo_alterado_apos_analise",
+        // Inclui o instante do evento: o mesmo item pode ter mais de um evento de catálogo
+        // depois da mesma análise fechada — chave só por item colapsaria os dois.
+        chave: `${evento.item_id}:${evento.criado_em}`,
+        sugestao: `O item do checklist marcado na análise nº ${ultimaAnalise.numero_analise} (já com documento emitido) foi "${evento.acao}" no catálogo em ${evento.criado_em}, depois desta análise ter sido tocada pela última vez.`,
+        motivo_factual: `mac_checklist_itens_historico registra ação "${evento.acao}" no item em ${evento.criado_em}; analises_mac mostra a análise nº ${ultimaAnalise.numero_analise} atualizada pela última vez em ${ultimaAnalise.atualizado_em}, já com despacho/parecer/despacho interno commitado.`,
+        campos_comparados: [evento.item_id],
+        fontes: ["mac_checklist_itens_historico", "analises_mac"],
+        grau_certeza: "vale_conferir",
       });
     }
   }
