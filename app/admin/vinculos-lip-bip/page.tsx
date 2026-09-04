@@ -61,6 +61,10 @@ export default function VinculosLipBipPage() {
   const [itemAberto, setItemAberto] = useState<ItemFila | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [cobertura, setCobertura] = useState<Cobertura | null>(null);
+  // Fase G — "evidenciar cobertura por slot": comparação lado a lado dos 2 assuntos desta
+  // fila, sem precisar alternar a aba pra ver o outro. Slot 5 não entra aqui de propósito
+  // (tem mecanismo e tela próprios, ver comentário no topo do arquivo).
+  const [coberturaPorAssunto, setCoberturaPorAssunto] = useState<Record<string, Cobertura | null>>({});
 
   async function carregar() {
     setCarregando(true);
@@ -73,6 +77,7 @@ export default function VinculosLipBipPage() {
       setPendentes(j.pendentes);
       setAssuntoId(j.assuntoId);
       setCobertura(j.cobertura ?? null);
+      setCoberturaPorAssunto((atual) => ({ ...atual, [assunto]: j.cobertura ?? null }));
     } catch (e: any) {
       setErro(e.message);
     } finally {
@@ -81,6 +86,18 @@ export default function VinculosLipBipPage() {
   }
 
   useEffect(() => { carregar(); }, [assunto]);
+
+  // Carrega a cobertura do OUTRO assunto em segundo plano, só pra alimentar a comparação —
+  // não mexe em fila/pendentes/aba selecionada.
+  useEffect(() => {
+    ASSUNTOS.filter((a) => a.slug !== assunto).forEach(async (a) => {
+      try {
+        const r = await fetch(`/api/mac/vinculos-fila?assunto=${a.slug}`);
+        const j = await r.json();
+        if (j.ok) setCoberturaPorAssunto((atual) => ({ ...atual, [a.slug]: j.cobertura ?? null }));
+      } catch { /* comparação é conveniência — falha aqui não bloqueia a tela principal */ }
+    });
+  }, [assunto]);
 
   async function decidir(propostaId: string, decisao: "aprovado" | "rejeitado") {
     let motivo: string | null = null;
@@ -117,6 +134,42 @@ export default function VinculosLipBipPage() {
             className={assunto === a.slug ? BTN_PRIMARIO : BTN_SECUNDARIO}>{a.nome}</button>
         ))}
       </div>
+
+      <Secao titulo="Cobertura — comparação entre os 2 assuntos desta fila" descricao="Slot 5 tem mecanismo e tela próprios (não entra aqui). Base jurídica ausente = cobertura BIP não vinculada.">
+        <table className="w-full text-xs">
+          <thead>
+            <tr>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Assunto</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Itens ativos</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Cobertura LIP</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Cobertura BIP</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sem base legal (BIP)</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sem nenhum vínculo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ASSUNTOS.map((a) => {
+              const c = coberturaPorAssunto[a.slug];
+              return (
+                <tr key={a.slug} className={`border-b border-[var(--border)] last:border-0 ${a.slug === assunto ? "bg-[var(--bg-card-hover)]" : ""}`}>
+                  <td className="px-3 py-2 font-medium text-[var(--text-primary)]">{a.nome}</td>
+                  {c ? (
+                    <>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.total_itens}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.lip.vinculado} de {c.total_itens}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.bip.vinculado} de {c.total_itens}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.bip.sem_vinculo}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.sem_nenhum_vinculo}</td>
+                    </>
+                  ) : (
+                    <td colSpan={5} className="px-3 py-2 text-[var(--text-muted)]">carregando…</td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Secao>
 
       {cobertura && (
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
