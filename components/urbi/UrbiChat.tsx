@@ -275,6 +275,19 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   const setMsgs = modoBip ? setMsgsBip : setMsgsAssistente;
   const history = modoBip ? historyBip : historyAssistente;
   const setHistory = modoBip ? setHistoryBip : setHistoryAssistente;
+  // Piloto humano controlado (05/09/2026) — achado real e crítico de isolamento: este
+  // componente nunca desmonta ao navegar (UrbiGlobal fica no layout raiz, só troca a prop
+  // `processoCodigo` conforme a URL) e nada limpava msgs/history ao trocar de processo. Isso
+  // deixava o histórico de um processo anterior (inclusive respostas que citam dado dele)
+  // dentro da MESMA conversa enviada ao Gemini junto com o dossiê fresco do processo atual —
+  // risco real de mistura de contexto entre processos e slots. Fechar o URBI já zerava as duas
+  // conversas (comentário acima), mas trocar de processo/slot/Home SEM fechar não zerava nada.
+  // Corrigido: qualquer mudança de processoCodigo (inclusive pra/de null — ida à Home/Pilha)
+  // limpa as duas conversas (Assistente e BIP) imediatamente, sem exceção.
+  useEffect(() => {
+    setMsgsBip([]); setHistoryBip([]);
+    setMsgsAssistente([]); setHistoryAssistente([]);
+  }, [processoCodigo]);
   const prefsCarregadasRef = useRef(false);
   const [cornerPos, setCornerPos] = useState(lerCornerPosSalvo);
   const dragStart = useRef<{ mouseX: number; mouseY: number; bottom: number; right: number } | null>(null);

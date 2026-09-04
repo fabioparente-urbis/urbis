@@ -176,7 +176,7 @@ async function buscarNoBip(
 }
 
 type ResultadoDossie =
-  | { status: "ok"; contexto: string; truncado: boolean }
+  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null }
   | { status: "indisponivel"; motivo: string };
 
 // Palavras curtas demais para funcionar como palavra-chave de busca nos itens
@@ -335,7 +335,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     const contexto = truncado
       ? `${serializado.slice(0, LIMITE_CONTEXTO)}\n[RECORTE INTERROMPIDO POR LIMITE DE CONTEXTO — não conclua sobre o que não apareceu.]`
       : serializado;
-    return { status: "ok", contexto, truncado };
+    return { status: "ok", contexto, truncado, tipoProcesso: d.processo?.tipo_processo ?? null };
   } catch (erro: any) {
     console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
     return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
@@ -540,10 +540,18 @@ como se fosse fonte própria — isso é exclusivo do modo BIP. Ajude com o que 
       if (dossie.status === "ok") {
         systemPromptFinal += `
 
-MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo}.
+MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo} (${dossie.tipoProcesso ?? "slot não identificado"}).
 Você recebeu um DOSSIÊ FACTUAL deste processo, montado por consulta direta ao banco (não por você,
 não é sua interpretação). Use-o SOMENTE para: explicar a situação do processo, apontar o que está
 pendente, sugerir o que verificar a seguir, e apoiar dúvida técnica sobre ele.
+
+ISOLAMENTO DE CONTEXTO — regra absoluta: este dossiê é SEMPRE do processo ${codigoLimpo}
+(${dossie.tipoProcesso ?? "slot não identificado"}) nesta mensagem específica; se a conversa
+mencionar outro código de processo mais cedo, esse processo anterior NÃO EXISTE MAIS pra você —
+nunca reutilize, compare ou misture dado dele com o processo atual, mesmo que pareça relevante.
+Toda resposta neste modo deve abrir citando explicitamente o código do processo e o slot que você
+está analisando agora (ex.: "Sobre o processo ${codigoLimpo} (${dossie.tipoProcesso ?? "slot não identificado"})...")
+— isso ajuda o analista a perceber na hora se o contexto mudou.
 
 VOCÊ NUNCA PODE, mesmo se o analista pedir diretamente:
 - decidir, aprovar, reprovar ou concluir uma análise;

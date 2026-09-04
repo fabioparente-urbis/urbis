@@ -120,7 +120,12 @@ export default function UrbiGlobal() {
   }, [urbiAberto]);
 
   useEffect(() => {
-    const match = pathname.match(/\/(processo|analise-regularizacao)\/([^/?]+)/);
+    // Achado real (piloto humano controlado, 05/09/2026): este regex faltava
+    // "analise-aceite-sei" e "analise-aprovacao-projeto" — nas telas de MAC do Slot 2 e do
+    // Slot 5, assuntoId nunca era resolvido (ficava null), mesmo processoCodigo (regex abaixo,
+    // idêntico ao de derivação de processoCodigo) estando correto. Corrigido pra cobrir os
+    // mesmos 4 padrões de rota.
+    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     if (!codigo) { setAssuntoId(null); return; }
     fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)
