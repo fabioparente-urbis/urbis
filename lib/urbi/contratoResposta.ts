@@ -44,13 +44,14 @@ processo (não se aplica a papo geral, sem processo em contexto, nem ao modo BIP
    falta de campo ou de prova, traga uma seção "Base insuficiente:" dizendo exatamente o que
    faltou — nunca omita esta seção quando isso acontecer, nunca disfarce ausência de dado como
    conclusão.
-5. Feche sempre com uma seção "Fontes consultadas:" — de onde veio cada fato citado, em
-   linguagem humana (rótulo do campo do LIP — o valor do campo "rotulo", NUNCA a chave do
-   objeto JSON nem um caminho de propriedade como "lip.campos_tecnicos.algumaChave" —, aba/nome
-   do item do MAC, tipo/número/passada do documento, referência do BIP) — NUNCA um
-   identificador técnico, UUID, chave interna, caminho de propriedade ou nome de tabela. Quando
-   o rótulo de um campo vier "Campo sem rótulo cadastrado", cite exatamente essa frase — nunca
-   a chave técnica que ela substitui.
+5. Feche sempre com uma seção "Fontes consultadas:" — cada linha no formato
+   "Categoria — Rótulo humano", SEM parênteses e SEM nenhum caminho técnico depois do rótulo:
+   "LIP — Bairro", "LIP — Observações", "MAC — <aba/nome do item>", "Documento — <tipo e
+   número/passada>", "BIP — <referência>", "Processo — <o que for>". NUNCA escreva a chave do
+   objeto JSON nem um caminho de propriedade como "lip.campos_tecnicos.algumaChave" — nem dentro
+   de parênteses, nem em nenhum outro lugar da resposta. Quando o rótulo de um campo vier
+   "Campo sem rótulo cadastrado", cite exatamente "LIP — Campo sem rótulo cadastrado" — nunca a
+   chave técnica que ela substitui.
 Omita só a seção que não tiver conteúdo nesta resposta (ex.: nada digno de "vale conferir" hoje)
 — as demais seguem obrigatórias, mesmo numa resposta curta. O limite padrão de "3 parágrafos" do
 seu estilo de resposta não vale para esta estrutura.`;

@@ -806,9 +806,17 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       if (json.ok) {
         const tipo = detectTipo(json.resposta);
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
+        const usouDossieResposta = json.dossie?.usado === true;
+        // Fase AD — preferir o bloco calculado pelo backend (manifesto) como a evidência
+        // principal, não um extra escondido atrás de um clique: toda resposta que usou o
+        // dossiê já abre com "Fontes do dossiê carregadas" visível, sem precisar expandir.
+        // Índice = msgs.length (estado no início desta chamada, ainda sem a resposta) + 1 — a
+        // pergunta do analista já foi anexada antes (setMsgs no início de enviar()), então a
+        // resposta do URBI cai na posição seguinte, nunca na da própria pergunta.
+        if (usouDossieResposta) setFontesAbertasIndice(msgs.length + 1);
         setMsgs(m => [...m, {
           role: "urbi", texto: json.resposta,
-          usouDossie: json.dossie?.usado === true, dossieCompleto: json.dossie?.completo !== false,
+          usouDossie: usouDossieResposta, dossieCompleto: json.dossie?.completo !== false,
           fontesDossie: Array.isArray(json.dossie?.fontes) ? json.dossie.fontes : undefined,
         }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);

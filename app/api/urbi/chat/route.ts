@@ -10,6 +10,7 @@ import { usuarioDaRequisicao } from "@/lib/autorizacao";
 import { montarDossieFactual } from "@/lib/urbi/montarDossie";
 import { blocoContratoResposta, nomeHumanoDoSlot } from "@/lib/urbi/contratoResposta";
 import { montarManifestoFontes, type ManifestoFontes } from "@/lib/urbi/manifestoFontes";
+import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 
 export const maxDuration = 60;
 
@@ -761,7 +762,12 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     });
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     const sair = texto.includes("[URBI_SAIR]");
-    const resposta = texto.replace("[URBI_SAIR]", "").trim();
+    // Fase AD (04/09/2026) — achado real do piloto: mesmo com o prompt instruindo "use sempre
+    // rotulo, nunca a chave" (Fase AC), o Gemini continuou citando caminho técnico tipo
+    // "lip.campos_tecnicos.observacoes" na seção "Fontes consultadas". Instrução de prompt
+    // sozinha não é garantia — esta é a rede de segurança determinística que roda sempre,
+    // independente do modelo ter obedecido ou não.
+    const resposta = removerCaminhosTecnicos(texto.replace("[URBI_SAIR]", "").trim());
 
     // Fase AB — evidência verificável: além da marca simples de "usou o dossiê", a interface
     // recebe o manifesto de fontes (lib/urbi/manifestoFontes.ts), calculado em código a partir
