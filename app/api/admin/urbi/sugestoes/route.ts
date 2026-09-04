@@ -23,22 +23,9 @@ export async function GET(req: NextRequest) {
   const limitParam = parseInt(searchParams.get("limit") ?? "100", 10);
   const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 300) : 100;
 
-  // Filtro por slot precisa resolver os códigos daquele slot ANTES do limit — se filtrasse só
-  // depois de buscar, uma página cheia de outro slot esconderia sugestão real deste (achado ao
-  // implementar: nunca filtrar por campo que não existe na própria tabela depois do .limit()).
-  let codigosDoSlot: string[] | null = null;
-  if (slot) {
-    const { data: processosDoSlot, error: erroSlot } = await supabaseAdmin.from("processos").select("codigo").eq("tipo_processo", slot);
-    if (erroSlot) {
-      console.error("[admin/urbi/sugestoes GET] falha ao resolver slot:", erroSlot.message);
-      return NextResponse.json({ ok: false, erro: "Falha ao consultar sugestões." }, { status: 500 });
-    }
-    codigosDoSlot = (processosDoSlot ?? []).map((p: any) => p.codigo);
-  }
-
   let query = supabaseAdmin
     .from("urbi_sugestoes")
-    .select("id, processo_codigo, tipo, chave, sugestao, motivo_factual, campos_comparados, fontes, grau_certeza, estado, gerado_em, decidido_por, decidido_em")
+    .select("id, processo_codigo, tipo, chave, sugestao, motivo_factual, campos_comparados, fontes, grau_certeza, estado, gerado_em, decidido_por, decidido_em, slot")
     .order("gerado_em", { ascending: false })
     .limit(limit);
 
@@ -46,7 +33,11 @@ export async function GET(req: NextRequest) {
   if (processo) query = query.eq("processo_codigo", processo.trim());
   if (tipo) query = query.eq("tipo", tipo);
   if (grauCerteza) query = query.eq("grau_certeza", grauCerteza);
-  if (codigosDoSlot) query = query.in("processo_codigo", codigosDoSlot.length ? codigosDoSlot : ["__nenhum__"]);
+  // Fase M: filtra direto pela coluna `slot` da própria linha — antes precisava resolver os
+  // códigos do slot via JOIN com `processos` ANTES do .limit() (achado da Fase F: filtrar só
+  // depois de buscar esconderia sugestão real de outro slot atrás de uma página cheia). Com
+  // `slot` gravado na própria linha, o filtro nem precisa mais dessa segunda consulta.
+  if (slot) query = query.eq("slot", slot);
 
   const { data, error } = await query;
   if (error) {
@@ -61,19 +52,19 @@ export async function GET(req: NextRequest) {
     nomesPorId = new Map((usuarios ?? []).map((u: any) => [u.id, u.nome]));
   }
 
-  // tipo_processo de cada sugestão — só pra rotular o slot e montar o link seguro pro processo
-  // (Fase F: "filtro por slot" e "link pra o processo"). Nunca decide nada com isso, só exibe.
-  const codigos = [...new Set((data ?? []).map((s: any) => s.processo_codigo))];
+  // Fallback só pra linha antiga sem `slot` gravado (nenhuma existe hoje, mas mantém a leitura
+  // robusta contra qualquer gravação futura que por algum motivo não informe o slot).
+  const codigosSemSlot = [...new Set((data ?? []).filter((s: any) => !s.slot).map((s: any) => s.processo_codigo))];
   let slotPorCodigo = new Map<string, string>();
-  if (codigos.length) {
-    const { data: processos } = await supabaseAdmin.from("processos").select("codigo, tipo_processo").in("codigo", codigos);
+  if (codigosSemSlot.length) {
+    const { data: processos } = await supabaseAdmin.from("processos").select("codigo, tipo_processo").in("codigo", codigosSemSlot);
     slotPorCodigo = new Map((processos ?? []).map((p: any) => [p.codigo, p.tipo_processo]));
   }
 
   const comDetalhe = (data ?? []).map((s: any) => ({
     ...s,
     decidido_por_nome: s.decidido_por ? (nomesPorId.get(s.decidido_por) ?? null) : null,
-    tipo_processo: slotPorCodigo.get(s.processo_codigo) ?? null,
+    tipo_processo: s.slot ?? slotPorCodigo.get(s.processo_codigo) ?? null,
   }));
 
   return NextResponse.json({ ok: true, data: comDetalhe });

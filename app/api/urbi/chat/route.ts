@@ -215,7 +215,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     // lib/urbi/sugestoes.ts). Roda toda vez que o Co-Analista está ativo pra este processo; o
     // ON CONFLICT DO NOTHING evita duplicar a cada mensagem.
     try {
-      await registrarSugestoesAutomaticas(codigo, derivarSugestoesAutomaticas(d));
+      await registrarSugestoesAutomaticas(codigo, derivarSugestoesAutomaticas(d), d?.processo?.tipo_processo ?? null);
     } catch (erroSugestao: any) {
       console.error("[urbi/chat] falha ao derivar/registrar sugestões automáticas:", erroSugestao?.message ?? erroSugestao);
     }

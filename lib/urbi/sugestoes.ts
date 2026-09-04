@@ -71,6 +71,20 @@ type DossieParaSugestoes = {
 export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): SugestaoAutomatica[] {
   const saida: SugestaoAutomatica[] = [];
 
+  // Análise mais recente do processo — usada como componente de dedupe por vários tipos abaixo
+  // (Fase M, achado real: sem isso, um cruzamento como "divergência LIP×documento" ou "item sem
+  // base jurídica" só grava UMA VEZ por processo pra sempre, porque a chave de dedupe
+  // [processo_codigo,tipo,chave] não distinguia passada nenhuma — uma divergência corrigida e
+  // reaberta numa análise posterior, ou um item que perde e reganha base jurídica entre
+  // passadas, nunca geraria sugestão nova depois da primeira. `item_voltou_nao_conforme` e
+  // `aguardando_retorno_base_insuficiente` já incluíam a análise na chave; os outros 3 tipos
+  // não incluíam — corrigido aqui igualando o padrão, sem mudar NENHUM critério de quando uma
+  // sugestão nasce, só de como ela é identificada entre passadas).
+  const ultimaAnalise = dossie.fluxo?.analises?.length
+    ? dossie.fluxo.analises[dossie.fluxo.analises.length - 1]
+    : null;
+  const sufixoPassada = ultimaAnalise ? `:analise-${ultimaAnalise.numero_analise}` : "";
+
   for (const item of dossie.mac?.evolucao?.itens_voltaram_nao_conforme ?? []) {
     saida.push({
       tipo: "item_voltou_nao_conforme",
@@ -123,7 +137,9 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
     if (c.tipo === "lip_x_documento" && c.resultado === "possivel_divergencia") {
       saida.push({
         tipo: "divergencia_lip_documento",
-        chave: c.chave,
+        // Sem sufixo de passada, isto nunca gravaria uma 2ª vez pro mesmo campo — mesmo que a
+        // divergência tivesse sido corrigida e reaberta numa análise posterior (achado de Fase M).
+        chave: `${c.chave}${sufixoPassada}`,
         sugestao: `O campo "${c.chave}" do LIP diverge do que a leitura do documento encontrou. ${c.motivo}`,
         motivo_factual: c.motivo,
         campos_comparados: c.campos_comparados,
@@ -133,7 +149,9 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
     } else if (c.tipo === "mac_item_x_bip" && c.resultado === "base_juridica_ausente") {
       saida.push({
         tipo: "item_sem_base_juridica",
-        chave: c.chave,
+        // Mesmo motivo do campo acima: um item pode ganhar vínculo BIP, perdê-lo de novo (vínculo
+        // desaprovado) e voltar a ficar sem base jurídica numa passada posterior.
+        chave: `${c.chave}${sufixoPassada}`,
         sugestao: c.motivo,
         motivo_factual: c.motivo,
         campos_comparados: c.campos_comparados,
@@ -150,9 +168,6 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
   // dessa análise ter sido tocada pela última vez. O evento em si é fato confirmado (trigger de
   // banco); se ele invalida a análise já fechada é interpretação — por isso "vale_conferir",
   // nunca "confirmado".
-  const ultimaAnalise = dossie.fluxo?.analises?.length
-    ? dossie.fluxo.analises[dossie.fluxo.analises.length - 1]
-    : null;
   const analiseFechada = !!(
     ultimaAnalise && (ultimaAnalise.numero_despacho || ultimaAnalise.numero_parecer || ultimaAnalise.numero_despacho_interno)
   );
@@ -183,7 +198,9 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
   (dossie.lip?.incoerencias ?? []).forEach((inc, i) => {
     saida.push({
       tipo: "incoerencia_lip_mac",
-      chave: inc.campo || `incoerencia_${i}`,
+      // Mesmo sufixo de passada dos outros 2 cruzamentos acima — uma incoerência corrigida e
+      // reaberta numa análise posterior precisa poder gerar linha nova (achado de Fase M).
+      chave: `${inc.campo || `incoerencia_${i}`}${sufixoPassada}`,
       sugestao: inc.explicacao,
       motivo_factual: inc.explicacao,
       campos_comparados: inc.campo ? [inc.campo] : [],
@@ -202,10 +219,17 @@ export function derivarSugestoesAutomaticas(dossie: DossieParaSugestoes): Sugest
  * apagar um `estado` que um humano já tenha mudado nem duplicar a cada
  * mensagem de chat. Nunca grava em LIP/MAC — tabela própria do URBI.
  * Falha aqui nunca derruba a resposta do chat (só loga).
+ *
+ * `slot` (Fase M): grava o tipo_processo JUNTO da linha — sem isso, toda sugestão só sabia seu
+ * slot por JOIN com `processos` em tempo de leitura (app/api/admin/urbi/sugestoes/route.ts,
+ * Fase F), e um processo excluído/renomeado depois apagaria essa informação de auditoria
+ * mesmo sendo um fato já conhecido no momento em que a sugestão nasceu. `null` quando quem
+ * chama não sabe o slot (não deve acontecer no caminho real, mas não é motivo pra falhar).
  */
 export async function registrarSugestoesAutomaticas(
   processoCodigo: string,
   sugestoes: SugestaoAutomatica[],
+  slot: string | null = null,
 ): Promise<void> {
   if (sugestoes.length === 0) return;
   const linhas = sugestoes.map((s) => ({
@@ -217,6 +241,7 @@ export async function registrarSugestoesAutomaticas(
     campos_comparados: s.campos_comparados,
     fontes: s.fontes,
     grau_certeza: s.grau_certeza,
+    slot,
   }));
   const { error } = await supabaseAdmin
     .from("urbi_sugestoes")

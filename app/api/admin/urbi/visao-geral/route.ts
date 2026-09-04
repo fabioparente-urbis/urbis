@@ -30,8 +30,9 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("urbis_api_calls").select("operacao, status, custo_estimado_usd, tokens_entrada, tokens_saida").eq("modulo", "URBI").gte("criado_em", seteDiasAtras),
     supabaseAdmin.from("urbi_sugestoes").select("*", { count: "exact", head: true }).eq("estado", "nova"),
     // Detalhe pra quebrar "sugestões novas" por slot e por grau de certeza — mesma tabela,
-    // sem duplicar a consulta de contagem (head:true acima não devolve linha nenhuma).
-    supabaseAdmin.from("urbi_sugestoes").select("processo_codigo, tipo, grau_certeza").eq("estado", "nova"),
+    // sem duplicar a consulta de contagem (head:true acima não devolve linha nenhuma). `slot`
+    // vem gravado na própria linha (Fase M) — não precisa mais de JOIN com `processos` pra isso.
+    supabaseAdmin.from("urbi_sugestoes").select("processo_codigo, tipo, grau_certeza, slot").eq("estado", "nova"),
     supabaseAdmin.from("urbis_api_calls").select("operacao, motivo_erro, criado_em").eq("modulo", "URBI").eq("status", "erro").order("criado_em", { ascending: false }).limit(10),
     // "Cobertura do Co-Analista": processos distintos que já tiveram pelo menos 1 chamada
     // chat_coanalista/chat_coanalista_bip, contra o total de processos vivos (excluido_em nulo).
@@ -77,7 +78,8 @@ export async function GET(req: NextRequest) {
   const falhasCoberturaMdpMrpPorSlot = new Map<string, number>();
   for (const s of sugestoesNovasDetalhe ?? []) {
     const linha = s as any;
-    const slot = tipoPorCodigo.get(linha.processo_codigo) ?? "desconhecido";
+    // Fallback pro JOIN só cobre a linha antiga sem `slot` gravado (nenhuma existe hoje).
+    const slot = linha.slot ?? tipoPorCodigo.get(linha.processo_codigo) ?? "desconhecido";
     sugestoesPorSlot.set(slot, (sugestoesPorSlot.get(slot) ?? 0) + 1);
     sugestoesPorGrau.set(linha.grau_certeza, (sugestoesPorGrau.get(linha.grau_certeza) ?? 0) + 1);
     if (linha.tipo === "documento_sem_registro") {

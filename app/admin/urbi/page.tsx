@@ -34,8 +34,8 @@ const TONS: Record<string, string> = {
   erro: "bg-red-50 text-red-700 border-red-200",
   neutro: "bg-slate-100 text-slate-600 border-slate-200",
 };
-function Badge({ tom = "neutro", children }: { tom?: string; children: React.ReactNode }) {
-  return <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${TONS[tom] ?? TONS.neutro}`}>{children}</span>;
+function Badge({ tom = "neutro", title, children }: { tom?: string; title?: string; children: React.ReactNode }) {
+  return <span title={title} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap ${TONS[tom] ?? TONS.neutro}`}>{children}</span>;
 }
 function Metrica({ label, valor, fonte }: { label: string; valor: React.ReactNode; fonte?: string }) {
   return (
@@ -211,7 +211,7 @@ function AbaVisaoGeral({ onIrParaAba }: { onIrParaAba: (aba: AbaUrbi) => void })
                     ? <Vazio cols={2}>Nenhuma sugestão nova.</Vazio>
                     : dados.sugestoes_novas_por_grau.map((g) => (
                       <tr key={g.grau_certeza} className={TR}>
-                        <td className={TD}><Badge tom={TOM_GRAU[g.grau_certeza] ?? "neutro"}>{g.grau_certeza}</Badge></td>
+                        <td className={TD}><Badge tom={TOM_GRAU[g.grau_certeza] ?? "neutro"} title={LIMITACAO_GRAU[g.grau_certeza]}>{g.grau_certeza}</Badge></td>
                         <td className={TD}>{g.total}</td>
                       </tr>
                     ))}
@@ -466,6 +466,15 @@ const GRAUS_CERTEZA = ["confirmado", "vale_conferir", "base_insuficiente", "nao_
 const TOM_GRAU: Record<string, string> = {
   confirmado: "ok", vale_conferir: "aviso", base_insuficiente: "alerta", nao_aplicavel: "neutro", aguarda_confirmacao_humana: "info",
 };
+// Fase M — tornar visível a LIMITAÇÃO de cada grau, não só o rótulo. O URBI nunca decide; isto
+// só explica o que cada grau já significava desde que foi criado (lib/urbi/dossieProcesso.ts).
+const LIMITACAO_GRAU: Record<string, string> = {
+  confirmado: "Fato direto de uma fonte — não é interpretação, mas não prova sozinho que exige ação.",
+  vale_conferir: "Cruzamento/inferência determinística — pode ser divergência real ou explicação legítima que o URBI não tem como saber.",
+  base_insuficiente: "Dado incompleto demais pra concluir — ausência de conclusão, não indício de problema.",
+  nao_aplicavel: "A regra não se aplica a este caso — não é ausência de dado.",
+  aguarda_confirmacao_humana: "Já foi observado, mas só um humano pode confirmar se procede.",
+};
 const TOM_ESTADO: Record<string, string> = {
   nova: "accent", vista: "info", confirmada: "ok", descartada: "neutro", insuficiente: "alerta",
 };
@@ -570,7 +579,7 @@ function AbaSugestoes() {
                 <div>{s.sugestao}</div>
                 <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">{s.motivo_factual}</div>
               </td>
-              <td className={TD}><Badge tom={TOM_GRAU[s.grau_certeza] ?? "neutro"}>{s.grau_certeza}</Badge></td>
+              <td className={TD}><Badge tom={TOM_GRAU[s.grau_certeza] ?? "neutro"} title={LIMITACAO_GRAU[s.grau_certeza]}>{s.grau_certeza}</Badge></td>
               <td className={TD}>{s.fontes.join(", ")}</td>
               <td className={TD}><Badge tom={TOM_ESTADO[s.estado] ?? "neutro"}>{s.estado}</Badge></td>
               <td className={TD}>{s.decidido_por_nome ? <>{s.decidido_por_nome}<br />{fmtData(s.decidido_em)}</> : "—"}</td>
