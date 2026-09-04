@@ -380,7 +380,64 @@ function AbaConversas() {
           {retMsg && <span className="text-xs text-[var(--text-secondary)]">{retMsg}</span>}
         </div>
       </Secao>
+
+      <AbaAcoesAdministrativas />
     </div>
+  );
+}
+
+// =====================================================================
+// Ações administrativas (Fase F — distinção conversa × sugestão automática × ação humana)
+// =====================================================================
+
+type AcaoAdministrativa = { tipo: "sugestao_decidida" | "config_alterada"; quando: string; quem_nome: string | null; detalhe: string };
+
+const ROTULO_TIPO_ACAO: Record<AcaoAdministrativa["tipo"], string> = {
+  sugestao_decidida: "Decisão sobre sugestão",
+  config_alterada: "Configuração alterada",
+};
+
+function AbaAcoesAdministrativas() {
+  const [linhas, setLinhas] = useState<AcaoAdministrativa[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/acoes-administrativas");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setLinhas(json.data ?? []);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <Secao
+      titulo="Ações administrativas recentes"
+      descricao={<>Distinto de conversa (acima) e de sugestão automática (aba Sugestões): aqui é decisão HUMANA — mudar estado de uma sugestão, ligar/desligar o chat, editar outra chave de configuração. Fontes: <code>urbi_sugestoes.decidido_por</code> e <code>urbi_config.atualizado_por</code>. Não é a trilha de auditoria completa do URBI (pergunta/comando/resposta/bloqueio de custo ainda não têm tabela comum) — só o que já tem "quem decidiu" registrado hoje.</>}
+      acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}
+    >
+      <table className="w-full text-xs">
+        <thead><tr><th className={TH}>Tipo</th><th className={TH}>Detalhe</th><th className={TH}>Quem</th><th className={TH}>Quando</th></tr></thead>
+        <tbody>
+          {erro && <Vazio cols={4}>{erro}</Vazio>}
+          {!erro && carregando && linhas.length === 0 && <Vazio cols={4}>Carregando…</Vazio>}
+          {!erro && !carregando && linhas.length === 0 && <Vazio cols={4}>Nenhuma ação administrativa registrada ainda.</Vazio>}
+          {linhas.map((a, i) => (
+            <tr key={i} className={TR}>
+              <td className={TD}><Badge tom="info">{ROTULO_TIPO_ACAO[a.tipo]}</Badge></td>
+              <td className={TD}>{a.detalhe}</td>
+              <td className={TD}>{a.quem_nome ?? "—"}</td>
+              <td className={TD}>{fmtData(a.quando)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </Secao>
   );
 }
 
@@ -752,7 +809,7 @@ function AbaCatalogo() {
 // Configurações
 // =====================================================================
 
-type ConfigRow = { chave: string; valor: string; descricao: string | null };
+type ConfigRow = { chave: string; valor: string; descricao: string | null; atualizado_em: string | null; atualizado_por_nome: string | null };
 
 function AbaConfig() {
   const [linhas, setLinhas] = useState<ConfigRow[]>([]);
@@ -824,15 +881,21 @@ function AbaConfig() {
               )}
             </div>
           )}
+          {chatConfig && (
+            <div className="mt-2 text-[10px] text-[var(--text-muted)]">
+              Última alteração: {chatConfig.atualizado_por_nome ? `${chatConfig.atualizado_por_nome}, ` : "quem alterou não ficou registrado (mudança anterior a 03/09/2026), "}
+              {fmtData(chatConfig.atualizado_em)}
+            </div>
+          )}
           {erro && <div className="mt-2 text-sm text-[var(--error)]">{erro}</div>}
         </div>
       </Secao>
 
       <Secao titulo="Outras configurações" descricao="Chaves já existentes em urbi_config — nenhuma criada nesta rodada, só exibidas e editáveis pela mesma rota que já existia (/api/urbi/config).">
         <table className="w-full text-xs">
-          <thead><tr><th className={TH}>Chave</th><th className={TH}>Descrição</th><th className={TH}>Valor</th><th className={TH}></th></tr></thead>
+          <thead><tr><th className={TH}>Chave</th><th className={TH}>Descrição</th><th className={TH}>Valor</th><th className={TH}>Última alteração</th><th className={TH}></th></tr></thead>
           <tbody>
-            {!carregando && outras.length === 0 && <Vazio cols={4}>Nenhuma outra chave em urbi_config.</Vazio>}
+            {!carregando && outras.length === 0 && <Vazio cols={5}>Nenhuma outra chave em urbi_config.</Vazio>}
             {outras.map((l) => (
               <tr key={l.chave} className={TR}>
                 <td className={TD}><code>{l.chave}</code></td>
@@ -843,6 +906,9 @@ function AbaConfig() {
                     value={edicoes[l.chave] ?? l.valor}
                     onChange={(e) => setEdicoes((ed) => ({ ...ed, [l.chave]: e.target.value }))}
                   />
+                </td>
+                <td className={`${TD} text-[10px]`}>
+                  {l.atualizado_em ? <>{l.atualizado_por_nome ?? "quem não ficou registrado"}<br />{fmtData(l.atualizado_em)}</> : "—"}
                 </td>
                 <td className={TD}>
                   <button
