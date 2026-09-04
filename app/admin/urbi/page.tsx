@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "leitura-visual" | "config";
 
 // =====================================================================
 // Visão geral
@@ -910,6 +910,92 @@ function AbaRecorrencia() {
 }
 
 // =====================================================================
+// Leitura visual — receitas (Fase K, item 7: só explica, nunca processa)
+// =====================================================================
+
+type ReceitaInfo = {
+  id: string; versao: number; papel: string; chaves: string[]; alvo: string; modelo: string;
+  status: "ativa" | "preparada"; observacao: string; cobertura?: string[]; limitacoes?: string[];
+};
+type ReceitasVisao = { ativas: ReceitaInfo[]; preparadas: ReceitaInfo[] };
+
+function CardReceita({ r }: { r: ReceitaInfo }) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
+      <div className="flex items-center gap-2">
+        <code className="text-xs font-semibold text-[var(--text-primary)]">{r.id}</code>
+        <Badge tom={r.status === "ativa" ? "ok" : "neutro"}>{r.status === "ativa" ? "ativa — chama Gemini de verdade" : "preparada — não executa"}</Badge>
+        <span className="text-[10px] text-[var(--text-muted)]">v{r.versao} · papel "{r.papel}" · {r.modelo}</span>
+      </div>
+      <p className="mt-2 text-xs text-[var(--text-secondary)]">{r.alvo}</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {r.chaves.map((c) => <code key={c} className="rounded bg-[var(--bg-card-hover)] px-1.5 py-0.5 text-[10px]">{c}</code>)}
+      </div>
+      {r.cobertura && (
+        <div className="mt-3">
+          <div className="text-[11px] font-medium text-[var(--text-primary)]">Cobertura</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-[var(--text-secondary)]">
+            {r.cobertura.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </div>
+      )}
+      {r.limitacoes && (
+        <div className="mt-3">
+          <div className="text-[11px] font-medium text-[var(--text-primary)]">Limitações</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-4 text-[11px] text-[var(--text-secondary)]">
+            {r.limitacoes.map((c, i) => <li key={i}>{c}</li>)}
+          </ul>
+        </div>
+      )}
+      <p className="mt-3 text-[10px] italic text-[var(--text-muted)]">{r.observacao}</p>
+    </div>
+  );
+}
+
+function AbaLeituraVisual() {
+  const [dados, setDados] = useState<ReceitasVisao | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/receitas-visao");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json.data);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        Esta aba só EXPLICA o que existe em <code>lib/visao/</code> — não tem botão de processamento, não chama Gemini e não lê documento nenhum. "Ativa" quer dizer que a receita já está no caminho real (Slot 5, ao ler uma pasta); "preparada" quer dizer que o contrato existe e foi testado com fixture sintética, mas ainda depende de decisão humana pra entrar em produção.
+      </div>
+      {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
+      {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
+      {dados && (
+        <>
+          <Secao titulo="Receitas ativas" descricao="Em produção — lib/visao/receitas.ts">
+            <div className="grid gap-3 p-4 md:grid-cols-2">
+              {dados.ativas.map((r) => <CardReceita key={r.id} r={r} />)}
+            </div>
+          </Secao>
+          <Secao titulo="Receitas preparadas (não ativas)" descricao="Contrato pronto, aguardando decisão humana pra ligar ao pipeline real.">
+            <div className="grid gap-3 p-4 md:grid-cols-2">
+              {dados.preparadas.map((r) => <CardReceita key={r.id} r={r} />)}
+            </div>
+          </Secao>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -1057,7 +1143,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["leitura-visual", "Leitura visual"], ["config", "Configurações"],
   ];
 
   return (
@@ -1090,6 +1176,7 @@ export default function UrbiAdminPage() {
         {aba === "uso" && <AbaUso />}
         {aba === "catalogo" && <AbaCatalogo />}
         {aba === "recorrencia" && <AbaRecorrencia />}
+        {aba === "leitura-visual" && <AbaLeituraVisual />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>
