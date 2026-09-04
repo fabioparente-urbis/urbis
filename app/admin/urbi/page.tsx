@@ -714,6 +714,7 @@ type MudancaCatalogo = {
   item_texto_atual: string;
   acao: "criado" | "atualizado" | "desativado" | "reativado";
   campos_alterados: Record<string, { de: unknown; para: unknown }>;
+  autor_nome: string | null;
 };
 
 const NOME_SLOT: Record<string, string> = {
@@ -730,6 +731,8 @@ function AbaCatalogo() {
   const [carregando, setCarregando] = useState(true);
   const [slotFiltro, setSlotFiltro] = useState("");
   const [acaoFiltro, setAcaoFiltro] = useState("");
+  const [desdeFiltro, setDesdeFiltro] = useState("");
+  const [ateFiltro, setAteFiltro] = useState("");
   const [erro, setErro] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -738,13 +741,15 @@ function AbaCatalogo() {
       const params = new URLSearchParams({ limit: "150" });
       if (slotFiltro) params.set("slot", slotFiltro);
       if (acaoFiltro) params.set("acao", acaoFiltro);
+      if (desdeFiltro) params.set("desde", desdeFiltro);
+      if (ateFiltro) params.set("ate", ateFiltro);
       const res = await fetch(`/api/admin/urbi/catalogo?${params}`);
       const json = await res.json();
       if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
       setLinhas(json.data ?? []);
     } catch { setErro("Falha técnica ao carregar."); }
     finally { setCarregando(false); }
-  }, [slotFiltro, acaoFiltro]);
+  }, [slotFiltro, acaoFiltro, desdeFiltro, ateFiltro]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -768,19 +773,25 @@ function AbaCatalogo() {
           <option value="desativado">desativado</option>
           <option value="reativado">reativado</option>
         </select>
+        <label className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+          De <input type="date" value={desdeFiltro} onChange={(e) => setDesdeFiltro(e.target.value)} className={`${INPUT} w-36`} />
+        </label>
+        <label className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
+          Até <input type="date" value={ateFiltro} onChange={(e) => setAteFiltro(e.target.value)} className={`${INPUT} w-36`} />
+        </label>
         <button onClick={carregar} className={BTN_PRIMARIO}>Filtrar</button>
       </div>
       <table className="w-full text-xs">
         <thead>
           <tr>
             <th className={TH}>Quando</th><th className={TH}>Slot</th><th className={TH}>Item</th>
-            <th className={TH}>Ação</th><th className={TH}>Campos alterados</th>
+            <th className={TH}>Ação</th><th className={TH}>Autor</th><th className={TH}>Campos alterados</th>
           </tr>
         </thead>
         <tbody>
-          {erro && <Vazio cols={5}>{erro}</Vazio>}
-          {!erro && carregando && linhas.length === 0 && <Vazio cols={5}>Carregando…</Vazio>}
-          {!erro && !carregando && linhas.length === 0 && <Vazio cols={5}>Nenhuma mudança de catálogo registrada ainda neste filtro — a trilha começou a valer em 03/09/2026, mudança anterior a isso não aparece aqui.</Vazio>}
+          {erro && <Vazio cols={6}>{erro}</Vazio>}
+          {!erro && carregando && linhas.length === 0 && <Vazio cols={6}>Carregando…</Vazio>}
+          {!erro && !carregando && linhas.length === 0 && <Vazio cols={6}>Nenhuma mudança de catálogo registrada ainda neste filtro — a trilha começou a valer em 03/09/2026, mudança anterior a isso não aparece aqui.</Vazio>}
           {linhas.map((l) => (
             <tr key={l.id} className={TR}>
               <td className={TD}>{fmtData(l.criado_em)}</td>
@@ -790,6 +801,7 @@ function AbaCatalogo() {
                 {l.item_grupo && <div className="text-[10px] text-[var(--text-muted)]">{l.item_grupo}</div>}
               </td>
               <td className={TD}><Badge tom={TOM_ACAO[l.acao] ?? "neutro"}>{l.acao}</Badge></td>
+              <td className={TD} title={l.autor_nome ? undefined : "Não identificado — evento anterior à correção que passou a gravar o usuário real."}>{l.autor_nome ?? "—"}</td>
               <td className={`${TD} max-w-sm`}>
                 {Object.entries(l.campos_alterados ?? {}).map(([campo, v]) => (
                   <div key={campo} className="mb-0.5">
