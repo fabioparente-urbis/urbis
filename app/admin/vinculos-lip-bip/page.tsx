@@ -55,6 +55,9 @@ type Cobertura = {
   itens_prioritarios_sem_fundamento?: { itemId: string; grupo: string; texto: string; recorrencia: number }[];
 };
 type CandidatoBip = { id: string; referencia: string; lei: string; trecho: string; distancia: number; confiancaSugerida: "MEDIA" | "BAIXA" };
+type CandidatosDoItem = { candidatos: CandidatoBip[]; baseInsuficiente: boolean };
+// Fase T — lote inicial de revisão: até 10 itens BIP mais prioritários por assunto.
+const TAMANHO_LOTE_INICIAL = 10;
 type Pendente = {
   propostaId: string; itemId: string; grupo: string; texto: string; tipo: "LIP" | "BIP";
   lipChave: string | null; papel: string | null; obrigatorio: boolean | null;
@@ -65,7 +68,7 @@ type Pendente = {
 export default function VinculosLipBipPage() {
   const [assunto, setAssunto] = useState(ASSUNTOS[0].slug);
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
-  const [aba, setAba] = useState<"fila" | "pendentes">("fila");
+  const [aba, setAba] = useState<"fila" | "pendentes" | "lote-inicial">("fila");
   const [fila, setFila] = useState<ItemFila[]>([]);
   const [pendentes, setPendentes] = useState<Pendente[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -80,27 +83,27 @@ export default function VinculosLipBipPage() {
   // Fase Q — candidato por busca vetorial, buscado em lote sob ação explícita (nunca automático).
   // Guardado por itemId; nunca gravado no banco daqui — só exibição, "usar candidato" abre o
   // modal de proposta já existente com o valor pré-preenchido, revisão humana continua obrigatória.
-  const [candidatosBip, setCandidatosBip] = useState<Record<string, CandidatoBip | null>>({});
+  const [candidatosBip, setCandidatosBip] = useState<Record<string, CandidatosDoItem | undefined>>({});
   const [buscandoCandidatos, setBuscandoCandidatos] = useState(false);
   const [avisoCandidatos, setAvisoCandidatos] = useState<string | null>(null);
   const [candidatoParaModal, setCandidatoParaModal] = useState<CandidatoBip | null>(null);
 
-  async function buscarCandidatosEmLote() {
-    const itensBip = fila.filter((i) => i.tipo === "BIP" && candidatosBip[i.itemId] === undefined).slice(0, 25);
-    if (itensBip.length === 0) return;
+  async function buscarCandidatosPara(itens: ItemFila[]) {
+    const pendentesDeBusca = itens.filter((i) => candidatosBip[i.itemId] === undefined).slice(0, 25);
+    if (pendentesDeBusca.length === 0) return;
     setBuscandoCandidatos(true);
     setAvisoCandidatos(null);
     try {
       const r = await fetch("/api/mac/vinculos-fila/candidatos-bip", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itens: itensBip.map((i) => ({ itemId: i.itemId, grupo: i.grupo, texto: i.texto })) }),
+        body: JSON.stringify({ itens: pendentesDeBusca.map((i) => ({ itemId: i.itemId, grupo: i.grupo, texto: i.texto })) }),
       });
       const j = await r.json();
       if (!j.ok) { setAvisoCandidatos(j.erro ?? "falha ao buscar candidatos"); return; }
       if (j.aviso) setAvisoCandidatos(j.aviso);
       setCandidatosBip((atual) => {
         const novo = { ...atual };
-        for (const c of j.candidatos) novo[c.itemId] = c.candidato ?? null;
+        for (const c of j.candidatos) novo[c.itemId] = { candidatos: c.candidatos ?? [], baseInsuficiente: !!c.baseInsuficiente };
         return novo;
       });
     } catch {
@@ -109,6 +112,7 @@ export default function VinculosLipBipPage() {
       setBuscandoCandidatos(false);
     }
   }
+  const buscarCandidatosEmLote = () => buscarCandidatosPara(fila.filter((i) => i.tipo === "BIP"));
 
   async function carregar() {
     setCarregando(true);
@@ -279,10 +283,10 @@ export default function VinculosLipBipPage() {
       )}
 
       <div className="mb-4 flex items-center gap-2 border-b border-[var(--border)]">
-        {(["fila", "pendentes"] as const).map((t) => (
+        {(["fila", "lote-inicial", "pendentes"] as const).map((t) => (
           <button key={t} onClick={() => setAba(t)}
             className={`px-3 py-2 text-xs font-medium ${aba === t ? "border-b-2 border-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
-            {t === "fila" ? `Fila (${fila.length})` : `Aguardando aprovação (${pendentes.length})`}
+            {t === "fila" ? `Fila (${fila.length})` : t === "lote-inicial" ? `Lote inicial (até ${TAMANHO_LOTE_INICIAL})` : `Aguardando aprovação (${pendentes.length})`}
           </button>
         ))}
       </div>
@@ -307,7 +311,8 @@ export default function VinculosLipBipPage() {
           ) : (
             <ul className="divide-y divide-[var(--border)]">
               {fila.map((i) => {
-                const candidato = i.tipo === "BIP" ? candidatosBip[i.itemId] : undefined;
+                const info = i.tipo === "BIP" ? candidatosBip[i.itemId] : undefined;
+                const melhor = info?.candidatos[0];
                 return (
                 <li key={`${i.itemId}:${i.tipo}`} className="px-5 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -325,25 +330,87 @@ export default function VinculosLipBipPage() {
                       <button className={BTN_SECUNDARIO} onClick={() => setItemAberto(i)}>Propor</button>
                     </div>
                   </div>
-                  {candidato && (
+                  {info && !info.baseInsuficiente && melhor && (
                     <div className="mt-2 rounded-lg border border-[var(--accent)] bg-[var(--bg-card-hover)] px-3 py-2 text-[11px]">
                       <div className="mb-0.5 font-medium text-amber-700">candidato por similaridade — proposta, exige revisão humana</div>
-                      <div className="text-[var(--text-secondary)]"><strong>{candidato.referencia}</strong> — {candidato.lei}</div>
-                      <div className="text-[var(--text-muted)]">{candidato.trecho}</div>
+                      <div className="text-[var(--text-secondary)]"><strong>{melhor.referencia}</strong> — {melhor.lei}</div>
+                      <div className="text-[var(--text-muted)]">{melhor.trecho}</div>
                       <div className="mt-1 flex items-center gap-2">
-                        <Badge tom="neutro">confiança sugerida: {candidato.confiancaSugerida}</Badge>
-                        <button className="text-[var(--accent)] underline" onClick={() => { setCandidatoParaModal(candidato); setItemAberto(i); }}>usar este candidato →</button>
+                        <Badge tom="neutro">confiança sugerida: {melhor.confiancaSugerida}</Badge>
+                        <button className="text-[var(--accent)] underline" onClick={() => { setCandidatoParaModal(melhor); setItemAberto(i); }}>usar este candidato →</button>
                       </div>
                     </div>
                   )}
-                  {i.tipo === "BIP" && candidato === null && (
-                    <div className="mt-1 text-[10px] text-[var(--text-muted)]">busca por similaridade não achou candidato claro — proponha manualmente.</div>
+                  {info?.baseInsuficiente && (
+                    <div className="mt-1 flex items-center gap-1.5 text-[10px] text-[var(--text-muted)]"><Badge tom="neutro">base insuficiente</Badge> nenhum candidato próximo o bastante — proponha manualmente ou deixe pendente.</div>
                   )}
                 </li>
                 );
               })}
             </ul>
           )}
+        </Secao>
+      )}
+
+      {!carregando && aba === "lote-inicial" && (
+        <Secao
+          titulo={`Lote inicial de revisão jurídica — até ${TAMANHO_LOTE_INICIAL} itens de ${ASSUNTOS.find((a) => a.slug === assunto)?.nome}`}
+          descricao="Fase T — os itens mais recorrentes desta fila, com até 3 candidatos de fundamento legal cada. Nada aqui é vínculo aprovado, nem item MAC ou campo LIP alterado, nem proposta enviada em seu nome: cada 'usar este candidato' só abre o modal de proposta pra você revisar e confirmar."
+          acao={
+            <button className={BTN_SECUNDARIO} onClick={() => buscarCandidatosPara(fila.filter((i) => i.tipo === "BIP").slice(0, TAMANHO_LOTE_INICIAL))} disabled={buscandoCandidatos} title="Busca semântica por IA (custo pequeno de embedding, até 3 candidatos por item) — ação explícita, nunca automática">
+              {buscandoCandidatos ? "Buscando…" : `🔎 Carregar candidatos do lote (${Math.min(TAMANHO_LOTE_INICIAL, fila.filter((i) => i.tipo === "BIP").length)} itens)`}
+            </button>
+          }
+        >
+          {avisoCandidatos && <div className="border-b border-[var(--border)] bg-amber-50 px-5 py-2 text-[11px] text-amber-700">{avisoCandidatos}</div>}
+          {(() => {
+            const lote = fila.filter((i) => i.tipo === "BIP").slice(0, TAMANHO_LOTE_INICIAL);
+            if (lote.length === 0) return <div className="px-5 py-6 text-xs text-[var(--text-muted)]">Nenhum item BIP pendente neste assunto — fila vazia ou tudo já tem vínculo/proposta.</div>;
+            return (
+              <ul className="divide-y divide-[var(--border)]">
+                {lote.map((i, idx) => {
+                  const info = candidatosBip[i.itemId];
+                  return (
+                    <li key={i.itemId} className="px-5 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">#{idx + 1} · {ASSUNTOS.find((a) => a.slug === i.slot)?.nome ?? i.slot}</div>
+                          <div className="text-xs font-medium text-[var(--text-primary)]">{i.grupo} {i.referenciaChecklist && <span className="text-[var(--text-muted)]">· {i.referenciaChecklist}</span>}</div>
+                          <div className="text-xs text-[var(--text-muted)]">{i.texto}</div>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-[var(--text-muted)]">
+                            <span className="font-medium text-amber-700">recorrência: {i.prioridade.motivo}</span>
+                            <span>campo LIP: {i.campoLipRelacionado ? <code>{i.campoLipRelacionado}</code> : "nenhum relacionado"}</span>
+                            <span>fundamento já cadastrado: {i.fundamentoLegalCadastrado ?? "nenhum"}</span>
+                          </div>
+                        </div>
+                        <button className={BTN_SECUNDARIO} onClick={() => setItemAberto(i)}>Propor manualmente</button>
+                      </div>
+
+                      {!info && <div className="mt-2 text-[10px] text-[var(--text-muted)]">candidatos ainda não buscados — use "Carregar candidatos do lote" acima.</div>}
+                      {info?.baseInsuficiente && (
+                        <div className="mt-2 flex items-center gap-1.5 text-[11px]"><Badge tom="neutro">base insuficiente</Badge><span className="text-[var(--text-muted)]">nenhum trecho do BIP ficou próximo o bastante pra sugerir com alguma confiança — não force certeza aqui, proponha manualmente se souber o fundamento.</span></div>
+                      )}
+                      {info && !info.baseInsuficiente && info.candidatos.length > 0 && (
+                        <div className="mt-2 space-y-1.5">
+                          <div className="text-[10px] font-medium text-amber-700">até {info.candidatos.length} candidato(s) por similaridade — proposta, exige revisão humana</div>
+                          {info.candidatos.map((c, ci) => (
+                            <div key={c.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-card-hover)] px-3 py-2 text-[11px]">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="text-[var(--text-secondary)]"><strong>{ci + 1}. {c.referencia}</strong> — {c.lei}</div>
+                                <Badge tom={c.confiancaSugerida === "MEDIA" ? "aviso" : "neutro"}>{c.confiancaSugerida} · distância {c.distancia.toFixed(3)}</Badge>
+                              </div>
+                              <div className="mt-0.5 text-[var(--text-muted)]">{c.trecho}</div>
+                              <button className="mt-1 text-[var(--accent)] underline" onClick={() => { setCandidatoParaModal(c); setItemAberto(i); }}>usar este candidato →</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })()}
         </Secao>
       )}
 
