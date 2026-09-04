@@ -1,22 +1,19 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import type { AuthContext } from "@/lib/auth";
+import { PERFIS_IRRESTRITOS, PERFIS_GERENCIA } from "@/lib/perfis";
 
 /**
- * Réplica SERVER-SIDE do `podeEditar` que já existe em app/admin/checklists/page.tsx (linhas
- * ~117-124) — o gate de lá era só do lado do cliente (a tela escondia o botão, mas a API
- * nunca checava nada, nem autenticação). Reproduz exatamente a mesma regra, inclusive os
- * perfis "Diretor"/"Gerência PP"/"Gerência MP"/"Gerência GP" que hoje não correspondem a
- * nenhum perfil realmente atribuído no banco (confirmado em auditoria de 03/09/2026: só
- * existem Administrador, Diretora, Gerente, Gerência GERECCO/GERAED/GERAGP, Analista) — não é
- * bug desta rodada consertar a lista, é preservar o comportamento que já existia.
+ * Réplica SERVER-SIDE do `podeEditar` que já existe em app/admin/checklists/page.tsx — o gate
+ * de lá era só do lado do cliente (a tela escondia o botão, mas a API nunca checava nada, nem
+ * autenticação). Usa as constantes reais de perfil (`lib/perfis.ts`), confirmadas em auditoria
+ * de 03/09/2026 contra `usuarios`: Administrador, Diretora, Gerência GERECCO/GERAED/GERAGP/GERAP,
+ * Analista. A lista anterior ("Diretor"/"Gerência PP"/"Gerência MP"/"Gerência GP") não
+ * correspondia a nenhum perfil real — nenhum gerente conseguia editar modelo padrão, apesar de
+ * ser essa a intenção original da regra.
  */
-const PERFIS_QUE_PODEM_EDITAR_MODELO_PADRAO = new Set([
-  "Administrador",
-  "Diretora",
-  "Diretor",
-  "Gerência PP",
-  "Gerência MP",
-  "Gerência GP",
+const PERFIS_QUE_PODEM_EDITAR_MODELO_PADRAO = new Set<string>([
+  ...PERFIS_IRRESTRITOS,
+  ...PERFIS_GERENCIA,
 ]);
 
 export type ResultadoAutorizacaoChecklist = { ok: true } | { ok: false; status: number; erro: string };

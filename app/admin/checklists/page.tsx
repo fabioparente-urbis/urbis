@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PERFIS_IRRESTRITOS, PERFIS_GERENCIA } from "@/lib/perfis";
 
 type Item = {
   gera_indeferimento?: boolean;
@@ -114,14 +115,10 @@ export default function ChecklistsPage() {
   useEffect(() => { if (usuarioId) carregarModelos(usuarioId); }, [usuarioId]);
 
   const isPadrao = modeloAtual?.dono_id === null;
-  // Pode editar modelos padrão: Administrador, Diretora/Diretor ou qualquer gerente de gerencia (PP/MP/GP).
+  // Pode editar modelos padrão: Administrador, Diretora ou qualquer gerente das 3 gerências reais.
   const podeEditar = !isPadrao
-    || perfil === "Administrador"
-    || perfil === "Diretora"
-    || perfil === "Diretor"
-    || perfil === "Gerência PP"
-    || perfil === "Gerência MP"
-    || perfil === "Gerência GP";
+    || (!!perfil && (PERFIS_IRRESTRITOS as readonly string[]).includes(perfil))
+    || (!!perfil && (PERFIS_GERENCIA as readonly string[]).includes(perfil));
   const grupos = [...new Set(itens.map((i) => i.grupo))];
 
   // Carrega itens da fonte quando copiarDe muda
