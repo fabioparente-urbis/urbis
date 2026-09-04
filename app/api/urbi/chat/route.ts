@@ -6,6 +6,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { derivarSugestoesAutomaticas, registrarSugestoesAutomaticas } from "@/lib/urbi/sugestoes";
 import { gerarEmbeddingConsulta } from "@/lib/bdi/embeddingConsulta";
 import { LIMITE_CHAMADAS_CHAT_HORA, OPERACOES_CHAT_URBI } from "@/lib/urbi/limites";
+import { usuarioDaRequisicao } from "@/lib/autorizacao";
+import { montarDossieFactual } from "@/lib/urbi/montarDossie";
 
 export const maxDuration = 60;
 
@@ -198,19 +200,24 @@ function palavrasChaveDaPergunta(pergunta: string): string[] {
   )];
 }
 
-/** O chat só recebe o dossiê já autorizado e redigido pela rota própria. */
+/**
+ * O chat só recebe o dossiê já autorizado e redigido pela mesma lógica da rota própria
+ * (lib/urbi/montarDossie.ts) — chamada DIRETAMENTE, no mesmo processo, nunca por autochamada
+ * HTTP. Achado real de 05/09/2026 (piloto humano controlado): a versão anterior fazia
+ * `fetch(new URL("/api/urbi/dossie...", req.url))` — o servidor buscando sua própria API pela
+ * rede — e essa autochamada falhava sempre em produção (Railway), mesmo a mesma rota
+ * respondendo perfeitamente quando chamada direto pelo navegador com a mesma sessão. Nunca
+ * tinha sido percebido porque, até este piloto, nenhuma conversa real tinha processo em
+ * contexto (achado da Fase P — 0 chamadas "chat_coanalista" na história do produto).
+ */
 async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta: string): Promise<ResultadoDossie> {
   try {
-    const destino = new URL(`/api/urbi/dossie?codigo=${encodeURIComponent(codigo)}`, req.url);
-    const resposta = await fetch(destino, {
-      headers: { cookie: req.headers.get("cookie") ?? "" },
-      cache: "no-store",
-    });
-    const json = await resposta.json().catch(() => null);
-    if (!resposta.ok || !json?.ok || !json?.data) {
-      return { status: "indisponivel", motivo: String(json?.erro ?? "Não foi possível carregar o dossiê factual.") };
+    const usuario = await usuarioDaRequisicao(req);
+    const resultado = await montarDossieFactual(codigo, usuario);
+    if (!resultado.ok) {
+      return { status: "indisponivel", motivo: resultado.erro };
     }
-    const d = json.data;
+    const d = resultado.data as any;
 
     // Sugestões/alertas automáticas: derivadas só de fato (nunca de IA), registradas de forma
     // auditável em urbi_sugestoes — nunca bloqueia nem falha a resposta do chat (ver
