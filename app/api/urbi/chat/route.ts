@@ -233,12 +233,17 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     // nunca vão pro modelo — o dossiê guarda o fato completo pra uso interno/futura tela do URBI,
     // mas o Gemini só precisa do QUÊ e QUANDO, não de QUEM, nem do texto livre que um analista
     // pode ter digitado (pode conter nome/contato que não foi filtrado como campo estruturado).
+    // item_id (Fase AA, 05/09/2026) também nunca vai pro modelo — é UUID interno, sem
+    // significado nenhum pro analista; identificação continua por grupo/texto/campo_lip_relacionado,
+    // que sobrevivem na cópia. As duas funções abaixo já eram usadas ANTES de o item_id ser
+    // extraído pra idsJaSelecionados/itensRelacionadosPergunta, então tirar aqui não afeta essa
+    // seleção (ver comentário logo abaixo).
     const semObservacaoTexto = (item: any) => {
-      const { observacao, ...resto } = item ?? {};
+      const { observacao, item_id, ...resto } = item ?? {};
       return observacao ? { ...resto, tem_observacao: true } : resto;
     };
     const semAnalista = (item: any) => {
-      const { analista_nome, ...resto } = item ?? {};
+      const { analista_nome, item_id, ...resto } = item ?? {};
       return resto;
     };
 
@@ -283,7 +288,10 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     const cruzamentosRecorte = (d.cruzamentos ?? [])
       .filter((c: any) => c.resultado === "possivel_divergencia" || c.resultado === "base_juridica_ausente")
       .slice(0, 20)
-      .map((c: any) => ({ tipo: c.tipo, chave: c.chave, resultado: c.resultado, motivo: c.motivo, regra: c.regra }));
+      // "chave" aqui recebe o RÓTULO humano (c.rotulo, Fase AA), nunca o `chave` real de
+      // ResultadoCruzamento — aquele é só a chave estável de dedupe interno (pode ser UUID de
+      // item MAC), nunca deveria ir pro modelo.
+      .map((c: any) => ({ tipo: c.tipo, chave: c.rotulo ?? c.chave, resultado: c.resultado, motivo: c.motivo, regra: c.regra }));
 
     // Adaptador técnico do slot (Fase C) — catálogo vigente, cobertura por fonte, mudança
     // estrutural do item entre histórico e catálogo atual. Nada pessoal aqui (é sobre o

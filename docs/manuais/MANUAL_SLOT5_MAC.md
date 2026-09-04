@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.22
-**Data:** 2026-09-04
+**Versão:** 1.23
+**Data:** 2026-09-05
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -232,6 +232,13 @@ entrou no catálogo `RECEITAS` (`lib/visao/receitas.ts`, lado LIP), ainda com `a
 mudou no MAC**. `comparadorQuadroCarimbo.ts` (motor MAC, acima) e `lib/visao/
 quadroAreasComparacao.ts` (lado LIP, Fase K) continuam duas coisas separadas, sem ligação entre si;
 esta rodada não uniu os dois. Ver `MANUAL_SLOT5_LIP.md` v1.21 para o que mudou do lado LIP.
+
+**Conferido em 05/09/2026** (Fase AA — mapa semântico de campos LIP/MAC): a receita ganhou
+`DOMINIO_SEMANTICO_POR_CHAVE`, ligando suas 5 chaves de área ao catálogo semântico novo
+(`lib/urbi/catalogoSemantico.ts`) — **nada mudou no MAC**, `comparadorQuadroCarimbo.ts` segue
+intocado e separado. O catálogo semântico em si é transversal aos 3 slots (Regularização,
+Aceite SEI, Slot 5) e mora em `lib/urbi/`, não em `lib/mac-motor/slot5/` — só cito aqui porque
+`quadroAreas.ts` (lado LIP do Slot 5) é um dos arquivos que passou a importá-lo.
 
 **Prompts próprios e versionados** (`lib/mac-motor/slot5/prompts.ts`) — nunca reaproveitam o
 `P3_MAC` da Regularização/Aceite, hash FNV-1a próprio por prompt.
@@ -1287,6 +1294,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.23 | 2026-09-05 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.22): `lib/visao/quadroAreas.ts` (lado LIP) ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, ligando a receita ao catálogo semântico novo `lib/urbi/catalogoSemantico.ts` (Fase AA, transversal aos 3 slots). `comparadorQuadroCarimbo.ts` (motor MAC) intocado |
 | 1.22 | 2026-09-04 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.21): a receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lado LIP, `lib/visao/receitas.ts`), ainda com `ativa: false`. `comparadorQuadroCarimbo.ts` (motor MAC, seção 4) continua separado de `lib/visao/quadroAreasComparacao.ts` (lado LIP) — esta rodada não uniu os dois |
 | 1.21 | 2026-09-03 | Seção 4.5: arquétipo 4 do motor piloto — `lib/mac-motor/slot5/experimental/carimboMetadados.ts`, biblioteca isolada e experimental (autorização explícita do Fábio), extrai metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título) e compara consistência entre páginas. Sem `mac_item_id`, não gravado, não wired a nenhuma tela nem rota, nenhum arquivo existente alterado. `alturaDaEdificacao` cogitada e descartada por ambiguidade de qual cota extrair. Extração ainda não validada contra Gemini/documento real — só a lógica determinística tem teste |
 | 1.20 | 2026-09-02 | Nenhuma mudança na tela nem nas rotas do MAC. Registrado por conferência: o `mac_historico` (10.320 linhas) passou a ser **lido** por views novas do BDI — `vw_bdi_retrabalho` (trocas de status por processo), `vw_bdi_exigencias_por_contexto` (o que mais reprova por assunto, bairro e faixa de área) e `vw_bdi_desempenho_referencia` (qual referência legal mais reprova). O dado sempre esteve lá; ninguém colhia. Duas correções de leitura que valem para quem for consultar essas tabelas: `tipo_processo` foi gravado em duas grafias (`regularizacao` e `REGULARIZACAO`) e precisa de `lower()`, e as áreas vêm com vírgula decimal ("375,00"), então cast direto para numeric estoura a consulta. O Vigia do processo consome essas views na tela do LIP — ver `MANUAL_SLOT5_LIP.md` v1.19. Migration `2026_09_02_bdi_views_vivas.sql`, aplicada; nenhuma alteração em `analises_mac`, `mac_resultados_item` ou no checklist |

@@ -63,6 +63,25 @@ export const CHAVES_QUADRO_AREAS = [
 ] as const;
 export type ChaveQuadroAreas = (typeof CHAVES_QUADRO_AREAS)[number];
 
+/**
+ * Fase AA da Inteligência URBIS (05/09/2026) — conecta cada chave escalar desta receita ao
+ * domínio semântico real do catálogo (lib/urbi/catalogoSemantico.ts), pra que uma futura
+ * comparação leitura-visual × LIP (lib/visao/quadroAreasComparacao.ts) NUNCA precise adivinhar
+ * o significado do que foi extraído — já nasce catalogado. Isto é só DESENHO: a receita
+ * continua desativada (`ativa: false`, ver receitas.ts), nenhum PDF é processado, nenhuma
+ * chamada ao Gemini acontece por causa disto.
+ *
+ * "tipoQuadroIdentificado" fica de fora de propósito: é uma CLASSIFICAÇÃO (vocabulário fechado
+ * TIPOS_DE_QUADRO), não uma grandeza medida — não tem domínio semântico de área.
+ */
+export const DOMINIO_SEMANTICO_POR_CHAVE: Partial<Record<ChaveQuadroAreas, import("@/lib/urbi/catalogoSemantico").DominioSemantico>> = {
+  areaTerreno: "area_terreno",
+  areaConstruidaTotal: "area_construida_total",
+  areaPermeavel: "area_permeavel",
+  areaImpermeavel: "area_impermeavel",
+  areaARegularizar: "area_a_regularizar",
+};
+
 // ---------------------------------------------------------------- validadores
 
 /**

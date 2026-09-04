@@ -1,5 +1,6 @@
 import { numeroBR } from "@/lib/bdi/vigia";
 import type { EvolucaoChecklist } from "./dossieProcesso";
+import { dominioDoCampo, rotuloDoCampo, podeComparar, type Slot } from "./catalogoSemantico";
 
 /**
  * Cruzamento determinístico LIP × MAC × BIP × documentos — Fase B do plano de Inteligência
@@ -25,12 +26,18 @@ export type GrauCruzamento =
   | "dado_ausente"
   | "base_juridica_ausente"
   | "nao_aplicavel"
-  | "aguarda_confirmacao_humana";
+  | "aguarda_confirmacao_humana"
+  // Fase AA (05/09/2026): campo sem domínio semântico catalogado (lib/urbi/catalogoSemantico.ts)
+  // pra este slot — nunca vira comparação numérica adivinhada, sempre este estado explícito.
+  | "base_insuficiente";
 
 export type ResultadoCruzamento = {
   /** Categoria do cruzamento — usada pra escolher a função certa de leitura/registro. */
-  tipo: "lip_x_documento" | "mac_item_x_bip" | "evolucao_checklist";
+  tipo: "lip_x_documento" | "mac_item_x_bip" | "evolucao_checklist" | "semantica_lip";
+  /** Chave ESTÁVEL de dedupe (item_id, chave de campo) — nunca exibida ao analista/modelo. */
   chave: string;
+  /** Identificação HUMANA do que foi comparado — isto é o que aparece na tela/resposta, nunca a `chave`. */
+  rotulo: string;
   resultado: GrauCruzamento;
   motivo: string;
   campos_comparados: string[];
@@ -104,6 +111,7 @@ export function cruzarLipComDocumento(
     saida.push({
       tipo: "lip_x_documento",
       chave,
+      rotulo: chave, // chave do LIP já é um identificador técnico legível (ex.: "areaTerreno"), não UUID — mantido como rótulo por falta de um "label" mais amigável disponível aqui
       resultado: cmp.resultado,
       motivo: cmp.motivo,
       campos_comparados: [chave],
@@ -132,10 +140,11 @@ export function cruzarItensMacComBip(
     if (vinculos.length === 0) {
       return {
         tipo: "mac_item_x_bip",
-        chave: item.item_id,
+        chave: item.item_id, // estável, só pra dedupe interno (lib/urbi/sugestoes.ts) — nunca exibido
+        rotulo: item.texto,
         resultado: "base_juridica_ausente",
         motivo: `O item "${item.texto}" está não conforme e não tem nenhum fragmento do BIP vinculado e aprovado.`,
-        campos_comparados: [item.item_id],
+        campos_comparados: [item.texto],
         fontes: ["mac_bip_vinculos"],
         regra: "presença de vínculo aprovado",
       };
@@ -143,9 +152,10 @@ export function cruzarItensMacComBip(
     return {
       tipo: "mac_item_x_bip",
       chave: item.item_id,
+      rotulo: item.texto,
       resultado: "consistente",
       motivo: `O item "${item.texto}" tem ${vinculos.length} fragmento(s) do BIP vinculado(s) e aprovado(s): ${vinculos.map((v) => v.referencia).join(", ")}.`,
-      campos_comparados: [item.item_id],
+      campos_comparados: [item.texto],
       fontes: ["mac_bip_vinculos"],
       regra: "presença de vínculo aprovado",
     };
@@ -164,17 +174,76 @@ export function cruzarEvolucaoChecklist(evolucao: EvolucaoChecklist): ResultadoC
   const saida: ResultadoCruzamento[] = [];
   for (const item of evolucao.itens_corrigidos) {
     saida.push({
-      tipo: "evolucao_checklist", chave: item.item_id, resultado: "corrigido_entre_passadas",
+      tipo: "evolucao_checklist", chave: item.item_id, rotulo: item.texto, resultado: "corrigido_entre_passadas",
       motivo: `Item "${item.texto}" estava ${item.de}, passou a ${item.para} em ${item.quando}.`,
-      campos_comparados: [item.item_id], fontes: ["mac_historico"], regra: "comparação de status entre passadas",
+      campos_comparados: [item.texto], fontes: ["mac_historico"], regra: "comparação de status entre passadas",
     });
   }
   for (const item of evolucao.itens_pendentes_mantidos) {
     saida.push({
-      tipo: "evolucao_checklist", chave: item.item_id, resultado: "pendencia_mantida",
+      tipo: "evolucao_checklist", chave: item.item_id, rotulo: item.texto, resultado: "pendencia_mantida",
       motivo: `Item "${item.texto}" segue ${item.para} desde ${item.quando}, sem mudança.`,
-      campos_comparados: [item.item_id], fontes: ["mac_historico"], regra: "comparação de status entre passadas",
+      campos_comparados: [item.texto], fontes: ["mac_historico"], regra: "comparação de status entre passadas",
     });
   }
   return saida;
+}
+
+// ---------------------------------------------------- comparação por semântica (Fase AA)
+
+export type CampoParaComparar = { slot: Slot; chave: string; valor: string | number | boolean | null | undefined; fonte: string };
+
+/**
+ * Compara dois campos do LIP DENTRO do mesmo processo usando o catálogo semântico
+ * (lib/urbi/catalogoSemantico.ts) — nunca compara direto sem consultar o domínio de cada lado.
+ * Substitui qualquer comparação ad hoc entre campos diferentes (ex.: a incoerência inválida
+ * "área construída total × área do terreno", removida de lib/bdi/vigia.ts em 05/09/2026— aqui
+ * ela ficaria "base_insuficiente" pra sempre, porque não existe regra ativa nem campo de área
+ * ocupada em nenhum slot, então nem precisaria ter sido escrita à mão pra ser barrada).
+ *
+ * Três desfechos possíveis, nunca um quarto:
+ *   1. Domínio não catalogado pra algum dos dois lados → "base_insuficiente" (semântica não
+ *      comprovada — pode ser campo real mas ainda não mapeado, nunca uma suposição).
+ *   2. Domínios catalogados mas SEM regra de comparação ativa entre eles → "nao_aplicavel"
+ *      (ex.: área construída × área do terreno — domínios diferentes, sem regra).
+ *   3. Mesmo domínio (única regra ativa hoje) → comparação numérica de verdade via
+ *      compararValores, resultado "consistente"/"possivel_divergencia"/"dado_ausente" normal.
+ */
+export function compararPorSemantica(campoA: CampoParaComparar, campoB: CampoParaComparar): ResultadoCruzamento {
+  const rotuloA = rotuloDoCampo(campoA.slot, campoA.chave) ?? campoA.chave;
+  const rotuloB = rotuloDoCampo(campoB.slot, campoB.chave) ?? campoB.chave;
+  const chaveDedupe = `${campoA.slot}:${campoA.chave}__${campoB.slot}:${campoB.chave}`;
+  const domA = dominioDoCampo(campoA.slot, campoA.chave);
+  const domB = dominioDoCampo(campoB.slot, campoB.chave);
+
+  if (!domA || !domB) {
+    const semDominio = !domA ? rotuloA : rotuloB;
+    return {
+      tipo: "semantica_lip", chave: chaveDedupe, rotulo: `${rotuloA} × ${rotuloB}`,
+      resultado: "base_insuficiente",
+      motivo: `"${semDominio}" não tem domínio semântico catalogado neste slot — comparação não realizada (evita adivinhar significado).`,
+      campos_comparados: [rotuloA, rotuloB], fontes: [campoA.fonte, campoB.fonte],
+      regra: "campo sem entrada em lib/urbi/catalogoSemantico.ts",
+    };
+  }
+
+  const regra = podeComparar(domA, domB);
+  if (!regra) {
+    return {
+      tipo: "semantica_lip", chave: chaveDedupe, rotulo: `${rotuloA} × ${rotuloB}`,
+      resultado: "nao_aplicavel",
+      motivo: `"${rotuloA}" (domínio ${domA}) e "${rotuloB}" (domínio ${domB}) têm semânticas diferentes e sem regra de comparação ativa — nunca comparados diretamente.`,
+      campos_comparados: [rotuloA, rotuloB], fontes: [campoA.fonte, campoB.fonte],
+      regra: "domínios semânticos incompatíveis, sem regra de comparação cadastrada",
+    };
+  }
+
+  const cmp = compararValores(campoA.valor, campoB.valor);
+  return {
+    tipo: "semantica_lip", chave: chaveDedupe, rotulo: `${rotuloA} × ${rotuloB}`,
+    resultado: cmp.resultado,
+    motivo: `${rotuloA} (${campoA.valor ?? "—"}) × ${rotuloB} (${campoB.valor ?? "—"}): ${cmp.motivo}`,
+    campos_comparados: [rotuloA, rotuloB], fontes: [campoA.fonte, campoB.fonte],
+    regra: regra.descricao,
+  };
 }

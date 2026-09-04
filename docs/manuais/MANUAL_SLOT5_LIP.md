@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.21
-**Data:** 2026-09-04
+**Versão:** 1.22
+**Data:** 2026-09-05
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -300,6 +300,14 @@ prancha, um ícone). Para esses, o URBIS tem um pipeline de leitura por imagem:
   scripts/testar_visao.mts, ignora esta receita enquanto ela estiver desativada). Comparação ×
   LIP/MAC/documento já testada em modo seco, sem chamar modelo (`lib/visao/
   quadroAreasComparacao.ts`, scripts/testar_quadro_areas.mts seção 9).
+- **Conectada ao catálogo semântico (Fase AA, 05/09/2026)**: `DOMINIO_SEMANTICO_POR_CHAVE`
+  (mesmo arquivo `quadroAreas.ts`) mapeia as 5 chaves escalares de área (não
+  `tipoQuadroIdentificado`, que é classificação, não grandeza) pro domínio real do catálogo
+  novo `lib/urbi/catalogoSemantico.ts` — a receita já "sabe" que `areaConstruidaTotal` extraído
+  de uma prancha é o mesmo domínio semântico que `lip_campos.areaTotal` do Slot 5 (mas NÃO o
+  mesmo domínio que `areaTotal` de Regularização/Aceite, que é área A REGULARIZAR — achado real
+  desta fase, ver catalogoSemantico.ts). Isto é só mapeamento de tipo, nenhuma execução nova:
+  a receita continua `ativa: false`, nenhum PDF processado, nenhuma chamada ao Gemini.
 
 ---
 
@@ -1155,6 +1163,7 @@ nunca a de outro.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.22 | 2026-09-05 | Seção "Infra reaproveitável": `lib/visao/quadroAreas.ts` ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, mapeando as 5 chaves escalares de área da receita pro catálogo semântico novo (`lib/urbi/catalogoSemantico.ts`, Fase AA) — só tipo/mapeamento, receita continua `ativa: false`, nenhum PDF processado. Achado real da mesma fase, fora do Slot 5 mas testado contra processo real do Slot 5 (48533, 118 cruzamentos): `cruzamento.ts` (lib/urbi/) parou de vazar UUID de item MAC no campo exibido ao analista/Gemini — ganhou campo `rotulo` (nome do item) separado da `chave` interna (id, só dedupe). tsc + build limpos, scripts/testar_catalogo_semantico.mts novo (22 asserções) e scripts/testar_visao.mts/testar_quadro_areas.mts re-rodados sem regressão. Ver `MANUAL_SLOT5_MAC.md` v1.23 |
 | 1.21 | 2026-09-04 | Seção "Infra reaproveitável": receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lib/visao/receitas.ts) — 3ª receita do catálogo — mas com `Receita.ativa = false` (campo novo no tipo), e `executarVisao` (lib/visao/index.ts) passou a checar esse campo antes de orçamento/recorte, pulando a receita sempre que desativada. Nenhuma leitura de pasta chama Gemini por causa dela hoje; checklist de ativação em `CHECKLIST_ATIVACAO_VISAO` (lib/visao/quadroAreas.ts). Testado sem regressão: scripts/testar_visao.mts continua com as mesmas 11 falhas pré-existentes (nenhuma nova), scripts/testar_quadro_areas.mts com todas as asserções passando. Ver `MANUAL_SLOT5_MAC.md` v1.22 |
 | 1.20 | 2026-09-03 | Nenhuma mudança na tela nem em `processos.dados` do LIP. Registrado por conferência: motor de execução do MAC (`lib/mac-motor/slot5/`) ganhou um 4º arquétipo experimental isolado (`carimboMetadados.ts`) — extrai só metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título), sem gravar nada, sem tocar em campo do LIP, sem wiring a nenhuma tela. Ver `MANUAL_SLOT5_MAC.md` v1.21 |
 | 1.19 | 2026-09-02 | Tela do LIP (`ProcessoClient.tsx`, todos os slots) ganhou o **Vigia do processo**, logo acima do bloco LIP: painel só de leitura com fatos verificáveis — campos vazios, campos em X (mostrados como informação de ausência, nunca como erro), incoerências reais (ex.: área construída maior que a do terreno, lendo vírgula decimal), número de análises, retrabalho vindo do histórico do MAC, exigências recorrentes do assunto e aviso de numeração. Cada aviso declara a origem (campo do processo / histórico do MAC / checklist / BIP / view do BDI). Traz também a **triagem por evidência** (mais simples para análise · exige atenção · maior risco de retrabalho), sempre com os motivos listados e **sem porcentagem ou previsão de prazo**; critérios visíveis e ajustáveis em `lib/bdi/vigia.ts`. Referência legal só aparece quando existe vínculo real MAC × BIP — sem vínculo, nada é citado. Nada é escrito no processo. Custo zero: SQL puro, sem Gemini/Groq/ElevenLabs. Rota nova `GET /api/bdi/vigia` com `verificarOwnership` — analista não alcança processo de terceiro (403 verificado). Ver `MANUAL_SLOT5_MAC.md` v1.20 |
