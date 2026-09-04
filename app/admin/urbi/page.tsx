@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "config";
 
 // =====================================================================
 // Visão geral
@@ -818,6 +818,98 @@ function AbaCatalogo() {
 }
 
 // =====================================================================
+// Recorrência (Fase H — orientação de melhoria de formulário/leitura, nunca ranking)
+// =====================================================================
+
+type ItemRecorrente = {
+  slot: string; nome_slot: string; item_id: string; grupo: string | null; texto: string;
+  referencia: string | null; ativo_no_catalogo_hoje: boolean; processos_distintos: number; eventos_nao_conforme: number;
+};
+type MassaSlot = { slot: string; nome_slot: string; eventos_nao_conforme: number; itens_distintos_com_evento: number; massa_suficiente: boolean };
+type Recorrencia = { itens: ItemRecorrente[]; limiar_minimo_processos: number; massa_por_slot: MassaSlot[]; fonte: string };
+
+function AbaRecorrencia() {
+  const [dados, setDados] = useState<Recorrencia | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [slotFiltro, setSlotFiltro] = useState("");
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/recorrencia");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json.data);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const linhas = dados?.itens.filter((i) => !slotFiltro || i.slot === slotFiltro) ?? [];
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        Isto é <strong>recorrência</strong>, nunca "erro": um item que volta a não conforme em muitos processos diferentes pode indicar item mal redigido no checklist, campo do LIP pouco claro, ou uma exigência que o interessado realmente atende com dificuldade — este dado sozinho não distingue essas causas. Nunca agrupado por analista, autor, construtora ou despachante.
+      </div>
+
+      <Secao titulo="Massa de dado por slot" descricao="Antes de olhar qualquer item específico: se um slot não tem massa suficiente, o resto desta aba fica vazio pra ele DE PROPÓSITO, não por falha.">
+        <table className="w-full text-xs">
+          <thead><tr><th className={TH}>Slot</th><th className={TH}>Eventos "não conforme"</th><th className={TH}>Itens distintos com evento</th><th className={TH}>Massa suficiente?</th></tr></thead>
+          <tbody>
+            {(dados?.massa_por_slot ?? []).map((m) => (
+              <tr key={m.slot} className={TR}>
+                <td className={TD}>{m.nome_slot}</td>
+                <td className={TD}>{m.eventos_nao_conforme}</td>
+                <td className={TD}>{m.itens_distintos_com_evento}</td>
+                <td className={TD}><Badge tom={m.massa_suficiente ? "ok" : "neutro"}>{m.massa_suficiente ? "sim" : "não — lacuna registrada, sem ranking aqui"}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Secao>
+
+      <Secao
+        titulo={`Itens com mais recorrência (mínimo ${dados?.limiar_minimo_processos ?? "—"} processos distintos)`}
+        descricao={dados?.fonte}
+        acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}
+      >
+        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-5 py-3">
+          <select value={slotFiltro} onChange={(e) => setSlotFiltro(e.target.value)} className={INPUT}>
+            <option value="">Todos os slots</option>
+            <option value="regularizacao">Regularização SEI</option>
+            <option value="aceite_sei">Aceite SEI</option>
+            <option value="slot_05">Aprovação de Projeto</option>
+          </select>
+        </div>
+        <table className="w-full text-xs">
+          <thead><tr><th className={TH}>Slot</th><th className={TH}>Item</th><th className={TH}>Processos distintos</th><th className={TH}>Eventos</th><th className={TH}>No catálogo hoje?</th></tr></thead>
+          <tbody>
+            {erro && <Vazio cols={5}>{erro}</Vazio>}
+            {!erro && carregando && linhas.length === 0 && <Vazio cols={5}>Carregando…</Vazio>}
+            {!erro && !carregando && linhas.length === 0 && <Vazio cols={5}>Nenhum item atingiu o mínimo de processos distintos neste filtro — não é ausência de recorrência, pode ser massa insuficiente (ver tabela acima).</Vazio>}
+            {linhas.map((i) => (
+              <tr key={`${i.slot}:${i.item_id}`} className={TR}>
+                <td className={TD}>{i.nome_slot}</td>
+                <td className={`${TD} max-w-lg`}>
+                  <div className="line-clamp-2" title={i.texto}>{i.texto}</div>
+                  {(i.grupo || i.referencia) && <div className="mt-0.5 text-[10px] text-[var(--text-muted)]">{[i.grupo, i.referencia].filter(Boolean).join(" · ")}</div>}
+                </td>
+                <td className={TD}>{i.processos_distintos}</td>
+                <td className={TD}>{i.eventos_nao_conforme}</td>
+                <td className={TD}><Badge tom={i.ativo_no_catalogo_hoje ? "ok" : "neutro"}>{i.ativo_no_catalogo_hoje ? "ativo" : "removido/inativo"}</Badge></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Secao>
+    </div>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -965,7 +1057,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["config", "Configurações"],
   ];
 
   return (
@@ -997,6 +1089,7 @@ export default function UrbiAdminPage() {
         {aba === "sugestoes" && <AbaSugestoes />}
         {aba === "uso" && <AbaUso />}
         {aba === "catalogo" && <AbaCatalogo />}
+        {aba === "recorrencia" && <AbaRecorrencia />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>
