@@ -1,5 +1,5 @@
 -- TRIGGERS — inclui os que alimentam tabelas que nenhum codigo escreve
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
 -- auditoria_eventos
@@ -40,6 +40,9 @@ CREATE TRIGGER trg_lip_decisoes_item_updated BEFORE UPDATE ON public.lip_decisoe
 
 -- lip_prompts
 CREATE TRIGGER trg_lip_prompts_atualizado BEFORE UPDATE ON public.lip_prompts FOR EACH ROW EXECUTE FUNCTION set_atualizado_em();
+
+-- mac_checklist_itens
+CREATE TRIGGER trg_registrar_mudanca_catalogo_mac_item AFTER INSERT OR UPDATE ON public.mac_checklist_itens FOR EACH ROW EXECUTE FUNCTION registrar_mudanca_catalogo_mac_item();
 
 -- mrp_calendario
 CREATE TRIGGER trg_backup_mrp_calendario BEFORE DELETE ON public.mrp_calendario FOR EACH ROW EXECUTE FUNCTION fn_backup_before_delete();

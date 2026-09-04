@@ -1,5 +1,5 @@
 -- FUNCOES E PROCEDURES
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
 CREATE OR REPLACE FUNCTION public._get_checklist_itens_modelo_table()
@@ -230,6 +230,21 @@ begin
 
   return new;
 end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.buscar_bip_fragmentos_similares(query_embedding vector, match_count integer DEFAULT 8, filtro_documento_ids uuid[] DEFAULT NULL::uuid[])
+ RETURNS TABLE(id uuid, documento_id uuid, referencia text, texto text, distancia double precision)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  SELECT f.id, f.documento_id, f.referencia, f.texto, (f.embedding <=> query_embedding) AS distancia
+  FROM bdi_lei_fragmentos f
+  WHERE f.embedding IS NOT NULL
+    AND (filtro_documento_ids IS NULL OR f.documento_id = ANY(filtro_documento_ids))
+  ORDER BY f.embedding <=> query_embedding
+  LIMIT LEAST(GREATEST(match_count, 1), 50);
 $function$
 ;
 
@@ -1882,6 +1897,92 @@ begin
 
   return new;
 end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION public.registrar_mudanca_catalogo_mac_item()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_tipo_processo TEXT;
+  v_acao TEXT;
+  v_campos JSONB := '{}'::jsonb;
+  v_algo_mudou BOOLEAN := false;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    v_acao := 'criado';
+    v_campos := jsonb_build_object(
+      'grupo', jsonb_build_object('de', NULL, 'para', NEW.grupo),
+      'texto', jsonb_build_object('de', NULL, 'para', NEW.texto),
+      'ref', jsonb_build_object('de', NULL, 'para', NEW.ref),
+      'chave_lip', jsonb_build_object('de', NULL, 'para', NEW.chave_lip),
+      'fundamento_legal', jsonb_build_object('de', NULL, 'para', NEW.fundamento_legal),
+      'condicao_aplicabilidade', jsonb_build_object('de', NULL, 'para', NEW.condicao_aplicabilidade)
+    );
+    v_algo_mudou := true;
+
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.grupo IS DISTINCT FROM OLD.grupo THEN
+      v_campos := v_campos || jsonb_build_object('grupo', jsonb_build_object('de', OLD.grupo, 'para', NEW.grupo));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.texto IS DISTINCT FROM OLD.texto THEN
+      v_campos := v_campos || jsonb_build_object('texto', jsonb_build_object('de', OLD.texto, 'para', NEW.texto));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.ref IS DISTINCT FROM OLD.ref THEN
+      v_campos := v_campos || jsonb_build_object('ref', jsonb_build_object('de', OLD.ref, 'para', NEW.ref));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.chave_lip IS DISTINCT FROM OLD.chave_lip THEN
+      v_campos := v_campos || jsonb_build_object('chave_lip', jsonb_build_object('de', OLD.chave_lip, 'para', NEW.chave_lip));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.fundamento_legal IS DISTINCT FROM OLD.fundamento_legal THEN
+      v_campos := v_campos || jsonb_build_object('fundamento_legal', jsonb_build_object('de', OLD.fundamento_legal, 'para', NEW.fundamento_legal));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.condicao_aplicabilidade IS DISTINCT FROM OLD.condicao_aplicabilidade THEN
+      v_campos := v_campos || jsonb_build_object('condicao_aplicabilidade', jsonb_build_object('de', OLD.condicao_aplicabilidade, 'para', NEW.condicao_aplicabilidade));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.ordem IS DISTINCT FROM OLD.ordem THEN
+      v_campos := v_campos || jsonb_build_object('ordem', jsonb_build_object('de', OLD.ordem, 'para', NEW.ordem));
+      v_algo_mudou := true;
+    END IF;
+    IF NEW.ativo IS DISTINCT FROM OLD.ativo THEN
+      v_campos := v_campos || jsonb_build_object('ativo', jsonb_build_object('de', OLD.ativo, 'para', NEW.ativo));
+      v_algo_mudou := true;
+    END IF;
+
+    IF NOT v_algo_mudou THEN
+      RETURN NEW;
+    END IF;
+
+    IF OLD.ativo IS TRUE AND NEW.ativo IS FALSE THEN
+      v_acao := 'desativado';
+    ELSIF OLD.ativo IS FALSE AND NEW.ativo IS TRUE THEN
+      v_acao := 'reativado';
+    ELSE
+      v_acao := 'atualizado';
+    END IF;
+
+  ELSE
+    RETURN NEW;
+  END IF;
+
+  SELECT tipo_processo INTO v_tipo_processo FROM mac_checklist_modelos WHERE id = NEW.modelo_id;
+
+  -- Único ajuste desta migration em relação à Fase D: prefere NEW.alterado_por (a rota
+  -- identificou o usuário de verdade) e só cai pra auth.uid() se a rota não informou.
+  INSERT INTO mac_checklist_itens_historico (item_id, modelo_id, tipo_processo, acao, campos_alterados, registrado_por)
+  VALUES (NEW.id, NEW.modelo_id, v_tipo_processo, v_acao, v_campos, COALESCE(NEW.alterado_por, auth.uid()));
+
+  RETURN NEW;
+END;
 $function$
 ;
 

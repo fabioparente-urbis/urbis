@@ -111,12 +111,19 @@ function detectTipo(texto: string): "positivo"|"negativo"|"atencao"|"critico"|"b
 // urbi_comandos_voz (ver a migration 2026_09_02_urbi_comandos_voz.sql).
 type OrigemComando = "webspeech" | "whisper" | "texto";
 
+// Fase AB — manifesto de fontes calculado no backend (lib/urbi/manifestoFontes.ts), a partir do
+// MESMO recorte enviado ao Gemini, nunca do texto de resposta dele: é a evidência que o analista
+// pode conferir sem depender de o modelo ter descrito certo. Só contagem/rótulo por tipo de
+// fonte, nunca o conteúdo do dossiê (valor de campo, texto de item).
+type FonteDossie = { tipo: string; detalhe: string };
+
 type Msg = {
   role: "user"|"urbi"; texto: string;
   // Marca vinda de app/api/urbi/chat (campo `dossie` da resposta) — só diz SE a
   // resposta usou o dossiê factual do processo e se a leitura veio completa,
   // nunca expõe o conteúdo do dossiê em si.
   usouDossie?: boolean; dossieCompleto?: boolean;
+  fontesDossie?: FonteDossie[];
 };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
@@ -259,6 +266,9 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // balão (dobra/volta ao original) — nunca persistido, reseta ao fechar o URBI.
   const [expandido, setExpandido] = useState(false);
   const [copiadoIndice, setCopiadoIndice] = useState<number | null>(null);
+  // Fase AB — qual mensagem tem o bloco "Fontes do dossiê carregadas" aberto (só uma por vez,
+  // fecha ao trocar). Nunca persistido, reseta ao fechar/reabrir o URBI como o resto da conversa.
+  const [fontesAbertasIndice, setFontesAbertasIndice] = useState<number | null>(null);
   async function copiarMensagem(texto: string, indice: number) {
     try {
       await navigator.clipboard.writeText(texto);
@@ -796,13 +806,24 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       if (json.ok) {
         const tipo = detectTipo(json.resposta);
         setPoseOpacity(0); setTimeout(() => { setPoseId(selectPose(tipo, poseId)); setPoseOpacity(1); }, 200);
-        setMsgs(m => [...m, { role: "urbi", texto: json.resposta, usouDossie: json.dossie?.usado === true, dossieCompleto: json.dossie?.completo !== false }]);
+        setMsgs(m => [...m, {
+          role: "urbi", texto: json.resposta,
+          usouDossie: json.dossie?.usado === true, dossieCompleto: json.dossie?.completo !== false,
+          fontesDossie: Array.isArray(json.dossie?.fontes) ? json.dossie.fontes : undefined,
+        }]);
         setHistory([...novoHistory, { role: "model", parts: [{ text: json.resposta }] }]);
         anunciar("URBI respondeu.");
         if (permiteAudio && !speech.mudo) falar(json.resposta);
         await fetch("/api/urbi/historico", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ usuario_id: usuario.id ?? null, usuario_nome: usuario.nome, mensagem_usuario: texto, resposta_urbi: json.resposta, linha: "geral", pose_usada: poseId }),
+          body: JSON.stringify({
+            usuario_id: usuario.id ?? null, usuario_nome: usuario.nome, mensagem_usuario: texto, resposta_urbi: json.resposta, linha: "geral", pose_usada: poseId,
+            // Fase AB — rastreabilidade do Co-Analista (código/slot/tipos de fonte), calculada no
+            // backend (json.registro, ver app/api/urbi/chat/route.ts) — nunca inventado aqui.
+            processo_codigo: json.registro?.processo_codigo ?? null,
+            tipo_processo: json.registro?.tipo_processo ?? null,
+            fontes_tipos: json.registro?.fontes_tipos ?? null,
+          }),
         });
         if (json.sair) setTimeout(() => fechar(), 1800);
       } else {
@@ -942,12 +963,39 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               >{copiadoIndice === i ? "✓ copiado" : "⧉ copiar"}</button>
             )}
             {msg.role === "urbi" && msg.usouDossie && (
-              <span
-                title={msg.dossieCompleto ? "Consultou o dossiê factual deste processo (leitura completa)." : "Consultou o dossiê deste processo — leitura parcial, algumas fontes indisponíveis."}
-                style={{ fontSize: 10, color: msg.dossieCompleto ? "#64748b" : "#b45309", fontFamily: "system-ui, sans-serif" }}
+              <button
+                type="button"
+                className="urbi-focavel"
+                onClick={() => setFontesAbertasIndice((atual) => (atual === i ? null : i))}
+                title={msg.dossieCompleto ? "Consultou o dossiê factual deste processo (leitura completa). Toque para ver as fontes." : "Consultou o dossiê deste processo — leitura parcial, algumas fontes indisponíveis. Toque para ver as fontes."}
+                style={{
+                  fontSize: 10, color: msg.dossieCompleto ? "#64748b" : "#b45309", fontFamily: "system-ui, sans-serif",
+                  background: "transparent", border: "none", padding: 0, cursor: "pointer", textAlign: "left",
+                }}
               >
-                📋 usou dados deste processo{!msg.dossieCompleto && " (parcial)"}
-              </span>
+                📋 usou dados deste processo{!msg.dossieCompleto && " (parcial)"} {fontesAbertasIndice === i ? "▲" : "▼"}
+              </button>
+            )}
+            {/* Fase AB — bloco calculado 100% no backend (lib/urbi/manifestoFontes.ts), a partir
+                do mesmo recorte enviado ao Gemini: evidência que o analista pode conferir sem
+                depender de o texto da resposta ter descrito certo. */}
+            {msg.role === "urbi" && msg.usouDossie && fontesAbertasIndice === i && (
+              <div style={{
+                maxWidth: "88%", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8,
+                padding: "6px 9px", fontSize: 10.5, lineHeight: 1.5, color: "#475569",
+                fontFamily: "system-ui, sans-serif",
+              }}>
+                <div style={{ fontWeight: 700, color: "#1e293b", marginBottom: 3 }}>Fontes do dossiê carregadas</div>
+                {msg.fontesDossie && msg.fontesDossie.length > 0 ? (
+                  <ul style={{ margin: 0, paddingLeft: 14 }}>
+                    {msg.fontesDossie.map((f, idx) => (
+                      <li key={idx}><strong>{f.tipo}:</strong> {f.detalhe}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div>Nenhuma fonte com dado carregado desta vez — base insuficiente.</div>
+                )}
+              </div>
             )}
           </div>
         ))}

@@ -1,5 +1,5 @@
 -- VIEWS — definicao real (o repo nao tem o SQL de nenhuma delas)
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================
@@ -1124,6 +1124,80 @@ CREATE OR REPLACE VIEW public.v_urbis_lip_timeline AS
   ORDER BY processo_id, inicio;
 
 -- ======================================================================
+-- vw_bdi_aguardando_retorno
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_aguardando_retorno AS
+ WITH candidatos AS (
+         SELECT u.processo_codigo,
+            u.numero_analise,
+            u.emitido_em,
+            u.numero,
+            a.numero_despacho AS despacho_confirmado
+           FROM urbis_numeracao_uso u
+             LEFT JOIN analises_mac a ON a.processo_codigo = u.processo_codigo AND a.numero_analise = u.numero_analise AND a.excluido_em IS NULL
+          WHERE u.tipo_documento = 'despacho'::text
+        )
+ SELECT c.processo_codigo,
+    lower(p.tipo_processo) AS tipo_processo,
+    c.numero_analise AS analise_que_gerou_despacho,
+    c.emitido_em AS despacho_emitido_em,
+    prox.numero_analise AS proxima_analise,
+    prox.criado_em AS proxima_analise_iniciada_em,
+        CASE
+            WHEN c.numero_analise IS NULL THEN NULL::numeric
+            WHEN c.despacho_confirmado IS DISTINCT FROM c.numero::text THEN NULL::numeric
+            WHEN prox.criado_em IS NOT NULL THEN round(EXTRACT(epoch FROM prox.criado_em - c.emitido_em) / 86400.0, 1)
+            ELSE round(EXTRACT(epoch FROM now() - c.emitido_em) / 86400.0, 1)
+        END AS dias_aguardando_retorno,
+        CASE
+            WHEN c.numero_analise IS NULL THEN 'base insuficiente'::text
+            WHEN c.despacho_confirmado IS DISTINCT FROM c.numero::text THEN 'base insuficiente'::text
+            WHEN prox.criado_em IS NOT NULL THEN 'retornou'::text
+            ELSE 'ainda aguardando'::text
+        END AS situacao
+   FROM candidatos c
+     JOIN processos p ON p.codigo = c.processo_codigo AND p.excluido_em IS NULL
+     LEFT JOIN analises_mac prox ON prox.processo_codigo = c.processo_codigo AND prox.numero_analise = (c.numero_analise + 1) AND prox.excluido_em IS NULL
+  ORDER BY (
+        CASE
+            WHEN c.numero_analise IS NULL THEN 'base insuficiente'::text
+            WHEN c.despacho_confirmado IS DISTINCT FROM c.numero::text THEN 'base insuficiente'::text
+            WHEN prox.criado_em IS NOT NULL THEN 'retornou'::text
+            ELSE 'ainda aguardando'::text
+        END), (
+        CASE
+            WHEN c.numero_analise IS NULL THEN NULL::numeric
+            WHEN c.despacho_confirmado IS DISTINCT FROM c.numero::text THEN NULL::numeric
+            WHEN prox.criado_em IS NOT NULL THEN round(EXTRACT(epoch FROM prox.criado_em - c.emitido_em) / 86400.0, 1)
+            ELSE round(EXTRACT(epoch FROM now() - c.emitido_em) / 86400.0, 1)
+        END) DESC NULLS LAST;
+
+-- ======================================================================
+-- vw_bdi_analises_em_andamento
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_analises_em_andamento AS
+ WITH ultima_passada AS (
+         SELECT DISTINCT ON (analises_mac.processo_codigo) analises_mac.processo_codigo,
+            analises_mac.numero_analise,
+            analises_mac.numero_despacho,
+            analises_mac.numero_parecer
+           FROM analises_mac
+          WHERE analises_mac.excluido_em IS NULL
+          ORDER BY analises_mac.processo_codigo, analises_mac.numero_analise DESC
+        )
+ SELECT lower(p.tipo_processo) AS tipo_processo,
+    count(*) AS processos_em_andamento,
+    round(avg(EXTRACT(epoch FROM now() - p.analise_iniciada_em) / 86400.0), 1) AS dias_media_em_aberto,
+    max(round(EXTRACT(epoch FROM now() - p.analise_iniciada_em) / 86400.0, 1)) AS dias_mais_antigo
+   FROM processos p
+     LEFT JOIN ultima_passada up ON up.processo_codigo = p.codigo
+  WHERE p.excluido_em IS NULL AND p.analise_iniciada_em IS NOT NULL AND p.analise_concluida_em IS NULL AND COALESCE(up.numero_despacho, up.numero_parecer) IS NULL
+  GROUP BY (lower(p.tipo_processo))
+  ORDER BY (count(*)) DESC;
+
+-- ======================================================================
 -- vw_bdi_analistas_desempenho
 -- opcoes: security_invoker=true
 -- ======================================================================
@@ -1150,13 +1224,8 @@ CREATE OR REPLACE VIEW public.vw_bdi_analistas_desempenho AS
 
 -- ======================================================================
 -- vw_bdi_autores
--- opcoes: security_invoker=true
+-- opcoes: (nenhuma — roda com privilegio do dono)
 -- ======================================================================
--- v2 (02/09/2026): total_nao_conformidades vinha inflado — o JOIN direto com
--- analises_mac (1 linha por análise) multiplicava o valor já agregado por
--- processo de `nao_conf` (400 em vez de 100, num processo com 4 análises).
--- Fix: agrega análises numa CTE própria (analises_count), mesmo padrão de
--- `nao_conf`, para todo JOIN da query externa ser 1:1 por processo_codigo.
 CREATE OR REPLACE VIEW public.vw_bdi_autores AS
  WITH rts AS (
          SELECT p.codigo AS processo_codigo,
@@ -1174,7 +1243,7 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
             a.nome,
             p.dados ->> 'nome_responsavel_eng'::text,
             p.dados ->> 'crea'::text,
-            'CREA'::text
+            'CREA'::text AS text
            FROM processos p
              LEFT JOIN assuntos a ON a.id = p.assunto_id
           WHERE (p.dados ->> 'crea'::text) IS NOT NULL AND (p.dados ->> 'crea'::text) <> ''::text
@@ -1185,10 +1254,10 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
             LATERAL jsonb_each_text(COALESCE(am_1.itens, '{}'::jsonb)) v(chave, status)
           GROUP BY am_1.processo_codigo
         ), analises_count AS (
-         SELECT processo_codigo,
+         SELECT analises_mac.processo_codigo,
             count(*) AS total_analises
            FROM analises_mac
-          GROUP BY processo_codigo
+          GROUP BY analises_mac.processo_codigo
         )
  SELECT r.autor,
     r.registro,
@@ -1196,7 +1265,7 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
     r.assunto,
     r.status_processo,
     count(DISTINCT r.processo_codigo) AS total_processos,
-    COALESCE(sum(ac.total_analises), 0)::bigint AS total_analises,
+    COALESCE(sum(ac.total_analises), 0::numeric)::bigint AS total_analises,
     COALESCE(sum(nc.total_nao_conformidades), 0::numeric) AS total_nao_conformidades,
         CASE
             WHEN count(DISTINCT r.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT r.processo_codigo)::numeric, 2)
@@ -1211,6 +1280,102 @@ CREATE OR REPLACE VIEW public.vw_bdi_autores AS
             WHEN count(DISTINCT r.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT r.processo_codigo)::numeric, 2)
             ELSE 0::numeric
         END) DESC;
+
+-- ======================================================================
+-- vw_bdi_campos_criticos
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_campos_criticos AS
+ SELECT p.codigo,
+    p.analista_id,
+    lower(p.tipo_processo) AS tipo_processo,
+    count(*) FILTER (WHERE COALESCE(TRIM(BOTH FROM e.v ->> 'valor'::text), ''::text) = ''::text) AS campos_vazios,
+    count(*) FILTER (WHERE upper(TRIM(BOTH FROM COALESCE(e.v ->> 'valor'::text, ''::text))) = 'X'::text) AS campos_em_x,
+    count(*) AS campos_totais,
+    p.area_construida > NULLIF(regexp_replace(replace((p.dados -> 'areaTerreno'::text) ->> 'valor'::text, '.'::text, ''::text), ','::text, '.'::text), ''::text)::numeric AS area_maior_que_terreno
+   FROM processos p,
+    LATERAL jsonb_each(p.dados) e(k, v)
+  WHERE p.dados IS NOT NULL AND p.excluido_em IS NULL AND jsonb_typeof(e.v) = 'object'::text
+  GROUP BY p.codigo, p.analista_id, p.tipo_processo, p.area_construida, p.dados;
+
+-- ======================================================================
+-- vw_bdi_cobertura_satelite
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_cobertura_satelite AS
+ WITH emissoes AS (
+         SELECT a.processo_codigo,
+            lower(p.tipo_processo) AS tipo_processo,
+            a.numero_analise,
+            COALESCE(a.numero_despacho, a.numero_parecer, a.numero_despacho_interno) AS numero_emitido,
+                CASE
+                    WHEN a.numero_despacho IS NOT NULL THEN 'despacho'::text
+                    WHEN a.numero_parecer IS NOT NULL THEN 'parecer'::text
+                    WHEN a.numero_despacho_interno IS NOT NULL THEN 'despacho_interno'::text
+                    ELSE NULL::text
+                END AS tipo_documento
+           FROM analises_mac a
+             JOIN processos p ON p.codigo = a.processo_codigo AND p.excluido_em IS NULL
+          WHERE a.excluido_em IS NULL AND COALESCE(a.numero_despacho, a.numero_parecer, a.numero_despacho_interno) IS NOT NULL
+        )
+ SELECT e.tipo_processo,
+    e.tipo_documento,
+    count(*) AS emitidos,
+    count(*) FILTER (WHERE m.id IS NOT NULL) AS com_mdp,
+    count(*) FILTER (WHERE r.id IS NOT NULL) AS com_mrp,
+    count(*) FILTER (WHERE m.id IS NULL) AS faltando_mdp,
+    count(*) FILTER (WHERE r.id IS NULL) AS faltando_mrp,
+    round(100.0 * count(*) FILTER (WHERE m.id IS NOT NULL)::numeric / NULLIF(count(*), 0)::numeric, 1) AS pct_mdp,
+    round(100.0 * count(*) FILTER (WHERE r.id IS NOT NULL)::numeric / NULLIF(count(*), 0)::numeric, 1) AS pct_mrp
+   FROM emissoes e
+     LEFT JOIN mdp_registros m ON m.processo_codigo = e.processo_codigo AND m.numero = e.numero_emitido
+     LEFT JOIN mrp_registros r ON r.processo_codigo = e.processo_codigo AND r.numero_despacho = e.numero_emitido
+  GROUP BY e.tipo_processo, e.tipo_documento;
+
+-- ======================================================================
+-- vw_bdi_desempenho_referencia
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_desempenho_referencia AS
+ SELECT TRIM(BOTH FROM referencia_legal) AS referencia,
+    count(*) FILTER (WHERE status_novo = 'nao_conforme'::text) AS reprovou,
+    count(*) FILTER (WHERE status_novo = 'conforme'::text) AS passou,
+    count(DISTINCT processo_codigo) AS processos,
+    round(100.0 * count(*) FILTER (WHERE status_novo = 'nao_conforme'::text)::numeric / NULLIF(count(*) FILTER (WHERE status_novo = ANY (ARRAY['conforme'::text, 'nao_conforme'::text])), 0)::numeric, 1) AS pct_reprova
+   FROM mac_historico h
+  WHERE COALESCE(TRIM(BOTH FROM referencia_legal), ''::text) <> ''::text
+  GROUP BY (TRIM(BOTH FROM referencia_legal))
+ HAVING count(DISTINCT processo_codigo) >= 3;
+
+-- ======================================================================
+-- vw_bdi_exigencias_por_contexto
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_exigencias_por_contexto AS
+ SELECT lower(h.tipo_processo) AS tipo_processo,
+        CASE
+            WHEN p.area_construida IS NULL THEN '(sem área)'::text
+            WHEN p.area_construida < 100::numeric THEN 'até 100 m²'::text
+            WHEN p.area_construida < 300::numeric THEN '100 a 300 m²'::text
+            WHEN p.area_construida < 1000::numeric THEN '300 a 1.000 m²'::text
+            ELSE 'acima de 1.000 m²'::text
+        END AS faixa_area,
+    (p.dados -> 'bairro'::text) ->> 'valor'::text AS bairro,
+    h.item_texto AS exigencia,
+    h.checklist_item_id,
+    count(*) AS vezes,
+    count(DISTINCT h.processo_codigo) AS processos
+   FROM mac_historico h
+     JOIN processos p ON p.codigo = h.processo_codigo AND p.excluido_em IS NULL
+  WHERE h.status_novo = 'nao_conforme'::text AND COALESCE(TRIM(BOTH FROM h.item_texto), ''::text) <> ''::text
+  GROUP BY (lower(h.tipo_processo)), (
+        CASE
+            WHEN p.area_construida IS NULL THEN '(sem área)'::text
+            WHEN p.area_construida < 100::numeric THEN 'até 100 m²'::text
+            WHEN p.area_construida < 300::numeric THEN '100 a 300 m²'::text
+            WHEN p.area_construida < 1000::numeric THEN '300 a 1.000 m²'::text
+            ELSE 'acima de 1.000 m²'::text
+        END), ((p.dados -> 'bairro'::text) ->> 'valor'::text), h.item_texto, h.checklist_item_id;
 
 -- ======================================================================
 -- vw_bdi_nao_conformidades
@@ -1228,6 +1393,27 @@ CREATE OR REPLACE VIEW public.vw_bdi_nao_conformidades AS
   WHERE a.nome !~~ 'Slot%'::text OR a.nome IS NULL
   GROUP BY mci.grupo, mci.texto, mci.ref, a.id, a.nome
   ORDER BY (count(*)) DESC;
+
+-- ======================================================================
+-- vw_bdi_numeracao_saldo
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_numeracao_saldo AS
+ SELECT id,
+    usuario_id,
+    tipo,
+    ano,
+    numero_inicial,
+    numero_final,
+    proximo,
+    GREATEST(numero_final - proximo + 1, 0) AS restantes,
+        CASE
+            WHEN proximo > numero_final THEN 'ESGOTADA'::text
+            WHEN (numero_final - proximo + 1) <= 5 THEN 'CRITICO'::text
+            WHEN (numero_final - proximo + 1) <= 20 THEN 'ATENCAO'::text
+            ELSE 'OK'::text
+        END AS situacao
+   FROM urbis_numeracao_faixas f;
 
 -- ======================================================================
 -- vw_bdi_por_analista
@@ -1316,6 +1502,91 @@ CREATE OR REPLACE VIEW public.vw_bdi_resumo_geral AS
   WHERE a.nome !~~ 'Slot%'::text;
 
 -- ======================================================================
+-- vw_bdi_retorno_por_slot
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_retorno_por_slot AS
+ WITH passadas AS (
+         SELECT analises_mac.processo_codigo,
+            max(analises_mac.numero_analise) AS max_analise
+           FROM analises_mac
+          WHERE analises_mac.excluido_em IS NULL
+          GROUP BY analises_mac.processo_codigo
+        )
+ SELECT lower(p.tipo_processo) AS tipo_processo,
+        CASE
+            WHEN p.area_construida IS NULL THEN '(sem área)'::text
+            WHEN p.area_construida < 100::numeric THEN 'até 100 m²'::text
+            WHEN p.area_construida < 300::numeric THEN '100 a 300 m²'::text
+            WHEN p.area_construida < 1000::numeric THEN '300 a 1.000 m²'::text
+            ELSE 'acima de 1.000 m²'::text
+        END AS faixa_area,
+    count(*) AS processos,
+    count(*) FILTER (WHERE a.max_analise > 1) AS processos_com_retorno,
+    round(100.0 * count(*) FILTER (WHERE a.max_analise > 1)::numeric / NULLIF(count(*), 0)::numeric, 1) AS pct_retorno,
+    round(avg(a.max_analise) FILTER (WHERE a.max_analise > 1), 2) AS media_passadas_quando_retorna,
+    sum(GREATEST(a.max_analise - 1, 0)) AS passadas_extras_total
+   FROM passadas a
+     JOIN processos p ON p.codigo = a.processo_codigo AND p.excluido_em IS NULL
+  GROUP BY (lower(p.tipo_processo)), (
+        CASE
+            WHEN p.area_construida IS NULL THEN '(sem área)'::text
+            WHEN p.area_construida < 100::numeric THEN 'até 100 m²'::text
+            WHEN p.area_construida < 300::numeric THEN '100 a 300 m²'::text
+            WHEN p.area_construida < 1000::numeric THEN '300 a 1.000 m²'::text
+            ELSE 'acima de 1.000 m²'::text
+        END);
+
+-- ======================================================================
+-- vw_bdi_retrabalho
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_retrabalho AS
+ SELECT processo_codigo,
+    count(*) FILTER (WHERE status_anterior = 'conforme'::text AND status_novo = 'nao_conforme'::text) AS virou_nao_conforme,
+    count(*) FILTER (WHERE status_anterior = 'nao_conforme'::text AND status_novo = 'conforme'::text) AS foi_resolvido,
+    count(*) FILTER (WHERE status_anterior IS NOT NULL AND status_anterior <> '-'::text AND status_novo IS NOT NULL AND status_anterior <> status_novo) AS trocas_totais,
+    max(criado_em) AS ultima_troca
+   FROM mac_historico h
+  GROUP BY processo_codigo
+ HAVING count(*) FILTER (WHERE status_anterior IS NOT NULL AND status_anterior <> '-'::text AND status_novo IS NOT NULL AND status_anterior <> status_novo) > 0;
+
+-- ======================================================================
+-- vw_bdi_retrabalho_por_passada
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_retrabalho_por_passada AS
+ WITH trocas AS (
+         SELECT h.processo_codigo,
+            h.checklist_item_id,
+            h.item_texto,
+            h.referencia_legal,
+            h.aba,
+            a.numero_analise,
+            h.status_anterior,
+            h.status_novo,
+            h.criado_em,
+            row_number() OVER (PARTITION BY h.processo_codigo, h.checklist_item_id ORDER BY h.criado_em) AS seq
+           FROM mac_historico h
+             JOIN analises_mac a ON a.id = h.analise_id
+          WHERE h.status_anterior IS NOT NULL AND h.status_anterior <> '-'::text AND h.status_novo IS NOT NULL AND h.status_anterior <> h.status_novo
+        )
+ SELECT t2.processo_codigo,
+    t2.item_texto AS exigencia,
+    t2.aba,
+    t2.referencia_legal,
+    t1.numero_analise AS passada_anterior,
+    t1.status_novo AS status_na_passada_anterior,
+    t2.numero_analise AS passada_atual,
+    t2.status_anterior AS status_antes_da_volta,
+    t2.status_novo AS status_depois_da_volta,
+    t2.criado_em AS voltou_em
+   FROM trocas t1
+     JOIN trocas t2 ON t2.processo_codigo = t1.processo_codigo AND t2.checklist_item_id = t1.checklist_item_id AND t2.seq = (t1.seq + 1)
+  WHERE t2.numero_analise <> t1.numero_analise
+  ORDER BY t2.processo_codigo, t2.criado_em;
+
+-- ======================================================================
 -- vw_bdi_sessoes
 -- opcoes: security_invoker=true
 -- ======================================================================
@@ -1353,6 +1624,23 @@ CREATE OR REPLACE VIEW public.vw_bdi_tempo_analista AS
      JOIN usuarios u ON u.id = s.usuario_id
   GROUP BY u.nome, u.id, s.pagina, (date_trunc('day'::text, s.iniciada_em)::date), (date_part('week'::text, s.iniciada_em)), (date_part('month'::text, s.iniciada_em)), (date_part('year'::text, s.iniciada_em))
   ORDER BY (date_part('year'::text, s.iniciada_em)::integer) DESC, (date_part('month'::text, s.iniciada_em)::integer) DESC, (date_trunc('day'::text, s.iniciada_em)::date) DESC, u.nome;
+
+-- ======================================================================
+-- vw_bdi_tempo_etapas
+-- opcoes: security_invoker=true
+-- ======================================================================
+CREATE OR REPLACE VIEW public.vw_bdi_tempo_etapas AS
+ SELECT p.codigo,
+    lower(p.tipo_processo) AS tipo_processo,
+    p.analista_id,
+    p.analise_iniciada_em,
+    p.analise_concluida_em,
+    round(EXTRACT(epoch FROM p.analise_concluida_em - p.analise_iniciada_em) / 86400.0, 1) AS dias,
+    count(h.id) AS marcacoes_no_mac
+   FROM processos p
+     LEFT JOIN mac_historico h ON h.processo_codigo = p.codigo
+  WHERE p.excluido_em IS NULL AND p.analise_iniciada_em IS NOT NULL AND p.analise_concluida_em IS NOT NULL
+  GROUP BY p.codigo, (lower(p.tipo_processo)), p.analista_id, p.analise_iniciada_em, p.analise_concluida_em, (round(EXTRACT(epoch FROM p.analise_concluida_em - p.analise_iniciada_em) / 86400.0, 1));
 
 -- ======================================================================
 -- vw_timeline_processo

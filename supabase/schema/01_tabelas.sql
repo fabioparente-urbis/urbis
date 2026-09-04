@@ -1,5 +1,5 @@
 -- TABELAS — colunas, defaults e constraints
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================
@@ -991,8 +991,10 @@ CREATE TABLE public.mac_checklist_itens (
     classificacao_bip text,
     classificacao_bip_em timestamp with time zone,
     classificacao_lip text,
-    classificacao_lip_em timestamp with time zone
+    classificacao_lip_em timestamp with time zone,
+    alterado_por uuid
 );
+ALTER TABLE public.mac_checklist_itens ADD CONSTRAINT mac_checklist_itens_alterado_por_fkey FOREIGN KEY (alterado_por) REFERENCES usuarios(id);
 ALTER TABLE public.mac_checklist_itens ADD CONSTRAINT mac_checklist_itens_modelo_id_fkey FOREIGN KEY (modelo_id) REFERENCES mac_checklist_modelos(id) ON DELETE CASCADE;
 ALTER TABLE public.mac_checklist_itens ADD CONSTRAINT mac_checklist_itens_pkey PRIMARY KEY (id);
 COMMENT ON COLUMN public.mac_checklist_itens.origem IS "Proveniência do texto atual desta compatibilização: DOCUMENTO_OFICIAL | PLANILHA | BANCO_LEGADO.";
@@ -1000,6 +1002,24 @@ COMMENT ON COLUMN public.mac_checklist_itens.nota_analista IS "Orientação inte
 COMMENT ON COLUMN public.mac_checklist_itens.condicao_aplicabilidade IS "Condição textual do item (\"se for o caso\", \"quando necessário\"...), preservada — nunca vira exigência universal.";
 COMMENT ON COLUMN public.mac_checklist_itens.classificacao_bip IS "Resultado da análise MAC×BIP: VINCULADO_BIP | SEM_FUNDAMENTO_BIP | REVISAO_MANUAL. NULL = não analisado.";
 COMMENT ON COLUMN public.mac_checklist_itens.classificacao_lip IS "Resultado da análise MAC×LIP: AUTOMATIZAVEL | PARCIALMENTE_AUTOMATIZAVEL |\n   MANUAL_COM_EVIDENCIA_LIP | MANUAL_SEM_DADO_LIP | REVISAO_MANUAL. NULL = não analisado.\n   Reflete o que o LIP entrega HOJE — um vínculo para campo ainda não implementado\n   (PENDENTE_VISAO/BLOQUEADO) não conta como evidência viva.";
+COMMENT ON COLUMN public.mac_checklist_itens.alterado_por IS "Quem fez a última escrita neste item (POST/PUT/DELETE-lógico) — preenchido pela rota\n   (app/api/mac/checklists/itens*), nunca pela tela direto. NULL em linha nunca alterada\n   depois desta coluna existir.";
+
+-- ======================================================================
+-- mac_checklist_itens_historico
+-- ======================================================================
+CREATE TABLE public.mac_checklist_itens_historico (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    item_id uuid NOT NULL,
+    modelo_id uuid,
+    tipo_processo text,
+    acao text NOT NULL,
+    campos_alterados jsonb DEFAULT '{}'::jsonb NOT NULL,
+    registrado_por uuid,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.mac_checklist_itens_historico ADD CONSTRAINT mac_checklist_itens_historico_acao_check CHECK ((acao = ANY (ARRAY['criado'::text, 'atualizado'::text, 'desativado'::text, 'reativado'::text])));
+ALTER TABLE public.mac_checklist_itens_historico ADD CONSTRAINT mac_checklist_itens_historico_registrado_por_fkey FOREIGN KEY (registrado_por) REFERENCES usuarios(id);
+ALTER TABLE public.mac_checklist_itens_historico ADD CONSTRAINT mac_checklist_itens_historico_pkey PRIMARY KEY (id);
 
 -- ======================================================================
 -- mac_checklist_modelos
@@ -1171,6 +1191,39 @@ ALTER TABLE public.mac_slot5_filtros ADD CONSTRAINT mac_slot5_filtros_tipo_condi
 ALTER TABLE public.mac_slot5_filtros ADD CONSTRAINT mac_slot5_filtros_pkey PRIMARY KEY (id);
 
 -- ======================================================================
+-- mac_vinculos_propostas
+-- ======================================================================
+CREATE TABLE public.mac_vinculos_propostas (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    mac_item_id uuid NOT NULL,
+    tipo text NOT NULL,
+    lip_chave text,
+    papel text,
+    obrigatorio boolean,
+    bip_fragmento_id uuid,
+    confianca text NOT NULL,
+    justificativa text NOT NULL,
+    status text DEFAULT 'pendente'::text NOT NULL,
+    criado_por uuid NOT NULL,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL,
+    decidido_por uuid,
+    decidido_em timestamp with time zone,
+    motivo_decisao text
+);
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_confianca_check CHECK ((confianca = ANY (ARRAY['ALTA'::text, 'MEDIA'::text, 'BAIXA'::text])));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_decisao_coerente CHECK ((((status = 'pendente'::text) AND (decidido_por IS NULL) AND (decidido_em IS NULL)) OR ((status = ANY (ARRAY['aprovado'::text, 'rejeitado'::text])) AND (decidido_por IS NOT NULL) AND (decidido_em IS NOT NULL))));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_forma_valida CHECK ((((tipo = 'LIP'::text) AND (lip_chave IS NOT NULL) AND (papel IS NOT NULL) AND (obrigatorio IS NOT NULL) AND (bip_fragmento_id IS NULL)) OR ((tipo = 'BIP'::text) AND (bip_fragmento_id IS NOT NULL) AND (lip_chave IS NULL) AND (papel IS NULL) AND (obrigatorio IS NULL))));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_justificativa_check CHECK ((length(TRIM(BOTH FROM justificativa)) > 0));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_papel_check CHECK ((papel = ANY (ARRAY['ENTRADA_REGRA'::text, 'CONDICAO_APLICABILIDADE'::text, 'EVIDENCIA'::text, 'PARAMETRO_CALCULO'::text, 'CONTEXTO'::text, 'RESULTADO_ESPERADO'::text])));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_status_check CHECK ((status = ANY (ARRAY['pendente'::text, 'aprovado'::text, 'rejeitado'::text])));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_tipo_check CHECK ((tipo = ANY (ARRAY['LIP'::text, 'BIP'::text])));
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_bip_fragmento_id_fkey FOREIGN KEY (bip_fragmento_id) REFERENCES bdi_lei_fragmentos(id) ON DELETE RESTRICT;
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES usuarios(id);
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_decidido_por_fkey FOREIGN KEY (decidido_por) REFERENCES usuarios(id);
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_mac_item_id_fkey FOREIGN KEY (mac_item_id) REFERENCES mac_checklist_itens(id) ON DELETE CASCADE;
+ALTER TABLE public.mac_vinculos_propostas ADD CONSTRAINT mac_vinculos_propostas_pkey PRIMARY KEY (id);
+
+-- ======================================================================
 -- mdp_registros
 -- ======================================================================
 CREATE TABLE public.mdp_registros (
@@ -1187,7 +1240,7 @@ CREATE TABLE public.mdp_registros (
     interessado text,
     busca_norm text
 );
-ALTER TABLE public.mdp_registros ADD CONSTRAINT mdp_registros_tipo_check CHECK ((tipo = ANY (ARRAY['interno'::text, 'despacho'::text, 'indeferimento'::text, 'arquivamento'::text])));
+ALTER TABLE public.mdp_registros ADD CONSTRAINT mdp_registros_tipo_check CHECK ((tipo = ANY (ARRAY['interno'::text, 'despacho'::text, 'indeferimento'::text, 'arquivamento'::text, 'laudo'::text])));
 ALTER TABLE public.mdp_registros ADD CONSTRAINT mdp_registros_assunto_id_fkey FOREIGN KEY (assunto_id) REFERENCES assuntos(id) ON DELETE SET NULL;
 ALTER TABLE public.mdp_registros ADD CONSTRAINT mdp_registros_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
 ALTER TABLE public.mdp_registros ADD CONSTRAINT mdp_registros_pkey PRIMARY KEY (id);
@@ -1440,6 +1493,21 @@ CREATE TABLE public.mrp_pontuacao_backup (
 ALTER TABLE public.mrp_pontuacao_backup ADD CONSTRAINT mrp_pontuacao_backup_pkey PRIMARY KEY (id);
 
 -- ======================================================================
+-- mrp_pontuacao_historico
+-- ======================================================================
+CREATE TABLE public.mrp_pontuacao_historico (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    regra_id uuid NOT NULL,
+    pontos numeric NOT NULL,
+    vigente_desde date NOT NULL,
+    criado_por uuid,
+    criado_em timestamp with time zone DEFAULT now()
+);
+ALTER TABLE public.mrp_pontuacao_historico ADD CONSTRAINT mrp_pontuacao_historico_criado_por_fkey FOREIGN KEY (criado_por) REFERENCES usuarios(id);
+ALTER TABLE public.mrp_pontuacao_historico ADD CONSTRAINT mrp_pontuacao_historico_regra_id_fkey FOREIGN KEY (regra_id) REFERENCES mrp_pontuacao(id) ON DELETE CASCADE;
+ALTER TABLE public.mrp_pontuacao_historico ADD CONSTRAINT mrp_pontuacao_historico_pkey PRIMARY KEY (id);
+
+-- ======================================================================
 -- mrp_registros
 -- ======================================================================
 CREATE TABLE public.mrp_registros (
@@ -1460,7 +1528,7 @@ CREATE TABLE public.mrp_registros (
     revisao boolean DEFAULT (COALESCE(numero_revisao, 1) > 1),
     data_inicio timestamp with time zone,
     data_despacho timestamp with time zone DEFAULT now() NOT NULL,
-    pontos numeric(4,1) NOT NULL,
+    pontos numeric(6,2) NOT NULL,
     observacoes text,
     mes integer NOT NULL,
     ano integer NOT NULL,
@@ -1500,7 +1568,7 @@ CREATE TABLE public.mrp_registros_backup (
     numero_revisao integer,
     data_inicio timestamp with time zone,
     data_despacho timestamp with time zone DEFAULT now() NOT NULL,
-    pontos numeric(4,1) NOT NULL,
+    pontos numeric(6,2) NOT NULL,
     observacoes text,
     mes integer NOT NULL,
     ano integer NOT NULL,
@@ -1916,6 +1984,29 @@ ALTER TABLE public.tipos_documento ADD CONSTRAINT tipos_documento_pkey PRIMARY K
 ALTER TABLE public.tipos_documento ADD CONSTRAINT tipos_documento_nome_key UNIQUE (nome);
 
 -- ======================================================================
+-- urbi_comandos_voz
+-- ======================================================================
+CREATE TABLE public.urbi_comandos_voz (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    usuario_id uuid,
+    usuario_nome text,
+    texto text NOT NULL,
+    origem text DEFAULT 'webspeech'::text NOT NULL,
+    intencao_id text,
+    acao_tipo text,
+    acao_alvo text,
+    executado boolean DEFAULT false NOT NULL,
+    confirmado boolean,
+    duracao_ms integer,
+    erro text,
+    audio_path text,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_comandos_voz ADD CONSTRAINT urbi_comandos_voz_origem_check CHECK ((origem = ANY (ARRAY['webspeech'::text, 'whisper'::text, 'texto'::text])));
+ALTER TABLE public.urbi_comandos_voz ADD CONSTRAINT urbi_comandos_voz_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+ALTER TABLE public.urbi_comandos_voz ADD CONSTRAINT urbi_comandos_voz_pkey PRIMARY KEY (id);
+
+-- ======================================================================
 -- urbi_config
 -- ======================================================================
 CREATE TABLE public.urbi_config (
@@ -1923,10 +2014,13 @@ CREATE TABLE public.urbi_config (
     chave text NOT NULL,
     valor text,
     descricao text,
-    atualizado_em timestamp with time zone DEFAULT now()
+    atualizado_em timestamp with time zone DEFAULT now(),
+    atualizado_por uuid
 );
+ALTER TABLE public.urbi_config ADD CONSTRAINT urbi_config_atualizado_por_fkey FOREIGN KEY (atualizado_por) REFERENCES usuarios(id);
 ALTER TABLE public.urbi_config ADD CONSTRAINT urbi_config_pkey PRIMARY KEY (id);
 ALTER TABLE public.urbi_config ADD CONSTRAINT urbi_config_chave_key UNIQUE (chave);
+COMMENT ON COLUMN public.urbi_config.atualizado_por IS "Quem fez a última alteração de valor (app/api/urbi/config PUT) — NULL pra alterações\n   anteriores a 03/09/2026 ou feitas antes desta coluna existir. Nunca decide nada sozinho,\n   só identifica quem decidiu (Fase F — visibilidade de ação administrativa em /admin/urbi).";
 
 -- ======================================================================
 -- urbi_historico
@@ -1939,11 +2033,18 @@ CREATE TABLE public.urbi_historico (
     resposta_urbi text NOT NULL,
     linha text,
     pose_usada text,
-    criado_em timestamp with time zone DEFAULT now()
+    criado_em timestamp with time zone DEFAULT now(),
+    processo_codigo text,
+    tipo_processo text,
+    fontes_tipos text[]
 );
 ALTER TABLE public.urbi_historico ADD CONSTRAINT urbi_historico_linha_check CHECK ((linha = ANY (ARRAY['consultor'::text, 'calculadora'::text, 'correio'::text, 'co-analista'::text, 'geral'::text])));
+ALTER TABLE public.urbi_historico ADD CONSTRAINT urbi_historico_tipo_processo_check CHECK (((tipo_processo IS NULL) OR (tipo_processo = ANY (ARRAY['regularizacao'::text, 'aceite_sei'::text, 'slot_05'::text]))));
 ALTER TABLE public.urbi_historico ADD CONSTRAINT urbi_historico_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id);
 ALTER TABLE public.urbi_historico ADD CONSTRAINT urbi_historico_pkey PRIMARY KEY (id);
+COMMENT ON COLUMN public.urbi_historico.processo_codigo IS "Código do processo em contexto quando esta mensagem foi respondida (app/api/urbi/chat/route.ts,\n   campo `codigo` — sempre derivado da URL atual, nunca de texto digitado). NULL = papo geral,\n   sem processo em contexto, ou linha gravada antes desta coluna existir.";
+COMMENT ON COLUMN public.urbi_historico.tipo_processo IS "tipo_processo (slot) do processo acima no momento da resposta — mesmo vocabulário de\n   urbi_sugestoes.slot. NULL nas mesmas condições da coluna processo_codigo.";
+COMMENT ON COLUMN public.urbi_historico.fontes_tipos IS "Categorias de fonte usadas nesta resposta (ex.: {LIP,MAC,BIP,Documentos}), do manifesto\n   calculado em código (lib/urbi/manifestoFontes.ts) — nunca o detalhe da fonte nem o conteúdo\n   do dossiê, só a classificação. NULL/vazio quando não houve dossiê nesta resposta.";
 
 -- ======================================================================
 -- urbi_legislacao
@@ -1961,6 +2062,34 @@ CREATE TABLE public.urbi_legislacao (
 );
 ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_tipo_check CHECK ((tipo = ANY (ARRAY['lei'::text, 'decreto'::text, 'portaria'::text, 'resolucao'::text, 'outro'::text])));
 ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_pkey PRIMARY KEY (id);
+
+-- ======================================================================
+-- urbi_sugestoes
+-- ======================================================================
+CREATE TABLE public.urbi_sugestoes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    processo_codigo text NOT NULL,
+    tipo text NOT NULL,
+    chave text NOT NULL,
+    sugestao text NOT NULL,
+    motivo_factual text NOT NULL,
+    campos_comparados jsonb DEFAULT '[]'::jsonb NOT NULL,
+    fontes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    grau_certeza text NOT NULL,
+    estado text DEFAULT 'nova'::text NOT NULL,
+    gerado_em timestamp with time zone DEFAULT now() NOT NULL,
+    decidido_por uuid,
+    decidido_em timestamp with time zone,
+    slot text
+);
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_estado_check CHECK ((estado = ANY (ARRAY['nova'::text, 'vista'::text, 'confirmada'::text, 'descartada'::text, 'insuficiente'::text])));
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_grau_certeza_check CHECK ((grau_certeza = ANY (ARRAY['confirmado'::text, 'vale_conferir'::text, 'base_insuficiente'::text, 'nao_aplicavel'::text, 'aguarda_confirmacao_humana'::text])));
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_slot_check CHECK (((slot IS NULL) OR (slot = ANY (ARRAY['regularizacao'::text, 'aceite_sei'::text, 'slot_05'::text]))));
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_tipo_check CHECK ((tipo = ANY (ARRAY['item_voltou_nao_conforme'::text, 'documento_sem_registro'::text, 'aguardando_retorno_base_insuficiente'::text, 'incoerencia_lip_mac'::text, 'divergencia_lip_documento'::text, 'item_sem_base_juridica'::text, 'catalogo_alterado_apos_analise'::text])));
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_decidido_por_fkey FOREIGN KEY (decidido_por) REFERENCES usuarios(id);
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_pkey PRIMARY KEY (id);
+ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_processo_codigo_tipo_chave_key UNIQUE (processo_codigo, tipo, chave);
+COMMENT ON COLUMN public.urbi_sugestoes.slot IS "tipo_processo do processo no momento em que a sugestão foi gravada (lib/urbi/sugestoes.ts,\n   registrarSugestoesAutomaticas) — self-contido, não depende de JOIN com processos pra\n   auditoria. NULL só em linha gravada antes desta coluna existir (nenhuma hoje).";
 
 -- ======================================================================
 -- urbis_api_calls
@@ -2243,8 +2372,10 @@ CREATE TABLE public.usuarios (
     tema text DEFAULT 'moderno'::text,
     urbi_voz boolean DEFAULT false,
     urbi_mudo boolean DEFAULT true,
-    urbi_bip boolean DEFAULT false
+    urbi_bip boolean DEFAULT false,
+    urbi_modo_audio text DEFAULT 'nenhum'::text NOT NULL
 );
+ALTER TABLE public.usuarios ADD CONSTRAINT usuarios_urbi_modo_audio_check CHECK ((urbi_modo_audio = ANY (ARRAY['nenhum'::text, 'navegador'::text, 'elevenlabs'::text])));
 ALTER TABLE public.usuarios ADD CONSTRAINT usuarios_pkey PRIMARY KEY (id);
 ALTER TABLE public.usuarios ADD CONSTRAINT usuarios_email_key UNIQUE (email);
 COMMENT ON COLUMN public.usuarios.reducao_meta IS "Percentual de redução da meta MRP (0-100). 0 = meta cheia (100 pts/mês).";

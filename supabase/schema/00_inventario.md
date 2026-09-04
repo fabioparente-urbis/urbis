@@ -1,24 +1,24 @@
 # Schema real do banco — inventário
 
-Gerado por `scripts/extrair_schema.mts` em 2026-09-01.
+Gerado por `scripts/extrair_schema.mts` em 2026-09-04.
 
 PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-bit
 
-**177 objetos** no schema `public`: 119 tabelas, 58 views.
-253 funções, 45 triggers, 316 índices, 32 policies.
+**193 objetos** no schema `public`: 124 tabelas, 69 views.
+255 funções, 46 triggers, 335 índices, 32 policies.
 
 | objeto | tipo | linhas | RLS |
 |---|---|---:|---|
 | `admin_users` | tabela | 1 | ✅ |
-| `alertas` | tabela | 98 | ✅ |
+| `alertas` | tabela | 101 | ✅ |
 | `analise_itens` | tabela | 0 | ✅ |
 | `analises` | tabela | 0 | ✅ |
-| `analises_mac` | tabela | 119 | ✅ |
+| `analises_mac` | tabela | 122 | ✅ |
 | `assinaturas` | tabela | 0 | ✅ |
 | `assuntos` | tabela | 15 | ✅ |
-| `auditoria_eventos` | tabela | 6006 | ✅ |
+| `auditoria_eventos` | tabela | 6196 | ✅ |
 | `auditoria_eventos_backup` | tabela | 0 | ✅ |
-| `auditoria_log` | tabela | 5331 | ✅ |
+| `auditoria_log` | tabela | 5450 | ✅ |
 | `auditoria_log_backup` | tabela | 0 | ✅ |
 | `auditoria_sessoes` | tabela | 0 | ✅ |
 | `auditoria_sessoes_backup` | tabela | 0 | ✅ |
@@ -26,7 +26,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `bdi_documentos_lei_backup` | tabela | 0 | ✅ |
 | `bdi_lei_fragmentos` | tabela | 3026 | ✅ |
 | `bdi_lei_fragmentos_backup` | tabela | 0 | ✅ |
-| `bdi_snapshots` | tabela | 5 | ✅ |
+| `bdi_snapshots` | tabela | 6 | ✅ |
 | `bip_anotacoes_usuario` | tabela | 8 | ✅ |
 | `bip_historico_anotacoes` | tabela | 124 | ✅ |
 | `cadastro_processo` | tabela | 0 | ✅ |
@@ -51,7 +51,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `equipe_gerencias` | tabela | 0 | ✅ |
 | `equipe_roles` | tabela | 35 | ✅ |
 | `etapa_tempo_sessoes` | tabela | 0 | ✅ |
-| `eventos` | tabela | 84 | ✅ |
+| `eventos` | tabela | 86 | ✅ |
 | `formato_identificadores` | tabela | 4 | ✅ |
 | `gerencias` | tabela | 3 | ✅ |
 | `impeditivos` | tabela | 0 | ✅ |
@@ -59,7 +59,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `lip_abas` | tabela | 32 | ✅ |
 | `lip_campos` | tabela | 282 | ✅ |
 | `lip_decisoes_item` | tabela | 1 | ✅ |
-| `lip_jobs` | tabela | 88 | ✅ |
+| `lip_jobs` | tabela | 90 | ✅ |
 | `lip_processo_atual` | tabela | 2 | ✅ |
 | `lip_prompts` | tabela | 10 | ✅ |
 | `lip_prompts_historico` | tabela | 14 | ✅ |
@@ -67,15 +67,17 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `logradouros` | tabela | 20524 | ✅ |
 | `mac_bip_vinculos` | tabela | 727 | ✅ |
 | `mac_checklist_itens` | tabela | 889 | ✅ |
+| `mac_checklist_itens_historico` | tabela | 0 | ❌ |
 | `mac_checklist_modelos` | tabela | 3 | ✅ |
 | `mac_execucoes` | tabela | 6 | ✅ |
 | `mac_glossario` | tabela | 3 | ✅ |
-| `mac_historico` | tabela | 10320 | ✅ |
+| `mac_historico` | tabela | 10453 | ✅ |
 | `mac_lip_vinculos` | tabela | 147 | ✅ |
 | `mac_resultados_item` | tabela | 14 | ✅ |
 | `mac_resultados_revisoes` | tabela | 0 | ✅ |
 | `mac_slot5_filtros` | tabela | 29 | ✅ |
-| `mdp_registros` | tabela | 63 | ✅ |
+| `mac_vinculos_propostas` | tabela | 0 | ❌ |
+| `mdp_registros` | tabela | 68 | ✅ |
 | `mhd_conteudos` | tabela | 29 | ✅ |
 | `mhd_documentos` | tabela | 38 | ✅ |
 | `mhd_eventos` | tabela | 124 | ✅ |
@@ -85,10 +87,11 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `mrp_calendario` | tabela | 2 | ✅ |
 | `mrp_calendario_backup` | tabela | 0 | ✅ |
 | `mrp_meta_historico` | tabela | 6 | ✅ |
-| `mrp_pontuacao` | tabela | 3 | ✅ |
+| `mrp_pontuacao` | tabela | 4 | ✅ |
 | `mrp_pontuacao_backup` | tabela | 1 | ✅ |
-| `mrp_registros` | tabela | 130 | ✅ |
-| `mrp_registros_backup` | tabela | 31 | ✅ |
+| `mrp_pontuacao_historico` | tabela | 7 | ✅ |
+| `mrp_registros` | tabela | 134 | ✅ |
+| `mrp_registros_backup` | tabela | 32 | ✅ |
 | `notificacoes` | tabela | 0 | ✅ |
 | `obs_cod` | tabela | 41 | ✅ |
 | `papeis_ativos` | tabela | 3 | ✅ |
@@ -96,23 +99,25 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `processo_checklist_itens` | tabela | 0 | ✅ |
 | `processo_documento_ingestao` | tabela | 0 | ✅ |
 | `processo_etapas` | tabela | 0 | ✅ |
-| `processo_eventos` | tabela | 84 | ✅ |
+| `processo_eventos` | tabela | 86 | ✅ |
 | `processo_fila_overrides` | tabela | 0 | ✅ |
 | `processo_historico` | tabela | 4 | ✅ |
 | `processo_prazo_interessado` | tabela | 0 | ✅ |
 | `processo_profissionais` | tabela | 31 | ✅ |
-| `processo_tempo` | tabela | 84 | ✅ |
-| `processos` | tabela | 84 | ✅ |
+| `processo_tempo` | tabela | 86 | ✅ |
+| `processos` | tabela | 86 | ✅ |
 | `profissionais` | tabela | 25 | ✅ |
 | `profissionais_backfill_execucoes` | tabela | 2 | ✅ |
 | `rh_log` | tabela | 4 | ✅ |
 | `solicitacoes_despacho_extra` | tabela | 0 | ✅ |
 | `solicitacoes_etapa6` | tabela | 0 | ✅ |
 | `tipos_documento` | tabela | 7 | ✅ |
-| `urbi_config` | tabela | 7 | ✅ |
-| `urbi_historico` | tabela | 98 | ✅ |
+| `urbi_comandos_voz` | tabela | 9 | ✅ |
+| `urbi_config` | tabela | 8 | ✅ |
+| `urbi_historico` | tabela | 114 | ✅ |
 | `urbi_legislacao` | tabela | 0 | ✅ |
-| `urbis_api_calls` | tabela | 46 | ✅ |
+| `urbi_sugestoes` | tabela | 12 | ❌ |
+| `urbis_api_calls` | tabela | 80 | ✅ |
 | `urbis_aportes` | tabela | 2 | ✅ |
 | `urbis_config` | tabela | 1 | ✅ |
 | `urbis_lip_cores` | tabela | 12 | ✅ |
@@ -124,8 +129,8 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `urbis_logs` | tabela | 0 | ✅ |
 | `urbis_notificacoes` | tabela | 0 | ✅ |
 | `urbis_numeracao_faixas` | tabela | 5 | ✅ |
-| `urbis_numeracao_uso` | tabela | 75 | ✅ |
-| `urbis_sessoes` | tabela | 1170 | ✅ |
+| `urbis_numeracao_uso` | tabela | 80 | ✅ |
+| `urbis_sessoes` | tabela | 1368 | ✅ |
 | `urbis_sessoes_backup` | tabela | 0 | ✅ |
 | `usuarios` | tabela | 6 | ✅ |
 | `mrp_painel_diario` | view | — | — |
@@ -175,14 +180,25 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `v_urbis_lip_status` | view | — | — |
 | `v_urbis_lip_status_v2` | view | — | — |
 | `v_urbis_lip_timeline` | view | — | — |
+| `vw_bdi_aguardando_retorno` | view | — | — |
+| `vw_bdi_analises_em_andamento` | view | — | — |
 | `vw_bdi_analistas_desempenho` | view | — | — |
 | `vw_bdi_autores` | view | — | — |
+| `vw_bdi_campos_criticos` | view | — | — |
+| `vw_bdi_cobertura_satelite` | view | — | — |
+| `vw_bdi_desempenho_referencia` | view | — | — |
+| `vw_bdi_exigencias_por_contexto` | view | — | — |
 | `vw_bdi_nao_conformidades` | view | — | — |
+| `vw_bdi_numeracao_saldo` | view | — | — |
 | `vw_bdi_por_analista` | view | — | — |
 | `vw_bdi_por_assunto` | view | — | — |
 | `vw_bdi_por_bairro` | view | — | — |
 | `vw_bdi_produtividade_mensal` | view | — | — |
 | `vw_bdi_resumo_geral` | view | — | — |
+| `vw_bdi_retorno_por_slot` | view | — | — |
+| `vw_bdi_retrabalho` | view | — | — |
+| `vw_bdi_retrabalho_por_passada` | view | — | — |
 | `vw_bdi_sessoes` | view | — | — |
 | `vw_bdi_tempo_analista` | view | — | — |
+| `vw_bdi_tempo_etapas` | view | — | — |
 | `vw_timeline_processo` | view | — | — |

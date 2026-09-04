@@ -1,5 +1,5 @@
 -- INDICES
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
 CREATE UNIQUE INDEX admin_users_pkey ON public.admin_users USING btree (user_id);
@@ -137,6 +137,10 @@ CREATE UNIQUE INDEX mac_bip_vinculos_pkey ON public.mac_bip_vinculos USING btree
 CREATE INDEX idx_mac_checklist_itens_chave_lip ON public.mac_checklist_itens USING btree (chave_lip) WHERE (chave_lip IS NOT NULL);
 CREATE INDEX idx_mac_itens_indeferimento ON public.mac_checklist_itens USING btree (modelo_id) WHERE gera_indeferimento;
 CREATE UNIQUE INDEX mac_checklist_itens_pkey ON public.mac_checklist_itens USING btree (id);
+CREATE INDEX mac_checklist_itens_historico_criado_em_idx ON public.mac_checklist_itens_historico USING btree (criado_em);
+CREATE INDEX mac_checklist_itens_historico_item_idx ON public.mac_checklist_itens_historico USING btree (item_id);
+CREATE UNIQUE INDEX mac_checklist_itens_historico_pkey ON public.mac_checklist_itens_historico USING btree (id);
+CREATE INDEX mac_checklist_itens_historico_tipo_processo_idx ON public.mac_checklist_itens_historico USING btree (tipo_processo);
 CREATE INDEX idx_mac_checklist_modelos_assunto_id ON public.mac_checklist_modelos USING btree (assunto_id);
 CREATE UNIQUE INDEX mac_checklist_modelos_pkey ON public.mac_checklist_modelos USING btree (id);
 CREATE UNIQUE INDEX mac_execucoes_pkey ON public.mac_execucoes USING btree (id);
@@ -158,6 +162,11 @@ CREATE INDEX mac_resultados_revisoes_item_idx ON public.mac_resultados_revisoes 
 CREATE UNIQUE INDEX mac_resultados_revisoes_pkey ON public.mac_resultados_revisoes USING btree (id);
 CREATE INDEX idx_mac_slot5_filtros_ativo ON public.mac_slot5_filtros USING btree (ativo, ordem);
 CREATE UNIQUE INDEX mac_slot5_filtros_pkey ON public.mac_slot5_filtros USING btree (id);
+CREATE INDEX mac_vinculos_propostas_item_idx ON public.mac_vinculos_propostas USING btree (mac_item_id);
+CREATE UNIQUE INDEX mac_vinculos_propostas_pendente_bip_idx ON public.mac_vinculos_propostas USING btree (mac_item_id, bip_fragmento_id) WHERE ((status = 'pendente'::text) AND (tipo = 'BIP'::text));
+CREATE UNIQUE INDEX mac_vinculos_propostas_pendente_lip_idx ON public.mac_vinculos_propostas USING btree (mac_item_id, lip_chave) WHERE ((status = 'pendente'::text) AND (tipo = 'LIP'::text));
+CREATE UNIQUE INDEX mac_vinculos_propostas_pkey ON public.mac_vinculos_propostas USING btree (id);
+CREATE INDEX mac_vinculos_propostas_status_idx ON public.mac_vinculos_propostas USING btree (status);
 CREATE INDEX idx_mdp_busca_norm_trgm ON public.mdp_registros USING gin (busca_norm gin_trgm_ops);
 CREATE INDEX mdp_registros_criado_em_idx ON public.mdp_registros USING btree (criado_em DESC);
 CREATE UNIQUE INDEX mdp_registros_pkey ON public.mdp_registros USING btree (id);
@@ -200,6 +209,8 @@ CREATE UNIQUE INDEX uq_mrp_meta_geral ON public.mrp_meta_historico USING btree (
 CREATE UNIQUE INDEX uq_mrp_meta_usuario ON public.mrp_meta_historico USING btree (usuario_id, vigente_desde) WHERE (usuario_id IS NOT NULL);
 CREATE UNIQUE INDEX mrp_pontuacao_pkey ON public.mrp_pontuacao USING btree (id);
 CREATE UNIQUE INDEX mrp_pontuacao_backup_pkey ON public.mrp_pontuacao_backup USING btree (id);
+CREATE INDEX idx_mrp_pontuacao_historico_regra ON public.mrp_pontuacao_historico USING btree (regra_id, vigente_desde DESC);
+CREATE UNIQUE INDEX mrp_pontuacao_historico_pkey ON public.mrp_pontuacao_historico USING btree (id);
 CREATE INDEX idx_mrp_registros_assunto ON public.mrp_registros USING btree (assunto_id);
 CREATE INDEX idx_mrp_registros_data ON public.mrp_registros USING btree (data_despacho DESC);
 CREATE INDEX idx_mrp_registros_gerencia ON public.mrp_registros USING btree (gerencia, ano, mes);
@@ -266,10 +277,18 @@ CREATE UNIQUE INDEX solicitacoes_despacho_extra_pkey ON public.solicitacoes_desp
 CREATE UNIQUE INDEX solicitacoes_etapa6_pkey ON public.solicitacoes_etapa6 USING btree (id);
 CREATE UNIQUE INDEX tipos_documento_nome_key ON public.tipos_documento USING btree (nome);
 CREATE UNIQUE INDEX tipos_documento_pkey ON public.tipos_documento USING btree (id);
+CREATE INDEX idx_urbi_comandos_voz_usuario_data ON public.urbi_comandos_voz USING btree (usuario_id, criado_em DESC);
+CREATE UNIQUE INDEX urbi_comandos_voz_pkey ON public.urbi_comandos_voz USING btree (id);
 CREATE UNIQUE INDEX urbi_config_chave_key ON public.urbi_config USING btree (chave);
 CREATE UNIQUE INDEX urbi_config_pkey ON public.urbi_config USING btree (id);
 CREATE UNIQUE INDEX urbi_historico_pkey ON public.urbi_historico USING btree (id);
+CREATE INDEX urbi_historico_processo_codigo_idx ON public.urbi_historico USING btree (processo_codigo);
 CREATE UNIQUE INDEX urbi_legislacao_pkey ON public.urbi_legislacao USING btree (id);
+CREATE INDEX urbi_sugestoes_estado_idx ON public.urbi_sugestoes USING btree (estado);
+CREATE UNIQUE INDEX urbi_sugestoes_pkey ON public.urbi_sugestoes USING btree (id);
+CREATE UNIQUE INDEX urbi_sugestoes_processo_codigo_tipo_chave_key ON public.urbi_sugestoes USING btree (processo_codigo, tipo, chave);
+CREATE INDEX urbi_sugestoes_processo_idx ON public.urbi_sugestoes USING btree (processo_codigo);
+CREATE INDEX urbi_sugestoes_slot_idx ON public.urbi_sugestoes USING btree (slot);
 CREATE INDEX idx_urbis_api_calls_criado_em ON public.urbis_api_calls USING btree (criado_em DESC);
 CREATE INDEX urbis_api_calls_criado_em_idx ON public.urbis_api_calls USING btree (criado_em);
 CREATE INDEX urbis_api_calls_modulo_idx ON public.urbis_api_calls USING btree (modulo);

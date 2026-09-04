@@ -1,8 +1,11 @@
 -- RLS, POLICIES E GRANTS — estado real apos a trava de 01/09/2026
--- Gerado por scripts/extrair_schema.mts em 2026-09-01.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-04.
 -- NAO EDITE A MAO: regenere.
 
--- Tabelas sem RLS ativo (0 de 119):
+-- Tabelas sem RLS ativo (3 de 124):
+--   mac_checklist_itens_historico
+--   mac_vinculos_propostas
+--   urbi_sugestoes
 
 -- RLS ativo:
 ALTER TABLE public.admin_users ENABLE ROW LEVEL SECURITY;
@@ -83,6 +86,7 @@ ALTER TABLE public.mrp_calendario_backup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mrp_meta_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mrp_pontuacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mrp_pontuacao_backup ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.mrp_pontuacao_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mrp_registros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.mrp_registros_backup ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notificacoes ENABLE ROW LEVEL SECURITY;
@@ -105,6 +109,7 @@ ALTER TABLE public.rh_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.solicitacoes_despacho_extra ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.solicitacoes_etapa6 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tipos_documento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.urbi_comandos_voz ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_legislacao ENABLE ROW LEVEL SECURITY;
@@ -205,7 +210,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
   USING (is_admin_user())
   WITH CHECK (is_admin_user());
 
--- Grants para anon/authenticated/service_role/PUBLIC (177 linhas):
+-- Grants para anon/authenticated/service_role/PUBLIC (193 linhas):
 -- admin_users                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- alertas                                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- analise_itens                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -264,6 +269,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- logradouros                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_bip_vinculos                           service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_checklist_itens                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- mac_checklist_itens_historico              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_checklist_modelos                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_execucoes                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_glossario                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -272,6 +278,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- mac_resultados_item                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_resultados_revisoes                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mac_slot5_filtros                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- mac_vinculos_propostas                     service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mdp_registros                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mhd_conteudos                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mhd_documentos                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -285,6 +292,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- mrp_painel_diario                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mrp_pontuacao                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mrp_pontuacao_backup                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- mrp_pontuacao_historico                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mrp_registros                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- mrp_registros_backup                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- notificacoes                               service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -307,9 +315,11 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- solicitacoes_despacho_extra                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- solicitacoes_etapa6                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- tipos_documento                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_comandos_voz                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_config                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_historico                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_legislacao                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_sugestoes                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_api_calls                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_aportes                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_config                               service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -372,16 +382,27 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- v_urbis_lip_status                         service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- v_urbis_lip_status_v2                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- v_urbis_lip_timeline                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_aguardando_retorno                  service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_analises_em_andamento               service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_analistas_desempenho                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_autores                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_campos_criticos                     service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_cobertura_satelite                  service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_desempenho_referencia               service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_exigencias_por_contexto             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_nao_conformidades                   service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_numeracao_saldo                     service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_por_analista                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_por_assunto                         service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_por_bairro                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_produtividade_mensal                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_resumo_geral                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_retorno_por_slot                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_retrabalho                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_retrabalho_por_passada              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_sessoes                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_bdi_tempo_analista                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- vw_bdi_tempo_etapas                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- vw_timeline_processo                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 
 -- ATENCAO: 0 grant(s) ainda concedidos a anon/authenticated/PUBLIC.

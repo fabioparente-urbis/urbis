@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body !== "object") {
     return NextResponse.json({ ok: false, erro: "Corpo inválido." }, { status: 400 });
   }
-  const { mensagem_usuario, resposta_urbi, linha, pose_usada } = body as Record<string, unknown>;
+  const { mensagem_usuario, resposta_urbi, linha, pose_usada, processo_codigo, tipo_processo, fontes_tipos } = body as Record<string, unknown>;
   if (typeof mensagem_usuario !== "string" || !mensagem_usuario.trim()) {
     return NextResponse.json({ ok: false, erro: "mensagem_usuario é obrigatória." }, { status: 400 });
   }
@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
   // cliente são ignorados.
   const { data: usuario } = await supabase.from("usuarios").select("nome").eq("id", ctx.userId).maybeSingle();
 
+  // Fase AB (04/09/2026) — rastreabilidade do Co-Analista: qual processo/slot e que TIPOS de
+  // fonte (nunca o conteúdo delas) alimentaram a resposta, pra conferência futura sem duplicar
+  // dado pessoal — mensagem_usuario/resposta_urbi já cobrem o texto da conversa, isto aqui só
+  // classifica a interação. Ausente (papo geral, sem processo em contexto) grava null/vazio.
   const { error } = await supabase.from("urbi_historico").insert({
     usuario_id: ctx.userId,
     usuario_nome: usuario?.nome ?? ctx.perfil,
@@ -74,6 +78,9 @@ export async function POST(req: NextRequest) {
     resposta_urbi,
     linha: typeof linha === "string" ? linha : "geral",
     pose_usada: typeof pose_usada === "string" ? pose_usada : null,
+    processo_codigo: typeof processo_codigo === "string" && processo_codigo.trim() ? processo_codigo.trim() : null,
+    tipo_processo: typeof tipo_processo === "string" && tipo_processo.trim() ? tipo_processo.trim() : null,
+    fontes_tipos: Array.isArray(fontes_tipos) ? fontes_tipos.filter((f): f is string => typeof f === "string") : null,
   });
   if (error) {
     console.error("[urbi/historico POST] falha ao gravar:", error.message);

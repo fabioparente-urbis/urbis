@@ -8,6 +8,8 @@ import { gerarEmbeddingConsulta } from "@/lib/bdi/embeddingConsulta";
 import { LIMITE_CHAMADAS_CHAT_HORA, OPERACOES_CHAT_URBI } from "@/lib/urbi/limites";
 import { usuarioDaRequisicao } from "@/lib/autorizacao";
 import { montarDossieFactual } from "@/lib/urbi/montarDossie";
+import { blocoContratoResposta, nomeHumanoDoSlot } from "@/lib/urbi/contratoResposta";
+import { montarManifestoFontes, type ManifestoFontes } from "@/lib/urbi/manifestoFontes";
 
 export const maxDuration = 60;
 
@@ -176,7 +178,7 @@ async function buscarNoBip(
 }
 
 type ResultadoDossie =
-  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null }
+  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null; nomeSlot: string; manifesto: ManifestoFontes }
   | { status: "indisponivel"; motivo: string };
 
 // Palavras curtas demais para funcionar como palavra-chave de busca nos itens
@@ -343,7 +345,55 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
     const contexto = truncado
       ? `${serializado.slice(0, LIMITE_CONTEXTO)}\n[RECORTE INTERROMPIDO POR LIMITE DE CONTEXTO — não conclua sobre o que não apareceu.]`
       : serializado;
-    return { status: "ok", contexto, truncado, tipoProcesso: d.processo?.tipo_processo ?? null };
+
+    const tipoProcesso = d.processo?.tipo_processo ?? null;
+    const nomeSlot: string = d.tecnico?.nome_slot ?? nomeHumanoDoSlot(tipoProcesso);
+
+    // Manifesto de fontes (Fase AB) — calculado do MESMO recorte enviado ao Gemini (nunca do
+    // dossiê bruto não cortado), pra ser uma evidência verificável independente do texto de
+    // resposta do modelo: mesmo que a prosa erre, o manifesto mostra o que realmente foi
+    // carregado. Referências do BIP vêm só das pendências efetivamente enviadas (pendencias,
+    // já cortada em 20), nunca do dossiê inteiro.
+    const referenciasBip = [...new Set(
+      pendencias.flatMap((p: any) => (p.vinculos_bip ?? []).map((v: any) => String(v.referencia)).filter(Boolean))
+    )] as string[];
+    const cruzamentosTotal = (d.cruzamentos ?? [])
+      .filter((c: any) => c.resultado === "possivel_divergencia" || c.resultado === "base_juridica_ausente").length;
+    const manifesto = montarManifestoFontes({
+      codigo,
+      slot: tipoProcesso,
+      nomeSlot,
+      camposTecnicos: Object.keys(d.lip?.campos_tecnicos ?? {}).length,
+      camposVazios: Number(d.lip?.campos_vazios) || 0,
+      camposEmX: Number(d.lip?.campos_em_x) || 0,
+      historicoLipTotal: (d.lip?.historico_alteracoes ?? []).length,
+      historicoLipMostrado: historicoAlteracoesLipRecorte.length,
+      numeroAnalises: Number(d.mac?.numero_analises) || 0,
+      numeroUltimaAnalise: d.mac?.ultima_analise?.numero_analise ?? null,
+      pendenciasTotal: (d.mac?.pendencias_ultima_analise ?? []).length,
+      pendenciasMostradas: pendencias.length,
+      itensEmBrancoTotal: marcacoes.filter((m: any) => m.status === "em_branco").length,
+      itensEmBrancoMostrados: itensEmBranco.length,
+      itensChecklistTotal: marcacoes.length,
+      evolucaoCorrigidosTotal: (evolucaoBruta.itens_corrigidos ?? []).length,
+      evolucaoCorrigidosMostrados: evolucao.itens_corrigidos.length,
+      evolucaoVoltaramTotal: (evolucaoBruta.itens_voltaram_nao_conforme ?? []).length,
+      evolucaoVoltaramMostrados: evolucao.itens_voltaram_nao_conforme.length,
+      evolucaoMantidosTotal: (evolucaoBruta.itens_pendentes_mantidos ?? []).length,
+      evolucaoMantidosMostrados: evolucao.itens_pendentes_mantidos.length,
+      cruzamentosTotal,
+      cruzamentosMostrados: cruzamentosRecorte.length,
+      referenciasBip,
+      documentosEmitidos: (d.fluxo?.documentos_emitidos ?? []).length,
+      documentosMhd: (d.fluxo?.documentos_mhd ?? []).length,
+      coberturaCompleta: d.cobertura?.completo !== false && !truncado,
+      fontesIndisponiveis: [
+        ...(d.cobertura?.fontes_indisponiveis ?? []),
+        ...(truncado ? ["recorte cortado por limite de contexto"] : []),
+      ],
+    });
+
+    return { status: "ok", contexto, truncado, tipoProcesso, nomeSlot, manifesto };
   } catch (erro: any) {
     console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
     return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
@@ -548,18 +598,19 @@ como se fosse fonte própria — isso é exclusivo do modo BIP. Ajude com o que 
       if (dossie.status === "ok") {
         systemPromptFinal += `
 
-MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo} (${dossie.tipoProcesso ?? "slot não identificado"}).
+MODO ATIVO: Co-Analista — leitura do processo ${codigoLimpo} (${dossie.nomeSlot}).
 Você recebeu um DOSSIÊ FACTUAL deste processo, montado por consulta direta ao banco (não por você,
 não é sua interpretação). Use-o SOMENTE para: explicar a situação do processo, apontar o que está
 pendente, sugerir o que verificar a seguir, e apoiar dúvida técnica sobre ele.
 
+${blocoContratoResposta(codigoLimpo, dossie.nomeSlot)}
+
 ISOLAMENTO DE CONTEXTO — regra absoluta: este dossiê é SEMPRE do processo ${codigoLimpo}
-(${dossie.tipoProcesso ?? "slot não identificado"}) nesta mensagem específica; se a conversa
-mencionar outro código de processo mais cedo, esse processo anterior NÃO EXISTE MAIS pra você —
-nunca reutilize, compare ou misture dado dele com o processo atual, mesmo que pareça relevante.
-Toda resposta neste modo deve abrir citando explicitamente o código do processo e o slot que você
-está analisando agora (ex.: "Sobre o processo ${codigoLimpo} (${dossie.tipoProcesso ?? "slot não identificado"})...")
-— isso ajuda o analista a perceber na hora se o contexto mudou.
+(${dossie.nomeSlot}) nesta mensagem específica; se a conversa mencionar outro código de processo
+mais cedo, esse processo anterior NÃO EXISTE MAIS pra você — nunca reutilize, compare ou misture
+dado dele com o processo atual, mesmo que pareça relevante. Toda resposta neste modo deve abrir
+com a linha "Processo analisado: ${codigoLimpo} — ${dossie.nomeSlot}" (ver CONTRATO DE RESPOSTA
+acima) — isso ajuda o analista a perceber na hora se o contexto mudou.
 
 VOCÊ NUNCA PODE, mesmo se o analista pedir diretamente:
 - decidir, aprovar, reprovar ou concluir uma análise;
@@ -583,7 +634,7 @@ Regras de uso do dossiê:
 - Nunca invente número de análise, despacho, parecer, data ou valor de campo que não estejam no dossiê.
 - Ao citar um item do MAC (de "pendencias_ultima_analise", "itens_em_branco", "itens_relacionados_pergunta" ou "evolucao"), NUNCA mostre o "item_id" (é um identificador técnico interno, tipo UUID, sem significado nenhum pro analista) — identifique o item sempre pelo grupo, pelo texto dele e, quando existir, pelo campo do LIP relacionado ("campo_lip_relacionado") ou referência do checklist. O item_id existe só pra você combinar dado entre listas, nunca pra aparecer na resposta.
 - "pendencias_ultima_analise" são os itens NÃO CONFORMES da análise mais recente — explique o texto do item e, se houver "vinculos_bip", cite a referência; nunca diga que um item foi resolvido/corrigido a menos que o dossiê mostre isso de fato.
-- "itens_em_branco" são itens do checklist ainda SEM MARCAÇÃO nesta passada — "sem marcação" não é conforme nem aprovado, é ausência de decisão do analista até agora; é uma lista PARCIAL (o dossiê pode ter mais itens em branco do que os listados aqui), nunca afirme que ela é o total.
+- "itens_em_branco" são itens do checklist ainda SEM MARCAÇÃO nesta passada — "sem marcação" não é conforme nem aprovado, é ausência de decisão do analista até agora; é uma lista PARCIAL (o dossiê pode ter mais itens em branco do que os listados aqui), nunca afirme que ela é o total. NUNCA trate um item em branco como reprovado, indeferido, negado ou como qualquer decisão negativa — ausência de marcação não é decisão nenhuma, é só o que ainda falta o analista olhar.
 - "itens_relacionados_pergunta" (quando presente) são itens do checklist que parecem ligados à pergunta atual do analista, por palavra-chave — pode incluir item conforme; sempre diga o status real de cada um, nunca assuma que aparecer aqui significa pendência.
 - "tem_observacao": true num item significa que o analista escreveu uma observação sobre ele na tela — você NÃO recebe o texto dela (não vai pro seu contexto por privacidade). Diga que existe uma observação registrada e sugira que o analista a releia na tela; nunca invente o que ela diz.
 - "mac.evolucao" compara a passada atual com o que o histórico (mac_historico) já sabia do item ANTES desta passada — grau_certeza "confirmado" nos 3 blocos, é fato direto: "itens_corrigidos" (estava não conforme, não está mais — pode dizer "foi corrigido", com "quando"), "itens_voltaram_nao_conforme" (tinha sido resolvido numa passada anterior e voltou a não conforme agora — alerte isso claramente, é informação operacional relevante), "itens_pendentes_mantidos" (segue não conforme desde uma passada anterior, sem mudança). Só compara item que tem "antes" real no histórico — se um item não aparece em nenhuma das 3 listas, não há comparação disponível pra ele, não conclua nada sobre evolução dele.
@@ -663,14 +714,31 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     const sair = texto.includes("[URBI_SAIR]");
     const resposta = texto.replace("[URBI_SAIR]", "").trim();
 
-    // Marca simples pedida no plano do Co-Analista: a interface pode informar ao
-    // analista que esta resposta usou o dossiê do processo — nunca expõe o conteúdo
-    // do dossiê em si, só o fato de ter sido consultado (e se a leitura veio completa).
+    // Fase AB — evidência verificável: além da marca simples de "usou o dossiê", a interface
+    // recebe o manifesto de fontes (lib/urbi/manifestoFontes.ts), calculado em código a partir
+    // do MESMO recorte enviado ao Gemini, nunca do texto de resposta dele — o analista pode
+    // conferir "o que foi carregado" sem depender de o modelo ter descrito certo. Nunca expõe o
+    // conteúdo do dossiê em si (valor de campo, texto de item), só a contagem/rótulo por tipo de
+    // fonte.
     const usouDossie = dossie?.status === "ok"
-      ? { usado: true, completo: !dossie.truncado }
+      ? {
+          usado: true, completo: !dossie.truncado,
+          processo: codigoLimpo, slot: dossie.tipoProcesso, nome_slot: dossie.nomeSlot,
+          fontes: dossie.manifesto.fontes, cobertura_completa: dossie.manifesto.cobertura_completa,
+        }
       : { usado: false };
 
-    return NextResponse.json({ ok: true, resposta, sair, dossie: usouDossie });
+    // Fase AB — registro no histórico do URBI (código/slot/tipos de fonte), sem duplicar dado
+    // pessoal: só nomes de categoria de fonte ("LIP", "MAC", "BIP"...), nunca o texto de fonte
+    // detalhado nem o conteúdo do dossiê. A gravação em si (POST /api/urbi/historico) continua
+    // sendo feita pelo cliente (UrbiChat.tsx), como já era — aqui só devolvemos os campos pra ele
+    // repassar, pra não duplicar a chamada ao Supabase que o cliente já faz.
+    const fontesTipos = dossie?.status === "ok" ? [...new Set(dossie.manifesto.fontes.map((f) => f.tipo))] : [];
+
+    return NextResponse.json({
+      ok: true, resposta, sair, dossie: usouDossie,
+      registro: { processo_codigo: codigoLimpo || null, tipo_processo: dossie?.status === "ok" ? dossie.tipoProcesso : null, fontes_tipos: fontesTipos },
+    });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e?.message }, { status: 500 });
   }
