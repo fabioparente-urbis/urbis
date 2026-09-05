@@ -236,7 +236,9 @@ export async function montarDossieFactual(
     mrp_registrado: numerosMrp.has(doc.numero),
   }));
 
-  const lip = fatosDoLip(processo as any, rotuloPorChaveLip);
+  const lip = fatosDoLip(processo as any, rotuloPorChaveLip, resumoCampos ? {
+    vazios: resumoCampos.campos_vazios, emX: resumoCampos.campos_em_x, totais: resumoCampos.campos_totais,
+  } : null);
 
   const cruzamentosLipDocumento = cruzarLipComDocumento(
     Object.fromEntries(Object.entries(lip.campos_tecnicos).map(([chave, c]: [string, any]) => [chave, { chave, valor: c.valor, fonte: c.fonte, rotulo: c.rotulo }])),

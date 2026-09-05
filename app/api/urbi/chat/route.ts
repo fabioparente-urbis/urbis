@@ -11,6 +11,7 @@ import { montarDossieFactual } from "@/lib/urbi/montarDossie";
 import { blocoContratoResposta, nomeHumanoDoSlot } from "@/lib/urbi/contratoResposta";
 import { montarManifestoFontes, type ManifestoFontes } from "@/lib/urbi/manifestoFontes";
 import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
+import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
 
 export const maxDuration = 60;
 
@@ -179,7 +180,7 @@ async function buscarNoBip(
 }
 
 type ResultadoDossie =
-  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null; nomeSlot: string; manifesto: ManifestoFontes }
+  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null; nomeSlot: string; manifesto: ManifestoFontes; recorte: Record<string, unknown> }
   | { status: "indisponivel"; motivo: string };
 
 // Palavras curtas demais para funcionar como palavra-chave de busca nos itens
@@ -308,11 +309,25 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
       : null;
 
     const recorte = {
-      processo: d.processo,
+      // Fase AE (04/09/2026, achado real do reteste): "processo.area_construida" NUNCA vai pro
+      // Gemini — é uma cópia redundante de lip.campos_tecnicos.areaTotal.valor (os 3 slots
+      // gravam essa coluna a partir do MESMO campo do LIP, ver app/analise-*/[codigo]/page.tsx),
+      // exposta sem rótulo nenhum. O Gemini, sem rótulo, inventou "área construída total" pra
+      // ela — vocabulário de domínio do Slot 5, que não existe pra Regularização/Aceite SEI
+      // (ver lib/urbi/catalogoSemantico.ts). O mesmo valor já chega rotulado certo via
+      // "lip.campos_tecnicos.areaTotal" — nunca precisou de um segundo caminho sem rótulo.
+      processo: {
+        codigo: d.processo?.codigo, assunto: d.processo?.assunto, tipo_processo: d.processo?.tipo_processo,
+        porte: d.processo?.porte, criado_em: d.processo?.criado_em, atualizado_em: d.processo?.atualizado_em,
+        analise_iniciada_em: d.processo?.analise_iniciada_em, analise_concluida_em: d.processo?.analise_concluida_em,
+      },
       situacoes: d.situacoes,
       lip: {
         campos_vazios: d.lip?.campos_vazios,
         campos_em_x: d.lip?.campos_em_x,
+        campos_totais: d.lip?.campos_totais,
+        campos_vazios_rotulos: d.lip?.campos_vazios_rotulos,
+        campos_em_x_rotulos: d.lip?.campos_em_x_rotulos,
         incoerencias: d.lip?.incoerencias,
         campos_tecnicos: d.lip?.campos_tecnicos,
         historico_alteracoes: historicoAlteracoesLipRecorte,
@@ -394,7 +409,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
       ],
     });
 
-    return { status: "ok", contexto, truncado, tipoProcesso, nomeSlot, manifesto };
+    return { status: "ok", contexto, truncado, tipoProcesso, nomeSlot, manifesto, recorte };
   } catch (erro: any) {
     console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
     return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
@@ -644,8 +659,9 @@ Regras de uso do dossiê:
 - "tecnico.eventos_catalogo_recentes" é trilha REAL de mudança do catálogo (item criado/atualizado/desativado/reativado, com o campo exato que mudou) — existe desde 03/09/2026, só cobre daqui pra frente; mudança de catálogo anterior a essa data não aparece aqui, só a inferência por divergência de texto em "mudancas_estruturais". Quando os dois coincidirem pro mesmo item, prefira citar o evento real (mais preciso: diz a ação e o campo exato).
 - "tecnico" é o retrato do que este SLOT específico sustenta agora — regra suprema: o catálogo de LIP/MAC é vivo, pode ganhar/perder/mudar campo e item a qualquer momento; "tecnico.catalogo" foi lido do banco agora mesmo, nunca é uma lista fixa que você já "sabia" de antes — não afirme que um campo/item existe ou não existe sem checar aqui. "tecnico.coberturas" diz, fonte por fonte, se ESTE processo tem dado real nela — ausência aqui não é falha do processo nem do analista, é limite real da fonte pra este slot (leia "tecnico.observacoes_do_slot" antes de comentar isso, tem a calibração certa). "tecnico.mudancas_estruturais" lista item cujo texto mudou (ou sumiu do catálogo ativo) entre quando foi marcado numa passada antiga e o texto de agora — quando aparecer aqui, diga explicitamente "a estrutura deste item mudou desde então" ou "base histórica insuficiente pra comparar", NUNCA trate isso como erro de quem preencheu ou de quem analisou na época.
 - Você PODE, dentro da conversa, notar e comentar problema de REDAÇÃO do checklist/LIP (texto confuso, duplicidade aparente, item que se repete demais, campo que parece faltar, possível vínculo BIP que ainda não existe) — mas isso é só CONVERSA, sugestão pro analista levar a quem administra o catálogo: você nunca cria, remove, altera, marca ou decide item/campo, e nunca publica vínculo jurídico. Deixe claro que é uma observação sua (grau_certeza "vale_conferir" ou "aguarda_confirmacao_humana"), não um fato do dossiê.
-- "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado). Cada campo tem "rotulo" (nome humano real, vindo do mesmo catálogo que nomeia o campo na tela do analista) — ao citar um campo pro analista ou na seção "Fontes consultadas", use SEMPRE "rotulo", NUNCA a chave do objeto (a chave — ex.: "areaArt", "bairro", "tombado" — é identificador técnico interno, só pra você indexar, nunca deve aparecer numa resposta). Quando "rotulo" vier exatamente "Campo sem rótulo cadastrado", o catálogo não tem entrada pra esta chave (campo legado ou falha de consulta) — trate a identificação deste campo como "base_insuficiente" e NUNCA cite a chave técnica como substituto do rótulo que falta.
-- Em "campos_vazios"/"campos_em_x": campo vazio é o que merece atenção (pode ser falha de preenchimento); campo listado em "campos_em_x" está marcado com "X" no documento — isso é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver. Nunca trate "X" como se fosse igual a vazio.
+- "campos_tecnicos" são só campos técnicos do LIP (nunca nome, CPF, endereço ou contato do interessado — isso já foi filtrado antes de chegar até você, e você nunca deve tentar adivinhar ou pedir esse dado). Cada campo tem "rotulo" (nome humano real, vindo do mesmo catálogo que nomeia o campo na tela do analista) — ao citar um campo pro analista, use SEMPRE "rotulo", NUNCA a chave do objeto (a chave — ex.: "areaArt", "bairro", "tombado" — é identificador técnico interno, só pra você indexar, nunca deve aparecer numa resposta). Quando "rotulo" vier exatamente "Campo sem rótulo cadastrado", o catálogo não tem entrada pra esta chave (campo legado ou falha de consulta) — trate a identificação deste campo como "base_insuficiente" e NUNCA cite a chave técnica como substituto do rótulo que falta.
+- "campos_vazios"/"campos_em_x"/"campos_totais" são NÚMEROS — a contagem oficial e única do LIP inteiro deste processo (mesma fonte de "situacoes.lip", nunca diverge dela). Pode falar "X de Y campos vazios" citando esses números diretamente, sempre grau_certeza "confirmado". Campo vazio é o que merece atenção (pode ser falha de preenchimento); "campos_em_x" é uma AUSÊNCIA DECLARADA pelo analista ("o documento não traz essa informação"), não um erro nem uma pendência a resolver — nunca trate "X" como se fosse igual a vazio.
+- "campos_vazios_rotulos"/"campos_em_x_rotulos" são listas de RÓTULO humano (nunca chave técnica) dos campos vazios/em X que já foram ao menos iniciados no LIP — são PARCIAIS por natureza (não cobrem campo do catálogo que nunca foi sequer tocado, por isso podem somar MENOS que os números de "campos_vazios"/"campos_em_x" acima) — use pra dar exemplo específico, nunca afirme que a lista é completa nem que ela sozinha explica o número total.
 - Em "fluxo.aguardando_retorno": situação "base insuficiente" significa que não dá para confirmar se o processo está mesmo aguardando o interessado (dado incompleto ou inconsistente) — isso é INCERTEZA, nunca conte como "está tudo certo" nem como atraso confirmado. Só "ainda aguardando" com "dias" é fato de espera real; "retornou" significa que já existe análise seguinte.
 
 VERIFICAÇÃO DE COERÊNCIA (quando o analista pedir, ou quando você notar algo digno de nota
@@ -762,12 +778,21 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     });
     const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
     const sair = texto.includes("[URBI_SAIR]");
-    // Fase AD (04/09/2026) — achado real do piloto: mesmo com o prompt instruindo "use sempre
-    // rotulo, nunca a chave" (Fase AC), o Gemini continuou citando caminho técnico tipo
-    // "lip.campos_tecnicos.observacoes" na seção "Fontes consultadas". Instrução de prompt
-    // sozinha não é garantia — esta é a rede de segurança determinística que roda sempre,
-    // independente do modelo ter obedecido ou não.
-    const resposta = removerCaminhosTecnicos(texto.replace("[URBI_SAIR]", "").trim());
+    // Fase AE (04/09/2026) — achado real do reteste: mesmo depois do sanitizador (Fase AD) e do
+    // formato "Categoria — Rótulo" pedido no prompt, o Gemini continuou citando identificador
+    // técnico na seção "Fontes consultadas" ("Processo — codigo", "MAC — ultima_analise.status",
+    // "LIP — campos_vazios") — só mudou de forma. A partir daqui essa seção NUNCA mais é escrita
+    // pelo modelo: o que ele escrever ali é DESCARTADO por inteiro (truncado a partir do
+    // heading, nunca pattern-matched token a token) e substituído pela lista montada em código
+    // a partir do MESMO recorte enviado a ele (lib/urbi/fontesConsultadas.ts) — garantia
+    // estrutural, não uma instrução que o modelo pode ignorar.
+    const textoSemFontesDoModelo = removerSecaoFontesConsultadas(texto.replace("[URBI_SAIR]", "").trim());
+    // removerCaminhosTecnicos (Fase AD) continua rodando como rede de segurança pro resto da
+    // resposta (Fatos/Vale conferir/Base insuficiente) — a seção de fontes não depende mais dele.
+    const respostaBase = removerCaminhosTecnicos(textoSemFontesDoModelo);
+    const resposta = dossie?.status === "ok"
+      ? `${respostaBase}\n\n${textoFontesConsultadas(dossie.recorte)}`
+      : respostaBase;
 
     // Fase AB — evidência verificável: além da marca simples de "usou o dossiê", a interface
     // recebe o manifesto de fontes (lib/urbi/manifestoFontes.ts), calculado em código a partir

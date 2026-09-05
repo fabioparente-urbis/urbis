@@ -96,14 +96,33 @@ export function fatosDoLip(
     tags?: unknown;
   },
   rotuloPorChave?: Map<string, string> | null,
+  /**
+   * Fase AE (04/09/2026, achado real do reteste do piloto): fonte CANÔNICA dos 3 números —
+   * `vw_bdi_campos_criticos`, a MESMA view que já classifica `situacoes.lip` — nunca mais o
+   * cálculo próprio deste arquivo (`resumirCampos`, abaixo). A view conta contra o catálogo
+   * REAL de `lip_campos` (86 campos), inclusive campo nunca sequer iniciado em
+   * `processos.dados`; `resumirCampos` só enxerga chave que já existe no JSONB, por isso
+   * divergia — a resposta do piloto disse "4 de 86 vazios" enquanto o manifesto (que lia
+   * `resumirCampos` sem saber que o valor era um ARRAY de chaves, não uma contagem) mostrava "0
+   * vazios". Ausente (falha de consulta) vira 0/0/0 — nunca finge certeza que não tem.
+   */
+  resumoCanonico?: { vazios: number; emX: number; totais: number } | null,
 ) {
+  // resumirCampos ainda roda — mas só pra saber QUAIS chaves (já presentes em processos.dados)
+  // estão vazias/em X, nunca mais pra contar quantas. A lista é sempre convertida pro rótulo
+  // humano (nunca a chave crua) e é necessariamente PARCIAL: só cobre campo já iniciado, pode
+  // ser menor que o número canônico acima (que inclui campo nunca sequer tocado).
   const resumo = resumirCampos(processo.dados as Record<string, any> | null | undefined);
   const incoerencias = acharIncoerencias(processo as any);
+  const paraRotulos = (chaves: string[]) =>
+    chaves.filter((chave) => !CHAVE_PESSOAL.test(chave)).map((chave) => rotuloPorChave?.get(chave) ?? SEM_ROTULO_CADASTRADO);
   return {
     campos_tecnicos: camposTecnicosDoLip(processo.dados, rotuloPorChave),
-    campos_vazios: resumo.vazios,
-    campos_em_x: resumo.emX,
-    campos_totais: resumo.totais,
+    campos_vazios: resumoCanonico?.vazios ?? 0,
+    campos_em_x: resumoCanonico?.emX ?? 0,
+    campos_totais: resumoCanonico?.totais ?? 0,
+    campos_vazios_rotulos: paraRotulos(resumo.vazios),
+    campos_em_x_rotulos: paraRotulos(resumo.emX),
     incoerencias,
   };
 }

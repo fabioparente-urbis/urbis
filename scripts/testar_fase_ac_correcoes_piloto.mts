@@ -46,7 +46,11 @@ secao("2 · fontes só com rótulos humanos — prompt instrui usar 'rotulo', nu
 {
   t('prompt instrui SEMPRE usar "rotulo", nunca a chave do objeto', rota.includes('use SEMPRE "rotulo", NUNCA a chave do objeto'));
   t('prompt trata "Campo sem rótulo cadastrado" como base_insuficiente pra identificação', rota.includes('trate a identificação deste campo como "base_insuficiente"'));
-  t('contrato de resposta proíbe explicitamente caminho tipo "lip.campos_tecnicos.X"', readFileSync(new URL("../lib/urbi/contratoResposta.ts", import.meta.url), "utf-8").includes('caminho de propriedade como "lip.campos_tecnicos.algumaChave"'));
+  // Fase AE (04/09/2026): o contrato passou de "escreva Fontes consultadas sem caminho técnico"
+  // pra "não escreva essa seção — o sistema anexa em código" (ver scripts/testar_fase_ae_*.mts,
+  // a garantia real virou estrutural, não mais uma proibição de prompt) — aqui só confirma que a
+  // instrução de usar "rotulo" (nunca a chave) continua valendo pro resto da resposta.
+  t('prompt continua proibindo citar a chave do objeto, só o "rotulo"', rota.includes('use SEMPRE "rotulo", NUNCA a chave do objeto'));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

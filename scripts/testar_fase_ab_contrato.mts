@@ -53,7 +53,11 @@ secao("1 · resposta contextualizada por slot/processo");
   t("contrato exige seção 'Fatos do dossiê:'", bloco.includes("Fatos do dossiê:"));
   t("contrato exige seção 'Vale conferir:'", bloco.includes("Vale conferir:"));
   t("contrato exige seção 'Base insuficiente:'", bloco.includes("Base insuficiente:"));
-  t("contrato exige seção 'Fontes consultadas:'", bloco.includes("Fontes consultadas:"));
+  // Fase AE (04/09/2026): "Fontes consultadas" deixou de ser uma seção que o MODELO escreve —
+  // virou uma seção montada em código (ver scripts/testar_fase_ae_fontes_canonicas.mts) e o
+  // contrato agora instrui o modelo a NÃO escrevê-la. A garantia de que ela aparece pro
+  // analista está no backend (route.ts sempre anexa), não mais numa exigência de prompt.
+  t('contrato menciona "Fontes consultadas" (agora pra dizer que o modelo NÃO deve escrevê-la)', bloco.includes("Fontes consultadas"));
 
   // Slot muda → texto muda junto (não é um template fixo que ignora o argumento).
   const blocoOutroSlot = blocoContratoResposta("48533", "Aprovação de Projeto");
