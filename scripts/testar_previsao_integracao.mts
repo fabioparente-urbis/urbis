@@ -28,7 +28,10 @@ secao("1 · retrato grava previsao_tempo de verdade (não recalcula fora do Rada
   t("processou", r.processado && r.codigo === PROCESSO, JSON.stringify(r));
   const { data: linha } = await supabaseAdmin.from("urbi_radar_retratos").select("previsao_tempo, versao_contrato").eq("processo_codigo", PROCESSO).order("versao", { ascending: false }).limit(1).maybeSingle();
   t("previsao_tempo gravada (não nula)", !!(linha as any)?.previsao_tempo, JSON.stringify(linha));
-  t("versao_contrato = 2 (Fase 4 subiu o contrato)", (linha as any)?.versao_contrato === 2, JSON.stringify(linha));
+  // Não trava num número fixo: VERSAO_CONTRATO_RETRATO sobe legitimamente a cada fase que muda o
+  // formato do retrato (ex.: Fase 6 subiu de 2 pra 3 ao acrescentar pendencias_sem_bip) — o que
+  // importa é que o campo Fase 4 (previsao_tempo) continua sendo gravado corretamente.
+  t("versao_contrato gravada como inteiro positivo (>= 2, já que previsao_tempo existe desde a Fase 4)", Number.isInteger((linha as any)?.versao_contrato) && (linha as any).versao_contrato >= 2, JSON.stringify(linha));
   t("status é um dos 3 válidos", ["estimativa", "suspensa", "base_insuficiente"].includes((linha as any)?.previsao_tempo?.status), JSON.stringify(linha));
 }
 

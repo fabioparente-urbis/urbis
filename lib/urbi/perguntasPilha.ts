@@ -14,9 +14,13 @@
  * não casa nenhum padrão devolve `null` — quem chama decide o que fazer (hoje: cai no fluxo
  * normal do chat).
  */
-import { obterUltimosRetratosVisiveis, type VisibilidadeUsuario, type RetratoConsultavel } from "./radar";
+import { obterUltimosRetratosVisiveis, obterStatusRadar, type VisibilidadeUsuario, type RetratoConsultavel } from "./radar";
 import { nomeHumanoDoSlot } from "./contratoResposta";
 import type { AtributoFactual } from "./catalogoConsultaPilha";
+
+/** Retrato concluído há mais que isto entra na lista de "desatualizado" — mesma folga (3x a
+ *  cadência esperada do job) já usada em lib/urbi/radarJob.ts/alertasProducao.ts. */
+const LIMITE_RETRATO_DESATUALIZADO_HORAS = 6;
 
 const LIMITE_LISTA = 15;
 
@@ -42,7 +46,23 @@ const ORDEM_ORDINAL: Record<string, number> = {
   primeira: 1, segunda: 2, terceira: 3, quarta: 4, quinta: 5, sexta: 6, setima: 7, oitava: 8,
 };
 
+/**
+ * Fase 6 (05/09/2026) — toda resposta factual da Pilha tem que informar: critério (já dito por
+ * extenso em cada resposta, via "Fonte:"), cobertura (X de Y processos visíveis), data da
+ * pré-análise mais recente, e confirmação de que Gemini não foi acionado. Em vez de repetir isso
+ * em cada um dos ~20 blocos de pergunta (duplicaria texto e arriscaria esquecer um), um rodapé
+ * único é anexado aqui, na saída da função pública — nunca recalcula nada, só lê
+ * `obterStatusRadar` (já existente, mesma fonte do cartão da Home/Pilha).
+ */
 export async function responderPerguntaPilha(mensagem: string, usuario: VisibilidadeUsuario): Promise<string | null> {
+  const resposta = await responderPerguntaPilhaInterna(mensagem, usuario);
+  if (resposta === null) return null;
+  const status = await obterStatusRadar(usuario);
+  const quando = status.ultimaExecucaoEm ? new Date(status.ultimaExecucaoEm).toLocaleString("pt-BR") : "nenhuma execução ainda";
+  return `${resposta}\n\n(Cobertura: ${status.comRetratoAtualizado} de ${status.totalVisiveis} processo(s) visível(is) pré-analisado(s); última pré-análise: ${quando}; Gemini não foi acionado.)`;
+}
+
+async function responderPerguntaPilhaInterna(mensagem: string, usuario: VisibilidadeUsuario): Promise<string | null> {
   const t = normalizar(mensagem);
 
   // ── retorno da gerência — sempre indisponível hoje, responde sem nem consultar retrato ──────
@@ -134,7 +154,7 @@ export async function responderPerguntaPilha(mensagem: string, usuario: Visibili
   // ── linha de evidência: retornaram sem resultado / reincidiram / aguardam conferência / ──────
   // pendência repetida — sempre a partir de `linha_evidencia` já pronto no retrato, nunca um
   // cálculo novo (mesma regra de reaproveitamento das perguntas acima).
-  if (/retornaram? sem resultado|retorno sem resultado/.test(t)) {
+  if (/retornaram? sem resultado|retorno sem resultado|retornaram? sem nova an[áa]lise/.test(t)) {
     const retratos = await obterUltimosRetratosVisiveis(usuario);
     const achados = retratos.filter((r) => (r.linha_evidencia?.registros ?? []).some((reg) => reg.resultado === "sem_marcacao_posterior"));
     return achados.length > 0
@@ -187,6 +207,53 @@ export async function responderPerguntaPilha(mensagem: string, usuario: Visibili
     return achados.length > 0
       ? `${achados.length} processo(s) com previsão suspensa por depender de documento do interessado: ${listarCodigos(achados)}.\nFonte: Motor de Produção (esforço "depende_documento").`
       : "Nenhum processo visível com previsão suspensa por documento agora.";
+  }
+
+  // ── Fase 6 (05/09/2026) — completando as perguntas pedidas, tudo a partir do que já está no
+  // retrato (nunca um cálculo novo além do que os campos abaixo já representam).
+
+  if (/aguardam? retorno|ainda aguardando retorno/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => r.campos_consulta?.dias_aguardando_retorno.disponivel);
+    return achados.length > 0
+      ? `${achados.length} processo(s) ainda aguardando retorno do interessado: ${listarCodigos(achados)}.\nFonte: BDI — vw_bdi_aguardando_retorno.`
+      : "Nenhum processo visível aguardando retorno agora.";
+  }
+
+  if (/menos pend[êe]ncias|menor (?:n[úu]mero de )?pend[êe]ncias/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const comDado = retratos.filter((r) => r.campos_consulta?.pendencias.disponivel);
+    const indisp = contarIndisponiveis(retratos, (c) => c.pendencias);
+    const ordenados = [...comDado].sort((a, b) => (a.campos_consulta!.pendencias.valor ?? 0) - (b.campos_consulta!.pendencias.valor ?? 0));
+    const top = ordenados.slice(0, 5);
+    if (top.length === 0) return `Base insuficiente: nenhum processo visível tem contagem de pendências calculada ainda.${fraseIndisponiveis(indisp, "pendências")}`;
+    const linhas = top.map((r, i) => `${i + 1}. ${r.processo_codigo} (${nomeHumanoDoSlot(r.tipo_processo)}) — ${r.campos_consulta!.pendencias.valor} pendência(s).`);
+    return `Menos pendências (ordenado por contagem crescente):\n${linhas.join("\n")}${fraseIndisponiveis(indisp, "pendências")}\nFonte: MAC — pendências da última análise.`;
+  }
+
+  if (/retrato desatualizado/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const agora = Date.now();
+    const achados = retratos.filter((r) => r.concluido_em && (agora - new Date(r.concluido_em).getTime()) / 3_600_000 > LIMITE_RETRATO_DESATUALIZADO_HORAS);
+    return achados.length > 0
+      ? `${achados.length} processo(s) com retrato desatualizado (última pré-análise há mais de ${LIMITE_RETRATO_DESATUALIZADO_HORAS}h): ${listarCodigos(achados)}.\nFonte: urbi_radar_retratos.concluido_em.`
+      : `Nenhum processo visível com retrato desatualizado (todos pré-analisados nas últimas ${LIMITE_RETRATO_DESATUALIZADO_HORAS}h) agora.`;
+  }
+
+  if (/mudan[çc]a de cat[áa]logo|cat[áa]logo mudou/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => r.motivo_disparo?.includes("mudança de catálogo"));
+    return achados.length > 0
+      ? `${achados.length} processo(s) reprocessado(s) por mudança de catálogo do MAC: ${listarCodigos(achados)}.\nFonte: urbi_radar_retratos.motivo_disparo (mac_checklist_itens_historico).`
+      : "Nenhum processo visível reprocessado por mudança de catálogo recentemente.";
+  }
+
+  if (/base jur[íi]dica insuficiente|sem base jur[íi]dica|sem fundamento (?:legal|jur[íi]dico)|nao\w*.{0,15}base jur[íi]dica|base jur[íi]dica.{0,15}insuficiente/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => typeof r.pendencias_sem_bip === "number" && r.pendencias_sem_bip > 0);
+    return achados.length > 0
+      ? `${achados.length} processo(s) com pendência(s) da última análise sem vínculo BIP aprovado: ${listarCodigos(achados)}.\nFonte: MAC — vinculos_bip por item (cobertura completa de BIP é trabalho à parte, ainda em andamento).`
+      : "Nenhum processo visível com pendência sem vínculo BIP aprovado agora.";
   }
 
   return null;

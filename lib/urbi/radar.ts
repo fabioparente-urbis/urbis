@@ -36,9 +36,10 @@ import { preverCicloCompleto } from "./previsao";
  * Versão do CONTRATO do retrato (Fase 3, 05/09/2026) — incrementar em código sempre que o
  * FORMATO do que é calculado mudar de verdade (campo novo, mudança de regra), nunca a cada
  * execução. Não confundir com `versao` (número sequencial de recálculo do MESMO processo).
- * Subiu pra 2 na Fase 4 (05/09/2026): retrato ganhou o campo `previsao_tempo`.
+ * Subiu pra 2 na Fase 4 (05/09/2026): retrato ganhou o campo `previsao_tempo`. Subiu pra 3 na
+ * Fase 6 (05/09/2026): retrato ganhou o campo `pendencias_sem_bip`.
  */
-const VERSAO_CONTRATO_RETRATO = 2;
+const VERSAO_CONTRATO_RETRATO = 3;
 
 export type VisibilidadeUsuario = {
   userId: string;
@@ -303,6 +304,7 @@ export async function processarProximoPendente(
       campos_em_x: d.lip?.campos_em_x ?? null,
       campos_totais: d.lip?.campos_totais ?? null,
       pendencias_mac: (d.mac?.pendencias_ultima_analise ?? []).length,
+      pendencias_sem_bip: (d.mac?.pendencias_ultima_analise ?? []).filter((p: any) => (p.vinculos_bip ?? []).length === 0).length,
       itens_em_branco_mac: marcacoes.filter((m) => m.status === "em_branco").length,
       alertas: relatorio,
       campos_consulta: camposConsulta,
@@ -347,6 +349,9 @@ export type RetratoConsultavel = {
   alertas: any;
   linha_evidencia: BlocoLinhaEvidencia | null;
   previsao_tempo: import("./previsao").PrevisaoTempo | null;
+  pendencias_sem_bip: number | null;
+  motivo_disparo: string | null;
+  concluido_em: string | null;
 };
 
 /**
@@ -361,7 +366,7 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
 
   const { data } = await supabaseAdmin
     .from("urbi_radar_retratos")
-    .select("processo_codigo, tipo_processo, campos_consulta, alertas, linha_evidencia, previsao_tempo, versao")
+    .select("processo_codigo, tipo_processo, campos_consulta, alertas, linha_evidencia, previsao_tempo, pendencias_sem_bip, motivo_disparo, concluido_em, versao")
     .in("processo_codigo", codigos)
     .in("estado", ["atualizado", "incompleto"])
     .order("versao", { ascending: false });
@@ -371,7 +376,11 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
   for (const linha of (data ?? []) as any[]) {
     if (vistos.has(linha.processo_codigo)) continue;
     vistos.add(linha.processo_codigo);
-    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas, linha_evidencia: linha.linha_evidencia ?? null, previsao_tempo: linha.previsao_tempo ?? null });
+    saida.push({
+      processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta,
+      alertas: linha.alertas, linha_evidencia: linha.linha_evidencia ?? null, previsao_tempo: linha.previsao_tempo ?? null,
+      pendencias_sem_bip: linha.pendencias_sem_bip ?? null, motivo_disparo: linha.motivo_disparo ?? null, concluido_em: linha.concluido_em ?? null,
+    });
   }
   return saida;
 }

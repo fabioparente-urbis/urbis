@@ -2141,7 +2141,8 @@ CREATE TABLE public.urbi_radar_retratos (
     campos_consulta jsonb,
     linha_evidencia jsonb,
     versao_contrato integer DEFAULT 1 NOT NULL,
-    previsao_tempo jsonb
+    previsao_tempo jsonb,
+    pendencias_sem_bip integer
 );
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_estado_check CHECK ((estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text, 'atualizado'::text, 'erro'::text, 'incompleto'::text])));
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_pkey PRIMARY KEY (id);
@@ -2151,6 +2152,7 @@ COMMENT ON COLUMN public.urbi_radar_retratos.campos_consulta IS "Bloco VERSIONAD
 COMMENT ON COLUMN public.urbi_radar_retratos.linha_evidencia IS "Bloco versionado (lib/urbi/linhaEvidencia.ts): cadeia MDP despacho/parecer -> análise -> retorno -> resultado MAC, por processo. Todo vínculo texto->item é rotulado como correspondência parcial (nunca estrutural) quando não há checklist_item_id envolvido. Sem UUID, sem texto de observação pessoal, sem caminho técnico.";
 COMMENT ON COLUMN public.urbi_radar_retratos.versao_contrato IS "Versão do CONTRATO do retrato (lib/urbi/radar.ts, VERSAO_CONTRATO_RETRATO) — incrementada em\n   código quando o formato do que é calculado muda, nunca a cada execução. Não confundir com\n   `versao` (número sequencial de recálculo do MESMO processo).";
 COMMENT ON COLUMN public.urbi_radar_retratos.previsao_tempo IS "Previsão determinística de tempo (lib/urbi/previsao.ts) — {status: estimativa|suspensa|\n   base_insuficiente, ...}. Nunca Gemini, nunca certeza falsa: exige amostra mínima de casos\n   comparáveis reais (vw_bdi_tempo_etapas), sempre declara confiança/amostra/fonte.";
+COMMENT ON COLUMN public.urbi_radar_retratos.pendencias_sem_bip IS "Contagem de pendências da última análise MAC sem nenhum vínculo BIP aprovado (d.mac.\n   pendencias_ultima_analise[].vinculos_bip vazio) — reaproveitado de lib/urbi/montarDossie.ts,\n   nunca recalculado. Cobertura de BIP em si (Fase 8) é um trabalho maior, separado.";
 
 -- ======================================================================
 -- urbi_sugestoes
