@@ -87,7 +87,29 @@ function contarMatchesExatos(texto: string, catalogo: { texto: string }[]): numb
   return catalogo.filter((c) => c.texto.trim() === alvo).length;
 }
 
-type PendenciaMdp = { grupo: string | null; texto: string };
+// `checklist_item_id` é opcional DE PROPÓSITO — contrato futuro (Fase 7), nunca gravado por
+// nenhuma rota de emissão real hoje. Ver `tentarVinculoEstruturalFuturo` abaixo.
+type PendenciaMdp = { grupo: string | null; texto: string; checklist_item_id?: string };
+
+/**
+ * CONTRATO FUTURO (Fase 7, 05/09/2026) — só ativa se a EMISSÃO do despacho (fora do escopo desta
+ * rodada) um dia passar a gravar `checklist_item_id` junto de cada pendência. Valida contra o
+ * catálogo do MODELO CERTO antes de aceitar (nunca confia cegamente num id que veio de fora) —
+ * um id que não pertence ao catálogo desta análise é tratado como se não existisse, cai pro
+ * caminho de texto de sempre. Hoje, com dado real, isso SEMPRE volta `null` — é inerte por
+ * desenho, documentado aqui só pra já existir o hook quando a emissão evoluir.
+ */
+export function tentarVinculoEstruturalFuturo(
+  pendencias: PendenciaMdp[],
+  catalogo: { id: string; texto: string; grupo: string | null }[],
+): ItemRelacionadoEvidencia[] | null {
+  const comId = pendencias.filter((p): p is PendenciaMdp & { checklist_item_id: string } => typeof p.checklist_item_id === "string" && p.checklist_item_id.length > 0);
+  if (comId.length === 0) return null;
+  const catalogoPorId = new Map(catalogo.map((c) => [c.id, c]));
+  const validos = comId.map((p) => catalogoPorId.get(p.checklist_item_id)).filter((c): c is { id: string; texto: string; grupo: string | null } => !!c);
+  if (validos.length === 0) return null;
+  return validos.map((c) => ({ rotulo: truncar(c.texto, 90), grupo: c.grupo ?? null }));
+}
 
 type AnaliseInfo = {
   numero_analise: number;
@@ -146,15 +168,15 @@ export async function montarLinhaEvidenciaExigencias(
     const analise = analisesPorNumero.get(doc.numero_analise);
     if (analise?.modelo_id) modelosUsados.add(analise.modelo_id);
   }
-  const catalogoPorModelo = new Map<string, { texto: string; grupo: string | null }[]>();
+  const catalogoPorModelo = new Map<string, { id: string; texto: string; grupo: string | null }[]>();
   if (modelosUsados.size > 0) {
     const { data: itensCatalogo } = await supabaseAdmin
       .from("mac_checklist_itens")
-      .select("texto, grupo, modelo_id")
+      .select("id, texto, grupo, modelo_id")
       .in("modelo_id", [...modelosUsados]);
     for (const item of (itensCatalogo ?? []) as any[]) {
       const lista = catalogoPorModelo.get(item.modelo_id) ?? [];
-      lista.push({ texto: item.texto, grupo: item.grupo });
+      lista.push({ id: item.id, texto: item.texto, grupo: item.grupo });
       catalogoPorModelo.set(item.modelo_id, lista);
     }
   }
@@ -277,6 +299,25 @@ export async function montarLinhaEvidenciaExigencias(
     const diasAguardando = resultado === "permanece_pendente"
       ? (typeof aguardando?.dias === "number" ? aguardando.dias : analiseCriadaEm ? Math.round((Date.now() - new Date(analiseCriadaEm).getTime()) / 86400000 * 10) / 10 : null)
       : null;
+
+    // ── CONTRATO FUTURO (Fase 7, 05/09/2026) — vínculo estrutural de novos despachos ──────────
+    // Hoje `mdp_registros.conteudo.pendencias_mac[]` só grava {grupo, texto}. Se, no futuro, a
+    // EMISSÃO do despacho (rota operacional do Slot — fora do escopo desta rodada, nunca tocada
+    // aqui) passar a gravar também `checklist_item_id` junto de cada pendência, esta função já
+    // sabe reconhecer e usar isso como vínculo ESTRUTURAL de verdade — nunca reconstruindo por
+    // texto. Hoje esse campo não existe em NENHUM despacho real (auditado): a função sempre
+    // volta `null` e o fluxo cai no caminho de texto de sempre, sem mudar nenhum comportamento.
+    if (itensRelacionados.length === 0 && mdp) {
+      const pendencias: PendenciaMdp[] = Array.isArray(mdp.conteudo?.pendencias_mac) ? mdp.conteudo.pendencias_mac : [];
+      const analiseInfo = analisesPorNumero.get(analiseRelacionada);
+      const catalogoComId = analiseInfo?.modelo_id ? catalogoPorModelo.get(analiseInfo.modelo_id) ?? [] : [];
+      const vinculoFuturo = tentarVinculoEstruturalFuturo(pendencias, catalogoComId);
+      if (vinculoFuturo) {
+        itensRelacionados = vinculoFuturo;
+        metodoRelacao = "vinculo_estruturado";
+        fontes.push("MDP — mdp_registros.conteudo.pendencias_mac (checklist_item_id gravado no despacho — vínculo estrutural real)");
+      }
+    }
 
     // ── enriquecimento por texto (mdp.pendencias_mac) — só quando ainda não há itens estruturais ──
     if (itensRelacionados.length === 0 && mdp) {
