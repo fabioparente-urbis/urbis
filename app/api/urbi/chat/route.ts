@@ -15,6 +15,7 @@ import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urb
 import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
 import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
 import { obterStatusRadar, formatarCartaoRadar } from "@/lib/urbi/radar";
+import { responderPerguntaPilha } from "@/lib/urbi/perguntasPilha";
 
 export const maxDuration = 60;
 
@@ -610,6 +611,19 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
         },
         registro: { processo_codigo: codigoLimpo || null, tipo_processo: dossie.tipoProcesso, fontes_tipos: [...new Set(dossie.manifesto.fontes.map((f) => f.tipo))] },
       });
+    }
+
+    // Camada 2 da arquitetura mestra do URBI (05/09/2026) — perguntas factuais ricas sobre a
+    // Pilha ("quais têm onerosa?", "quais são do Setor Bueno?", "mais perto de emitir?"),
+    // respondidas a partir dos retratos do Radar (lib/urbi/perguntasPilha.ts), SEM Gemini. Só na
+    // Home/Pilha (sem processo em contexto) e fora do modo BIP — pergunta que não casa nenhum
+    // padrão conhecido devolve null e cai no fluxo normal abaixo, sem custo extra nenhum.
+    if (!codigoLimpo && !modoBipAtivo && tipo !== "OnMount" && typeof message === "string") {
+      const respostaPilha = await responderPerguntaPilha(message, { userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia });
+      if (respostaPilha !== null) {
+        await registrarChamadaIA({ modulo: "URBI", operacao: "perguntas_pilha", modelo: null, duracaoMs: 0, status: "ok" });
+        return NextResponse.json({ ok: true, resposta: respostaPilha, sair: false });
+      }
     }
 
     if (modoBipAtivo) {

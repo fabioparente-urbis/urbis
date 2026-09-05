@@ -284,6 +284,7 @@ CREATE UNIQUE INDEX urbi_config_pkey ON public.urbi_config USING btree (id);
 CREATE UNIQUE INDEX urbi_historico_pkey ON public.urbi_historico USING btree (id);
 CREATE INDEX urbi_historico_processo_codigo_idx ON public.urbi_historico USING btree (processo_codigo);
 CREATE UNIQUE INDEX urbi_legislacao_pkey ON public.urbi_legislacao USING btree (id);
+CREATE INDEX urbi_radar_retratos_campos_consulta_idx ON public.urbi_radar_retratos USING gin (campos_consulta);
 CREATE INDEX urbi_radar_retratos_fila_idx ON public.urbi_radar_retratos USING btree (estado, criado_em) WHERE (estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text]));
 CREATE UNIQUE INDEX urbi_radar_retratos_pkey ON public.urbi_radar_retratos USING btree (id);
 CREATE INDEX urbi_radar_retratos_processo_versao_idx ON public.urbi_radar_retratos USING btree (processo_codigo, versao DESC);

@@ -2089,12 +2089,14 @@ CREATE TABLE public.urbi_radar_retratos (
     iniciado_em timestamp with time zone,
     concluido_em timestamp with time zone,
     erro text,
-    criado_em timestamp with time zone DEFAULT now() NOT NULL
+    criado_em timestamp with time zone DEFAULT now() NOT NULL,
+    campos_consulta jsonb
 );
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_estado_check CHECK ((estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text, 'atualizado'::text, 'erro'::text, 'incompleto'::text])));
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_pkey PRIMARY KEY (id);
 COMMENT ON COLUMN public.urbi_radar_retratos.motivo_disparo IS "Por que este retrato foi (re)calculado — ex.: \"nunca analisado\", \"LIP/tags alterados\", \"MAC\n   alterado\", \"MDP alterado\", \"documento (MHD) alterado\". Nunca um palpite, sempre a fonte real\n   que o diff de timestamp encontrou mudada.";
 COMMENT ON COLUMN public.urbi_radar_retratos.watermark_fontes IS "MAX(atualizado_em/criado_em) das fontes relevantes no momento do cálculo — usado pela PRÓXIMA\n   varredura de detecção pra decidir se o processo mudou de novo desde então.";
+COMMENT ON COLUMN public.urbi_radar_retratos.campos_consulta IS "Bloco VERSIONADO de atributos factuais consultáveis (lib/urbi/catalogoConsultaPilha.ts,\n   BlocoAtributosConsultaveis) — cada atributo é { valor, disponivel, fonte, motivo? }, nunca um\n   valor solto. Nomes CANÔNICOS (bairro/onerosa/pavimentos/...), nunca a chave técnica do slot,\n   que varia (Fase AA: mesmo nome, semântica diferente entre slots — auditado de novo aqui pros\n   campos deste bloco). Gravado por lib/urbi/radar.ts a partir do MESMO dossiê que o chat usa,\n   nunca recalculado à parte. Só pra filtro/pergunta factual da Pilha (Camada 2) — nunca decide,\n   nunca ranking nominal, nunca Gemini.";
 
 -- ======================================================================
 -- urbi_sugestoes

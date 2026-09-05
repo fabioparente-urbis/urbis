@@ -27,6 +27,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { montarDossieFactual } from "./montarDossie";
 import { montarRelatorioMotor } from "./motorProducao";
+import { montarBlocoAtributosConsultaveis } from "./catalogoConsultaPilha";
 
 export type VisibilidadeUsuario = {
   userId: string;
@@ -232,8 +233,19 @@ export async function processarProximoPendente(
     const coberturaCompleta = d.cobertura?.completo !== false;
     const marcacoes: any[] = Array.isArray(d.mac?.marcacoes_ultima_analise) ? d.mac.marcacoes_ultima_analise : [];
 
+    // Tags cruas (o dossiê não expõe isso — só a situação já derivada) — só pra achar a data da
+    // tag de indeferimento/arquivamento, dentro do bloco de atributos consultáveis abaixo.
+    const { data: processoTags } = await supabaseAdmin.from("processos").select("tags").eq("codigo", codigo).maybeSingle();
+    const tagsProcesso = Array.isArray((processoTags as any)?.tags) ? (processoTags as any).tags : [];
+    const camposConsulta = montarBlocoAtributosConsultaveis(d, relatorio, tagsProcesso);
+
     await supabaseAdmin.from("urbi_radar_retratos").update({
       estado: coberturaCompleta ? "atualizado" : "incompleto",
+      // Achado real (testar_perguntas_pilha.mts): tipo_processo só era gravado no INSERT (fila) e
+      // nunca reconferido aqui — se o enqueue tivesse chegado nulo por qualquer motivo, o retrato
+      // ficava "slot não identificado" pra sempre, mesmo com o dossiê sabendo o slot certo. Agora
+      // sempre reafirma a partir do MESMO dossiê fresco, nunca confia só no que foi enfileirado.
+      tipo_processo: d.processo?.tipo_processo ?? alvo.tipo_processo ?? null,
       fontes_consultadas: fontesDoRetrato(d),
       situacao_geral: d.situacoes?.geral?.classe ?? null,
       situacao_lip: d.situacoes?.lip?.classe ?? null,
@@ -244,6 +256,7 @@ export async function processarProximoPendente(
       pendencias_mac: (d.mac?.pendencias_ultima_analise ?? []).length,
       itens_em_branco_mac: marcacoes.filter((m) => m.status === "em_branco").length,
       alertas: relatorio,
+      campos_consulta: camposConsulta,
       cobertura_completa: coberturaCompleta,
       fontes_indisponiveis: d.cobertura?.fontes_indisponiveis ?? [],
       watermark_fontes: watermarkFresco ? watermarkFresco.toISOString() : new Date().toISOString(),
@@ -275,6 +288,40 @@ export type StatusRadar = {
 };
 
 /** Só leitura — nunca decide nem analisa processo nenhum sozinho (Home/Pilha só CONSULTAM isto). */
+export type RetratoConsultavel = {
+  processo_codigo: string;
+  tipo_processo: string | null;
+  campos_consulta: import("./catalogoConsultaPilha").BlocoAtributosConsultaveis | null;
+  alertas: any;
+};
+
+/**
+ * Último retrato de CADA processo visível a este usuário, com o bloco de atributos consultáveis
+ * — usado por lib/urbi/perguntasPilha.ts (Camada 2). Só leitura, nunca escolhe/analisa processo
+ * nenhum por conta própria (quem decide o QUE filtrar é a pergunta do analista).
+ */
+export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario, limite = 200): Promise<RetratoConsultavel[]> {
+  const processos = await processosVisiveis(usuario, limite);
+  const codigos = processos.map((p) => p.codigo);
+  if (codigos.length === 0) return [];
+
+  const { data } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .select("processo_codigo, tipo_processo, campos_consulta, alertas, versao")
+    .in("processo_codigo", codigos)
+    .in("estado", ["atualizado", "incompleto"])
+    .order("versao", { ascending: false });
+
+  const vistos = new Set<string>();
+  const saida: RetratoConsultavel[] = [];
+  for (const linha of (data ?? []) as any[]) {
+    if (vistos.has(linha.processo_codigo)) continue;
+    vistos.add(linha.processo_codigo);
+    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas });
+  }
+  return saida;
+}
+
 export async function obterStatusRadar(usuario: VisibilidadeUsuario): Promise<StatusRadar> {
   const processos = await processosVisiveis(usuario, 200);
   const codigos = processos.map((p) => p.codigo);
