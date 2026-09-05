@@ -131,5 +131,40 @@ export async function responderPerguntaPilha(mensagem: string, usuario: Visibili
     return `Mais perto de emitir (critério: esforço provável do Motor de Produção, do "Rápido" pro "Base insuficiente", depois menor número de pendências):\n${linhas.join("\n")}`;
   }
 
+  // ── linha de evidência: retornaram sem resultado / reincidiram / aguardam conferência / ──────
+  // pendência repetida — sempre a partir de `linha_evidencia` já pronto no retrato, nunca um
+  // cálculo novo (mesma regra de reaproveitamento das perguntas acima).
+  if (/retornaram? sem resultado|retorno sem resultado/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => (r.linha_evidencia?.registros ?? []).some((reg) => reg.resultado === "sem_marcacao_posterior"));
+    return achados.length > 0
+      ? `${achados.length} processo(s) com retorno identificado mas sem resultado atribuível a uma exigência específica: ${listarCodigos(achados)}.\nFonte: linha de evidência (BDI — vw_bdi_aguardando_retorno + vw_bdi_retrabalho_por_passada).`
+      : "Nenhum processo visível com retorno sem resultado atribuível agora.";
+  }
+
+  if (/reincidiram?|reincid[êe]ncia/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => (r.linha_evidencia?.registros ?? []).some((reg) => reg.resultado === "reincidiu"));
+    return achados.length > 0
+      ? `${achados.length} processo(s) com item reincidente (voltou a não conforme após análise posterior): ${listarCodigos(achados)}.\nFonte: linha de evidência (BDI — vw_bdi_retrabalho_por_passada).`
+      : "Nenhum processo visível com item reincidente agora.";
+  }
+
+  if (/aguardam? conferência|aguardam? confer[êe]ncia|aguardando confer[êe]ncia/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => (r.linha_evidencia?.registros ?? []).some((reg) => reg.resultado === "sem_marcacao_posterior" || (reg.resultado === "permanece_pendente" && reg.retorno_identificado)));
+    return achados.length > 0
+      ? `${achados.length} processo(s) com retorno identificado que ainda aguardam nova conferência MAC: ${listarCodigos(achados)}.\nFonte: linha de evidência.`
+      : "Nenhum processo visível aguardando conferência após retorno agora.";
+  }
+
+  if (/pend[êe]ncia repetida|pendencia repetida|exig[êe]ncia recorrente/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => (r.linha_evidencia?.registros ?? []).filter((reg) => reg.resultado === "reincidiu").length > 1);
+    return achados.length > 0
+      ? `${achados.length} processo(s) com exigência recorrente entre passadas (mais de uma reincidência): ${listarCodigos(achados)}.\nFonte: linha de evidência (BDI — vw_bdi_retrabalho_por_passada).`
+      : "Nenhum processo visível com exigência recorrente agora.";
+  }
+
   return null;
 }

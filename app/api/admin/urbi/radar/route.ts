@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   try {
     const cobertura = await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia });
 
-    const [{ data: filaPendente }, { data: errosRecentes }, { data: reanalisesRecentes }] = await Promise.all([
+    const [{ data: filaPendente }, { data: errosRecentes }, { data: reanalisesRecentes }, { data: retratosParaEvidencia }] = await Promise.all([
       supabaseAdmin.from("urbi_radar_retratos")
         .select("processo_codigo, tipo_processo, estado, motivo_disparo, criado_em, iniciado_em")
         .in("estado", ["pendente", "em_atualizacao"])
@@ -52,11 +52,37 @@ export async function GET(req: NextRequest) {
         .in("estado", ["atualizado", "incompleto"])
         .order("concluido_em", { ascending: false })
         .limit(30),
+      supabaseAdmin.from("urbi_radar_retratos")
+        .select("processo_codigo, versao, linha_evidencia")
+        .in("estado", ["atualizado", "incompleto"])
+        .order("versao", { ascending: false }),
     ]);
+
+    // ETAPA 4 (05/09/2026) — cobertura da linha de evidência: quantos retratos (versão mais
+    // recente por processo) já têm o bloco calculado, e quantos processos têm pelo menos um
+    // despacho/parecer sem vínculo estruturado com a numeração — nunca recalcula nada, só conta
+    // o que já está gravado.
+    const vistosEvidencia = new Set<string>();
+    let comLinhaEvidencia = 0;
+    let semVinculoEstruturado = 0;
+    for (const linha of (retratosParaEvidencia ?? []) as any[]) {
+      if (vistosEvidencia.has(linha.processo_codigo)) continue;
+      vistosEvidencia.add(linha.processo_codigo);
+      const bloco = linha.linha_evidencia;
+      if (!bloco) continue;
+      comLinhaEvidencia++;
+      if ((bloco.registros ?? []).some((r: any) => r.resultado === "sem_vinculo_estruturado")) semVinculoEstruturado++;
+    }
 
     return NextResponse.json({
       ok: true,
       cobertura,
+      cobertura_linha_evidencia: {
+        com_linha_evidencia: comLinhaEvidencia,
+        total_com_retrato: vistosEvidencia.size,
+        sem_vinculo_estruturado: semVinculoEstruturado,
+        parcial: comLinhaEvidencia < cobertura.totalVisiveis,
+      },
       fila_pendente: filaPendente ?? [],
       erros_recentes: errosRecentes ?? [],
       reanalises_recentes: reanalisesRecentes ?? [],

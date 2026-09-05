@@ -28,6 +28,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { montarDossieFactual } from "./montarDossie";
 import { montarRelatorioMotor } from "./motorProducao";
 import { montarBlocoAtributosConsultaveis } from "./catalogoConsultaPilha";
+import { montarLinhaEvidenciaExigencias, alertasLinhaEvidencia, type BlocoLinhaEvidencia } from "./linhaEvidencia";
 
 export type VisibilidadeUsuario = {
   userId: string;
@@ -238,6 +239,7 @@ export async function processarProximoPendente(
     const { data: processoTags } = await supabaseAdmin.from("processos").select("tags").eq("codigo", codigo).maybeSingle();
     const tagsProcesso = Array.isArray((processoTags as any)?.tags) ? (processoTags as any).tags : [];
     const camposConsulta = montarBlocoAtributosConsultaveis(d, relatorio, tagsProcesso);
+    const linhaEvidencia = await montarLinhaEvidenciaExigencias(codigo, d, tagsProcesso);
 
     await supabaseAdmin.from("urbi_radar_retratos").update({
       estado: coberturaCompleta ? "atualizado" : "incompleto",
@@ -257,6 +259,7 @@ export async function processarProximoPendente(
       itens_em_branco_mac: marcacoes.filter((m) => m.status === "em_branco").length,
       alertas: relatorio,
       campos_consulta: camposConsulta,
+      linha_evidencia: linhaEvidencia,
       cobertura_completa: coberturaCompleta,
       fontes_indisponiveis: d.cobertura?.fontes_indisponiveis ?? [],
       watermark_fontes: watermarkFresco ? watermarkFresco.toISOString() : new Date().toISOString(),
@@ -293,6 +296,7 @@ export type RetratoConsultavel = {
   tipo_processo: string | null;
   campos_consulta: import("./catalogoConsultaPilha").BlocoAtributosConsultaveis | null;
   alertas: any;
+  linha_evidencia: BlocoLinhaEvidencia | null;
 };
 
 /**
@@ -307,7 +311,7 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
 
   const { data } = await supabaseAdmin
     .from("urbi_radar_retratos")
-    .select("processo_codigo, tipo_processo, campos_consulta, alertas, versao")
+    .select("processo_codigo, tipo_processo, campos_consulta, alertas, linha_evidencia, versao")
     .in("processo_codigo", codigos)
     .in("estado", ["atualizado", "incompleto"])
     .order("versao", { ascending: false });
@@ -317,7 +321,7 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
   for (const linha of (data ?? []) as any[]) {
     if (vistos.has(linha.processo_codigo)) continue;
     vistos.add(linha.processo_codigo);
-    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas });
+    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas, linha_evidencia: linha.linha_evidencia ?? null });
   }
   return saida;
 }

@@ -14,7 +14,8 @@ import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
 import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
 import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
-import { obterStatusRadar, formatarCartaoRadar } from "@/lib/urbi/radar";
+import { obterStatusRadar, formatarCartaoRadar, obterRetratoAtual } from "@/lib/urbi/radar";
+import { alertasLinhaEvidencia, formatarLinhaEvidenciaDetalhada } from "@/lib/urbi/linhaEvidencia";
 import { responderPerguntaPilha } from "@/lib/urbi/perguntasPilha";
 
 export const maxDuration = 60;
@@ -595,10 +596,34 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
     // quando o analista pedir explicitamente ("detalhe"/"fonte"/"histórico"/"lei"), aí sim cai no
     // fluxo normal (Gemini) abaixo. Nunca ativa no modo BIP (que já é um pedido explícito de
     // legislação) nem fora de um processo (papo geral não tem dossiê pra motor nenhum ler).
+    // ETAPA 4 (05/09/2026) — "ver linha de evidência" pedido explícito: detalhe completo da
+    // cadeia MDP→análise→retorno→resultado deste processo, direto do retrato do Radar, SEM
+    // Gemini. Só quando há processo em contexto; cai antes do Motor pra não virar resumo curto.
+    if (codigoLimpo && !modoBipAtivo && typeof message === "string" && /linha de evid[êe]ncia/i.test(message)) {
+      const retratoEvidencia = await obterRetratoAtual(codigoLimpo);
+      const blocoEvidenciaDetalhe = (retratoEvidencia as any)?.linha_evidencia ?? { versao_bloco: 1, registros: [] };
+      await registrarChamadaIA({ modulo: "URBI", operacao: "linha_evidencia_detalhe", modelo: null, duracaoMs: 0, status: "ok" });
+      return NextResponse.json({ ok: true, resposta: formatarLinhaEvidenciaDetalhada(blocoEvidenciaDetalhe), sair: false });
+    }
+
     if (dossie?.status === "ok" && !modoBipAtivo && !pedeDetalheCompleto(typeof message === "string" ? message : "")) {
       const t0Motor = Date.now();
       const relatorio = montarRelatorioMotor(dossie.dBruto);
-      const respostaMotor = formatarRelatorioMotor(relatorio);
+      let respostaMotor = formatarRelatorioMotor(relatorio);
+
+      // ETAPA 4 (05/09/2026) — só os 3 alertas mais relevantes da linha de evidência já pronta no
+      // retrato do Radar (nunca recalculada aqui, nunca bloqueia o Motor se o Radar ainda não
+      // chegou neste processo). "Ver linha de evidência" é só um convite de leitura — URBI nunca
+      // decide nem conclui por conta própria.
+      const retratoAtual = codigoLimpo ? await obterRetratoAtual(codigoLimpo) : null;
+      const blocoEvidencia = (retratoAtual as any)?.linha_evidencia ?? null;
+      if (blocoEvidencia?.registros?.length > 0) {
+        const alertasEvidencia = alertasLinhaEvidencia(blocoEvidencia).slice(0, 3);
+        if (alertasEvidencia.length > 0) {
+          respostaMotor += `\n\nLinha de evidência (cobrança → retorno → resultado):\n${alertasEvidencia.map((a) => `• ${a}`).join("\n")}\nPeça "ver linha de evidência" para o detalhe completo, com fonte e grau de certeza de cada item.`;
+        }
+      }
+
       await registrarChamadaIA({
         modulo: "URBI", operacao: "motor_producao", modelo: null, duracaoMs: Date.now() - t0Motor, status: "ok",
       });

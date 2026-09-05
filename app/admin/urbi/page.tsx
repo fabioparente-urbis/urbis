@@ -1229,6 +1229,7 @@ type RadarPainel = {
     totalVisiveis: number; comRetratoAtualizado: number; pendentes: number;
     emAtualizacao: number; ultimaExecucaoEm: string | null; atualizadosUltimos15Min: number;
   };
+  cobertura_linha_evidencia: { com_linha_evidencia: number; total_com_retrato: number; sem_vinculo_estruturado: number; parcial: boolean };
   fila_pendente: { processo_codigo: string; tipo_processo: string | null; estado: string; motivo_disparo: string; criado_em: string; iniciado_em: string | null }[];
   erros_recentes: { processo_codigo: string; erro: string | null; concluido_em: string | null; versao: number }[];
   reanalises_recentes: { processo_codigo: string; versao: number; estado: string; motivo_disparo: string; concluido_em: string | null; alertas: any }[];
@@ -1283,6 +1284,14 @@ function AbaPreAnaliseDaPilha() {
               <Metrica label="Fila pendente" valor={dados.cobertura.pendentes} />
               <Metrica label="Em atualização agora" valor={dados.cobertura.emAtualizacao} />
               <Metrica label="Atualizados (15 min)" valor={dados.cobertura.atualizadosUltimos15Min} fonte={dados.cobertura.ultimaExecucaoEm ? `última conclusão: ${fmtData(dados.cobertura.ultimaExecucaoEm)}` : "nenhuma execução ainda"} />
+            </div>
+          </Secao>
+
+          <Secao titulo="Linha de evidência (MDP → análise → retorno → resultado)" descricao={dados.cobertura_linha_evidencia.parcial ? "Cobertura PARCIAL — a versão nova do retrato ainda não alcançou toda a Pilha." : "Cobertura completa entre os retratos já calculados."}>
+            <div className="grid gap-3 p-4 sm:grid-cols-3">
+              <Metrica label="Com linha de evidência" valor={`${dados.cobertura_linha_evidencia.com_linha_evidencia} de ${dados.cobertura.totalVisiveis}`} fonte="urbi_radar_retratos.linha_evidencia" />
+              <Metrica label="Sem vínculo estruturado" valor={dados.cobertura_linha_evidencia.sem_vinculo_estruturado} fonte="pelo menos 1 despacho/parecer sem vínculo confirmado com a numeração" />
+              <Metrica label="Cobertura" valor={dados.cobertura_linha_evidencia.parcial ? "Parcial" : "Completa"} />
             </div>
           </Secao>
 
