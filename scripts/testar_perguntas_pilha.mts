@@ -90,12 +90,20 @@ secao("3 · atualiza campos_consulta de processos REAIS (força reprocessamento)
     // tipo_processo vem de `processos` de verdade (nunca de um retrato anterior que pode nem
     // existir mais) — é exatamente o achado real que expôs o bug corrigido em radar.ts.
     const { data: processoReal } = await supabaseAdmin.from("processos").select("tipo_processo").eq("codigo", codigo).maybeSingle();
-    await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: codigo, tipo_processo: (processoReal as any)?.tipo_processo ?? null, versao: ((ultimo as any)?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: "reforçar teste da Camada 2" });
+    // criado_em propositalmente antigo (mesmo padrão de testar_linha_evidencia.mts, seção 8):
+    // processarProximoPendente busca sempre o mais antigo da fila primeiro — sem isso, o item
+    // cai no FIM da fila (criado_em = agora) e fica refém do tamanho do backlog real no momento
+    // (achado real 05/09/2026: um backlog de 40 itens à frente já fez os 3 alvos nunca serem
+    // alcançados dentro de um teto fixo de tentativas).
+    await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: codigo, tipo_processo: (processoReal as any)?.tipo_processo ?? null, versao: ((ultimo as any)?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: "reforçar teste da Camada 2", criado_em: new Date(Date.now() - 999_000_000).toISOString() });
   }
-  for (let i = 0; i < processosReais.length; i++) {
+  const restantes = new Set(processosReais);
+  for (let i = 0; i < processosReais.length + 10 && restantes.size > 0; i++) {
     const r = await processarProximoPendente(ADMIN);
-    t(`processou item ${i + 1}/${processosReais.length} da fila de teste`, r.processado, JSON.stringify(r));
+    if (!r.processado) break;
+    if (r.codigo) restantes.delete(r.codigo);
   }
+  t("os 3 processos-alvo do teste foram processados (backlog real não impediu)", restantes.size === 0, `faltaram: ${[...restantes].join(", ")}`);
   const { data: verificacao } = await supabaseAdmin.from("urbi_radar_retratos").select("processo_codigo, tipo_processo, campos_consulta").in("processo_codigo", processosReais).order("versao", { ascending: false });
   // Mantém só a PRIMEIRA ocorrência por código (a de maior versão, já que a consulta ordena
   // DESC) — `new Map(array.map(...))` guardaria a ÚLTIMA, que é a de menor versão.

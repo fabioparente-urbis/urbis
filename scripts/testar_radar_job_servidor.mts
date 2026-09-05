@@ -124,10 +124,12 @@ secao("6 · erro de um processo não impede os demais");
 // ─────────────────────────────────────────────────────────────────────────────
 secao("7 · pendência continua para a próxima execução (maxItens limita o lote)");
 {
+  // Achado real: A e B com o MESMO criado_em deixa "quem é mais antigo" indefinido (empate) —
+  // A precisa ser explicitamente mais antigo que B pra este teste ter um resultado determinístico.
   await limparRetratos([PROCESSO_A, PROCESSO_B]);
   await supabaseAdmin.from("urbi_radar_retratos").insert([
     { processo_codigo: PROCESSO_A, tipo_processo: "regularizacao", versao: 1, estado: "pendente", motivo_disparo: "teste lote", criado_em: CRIADO_EM_ANTIGO },
-    { processo_codigo: PROCESSO_B, tipo_processo: "aceite_sei", versao: 1, estado: "pendente", motivo_disparo: "teste lote", criado_em: CRIADO_EM_ANTIGO },
+    { processo_codigo: PROCESSO_B, tipo_processo: "aceite_sei", versao: 1, estado: "pendente", motivo_disparo: "teste lote", criado_em: new Date(new Date(CRIADO_EM_ANTIGO).getTime() + 50).toISOString() },
   ]);
   const r1 = await processarProximoPendente(USUARIO_SISTEMA);
   t("1º item processado", r1.processado);

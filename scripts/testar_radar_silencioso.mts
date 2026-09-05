@@ -53,13 +53,17 @@ secao("1 · processar a fila afeta SÓ o processo da vez — outros itens enfile
   // Setup controlado (não via detectarMudancas, que legitimamente enfileira TODOS os processos
   // "nunca analisados" de uma vez — isso não é o que este teste quer isolar). Aqui: 2 processos
   // reais, os dois 'pendente', inseridos em ordem conhecida — A primeiro (criado_em mais antigo,
-  // por isso é ele que processarProximoPendente pega).
+  // por isso é ele que processarProximoPendente pega). Achado real (05/09/2026): a fila pode ter
+  // backlog legítimo de processos "nunca analisados" à frente (outras rodadas de teste/uso real
+  // também enfileiram) — criado_em propositalmente antigo garante A/B como os mais velhos da
+  // fila, sem depender do tamanho desse backlog.
   const PROCESSO_A = "25.5.000046759-5";
   const PROCESSO_B = "25.5.000016900-4";
+  const CRIADO_EM_ANTIGO_A = new Date(Date.now() - 999_000_000).toISOString();
+  const CRIADO_EM_ANTIGO_B = new Date(Date.now() - 999_000_000 + 50).toISOString();
   await supabaseAdmin.from("urbi_radar_retratos").delete().in("processo_codigo", [PROCESSO_A, PROCESSO_B]);
-  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: PROCESSO_A, tipo_processo: "regularizacao", versao: 1, estado: "pendente", motivo_disparo: "teste isolado A" });
-  await new Promise((r) => setTimeout(r, 50)); // garante criado_em(B) > criado_em(A) mesmo com relógio de baixa resolução
-  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: PROCESSO_B, tipo_processo: "aceite_sei", versao: 1, estado: "pendente", motivo_disparo: "teste isolado B" });
+  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: PROCESSO_A, tipo_processo: "regularizacao", versao: 1, estado: "pendente", motivo_disparo: "teste isolado A", criado_em: CRIADO_EM_ANTIGO_A });
+  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: PROCESSO_B, tipo_processo: "aceite_sei", versao: 1, estado: "pendente", motivo_disparo: "teste isolado B", criado_em: CRIADO_EM_ANTIGO_B });
   codigosTocados.add(PROCESSO_A); codigosTocados.add(PROCESSO_B);
 
   const processamento = await processarProximoPendente(ADMIN);

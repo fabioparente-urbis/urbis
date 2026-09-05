@@ -31,6 +31,13 @@ import { montarBlocoAtributosConsultaveis } from "./catalogoConsultaPilha";
 import { montarLinhaEvidenciaExigencias, alertasLinhaEvidencia, type BlocoLinhaEvidencia } from "./linhaEvidencia";
 import { obterProcessosEmAtendimento } from "./atendimento";
 
+/**
+ * Versão do CONTRATO do retrato (Fase 3, 05/09/2026) — incrementar em código sempre que o
+ * FORMATO do que é calculado mudar de verdade (campo novo, mudança de regra), nunca a cada
+ * execução. Não confundir com `versao` (número sequencial de recálculo do MESMO processo).
+ */
+const VERSAO_CONTRATO_RETRATO = 1;
+
 export type VisibilidadeUsuario = {
   userId: string;
   irrestrito: boolean;
@@ -70,10 +77,16 @@ async function processosVisiveis(usuario: VisibilidadeUsuario, limite: number): 
 }
 
 /**
- * Watermark de TODOS os códigos de uma vez — 5 consultas em lote (uma por tabela-fonte), nunca
+ * Watermark de TODOS os códigos de uma vez — 6 consultas em lote (uma por tabela-fonte), nunca
  * uma consulta por processo. `.in()` com até 200 códigos fica bem dentro do limite do PostgREST.
+ *
+ * Fase 3 (05/09/2026, mandato de 12 fases): `mac_checklist_itens_historico` (mudança de catálogo
+ * — item criado/atualizado/desativado/reativado, já grava `tipo_processo` desde 03/09) entra como
+ * 6ª fonte, escopada por `tipo_processo` — uma mudança de catálogo só invalida os retratos dos
+ * processos DO MESMO SLOT, nunca a Pilha inteira. `tipoPorCodigo` precisa vir de quem já carregou
+ * essa informação (nunca uma consulta nova só pra isto).
  */
-async function calcularWatermarksEmLote(codigos: string[]): Promise<Map<string, Date>> {
+async function calcularWatermarksEmLote(codigos: string[], tipoPorCodigo: Map<string, string | null>): Promise<Map<string, Date>> {
   const maiores = new Map<string, number>();
   const bump = (codigo: string | null | undefined, iso: string | null | undefined) => {
     if (!codigo || !iso) return;
@@ -82,18 +95,39 @@ async function calcularWatermarksEmLote(codigos: string[]): Promise<Map<string, 
     if (atual === undefined || t > atual) maiores.set(codigo, t);
   };
 
-  const [procs, analises, mdps, historicos, mhds] = await Promise.all([
+  const tiposEnvolvidos = [...new Set([...tipoPorCodigo.values()].filter((t): t is string => !!t))];
+  const [procs, analises, mdps, historicos, mhds, catalogo] = await Promise.all([
     supabaseAdmin.from("processos").select("codigo, atualizado_em").in("codigo", codigos).is("excluido_em", null),
     supabaseAdmin.from("analises_mac").select("processo_codigo, atualizado_em").in("processo_codigo", codigos).is("excluido_em", null),
     supabaseAdmin.from("mdp_registros").select("processo_codigo, criado_em").in("processo_codigo", codigos),
     supabaseAdmin.from("mac_historico").select("processo_codigo, criado_em").in("processo_codigo", codigos),
     supabaseAdmin.from("mhd_documentos").select("processo_codigo, atualizado_em").in("processo_codigo", codigos),
+    tiposEnvolvidos.length > 0
+      ? supabaseAdmin.from("mac_checklist_itens_historico").select("tipo_processo, criado_em").in("tipo_processo", tiposEnvolvidos)
+      : Promise.resolve({ data: [] as any[] }),
   ]);
   for (const r of (procs.data ?? []) as any[]) bump(r.codigo, r.atualizado_em);
   for (const r of (analises.data ?? []) as any[]) bump(r.processo_codigo, r.atualizado_em);
   for (const r of (mdps.data ?? []) as any[]) bump(r.processo_codigo, r.criado_em);
   for (const r of (historicos.data ?? []) as any[]) bump(r.processo_codigo, r.criado_em);
   for (const r of (mhds.data ?? []) as any[]) bump(r.processo_codigo, r.atualizado_em);
+
+  // Maior criado_em de mudança de catálogo POR tipo_processo — depois aplicado a cada código
+  // daquele tipo (uma mudança no modelo de Regularização nunca invalida retrato de Slot 5).
+  const maiorMudancaCatalogoPorTipo = new Map<string, number>();
+  for (const r of (catalogo.data ?? []) as any[]) {
+    if (!r.tipo_processo || !r.criado_em) continue;
+    const t = new Date(r.criado_em).getTime();
+    const atual = maiorMudancaCatalogoPorTipo.get(r.tipo_processo);
+    if (atual === undefined || t > atual) maiorMudancaCatalogoPorTipo.set(r.tipo_processo, t);
+  }
+  for (const [codigo, tipo] of tipoPorCodigo) {
+    if (!tipo) continue;
+    const t = maiorMudancaCatalogoPorTipo.get(tipo);
+    if (t === undefined) continue;
+    const atual = maiores.get(codigo);
+    if (atual === undefined || t > atual) maiores.set(codigo, t);
+  }
 
   const saida = new Map<string, Date>();
   for (const [codigo, t] of maiores) saida.set(codigo, new Date(t));
@@ -102,15 +136,18 @@ async function calcularWatermarksEmLote(codigos: string[]): Promise<Map<string, 
 
 /** Qual fonte mudou pra ESTE processo, em linguagem curta — só chamado pra quem de fato vai ser
  *  enfileirado (poucos, tipicamente), nunca pra todos os visíveis. */
-async function motivoDaMudanca(codigo: string, desde: Date | null): Promise<string> {
+async function motivoDaMudanca(codigo: string, desde: Date | null, tipoProcesso: string | null): Promise<string> {
   if (!desde) return "nunca analisado";
   const limiar = desde.toISOString();
-  const [proc, analises, mdp, historico, mhd] = await Promise.all([
+  const [proc, analises, mdp, historico, mhd, catalogo] = await Promise.all([
     supabaseAdmin.from("processos").select("id").eq("codigo", codigo).is("excluido_em", null).gt("atualizado_em", limiar).limit(1),
     supabaseAdmin.from("analises_mac").select("id").eq("processo_codigo", codigo).is("excluido_em", null).gt("atualizado_em", limiar).limit(1),
     supabaseAdmin.from("mdp_registros").select("id").eq("processo_codigo", codigo).gt("criado_em", limiar).limit(1),
     supabaseAdmin.from("mac_historico").select("analise_id").eq("processo_codigo", codigo).gt("criado_em", limiar).limit(1),
     supabaseAdmin.from("mhd_documentos").select("id").eq("processo_codigo", codigo).gt("atualizado_em", limiar).limit(1),
+    tipoProcesso
+      ? supabaseAdmin.from("mac_checklist_itens_historico").select("id").eq("tipo_processo", tipoProcesso).gt("criado_em", limiar).limit(1)
+      : Promise.resolve({ data: [] as any[] }),
   ]);
   const partes: string[] = [];
   if ((proc.data ?? []).length > 0) partes.push("LIP/tags");
@@ -118,6 +155,7 @@ async function motivoDaMudanca(codigo: string, desde: Date | null): Promise<stri
   if ((mdp.data ?? []).length > 0) partes.push("MDP");
   if ((historico.data ?? []).length > 0) partes.push("histórico do MAC");
   if ((mhd.data ?? []).length > 0) partes.push("documento (MHD)");
+  if ((catalogo.data ?? []).length > 0) partes.push("mudança de catálogo (MAC)");
   return partes.length > 0 ? `alterado: ${partes.join(", ")}` : "alterado (fonte não identificada individualmente)";
 }
 
@@ -137,7 +175,7 @@ export async function detectarMudancas(usuario: VisibilidadeUsuario, limite = 20
   const [{ data: emAberto }, { data: ultimos }, watermarksAtuais] = await Promise.all([
     supabaseAdmin.from("urbi_radar_retratos").select("processo_codigo").in("processo_codigo", codigos).in("estado", ["pendente", "em_atualizacao"]),
     supabaseAdmin.from("urbi_radar_retratos").select("processo_codigo, versao, watermark_fontes").in("processo_codigo", codigos).order("versao", { ascending: false }),
-    calcularWatermarksEmLote(codigos),
+    calcularWatermarksEmLote(codigos, tipoPorCodigo),
   ]);
 
   const codigosEmAberto = new Set((emAberto ?? []).map((r: any) => r.processo_codigo));
@@ -155,7 +193,7 @@ export async function detectarMudancas(usuario: VisibilidadeUsuario, limite = 20
     const mudou = !ultimo || !watermarkRetrato || (watermarkAtual && watermarkAtual > watermarkRetrato);
     if (!mudou) continue;
 
-    const motivo = await motivoDaMudanca(codigo, watermarkRetrato);
+    const motivo = await motivoDaMudanca(codigo, watermarkRetrato, tipoPorCodigo.get(codigo) ?? null);
     const { error } = await supabaseAdmin.from("urbi_radar_retratos").insert({
       processo_codigo: codigo, tipo_processo: tipoPorCodigo.get(codigo) ?? null,
       versao: (ultimo?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: motivo,
@@ -183,8 +221,8 @@ function fontesDoRetrato(d: Record<string, any>): string[] {
 }
 
 /** Watermark de UM processo — só usado depois de já saber que ele vai ser processado agora. */
-async function calcularWatermarkUnico(codigo: string): Promise<Date | null> {
-  const mapa = await calcularWatermarksEmLote([codigo]);
+async function calcularWatermarkUnico(codigo: string, tipoProcesso: string | null): Promise<Date | null> {
+  const mapa = await calcularWatermarksEmLote([codigo], new Map([[codigo, tipoProcesso]]));
   return mapa.get(codigo) ?? null;
 }
 
@@ -236,7 +274,7 @@ export async function processarProximoPendente(
 
     const d = resultado.data as any;
     const relatorio = montarRelatorioMotor(d);
-    const watermarkFresco = await calcularWatermarkUnico(codigo);
+    const watermarkFresco = await calcularWatermarkUnico(codigo, d.processo?.tipo_processo ?? alvo.tipo_processo ?? null);
     const coberturaCompleta = d.cobertura?.completo !== false;
     const marcacoes: any[] = Array.isArray(d.mac?.marcacoes_ultima_analise) ? d.mac.marcacoes_ultima_analise : [];
 
@@ -266,6 +304,7 @@ export async function processarProximoPendente(
       alertas: relatorio,
       campos_consulta: camposConsulta,
       linha_evidencia: linhaEvidencia,
+      versao_contrato: VERSAO_CONTRATO_RETRATO,
       cobertura_completa: coberturaCompleta,
       fontes_indisponiveis: d.cobertura?.fontes_indisponiveis ?? [],
       watermark_fontes: watermarkFresco ? watermarkFresco.toISOString() : new Date().toISOString(),
@@ -377,6 +416,32 @@ export async function obterStatusRadar(usuario: VisibilidadeUsuario): Promise<St
 // `formatarCartaoRadarComJob` (lib/urbi/radarJob.ts), que combina a mesma cobertura com o
 // estado do job de servidor — mantém a declaração honesta de "parcial"/"nunca rodou" e ainda
 // avisa quando o agendamento parece atrasado.
+
+/**
+ * Fase 3 (05/09/2026) — "processo excluído deve sair da cobertura": um processo excluído
+ * (`processos.excluido_em` preenchido) já não conta em `obterStatusRadar`/`processosVisiveis`
+ * (ambos filtram por `excluido_em IS NULL`), mas uma linha 'pendente'/'em_atualizacao' gerada
+ * ANTES da exclusão ficava órfã pra sempre — nunca reivindicada (não é mais um processo
+ * visível), mas ainda aparecendo na "Fila pendente" do painel admin como se fosse trabalho real
+ * a fazer. Chamado uma vez por tick do job (lib/urbi/radarJob.ts), nunca varre a Pilha inteira —
+ * só olha o que já está pendente (fila é sempre pequena).
+ */
+export async function limparRetratosDeProcessosExcluidos(): Promise<number> {
+  const { data: pendentes } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .select("id, processo_codigo")
+    .in("estado", ["pendente", "em_atualizacao"]);
+  if (!pendentes || pendentes.length === 0) return 0;
+
+  const codigos = [...new Set(pendentes.map((p: any) => p.processo_codigo))];
+  const { data: ativos } = await supabaseAdmin.from("processos").select("codigo").in("codigo", codigos).is("excluido_em", null);
+  const codigosAtivos = new Set((ativos ?? []).map((p: any) => p.codigo));
+  const idsOrfaos = pendentes.filter((p: any) => !codigosAtivos.has(p.processo_codigo)).map((p: any) => p.id);
+  if (idsOrfaos.length === 0) return 0;
+
+  await supabaseAdmin.from("urbi_radar_retratos").delete().in("id", idsOrfaos);
+  return idsOrfaos.length;
+}
 
 /** O retrato mais recente de um processo específico — usado quando o URBI abre DENTRO dele. */
 export async function obterRetratoAtual(codigo: string) {

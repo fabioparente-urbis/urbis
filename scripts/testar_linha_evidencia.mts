@@ -105,8 +105,11 @@ secao("6 · Home/Pilha responde as 4 perguntas novas sem Gemini (processa 1 retr
 {
   // Garante que pelo menos 1 processo real tem retrato com linha_evidencia gravada de verdade
   // (não só em memória) — usa o mesmo caminho de produção (processarProximoPendente).
+  // Achado real (05/09/2026): a fila pode ter backlog legítimo de processos "nunca analisados"
+  // à frente (outras rodadas de teste/uso real também enfileiram) — criado_em propositalmente
+  // antigo garante que este item SEMPRE é o próximo, sem depender do tamanho desse backlog.
   await supabaseAdmin.from("urbi_radar_retratos").delete().eq("processo_codigo", "25.5.000054511-1").eq("estado", "pendente");
-  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: "25.5.000054511-1", tipo_processo: "regularizacao", versao: 9990, estado: "pendente", motivo_disparo: "teste_linha_evidencia" });
+  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: "25.5.000054511-1", tipo_processo: "regularizacao", versao: 9990, estado: "pendente", motivo_disparo: "teste_linha_evidencia", criado_em: new Date(Date.now() - 999_000_000).toISOString() });
   const resultadoProcessamento = await processarProximoPendente(ADMIN);
   t("processarProximoPendente processou o item de teste", resultadoProcessamento.processado === true && resultadoProcessamento.codigo === "25.5.000054511-1", JSON.stringify(resultadoProcessamento));
 
@@ -137,7 +140,7 @@ secao("8 · atualização incremental de apenas um retrato (processarProximoPend
   const codigoAlheio = "24.5.000050840-6";
   const { data: antes } = await supabaseAdmin.from("urbi_radar_retratos").select("versao").eq("processo_codigo", codigoAlheio).order("versao", { ascending: false }).limit(1);
   await supabaseAdmin.from("urbi_radar_retratos").delete().eq("processo_codigo", "25.5.000016900-4").eq("estado", "pendente");
-  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: "25.5.000016900-4", tipo_processo: "aceite_sei", versao: 9991, estado: "pendente", motivo_disparo: "teste_linha_evidencia" });
+  await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: "25.5.000016900-4", tipo_processo: "aceite_sei", versao: 9991, estado: "pendente", motivo_disparo: "teste_linha_evidencia", criado_em: new Date(Date.now() - 999_000_000).toISOString() });
   await processarProximoPendente(ADMIN);
   const { data: depois } = await supabaseAdmin.from("urbi_radar_retratos").select("versao").eq("processo_codigo", codigoAlheio).order("versao", { ascending: false }).limit(1);
   t("processo alheio não ganhou versão nova", (antes?.[0]?.versao ?? null) === (depois?.[0]?.versao ?? null));

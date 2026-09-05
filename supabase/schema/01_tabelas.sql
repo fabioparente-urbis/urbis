@@ -2139,7 +2139,8 @@ CREATE TABLE public.urbi_radar_retratos (
     erro text,
     criado_em timestamp with time zone DEFAULT now() NOT NULL,
     campos_consulta jsonb,
-    linha_evidencia jsonb
+    linha_evidencia jsonb,
+    versao_contrato integer DEFAULT 1 NOT NULL
 );
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_estado_check CHECK ((estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text, 'atualizado'::text, 'erro'::text, 'incompleto'::text])));
 ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_pkey PRIMARY KEY (id);
@@ -2147,6 +2148,7 @@ COMMENT ON COLUMN public.urbi_radar_retratos.motivo_disparo IS "Por que este ret
 COMMENT ON COLUMN public.urbi_radar_retratos.watermark_fontes IS "MAX(atualizado_em/criado_em) das fontes relevantes no momento do cálculo — usado pela PRÓXIMA\n   varredura de detecção pra decidir se o processo mudou de novo desde então.";
 COMMENT ON COLUMN public.urbi_radar_retratos.campos_consulta IS "Bloco VERSIONADO de atributos factuais consultáveis (lib/urbi/catalogoConsultaPilha.ts,\n   BlocoAtributosConsultaveis) — cada atributo é { valor, disponivel, fonte, motivo? }, nunca um\n   valor solto. Nomes CANÔNICOS (bairro/onerosa/pavimentos/...), nunca a chave técnica do slot,\n   que varia (Fase AA: mesmo nome, semântica diferente entre slots — auditado de novo aqui pros\n   campos deste bloco). Gravado por lib/urbi/radar.ts a partir do MESMO dossiê que o chat usa,\n   nunca recalculado à parte. Só pra filtro/pergunta factual da Pilha (Camada 2) — nunca decide,\n   nunca ranking nominal, nunca Gemini.";
 COMMENT ON COLUMN public.urbi_radar_retratos.linha_evidencia IS "Bloco versionado (lib/urbi/linhaEvidencia.ts): cadeia MDP despacho/parecer -> análise -> retorno -> resultado MAC, por processo. Todo vínculo texto->item é rotulado como correspondência parcial (nunca estrutural) quando não há checklist_item_id envolvido. Sem UUID, sem texto de observação pessoal, sem caminho técnico.";
+COMMENT ON COLUMN public.urbi_radar_retratos.versao_contrato IS "Versão do CONTRATO do retrato (lib/urbi/radar.ts, VERSAO_CONTRATO_RETRATO) — incrementada em\n   código quando o formato do que é calculado muda, nunca a cada execução. Não confundir com\n   `versao` (número sequencial de recálculo do MESMO processo).";
 
 -- ======================================================================
 -- urbi_sugestoes

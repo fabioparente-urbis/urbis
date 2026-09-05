@@ -20,7 +20,7 @@
  * Gemini, nunca escreve em LIP/MAC/MDP/documento/despacho/numeração.
  */
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { detectarMudancas, processarProximoPendente, type VisibilidadeUsuario, type StatusRadar } from "./radar";
+import { detectarMudancas, processarProximoPendente, limparRetratosDeProcessosExcluidos, type VisibilidadeUsuario, type StatusRadar } from "./radar";
 
 /** Cadência real do agendamento (ver script de aplicação do cron) — usado só pra declarar
  *  "pode estar atrasada" com uma tolerância (3x a cadência), nunca como prazo prometido. */
@@ -84,6 +84,10 @@ export async function executarJobRadar(opts?: { maxItens?: number; maxMs?: numbe
   const inicio = Date.now();
 
   try {
+    // Fase 3 — processo excluído sai da cobertura: limpa qualquer linha 'pendente'/
+    // 'em_atualizacao' órfã (processo excluído depois de enfileirado) antes de detectar de novo.
+    await limparRetratosDeProcessosExcluidos();
+
     const { verificados, enfileirados } = await detectarMudancas(USUARIO_SISTEMA, 200);
 
     let processados = 0, falhas = 0;
