@@ -13,6 +13,7 @@ import { montarManifestoFontes, type ManifestoFontes } from "@/lib/urbi/manifest
 import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
 import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
+import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
 
 export const maxDuration = 60;
 
@@ -51,6 +52,16 @@ async function chatDentroDoBudget(): Promise<{ ok: true } | { ok: false; status:
 // uma saudação): TTL curto porque clima/fila mudam ao longo do dia.
 const CACHE_ONMOUNT_TTL_MS = 10 * 60 * 1000;
 const cacheOnMount = new Map<string, { resposta: string; ts: number }>();
+
+// Motor de Produção (04/09/2026): resumo longo, fontes completas, histórico e legislação só
+// aparecem quando o analista pedir por uma dessas palavras — caso contrário o Co-Analista
+// responde pelo motor determinístico (sem Gemini, sem custo). Lista literal, pedida assim.
+const PALAVRAS_PEDE_DETALHE = ["detalhe", "detalhes", "fonte", "fontes", "histórico", "historico", "lei", "legislação", "legislacao"];
+
+function pedeDetalheCompleto(texto: string): boolean {
+  const t = texto.toLowerCase();
+  return PALAVRAS_PEDE_DETALHE.some((p) => t.includes(p));
+}
 
 function detectarIntentLei(texto: string): boolean {
   const t = texto.toLowerCase();
@@ -181,7 +192,7 @@ async function buscarNoBip(
 }
 
 type ResultadoDossie =
-  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null; nomeSlot: string; manifesto: ManifestoFontes; recorte: Record<string, unknown> }
+  | { status: "ok"; contexto: string; truncado: boolean; tipoProcesso: string | null; nomeSlot: string; manifesto: ManifestoFontes; recorte: Record<string, unknown>; dBruto: Record<string, unknown> }
   | { status: "indisponivel"; motivo: string };
 
 // Palavras curtas demais para funcionar como palavra-chave de busca nos itens
@@ -410,7 +421,7 @@ async function buscarDossieDoProcesso(req: NextRequest, codigo: string, pergunta
       ],
     });
 
-    return { status: "ok", contexto, truncado, tipoProcesso, nomeSlot, manifesto, recorte };
+    return { status: "ok", contexto, truncado, tipoProcesso, nomeSlot, manifesto, recorte, dBruto: d };
   } catch (erro: any) {
     console.error("[urbi/chat] dossiê indisponível:", erro?.message ?? erro);
     return { status: "indisponivel", motivo: "Falha técnica ao carregar o dossiê factual." };
@@ -565,6 +576,30 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
     const operacao = codigoLimpo
       ? (modoBipAtivo ? "chat_coanalista_bip" : "chat_coanalista")
       : (modoBipAtivo ? "chat_bip" : "chat_geral");
+
+    // Motor de Produção (04/09/2026) — dicas curtas e acionáveis, calculadas 100% em código
+    // (lib/urbi/motorProducao.ts), SEM chamar o Gemini: zero custo, resposta imediata. É o
+    // caminho PADRÃO do Co-Analista — resumo longo, fontes completas, histórico e legislação só
+    // quando o analista pedir explicitamente ("detalhe"/"fonte"/"histórico"/"lei"), aí sim cai no
+    // fluxo normal (Gemini) abaixo. Nunca ativa no modo BIP (que já é um pedido explícito de
+    // legislação) nem fora de um processo (papo geral não tem dossiê pra motor nenhum ler).
+    if (dossie?.status === "ok" && !modoBipAtivo && !pedeDetalheCompleto(typeof message === "string" ? message : "")) {
+      const t0Motor = Date.now();
+      const relatorio = montarRelatorioMotor(dossie.dBruto);
+      const respostaMotor = formatarRelatorioMotor(relatorio);
+      await registrarChamadaIA({
+        modulo: "URBI", operacao: "motor_producao", modelo: null, duracaoMs: Date.now() - t0Motor, status: "ok",
+      });
+      return NextResponse.json({
+        ok: true, resposta: respostaMotor, sair: false,
+        dossie: {
+          usado: true, completo: !dossie.truncado,
+          processo: codigoLimpo, slot: dossie.tipoProcesso, nome_slot: dossie.nomeSlot,
+          fontes: dossie.manifesto.fontes, cobertura_completa: dossie.manifesto.cobertura_completa,
+        },
+        registro: { processo_codigo: codigoLimpo || null, tipo_processo: dossie.tipoProcesso, fontes_tipos: [...new Set(dossie.manifesto.fontes.map((f) => f.tipo))] },
+      });
+    }
 
     if (modoBipAtivo) {
       const resultado = await buscarNoBip(message, undefined);
