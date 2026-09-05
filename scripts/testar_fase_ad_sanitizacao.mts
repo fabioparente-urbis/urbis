@@ -97,10 +97,10 @@ secao("5 · sanitizador está de fato ligado na rota (não só existe, é chamad
 {
   const rota = readFileSync(new URL("../app/api/urbi/chat/route.ts", import.meta.url), "utf-8");
   t("route.ts importa removerCaminhosTecnicos", rota.includes('import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta"'));
-  // Fase AE (04/09/2026): a variável mudou de nome (respostaBase) porque "Fontes consultadas"
-  // passou a ser anexada DEPOIS do sanitizador (ela é montada em código, nunca precisa de
-  // sanitização) — o sanitizador continua rodando sobre tudo que o modelo escreveu antes dela.
-  t("resposta final passa pelo sanitizador antes de voltar ao cliente", /const respostaBase = removerCaminhosTecnicos\(/.test(rota));
+  // A variável já mudou de nome duas vezes (respostaBase na Fase AE, respostaSanitizada na AH,
+  // conforme camadas novas entraram DEPOIS do sanitizador) — o que importa é que o texto do
+  // modelo passe por ele antes de virar resposta, não como a variável se chama hoje.
+  t("resposta final passa pelo sanitizador antes de voltar ao cliente", /const \w+ = removerCaminhosTecnicos\(textoSemFontesDoModelo\)/.test(rota));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

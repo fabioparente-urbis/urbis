@@ -12,6 +12,7 @@ import { blocoContratoResposta, nomeHumanoDoSlot } from "@/lib/urbi/contratoResp
 import { montarManifestoFontes, type ManifestoFontes } from "@/lib/urbi/manifestoFontes";
 import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
+import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
 
 export const maxDuration = 60;
 
@@ -827,7 +828,29 @@ abrir o processo pela tela. NÃO responda perguntas específicas sobre este proc
     const textoSemFontesDoModelo = removerSecaoFontesConsultadas(texto.replace("[URBI_SAIR]", "").trim());
     // removerCaminhosTecnicos (Fase AD) continua rodando como rede de segurança pro resto da
     // resposta (Fatos/Vale conferir/Base insuficiente) — a seção de fontes não depende mais dele.
-    const respostaBase = removerCaminhosTecnicos(textoSemFontesDoModelo);
+    const respostaSanitizada = removerCaminhosTecnicos(textoSemFontesDoModelo);
+
+    // Fase AH (04/09/2026) — guarda ESTRUTURAL contra comparação sem lastro. Cinco rodadas de
+    // prompt (AC→AG) não impediram o modelo de voltar a comparar áreas por conta própria
+    // ("Área Regularizada TOTAL difere da ART/Laudo", "conforme Quadro e Certidão"). Aqui a
+    // resposta é varrida frase a frase EM CÓDIGO: relação comparativa só sobrevive se houver
+    // cruzamento determinístico compatível no MESMO recorte que o modelo recebeu — senão a
+    // relação cai (o fato isolado fica quando dá pra separar). Vale igual pra resumo e coerência,
+    // porque roda sobre a resposta inteira, não sobre um tipo de pergunta.
+    let respostaBase = respostaSanitizada;
+    if (dossie?.status === "ok") {
+      const validacao = validarComparacoes(respostaSanitizada, contextoDoRecorte(dossie.recorte));
+      respostaBase = validacao.texto;
+      if (validacao.bloqueios.length > 0) {
+        // Fica no log do servidor pra auditoria (nunca volta pro analista): mostra QUE afirmação
+        // o modelo tentou fazer sem lastro — é assim que se percebe regressão de comportamento.
+        console.warn(
+          `[urbi/chat] ${validacao.bloqueios.length} afirmação(ões) comparativa(s) sem cruzamento determinístico bloqueada(s) no processo ${codigoLimpo}:`,
+          validacao.bloqueios.map((b) => `${b.motivo}: "${b.trecho.slice(0, 160)}"`),
+        );
+      }
+    }
+
     const resposta = dossie?.status === "ok"
       ? `${respostaBase}\n\n${textoFontesConsultadas(dossie.recorte)}`
       : respostaBase;
