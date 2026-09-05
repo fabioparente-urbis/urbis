@@ -82,6 +82,54 @@ export async function itemNoEscopoDaFila(
   };
 }
 
+/**
+ * Fase 8 do mandato de 12 fases (05/09/2026) — "detectar vínculo afetado por mudança de
+ * catálogo": um vínculo BIP aprovado ANTES da última mudança REAL do próprio item (criado/
+ * atualizado/desativado/reativado, `mac_checklist_itens_historico`, trigger já em produção desde
+ * 03/09) pode estar defasado — o texto/fundamento que embasou a aprovação pode não ser mais o
+ * texto atual do item. Nunca desfaz o vínculo sozinho, só SINALIZA pra revisão humana.
+ *
+ * ACHADO REAL da auditoria (05/09/2026): `mac_checklist_itens_historico` está com 0 linhas no
+ * banco INTEIRO hoje — nenhum item mudou de verdade desde que o trigger foi criado. Por isso
+ * esta função sempre volta um Set vazio agora, pra QUALQUER vínculo real que existir — não é bug,
+ * é a ausência honesta de mudança real ainda. Ativa sozinha assim que a trilha tiver a primeira
+ * linha, sem precisar de deploy novo.
+ *
+ * Deliberadamente NÃO usa `mac_checklist_itens.atualizado_em` como proxy — auditado com dado
+ * real (Slot 5, 727 vínculos) e descartado: 47% dos itens têm `atualizado_em` mais novo que o
+ * vínculo, mas a esmagadora maioria disso é o script antigo de `classificacao_bip`/
+ * `classificacao_lip` re-tocando a coluna (mesma hora, mesmo lote de 29/07), não uma edição real
+ * de texto/fundamento — geraria alarme falso em quase metade dos vínculos reais.
+ */
+export async function vinculosBipPossivelmenteDesatualizados(
+  vinculosBip: { mac_item_id: string; criado_em: string }[],
+): Promise<Set<string>> {
+  if (vinculosBip.length === 0) return new Set();
+  const itemIds = [...new Set(vinculosBip.map((v) => v.mac_item_id))];
+
+  const maiorMudancaPorItem = new Map<string, number>();
+  const TAMANHO_LOTE = 150; // mesmo limite já documentado em cobertura-slot5/route.ts (URL do GET)
+  for (let i = 0; i < itemIds.length; i += TAMANHO_LOTE) {
+    const lote = itemIds.slice(i, i + TAMANHO_LOTE);
+    const { data: historico } = await supabaseAdmin
+      .from("mac_checklist_itens_historico")
+      .select("item_id, criado_em")
+      .in("item_id", lote);
+    for (const h of (historico ?? []) as any[]) {
+      const t = new Date(h.criado_em).getTime();
+      const atual = maiorMudancaPorItem.get(h.item_id);
+      if (atual === undefined || t > atual) maiorMudancaPorItem.set(h.item_id, t);
+    }
+  }
+
+  const afetados = new Set<string>();
+  for (const v of vinculosBip) {
+    const mudanca = maiorMudancaPorItem.get(v.mac_item_id);
+    if (mudanca !== undefined && mudanca > new Date(v.criado_em).getTime()) afetados.add(v.mac_item_id);
+  }
+  return afetados;
+}
+
 /** Confirma que um fragmento do BIP citado numa proposta é real — nunca aceita id inventado. */
 export async function fragmentoBipExiste(fragmentoId: string): Promise<boolean> {
   const { data } = await supabaseAdmin.from("bdi_lei_fragmentos").select("id").eq("id", fragmentoId).maybeSingle();

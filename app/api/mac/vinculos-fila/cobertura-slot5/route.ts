@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
+import { vinculosBipPossivelmenteDesatualizados } from "@/lib/mac/vinculosFila";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
   // (lib/urbi/dossieProcesso.ts) e na paginação de mac_historico (app/api/admin/urbi/recorrencia).
   const [{ data: vinculosLip, erro: erroLip }, { data: vinculosBip, erro: erroBip }] = await Promise.all([
     emLotes<{ mac_item_id: string }>(ids, 150, (lote) => supabaseAdmin.from("mac_lip_vinculos").select("mac_item_id").in("mac_item_id", lote)),
-    emLotes<{ mac_item_id: string }>(ids, 150, (lote) => supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id").in("mac_item_id", lote)),
+    emLotes<{ mac_item_id: string; criado_em: string }>(ids, 150, (lote) => supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id, criado_em").in("mac_item_id", lote)),
   ]);
   if (erroLip) return NextResponse.json({ ok: false, erro: erroLip }, { status: 500 });
   if (erroBip) return NextResponse.json({ ok: false, erro: erroBip }, { status: 500 });
@@ -58,6 +59,11 @@ export async function GET(req: NextRequest) {
   const itensComVinculoBip = new Set(vinculosBip.map((v) => v.mac_item_id));
   const semNenhumVinculo = todosOsItens.filter((i) => !itensComVinculoLip.has(i.id) && !itensComVinculoBip.has(i.id)).length;
 
+  // Fase 8 (05/09/2026) — mesmo sinal de "vínculo possivelmente desatualizado" da fila de
+  // Regularização/Aceite SEI, aplicado aqui: Slot 5 tem 727 vínculos reais, é onde este sinal
+  // mais importa na prática.
+  const bipPossivelmenteDesatualizados = await vinculosBipPossivelmenteDesatualizados(vinculosBip);
+
   return NextResponse.json({
     ok: true,
     cobertura: {
@@ -65,6 +71,10 @@ export async function GET(req: NextRequest) {
       lip: { vinculado: itensComVinculoLip.size, sem_vinculo: todosOsItens.length - itensComVinculoLip.size },
       bip: { vinculado: itensComVinculoBip.size, sem_vinculo: todosOsItens.length - itensComVinculoBip.size },
       sem_nenhum_vinculo: semNenhumVinculo,
+      bip_possivelmente_desatualizado: {
+        quantidade: bipPossivelmenteDesatualizados.size,
+        motivo: "vínculo aprovado antes da última mudança real do item no catálogo (mac_checklist_itens_historico) — sinal de revisão, nunca desfaz o vínculo sozinho",
+      },
     },
     fonte: "mac_lip_vinculos/mac_bip_vinculos + chave_lip legado — mecanismo do Slot 5 é /admin/filtros-slot5, esta rota só lê cobertura pra comparação, não interfere nele.",
   });

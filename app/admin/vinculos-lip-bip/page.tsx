@@ -53,6 +53,7 @@ type Cobertura = {
   total_itens: number; lip: { vinculado: number; sem_vinculo: number }; bip: { vinculado: number; sem_vinculo: number }; sem_nenhum_vinculo: number;
   bip_por_estado?: { aprovado: number; com_candidato_pendente: number; sem_nada: number };
   itens_prioritarios_sem_fundamento?: { itemId: string; grupo: string; texto: string; recorrencia: number }[];
+  bip_possivelmente_desatualizado?: { quantidade: number; motivo: string };
 };
 type CandidatoBip = { id: string; referencia: string; lei: string; trecho: string; distancia: number; confiancaSugerida: "MEDIA" | "BAIXA" };
 type CandidatosDoItem = { candidatos: CandidatoBip[]; baseInsuficiente: boolean };
@@ -205,6 +206,7 @@ export default function VinculosLipBipPage() {
               <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Cobertura BIP</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sem base legal (BIP)</th>
               <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Sem nenhum vínculo</th>
+              <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)]">Vínculo possivelmente desatualizado</th>
             </tr>
           </thead>
           <tbody>
@@ -221,9 +223,10 @@ export default function VinculosLipBipPage() {
                       <td className="px-3 py-2 text-[var(--text-secondary)]">{c.bip.vinculado} de {c.total_itens} ({Math.round(100 * c.bip.vinculado / (c.total_itens || 1))}%)</td>
                       <td className="px-3 py-2 text-[var(--text-secondary)]">{c.bip.sem_vinculo}</td>
                       <td className="px-3 py-2 text-[var(--text-secondary)]">{c.sem_nenhum_vinculo}</td>
+                      <td className="px-3 py-2 text-[var(--text-secondary)]">{c.bip_possivelmente_desatualizado?.quantidade ?? "—"}</td>
                     </>
                   ) : (
-                    <td colSpan={5} className="px-3 py-2 text-[var(--text-muted)]">carregando…</td>
+                    <td colSpan={6} className="px-3 py-2 text-[var(--text-muted)]">carregando…</td>
                   )}
                 </tr>
               );
@@ -269,6 +272,13 @@ export default function VinculosLipBipPage() {
               <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.bip_por_estado.sem_nada}</div>
             </div>
           </div>
+          {cobertura.bip_possivelmente_desatualizado && (
+            <div className="border-t border-[var(--border)] px-5 py-3">
+              <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Vínculo possivelmente desatualizado</div>
+              <div className="mt-1 text-xl font-semibold text-[var(--text-primary)]">{cobertura.bip_possivelmente_desatualizado.quantidade}</div>
+              <div className="mt-1 text-[11px] text-[var(--text-muted)]">{cobertura.bip_possivelmente_desatualizado.motivo}</div>
+            </div>
+          )}
           {!!cobertura.itens_prioritarios_sem_fundamento?.length && (
             <div className="border-t border-[var(--border)] px-5 py-3">
               <div className="mb-1.5 text-[11px] font-medium text-[var(--text-primary)]">Itens prioritários ainda sem fundamento (mais recorrentes primeiro)</div>

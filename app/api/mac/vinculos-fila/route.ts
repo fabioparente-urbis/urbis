@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
-import { ASSUNTOS_PERMITIDOS_NA_FILA, type AssuntoPermitidoNaFila } from "@/lib/mac/vinculosFila";
+import { ASSUNTOS_PERMITIDOS_NA_FILA, type AssuntoPermitidoNaFila, vinculosBipPossivelmenteDesatualizados } from "@/lib/mac/vinculosFila";
 
 export const runtime = "nodejs";
 
@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: vinculosLip }, { data: vinculosBip }, { data: propostas }] = await Promise.all([
     idsDoModelo.length ? supabaseAdmin.from("mac_lip_vinculos").select("mac_item_id").in("mac_item_id", idsDoModelo) : Promise.resolve({ data: [] as any[] }),
-    idsDoModelo.length ? supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id").in("mac_item_id", idsDoModelo) : Promise.resolve({ data: [] as any[] }),
+    idsDoModelo.length ? supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id, criado_em").in("mac_item_id", idsDoModelo) : Promise.resolve({ data: [] as any[] }),
     idsDoModelo.length
       ? supabaseAdmin.from("mac_vinculos_propostas")
           .select("id, mac_item_id, tipo, lip_chave, papel, obrigatorio, bip_fragmento_id, confianca, justificativa, status, criado_por, criado_em")
@@ -121,6 +121,11 @@ export async function GET(req: NextRequest) {
     .filter((i) => i.recorrencia > 0)
     .sort((a, b) => b.recorrencia - a.recorrencia)
     .slice(0, 10);
+  // Fase 8 (05/09/2026) — "detectar vínculo afetado por mudança de catálogo": nunca desfaz
+  // vínculo sozinho, só sinaliza pra revisão humana. Ver lib/mac/vinculosFila.ts pro porquê de
+  // não usar atualizado_em como proxy (achado real: contaminado por script antigo).
+  const bipPossivelmenteDesatualizados = await vinculosBipPossivelmenteDesatualizados((vinculosBip ?? []) as any[]);
+
   const cobertura = {
     total_itens: todosOsItens.length,
     lip: { vinculado: itensComVinculoLip.size, sem_vinculo: todosOsItens.length - itensComVinculoLip.size },
@@ -128,6 +133,10 @@ export async function GET(req: NextRequest) {
     sem_nenhum_vinculo: semNenhumVinculo,
     bip_por_estado: { aprovado: bipAprovado, com_candidato_pendente: bipComCandidatoPendente, sem_nada: bipSemNada },
     itens_prioritarios_sem_fundamento: itensPrioritariosSemFundamento,
+    bip_possivelmente_desatualizado: {
+      quantidade: bipPossivelmenteDesatualizados.size,
+      motivo: "vínculo aprovado antes da última mudança real do item no catálogo (mac_checklist_itens_historico) — sinal de revisão, nunca desfaz o vínculo sozinho",
+    },
   };
 
   const itemPorId = new Map(todosOsItens.map((i) => [i.id, i]));
