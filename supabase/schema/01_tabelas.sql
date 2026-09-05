@@ -1984,6 +1984,18 @@ ALTER TABLE public.tipos_documento ADD CONSTRAINT tipos_documento_pkey PRIMARY K
 ALTER TABLE public.tipos_documento ADD CONSTRAINT tipos_documento_nome_key UNIQUE (nome);
 
 -- ======================================================================
+-- urbi_atendimento_ativo
+-- ======================================================================
+CREATE TABLE public.urbi_atendimento_ativo (
+    processo_codigo text NOT NULL,
+    usuario_id uuid NOT NULL,
+    expira_em timestamp with time zone NOT NULL,
+    atualizado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_atendimento_ativo ADD CONSTRAINT urbi_atendimento_ativo_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE;
+ALTER TABLE public.urbi_atendimento_ativo ADD CONSTRAINT urbi_atendimento_ativo_pkey PRIMARY KEY (processo_codigo);
+
+-- ======================================================================
 -- urbi_comandos_voz
 -- ======================================================================
 CREATE TABLE public.urbi_comandos_voz (
@@ -2079,6 +2091,25 @@ ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_ti
 ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE;
 ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_pkey PRIMARY KEY (id);
 COMMENT ON COLUMN public.urbi_presenca_eventos.sessao_efemera IS "Id aleatório gerado no cliente por carregamento de página (nunca persistente, nunca ligado a\n   cookie de autenticação) — só pra distinguir abas no log bruto, nunca usado em lógica alguma.";
+
+-- ======================================================================
+-- urbi_radar_execucoes
+-- ======================================================================
+CREATE TABLE public.urbi_radar_execucoes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    origem text DEFAULT 'cron'::text NOT NULL,
+    estado text NOT NULL,
+    iniciado_em timestamp with time zone DEFAULT now() NOT NULL,
+    concluido_em timestamp with time zone,
+    detectados integer,
+    enfileirados integer,
+    processados integer,
+    falhas integer,
+    erro text
+);
+ALTER TABLE public.urbi_radar_execucoes ADD CONSTRAINT urbi_radar_execucoes_estado_check CHECK ((estado = ANY (ARRAY['em_execucao'::text, 'concluido'::text, 'erro'::text])));
+ALTER TABLE public.urbi_radar_execucoes ADD CONSTRAINT urbi_radar_execucoes_pkey PRIMARY KEY (id);
+COMMENT ON COLUMN public.urbi_radar_execucoes.erro IS "Mensagem de erro SANITIZADA (nunca stack trace bruto, nunca payload de request) — mesmo\n   padrão de urbi_radar_retratos.erro.";
 
 -- ======================================================================
 -- urbi_radar_retratos

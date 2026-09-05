@@ -4,8 +4,8 @@ Gerado por `scripts/extrair_schema.mts` em 2026-09-05.
 
 PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-bit
 
-**195 objetos** no schema `public`: 126 tabelas, 69 views.
-255 funções, 46 triggers, 341 índices, 32 policies.
+**197 objetos** no schema `public`: 128 tabelas, 69 views.
+255 funções, 46 triggers, 346 índices, 32 policies.
 
 | objeto | tipo | linhas | RLS |
 |---|---|---:|---|
@@ -112,12 +112,14 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `solicitacoes_despacho_extra` | tabela | 0 | ✅ |
 | `solicitacoes_etapa6` | tabela | 0 | ✅ |
 | `tipos_documento` | tabela | 7 | ✅ |
+| `urbi_atendimento_ativo` | tabela | 0 | ✅ |
 | `urbi_comandos_voz` | tabela | 9 | ✅ |
 | `urbi_config` | tabela | 8 | ✅ |
 | `urbi_historico` | tabela | 124 | ✅ |
 | `urbi_legislacao` | tabela | 0 | ✅ |
 | `urbi_presenca_eventos` | tabela | 0 | ✅ |
-| `urbi_radar_retratos` | tabela | 14 | ✅ |
+| `urbi_radar_execucoes` | tabela | 0 | ✅ |
+| `urbi_radar_retratos` | tabela | 15 | ✅ |
 | `urbi_sugestoes` | tabela | 12 | ❌ |
 | `urbis_api_calls` | tabela | 90 | ✅ |
 | `urbis_aportes` | tabela | 2 | ✅ |

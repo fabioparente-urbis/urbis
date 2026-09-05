@@ -323,24 +323,31 @@ export default function UrbiGlobal() {
     presencaRegistrarInteracaoRef.current();
   }, [pathname, usuario]);
 
-  // Radar silencioso incremental (Camada 1 da arquitetura mestra do URBI, 05/09/2026) — roda em
-  // background enquanto o app está aberto no navegador e o URBI NÃO está atendendo dentro de um
-  // processo específico (regra do Fábio: "ao abrir o URBI dentro de um processo, o Radar pausa").
-  // Detecção (mais cara — varre timestamp de todos os processos visíveis) e processamento (mais
-  // barato — 1 item da fila por vez) são chamadas separadas, em frequências diferentes. Nunca
-  // chama Gemini (as duas rotas só leem timestamp e reaproveitam o dossiê já existente), nunca
-  // escreve em LIP/MAC/MDP/documento — mesma trava de ativação individual do resto do URBI
-  // (usuario.urbi_ativo), pra um usuário sem URBI ligado não gerar tráfego de radar nenhum.
+  // Radar silencioso incremental (Camada 1) — ACHADO REAL (05/09/2026, rodada de
+  // independência de sessão): até aqui, os ticks disparavam DAQUI (client-side), exigindo
+  // alguém com sessão válida numa aba aberta — sem isso o Radar simplesmente não rodava. Agora
+  // roda por `cron.schedule` (pg_cron + pg_net, dentro do próprio Postgres) chamando
+  // `/api/urbi/radar/job` com conta técnica e segredo compartilhado — nunca sessão humana, nunca
+  // este componente. `UrbiGlobal` só CONSOME o estado (via /api/urbi/radar/status, já existente)
+  // — nunca mais é dependência do Radar. Ver lib/urbi/radarJob.ts.
+
+  // "Atendimento ativo" (Fase 2) — enquanto o URBI está aberto DENTRO de um processo, avisa o
+  // servidor (lease técnico, renovado a cada 60s) pra o job do Radar evitar reprocessar ESSE
+  // processo especificamente (nunca pausa o Radar inteiro). Se a aba fechar/travar sem avisar, o
+  // lease expira sozinho (lib/urbi/atendimento.ts) — nunca fica pausado pra sempre.
   useEffect(() => {
-    if (!usuario?.urbi_ativo) return;
-    const pausado = urbiAberto && !!processoCodigo;
-    if (pausado) return;
-    const chamar = (caminho: string) => { fetch(caminho, { method: "POST" }).catch(() => {}); };
-    chamar("/api/urbi/radar/detectar");
-    chamar("/api/urbi/radar/processar");
-    const idProcessar = setInterval(() => chamar("/api/urbi/radar/processar"), 45_000);
-    const idDetectar = setInterval(() => chamar("/api/urbi/radar/detectar"), 5 * 60_000);
-    return () => { clearInterval(idProcessar); clearInterval(idDetectar); };
+    if (!usuario?.nome || !urbiAberto || !processoCodigo) return;
+    const codigo = processoCodigo;
+    const enviar = (metodo: "POST" | "DELETE") => {
+      fetch("/api/urbi/atendimento", {
+        method: metodo,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ processo_codigo: codigo }),
+      }).catch(() => {});
+    };
+    enviar("POST");
+    const id = setInterval(() => enviar("POST"), 60_000);
+    return () => { clearInterval(id); enviar("DELETE"); };
   }, [usuario, urbiAberto, processoCodigo]);
 
   // Detecta modal crítico aberto (convenção do app: overlay `fixed inset-0`

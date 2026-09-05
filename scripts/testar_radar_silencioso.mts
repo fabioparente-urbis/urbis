@@ -17,9 +17,10 @@
 import { readFileSync } from "node:fs";
 import { supabaseAdmin } from "../lib/supabaseAdmin";
 import {
-  detectarMudancas, processarProximoPendente, obterStatusRadar, formatarCartaoRadar,
+  detectarMudancas, processarProximoPendente, obterStatusRadar,
   type VisibilidadeUsuario,
 } from "../lib/urbi/radar";
+import { formatarCartaoRadarComJob } from "../lib/urbi/radarJob";
 
 let falhas = 0;
 const t = (nome: string, cond: boolean, detalhe = "") => {
@@ -76,44 +77,43 @@ secao("1 · processar a fila afeta SÓ o processo da vez — outros itens enfile
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-secao("2 · abrir URBI dentro de um processo pausa o Radar (client-side)");
+secao("2 · cliente não é mais dependência do Radar (rodada de independência de sessão, 05/09/2026)");
 {
+  // ACHADO REAL que motivou a rodada: até aqui, o Radar só rodava enquanto alguém tinha uma aba
+  // logada aberta (os ticks vinham de UrbiGlobal.tsx). Agora ele roda via cron.schedule (pg_cron
+  // + pg_net) chamando /api/urbi/radar/job com conta técnica — o cliente não dispara mais nada.
   const widget = readFileSync(new URL("../components/urbi/UrbiGlobal.tsx", import.meta.url), "utf-8");
-  t("efeito do Radar existe e depende de [usuario, urbiAberto, processoCodigo]", /const pausado = urbiAberto && !!processoCodigo;/.test(widget));
-  t("quando pausado, a função retorna ANTES de criar qualquer setInterval", /const pausado = urbiAberto && !!processoCodigo;\s*\n\s*if \(pausado\) return;/.test(widget));
-  t("os 2 intervals (detectar/processar) só são criados DEPOIS do guard de pausa", (() => {
-    const idxGuard = widget.indexOf("if (pausado) return;");
-    const idxIntervalDetectar = widget.indexOf('setInterval(() => chamar("/api/urbi/radar/detectar")');
-    const idxIntervalProcessar = widget.indexOf('setInterval(() => chamar("/api/urbi/radar/processar")');
-    return idxGuard > -1 && idxIntervalDetectar > idxGuard && idxIntervalProcessar > idxGuard;
-  })());
+  t("UrbiGlobal.tsx não chama mais /api/urbi/radar/detectar", !widget.includes("/api/urbi/radar/detectar"));
+  t("UrbiGlobal.tsx não chama mais /api/urbi/radar/processar", !widget.includes("/api/urbi/radar/processar"));
+  t("UrbiGlobal.tsx não cria mais setInterval nenhum pro Radar", !/setInterval[^;]*radar/i.test(widget.replace(/\n/g, " ")));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-secao("3 · dispensar/fechar o URBI retoma a fila (client-side)");
+secao("3 · job de servidor reaproveita a MESMA lógica factual, nunca duplica cálculo");
 {
-  const widget = readFileSync(new URL("../components/urbi/UrbiGlobal.tsx", import.meta.url), "utf-8");
-  // "dispensar" = setUrbiAberto(false) (ver fecharUrbi/onKeyDown/etc) — como o efeito do Radar
-  // depende de `urbiAberto`, essa mudança de estado dispara o efeito de novo, e desta vez
-  // "pausado" é falso (urbiAberto virou false) — os intervals voltam a ser criados.
-  t("efeito do Radar tem urbiAberto na lista de dependências (reage a fechar/abrir)", /\}, \[usuario, urbiAberto, processoCodigo\]\);/.test(widget));
-  t('"pausado" reavalia urbiAberto a cada execução do efeito (não é um valor travado)', /const pausado = urbiAberto && !!processoCodigo;/.test(widget));
-  // Dispara IMEDIATAMENTE ao retomar (não espera os 45s/5min do primeiro interval) — cobre o
-  // caso "acabei de dispensar, quero a fila andando logo".
-  t("ao retomar, chama detectar/processar imediatamente (não só espera o interval)", /chamar\("\/api\/urbi\/radar\/detectar"\);\s*\n\s*chamar\("\/api\/urbi\/radar\/processar"\);/.test(widget));
+  const job = readFileSync(new URL("../lib/urbi/radarJob.ts", import.meta.url), "utf-8");
+  t("radarJob.ts importa detectarMudancas/processarProximoPendente de radar.ts (nunca reimplementa)", /import \{ detectarMudancas, processarProximoPendente,.*\} from "\.\/radar"/.test(job));
+  t("radarJob.ts não define nenhum cálculo de situação/motor por conta própria", !/situacaoGeral|montarRelatorioMotor|montarDossieFactual/.test(job));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 secao("4 · Home/Pilha mostra cobertura e dados factuais (cartão determinístico)");
 {
-  t("nenhuma execução ainda → declara isso explicitamente (nunca finge estar em dia)", /ainda não rodou nenhuma vez/.test(formatarCartaoRadar({ totalVisiveis: 10, comRetratoAtualizado: 0, pendentes: 10, emAtualizacao: 0, ultimaExecucaoEm: null, atualizadosUltimos15Min: 0 })));
+  const SEM_EXECUCAO = { ultima_execucao: null, execucoes_recentes: [], em_execucao_agora: false };
+  const JOB_RECENTE = { ultima_execucao: { iniciado_em: new Date().toISOString(), concluido_em: new Date().toISOString(), estado: "concluido", detectados: 5, enfileirados: 1, processados: 1, falhas: 0, erro: null }, execucoes_recentes: [], em_execucao_agora: false };
 
-  const parcial = formatarCartaoRadar({ totalVisiveis: 10, comRetratoAtualizado: 6, pendentes: 4, emAtualizacao: 0, ultimaExecucaoEm: new Date().toISOString(), atualizadosUltimos15Min: 2 });
+  t("nenhuma execução do job ainda → declara isso explicitamente (nunca finge estar em dia)", /job de servidor ainda não rodou/.test(formatarCartaoRadarComJob({ totalVisiveis: 10, comRetratoAtualizado: 0, pendentes: 10, emAtualizacao: 0, ultimaExecucaoEm: null, atualizadosUltimos15Min: 0 }, SEM_EXECUCAO)));
+
+  const parcial = formatarCartaoRadarComJob({ totalVisiveis: 10, comRetratoAtualizado: 6, pendentes: 4, emAtualizacao: 0, ultimaExecucaoEm: new Date().toISOString(), atualizadosUltimos15Min: 2 }, JOB_RECENTE);
   t("cobertura parcial declarada explicitamente (nunca escondida)", /PARCIAL/.test(parcial) && parcial.includes("6 de 10") && parcial.includes("4 processo(s) ainda na fila"));
 
-  const completa = formatarCartaoRadar({ totalVisiveis: 10, comRetratoAtualizado: 10, pendentes: 0, emAtualizacao: 0, ultimaExecucaoEm: new Date().toISOString(), atualizadosUltimos15Min: 1 });
+  const completa = formatarCartaoRadarComJob({ totalVisiveis: 10, comRetratoAtualizado: 10, pendentes: 0, emAtualizacao: 0, ultimaExecucaoEm: new Date().toISOString(), atualizadosUltimos15Min: 1 }, JOB_RECENTE);
   t("cobertura completa não exibe alerta de parcial", !/PARCIAL/.test(completa) && completa.includes("10 de 10"));
   t('cartão sempre declara "Gemini não foi acionado" (verificável pelo analista)', completa.includes("Gemini não foi acionado"));
+
+  const JOB_ATRASADO = { ultima_execucao: { iniciado_em: new Date(Date.now() - 10 * 60_000).toISOString(), concluido_em: new Date(Date.now() - 10 * 60_000).toISOString(), estado: "concluido", detectados: 5, enfileirados: 0, processados: 0, falhas: 0, erro: null }, execucoes_recentes: [], em_execucao_agora: false };
+  const atrasado = formatarCartaoRadarComJob({ totalVisiveis: 10, comRetratoAtualizado: 10, pendentes: 0, emAtualizacao: 0, ultimaExecucaoEm: new Date().toISOString(), atualizadosUltimos15Min: 1 }, JOB_ATRASADO);
+  t("execução do job há 10 min (esperado a cada 1 min) → declara ATRASADA", /ATRASADA/.test(atrasado), atrasado);
 
   // Status real contra o banco (só leitura) — confirma que a função de agregação roda sem erro
   // contra dado de verdade e devolve números coerentes (não negativos, não NaN).

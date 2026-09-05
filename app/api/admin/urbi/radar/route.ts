@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { obterStatusRadar } from "@/lib/urbi/radar";
+import { obterEstadoJobRadar } from "@/lib/urbi/radarJob";
 
 /**
  * GET /api/admin/urbi/radar — painel administrativo do Radar silencioso (Camada 1). Só LEITURA:
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const cobertura = await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia });
+    const estadoJob = await obterEstadoJobRadar();
 
     const [{ data: filaPendente }, { data: errosRecentes }, { data: reanalisesRecentes }, { data: retratosParaEvidencia }] = await Promise.all([
       supabaseAdmin.from("urbi_radar_retratos")
@@ -77,6 +79,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       cobertura,
+      estado_job: estadoJob,
       cobertura_linha_evidencia: {
         com_linha_evidencia: comLinhaEvidencia,
         total_com_retrato: vistosEvidencia.size,

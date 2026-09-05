@@ -277,6 +277,8 @@ CREATE UNIQUE INDEX solicitacoes_despacho_extra_pkey ON public.solicitacoes_desp
 CREATE UNIQUE INDEX solicitacoes_etapa6_pkey ON public.solicitacoes_etapa6 USING btree (id);
 CREATE UNIQUE INDEX tipos_documento_nome_key ON public.tipos_documento USING btree (nome);
 CREATE UNIQUE INDEX tipos_documento_pkey ON public.tipos_documento USING btree (id);
+CREATE INDEX urbi_atendimento_ativo_expira_idx ON public.urbi_atendimento_ativo USING btree (expira_em);
+CREATE UNIQUE INDEX urbi_atendimento_ativo_pkey ON public.urbi_atendimento_ativo USING btree (processo_codigo);
 CREATE INDEX idx_urbi_comandos_voz_usuario_data ON public.urbi_comandos_voz USING btree (usuario_id, criado_em DESC);
 CREATE UNIQUE INDEX urbi_comandos_voz_pkey ON public.urbi_comandos_voz USING btree (id);
 CREATE UNIQUE INDEX urbi_config_chave_key ON public.urbi_config USING btree (chave);
@@ -286,6 +288,9 @@ CREATE INDEX urbi_historico_processo_codigo_idx ON public.urbi_historico USING b
 CREATE UNIQUE INDEX urbi_legislacao_pkey ON public.urbi_legislacao USING btree (id);
 CREATE UNIQUE INDEX urbi_presenca_eventos_pkey ON public.urbi_presenca_eventos USING btree (id);
 CREATE INDEX urbi_presenca_eventos_usuario_idx ON public.urbi_presenca_eventos USING btree (usuario_id, criado_em DESC);
+CREATE INDEX urbi_radar_execucoes_iniciado_idx ON public.urbi_radar_execucoes USING btree (iniciado_em DESC);
+CREATE UNIQUE INDEX urbi_radar_execucoes_lock_idx ON public.urbi_radar_execucoes USING btree ((1)) WHERE (estado = 'em_execucao'::text);
+CREATE UNIQUE INDEX urbi_radar_execucoes_pkey ON public.urbi_radar_execucoes USING btree (id);
 CREATE INDEX urbi_radar_retratos_campos_consulta_idx ON public.urbi_radar_retratos USING gin (campos_consulta);
 CREATE INDEX urbi_radar_retratos_fila_idx ON public.urbi_radar_retratos USING btree (estado, criado_em) WHERE (estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text]));
 CREATE UNIQUE INDEX urbi_radar_retratos_pkey ON public.urbi_radar_retratos USING btree (id);

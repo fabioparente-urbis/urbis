@@ -14,7 +14,8 @@ import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
 import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
 import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
-import { obterStatusRadar, formatarCartaoRadar, obterRetratoAtual } from "@/lib/urbi/radar";
+import { obterStatusRadar, obterRetratoAtual } from "@/lib/urbi/radar";
+import { obterEstadoJobRadar, formatarCartaoRadarComJob } from "@/lib/urbi/radarJob";
 import { alertasLinhaEvidencia, formatarLinhaEvidenciaDetalhada } from "@/lib/urbi/linhaEvidencia";
 import { responderPerguntaPilha } from "@/lib/urbi/perguntasPilha";
 
@@ -463,7 +464,10 @@ export async function POST(req: NextRequest) {
     // saudação (recalculado sempre fresco, mesmo quando a saudação em si vem do cache).
     const semProcessoNoContexto = typeof codigo !== "string" || !codigo.trim();
     const cartaoRadar = tipo === "OnMount" && semProcessoNoContexto
-      ? formatarCartaoRadar(await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia }))
+      ? formatarCartaoRadarComJob(
+          await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia }),
+          await obterEstadoJobRadar(),
+        )
       : null;
 
     // Cache da saudação (OnMount): resolve sem custo de Gemini nem consumo de

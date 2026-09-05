@@ -29,6 +29,7 @@ import { montarDossieFactual } from "./montarDossie";
 import { montarRelatorioMotor } from "./motorProducao";
 import { montarBlocoAtributosConsultaveis } from "./catalogoConsultaPilha";
 import { montarLinhaEvidenciaExigencias, alertasLinhaEvidencia, type BlocoLinhaEvidencia } from "./linhaEvidencia";
+import { obterProcessosEmAtendimento } from "./atendimento";
 
 export type VisibilidadeUsuario = {
   userId: string;
@@ -199,14 +200,19 @@ export async function processarProximoPendente(
   const codigosVisiveis = processos.map((p) => p.codigo);
   if (codigosVisiveis.length === 0) return { processado: false };
 
+  // "Atendimento ativo" (Fase 2, lib/urbi/atendimento.ts) — nunca pausa o Radar inteiro, só pula
+  // o(s) processo(s) que um analista tem aberto agora, pra não recalcular dossiê/motor por baixo
+  // da leitura ao vivo dele. Busca alguns candidatos a mais (não só 1) pra sempre ter uma opção
+  // elegível mesmo se o mais antigo da fila estiver em atendimento.
+  const emAtendimento = await obterProcessosEmAtendimento();
   const { data: candidatos } = await supabaseAdmin
     .from("urbi_radar_retratos")
     .select("id, processo_codigo, tipo_processo, versao")
     .eq("estado", "pendente")
     .in("processo_codigo", codigosVisiveis)
     .order("criado_em", { ascending: true })
-    .limit(1);
-  const alvo = (candidatos ?? [])[0];
+    .limit(20);
+  const alvo = (candidatos ?? []).find((c) => !emAtendimento.has(c.processo_codigo));
   if (!alvo) return { processado: false };
 
   // Reivindicação otimista: só avança se ESTA chamada foi quem mudou pendente→em_atualizacao.
@@ -367,24 +373,10 @@ export async function obterStatusRadar(usuario: VisibilidadeUsuario): Promise<St
   return { totalVisiveis: codigos.length, comRetratoAtualizado, pendentes, emAtualizacao, ultimaExecucaoEm, atualizadosUltimos15Min };
 }
 
-/**
- * Cartão curto pro cartão de abertura na Home/Pilha (Camada 1, regra 8 do Fábio) — 100%
- * determinístico, nunca passa por Gemini. Declara explicitamente quando a cobertura está
- * parcial ou quando nenhuma execução rodou ainda, em vez de fingir que está tudo em dia.
- */
-export function formatarCartaoRadar(status: StatusRadar): string {
-  if (status.totalVisiveis === 0) return "Pré-análise da Pilha: nenhum processo visível pra pré-analisar agora.";
-  if (!status.ultimaExecucaoEm) {
-    return `Pré-análise da Pilha: ainda não rodou nenhuma vez — 0 de ${status.totalVisiveis} processos com retrato pronto. Gemini não foi acionado.`;
-  }
-  const quando = new Date(status.ultimaExecucaoEm).toLocaleString("pt-BR");
-  const parcial = status.comRetratoAtualizado < status.totalVisiveis;
-  const base = `Pré-análise atualizada em ${quando} — ${status.comRetratoAtualizado} de ${status.totalVisiveis} processos; `
-    + `${status.atualizadosUltimos15Min} atualizado(s) nos últimos 15 minutos. Gemini não foi acionado nessa camada.`;
-  return parcial
-    ? `${base} Cobertura PARCIAL — ${status.pendentes} processo(s) ainda na fila.`
-    : base;
-}
+// `formatarCartaoRadar` (cartão só com cobertura de retratos) foi substituído por
+// `formatarCartaoRadarComJob` (lib/urbi/radarJob.ts), que combina a mesma cobertura com o
+// estado do job de servidor — mantém a declaração honesta de "parcial"/"nunca rodou" e ainda
+// avisa quando o agendamento parece atrasado.
 
 /** O retrato mais recente de um processo específico — usado quando o URBI abre DENTRO dele. */
 export async function obterRetratoAtual(codigo: string) {

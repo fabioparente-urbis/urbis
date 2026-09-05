@@ -1229,6 +1229,11 @@ type RadarPainel = {
     totalVisiveis: number; comRetratoAtualizado: number; pendentes: number;
     emAtualizacao: number; ultimaExecucaoEm: string | null; atualizadosUltimos15Min: number;
   };
+  estado_job: {
+    ultima_execucao: { iniciado_em: string; concluido_em: string | null; estado: string; detectados: number | null; enfileirados: number | null; processados: number | null; falhas: number | null; erro: string | null } | null;
+    execucoes_recentes: { iniciado_em: string; concluido_em: string | null; estado: string; processados: number | null; falhas: number | null }[];
+    em_execucao_agora: boolean;
+  };
   cobertura_linha_evidencia: { com_linha_evidencia: number; total_com_retrato: number; sem_vinculo_estruturado: number; parcial: boolean };
   fila_pendente: { processo_codigo: string; tipo_processo: string | null; estado: string; motivo_disparo: string; criado_em: string; iniciado_em: string | null }[];
   erros_recentes: { processo_codigo: string; erro: string | null; concluido_em: string | null; versao: number }[];
@@ -1272,19 +1277,49 @@ function AbaPreAnaliseDaPilha() {
         e Motor de Produção já usados no chat (lib/urbi/montarDossie.ts, lib/urbi/motorProducao.ts) —
         <strong> nunca chama Gemini</strong>, nunca escreve em LIP/MAC/MDP/documento/despacho/numeração.
         Detecção de mudança é por diff de timestamp (sem trigger novo em rota de escrita nenhuma).
-        Pausa sozinho quando o URBI está aberto dentro de um processo específico.
+        Roda por agendamento no próprio banco (pg_cron + pg_net), com conta técnica — independente
+        de navegador ou sessão do analista. Pula só o processo que alguém tem aberto no momento
+        (atendimento ativo), nunca o Radar inteiro.
       </div>
       {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
       {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
       {dados && (
         <>
-          <Secao titulo="Cobertura agora" acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}>
+          <Secao titulo="Processador de servidor (pg_cron + pg_net)" acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}>
+            <div className="grid gap-3 p-4 sm:grid-cols-4">
+              <Metrica label="Estado" valor={dados.estado_job.em_execucao_agora ? "Em execução agora" : dados.estado_job.ultima_execucao ? "Ativo" : "Nunca rodou"} />
+              <Metrica label="Última execução" valor={dados.estado_job.ultima_execucao ? fmtData(dados.estado_job.ultima_execucao.concluido_em ?? dados.estado_job.ultima_execucao.iniciado_em) : "—"} />
+              <Metrica label="Próxima estimada" valor="~1 min (agendamento fixo)" fonte={dados.estado_job.ultima_execucao ? undefined : "agendamento indisponível ou recém-configurado"} />
+              <Metrica label="Processados na última execução" valor={dados.estado_job.ultima_execucao ? `${dados.estado_job.ultima_execucao.processados ?? 0} ok / ${dados.estado_job.ultima_execucao.falhas ?? 0} falha(s)` : "—"} />
+            </div>
+            <div className="px-4 pb-3 text-[11px] text-[var(--text-muted)]">Pré-análise determinística; Gemini não foi acionado.</div>
+          </Secao>
+
+          <Secao titulo="Cobertura agora">
             <div className="grid gap-3 p-4 sm:grid-cols-4">
               <Metrica label="Com retrato pronto" valor={`${dados.cobertura.comRetratoAtualizado} de ${dados.cobertura.totalVisiveis}`} fonte="urbi_radar_retratos, retrato mais recente por processo" />
               <Metrica label="Fila pendente" valor={dados.cobertura.pendentes} />
               <Metrica label="Em atualização agora" valor={dados.cobertura.emAtualizacao} />
               <Metrica label="Atualizados (15 min)" valor={dados.cobertura.atualizadosUltimos15Min} fonte={dados.cobertura.ultimaExecucaoEm ? `última conclusão: ${fmtData(dados.cobertura.ultimaExecucaoEm)}` : "nenhuma execução ainda"} />
             </div>
+          </Secao>
+
+          <Secao titulo="Execuções recentes do processador">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Início</th><th className={TH}>Estado</th><th className={TH}>Processados</th><th className={TH}>Falhas</th></tr></thead>
+              <tbody>
+                {dados.estado_job.execucoes_recentes.length === 0
+                  ? <Vazio cols={4}>Nenhuma execução registrada ainda.</Vazio>
+                  : dados.estado_job.execucoes_recentes.map((e, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{fmtData(e.iniciado_em)}</td>
+                      <td className={TD}><Badge tom={e.estado === "concluido" ? "ok" : e.estado === "erro" ? "erro" : "info"}>{e.estado}</Badge></td>
+                      <td className={TD}>{e.processados ?? "—"}</td>
+                      <td className={TD}>{e.falhas ?? "—"}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
           </Secao>
 
           <Secao titulo="Linha de evidência (MDP → análise → retorno → resultado)" descricao={dados.cobertura_linha_evidencia.parcial ? "Cobertura PARCIAL — a versão nova do retrato ainda não alcançou toda a Pilha." : "Cobertura completa entre os retratos já calculados."}>

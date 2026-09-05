@@ -2,7 +2,7 @@
 -- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
--- Tabelas sem RLS ativo (3 de 126):
+-- Tabelas sem RLS ativo (3 de 128):
 --   mac_checklist_itens_historico
 --   mac_vinculos_propostas
 --   urbi_sugestoes
@@ -109,11 +109,13 @@ ALTER TABLE public.rh_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.solicitacoes_despacho_extra ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.solicitacoes_etapa6 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tipos_documento ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.urbi_atendimento_ativo ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_comandos_voz ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_legislacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_presenca_eventos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.urbi_radar_execucoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_radar_retratos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbis_api_calls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbis_aportes ENABLE ROW LEVEL SECURITY;
@@ -212,7 +214,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
   USING (is_admin_user())
   WITH CHECK (is_admin_user());
 
--- Grants para anon/authenticated/service_role/PUBLIC (195 linhas):
+-- Grants para anon/authenticated/service_role/PUBLIC (197 linhas):
 -- admin_users                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- alertas                                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- analise_itens                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -317,11 +319,13 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- solicitacoes_despacho_extra                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- solicitacoes_etapa6                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- tipos_documento                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_atendimento_ativo                     service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_comandos_voz                          service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_config                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_historico                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_legislacao                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_presenca_eventos                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_radar_execucoes                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_radar_retratos                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_sugestoes                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_api_calls                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
