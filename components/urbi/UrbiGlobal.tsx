@@ -5,26 +5,35 @@ import UrbiChat from "./UrbiChat";
 
 // Presença persistente por sessão do navegador (sessionStorage, não
 // localStorage — não sobrevive entre sessões distintas nem entre
-// abas/dispositivos). Só o estado visual (aberto/dispensado) persiste;
-// conversa e dados de processo nunca são gravados aqui. Inicializador
-// preguiçoso (não um efeito de restauração) — seguro contra mismatch de
-// hidratação porque este componente só renderiza de fato depois que
-// `usuario` chega via fetch client-side; a passagem de SSR/primeira
-// pintura já é `null` independente deste valor, então não há divergência
-// entre servidor e cliente a evitar.
-function lerUrbiAbertoSalvo(): boolean {
+// abas/dispositivos), agora por TELA (pathname) — achado real (05/09/2026,
+// arquitetura mestra do URBI): a chave era única pra sessão inteira, então
+// dispensar o URBI numa tela deixava ele fechado em QUALQUER outra tela
+// visitada depois, até reabrir manualmente. "Dispensa esconde NAQUELA
+// tela" — outra tela nunca deveria herdar esse fechamento; retorno só
+// pela Home ou Shift+U (ver efeito de reset abaixo, que fecha ao trocar
+// de pathname). Só o estado visual (aberto/dispensado) persiste, e só pra
+// sobreviver a um F5 na MESMA tela; conversa e dados de processo nunca são
+// gravados aqui. Inicializador preguiçoso (não um efeito de restauração) —
+// seguro contra mismatch de hidratação porque este componente só renderiza
+// de fato depois que `usuario` chega via fetch client-side; a passagem de
+// SSR/primeira pintura já é `null` independente deste valor, então não há
+// divergência entre servidor e cliente a evitar.
+function lerUrbiAbertoSalvo(pathname: string): boolean {
   if (typeof window === "undefined") return false;
-  try { return sessionStorage.getItem("urbi:aberto") === "true"; } catch { return false; }
+  try { return sessionStorage.getItem(`urbi:aberto:${pathname}`) === "true"; } catch { return false; }
 }
 
 export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
-  const [urbiAberto, setUrbiAberto] = useState<boolean>(lerUrbiAbertoSalvo);
+  const pathname = usePathname();
+  const [urbiAberto, setUrbiAberto] = useState<boolean>(() => lerUrbiAbertoSalvo(pathname));
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const [processoCodigo, setProcessoCodigo] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
-  const pathname = usePathname();
   const isHome = pathname === "/";
+  // Detecta troca REAL de tela (não a primeira renderização) — só nesse caso o dismiss/abertura
+  // da tela anterior é descartado. `null` marca "ainda não vi a primeira tela".
+  const pathnameAnteriorRef = useRef<string | null>(null);
   const recRef = useRef<any>(null);
   const urbiAbertoRef = useRef(false);
   const bufferRef = useRef("");
@@ -62,8 +71,19 @@ export default function UrbiGlobal() {
   }, [urbiAberto]);
 
   useEffect(() => {
-    try { sessionStorage.setItem("urbi:aberto", urbiAberto ? "true" : "false"); } catch {}
-  }, [urbiAberto]);
+    try { sessionStorage.setItem(`urbi:aberto:${pathname}`, urbiAberto ? "true" : "false"); } catch {}
+  }, [urbiAberto, pathname]);
+
+  // "Dispensa esconde NAQUELA tela" — ao trocar de pathname de verdade (não a primeira
+  // renderização, que já leu o estado salvo daquela mesma tela no useState acima), o
+  // fechamento/abertura da tela ANTERIOR nunca deveria valer pra tela nova: ela sempre chega
+  // fechada, e só reabre pela Home ou por Shift+U — nunca herdando o que aconteceu em outro lugar.
+  useEffect(() => {
+    if (pathnameAnteriorRef.current !== null && pathnameAnteriorRef.current !== pathname) {
+      setUrbiAberto(false);
+    }
+    pathnameAnteriorRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
