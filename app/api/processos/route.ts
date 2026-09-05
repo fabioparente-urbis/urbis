@@ -161,6 +161,27 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Dias aguardando retorno do interessado, pro badge da Pilha (Camada 6 da arquitetura
+    // mestra do URBI, 05/09/2026). Só "ainda aguardando" é fato real de espera — mesma regra já
+    // usada em lib/urbi/montarDossie.ts: "retornou" e "base insuficiente" nunca viram contagem
+    // de dias. Se por algum motivo mais de um despacho da mesma passada aparecer aqui, fica o
+    // de mais dias (o mais antigo em aberto, nunca o mais otimista).
+    const diasAguardandoPorCodigo = new Map<string, number>();
+    if (codigos.length > 0) {
+      const { data: linhasRetorno } = await supabase
+        .from("vw_bdi_aguardando_retorno")
+        .select("processo_codigo, dias_aguardando_retorno, situacao")
+        .in("processo_codigo", codigos)
+        .eq("situacao", "ainda aguardando");
+      for (const linha of linhasRetorno ?? []) {
+        const l = linha as any;
+        const dias = Number(l.dias_aguardando_retorno);
+        if (!Number.isFinite(dias)) continue;
+        const atual = diasAguardandoPorCodigo.get(l.processo_codigo);
+        if (atual === undefined || dias > atual) diasAguardandoPorCodigo.set(l.processo_codigo, dias);
+      }
+    }
+
     resultado = resultado.map((p: any) => {
       const entrada: EntradaVigia = {
         processo: {
@@ -188,6 +209,11 @@ export async function GET(req: NextRequest) {
         situacao_geral: sitGeral.classe, situacao_motivo: sitGeral.motivo,
         situacao_lip: sitLip.classe, situacao_lip_motivo: sitLip.motivo,
         situacao_mac: sitMac.classe, situacao_mac_motivo: sitMac.motivo,
+        // Só populado quando a própria classificação MAC já é "Aguardando retorno" — nunca
+        // um número solto sem a situação que o justifica.
+        dias_aguardando_retorno: sitMac.classe === "Aguardando retorno do interessado"
+          ? diasAguardandoPorCodigo.get(p.codigo) ?? null
+          : null,
       };
     });
 

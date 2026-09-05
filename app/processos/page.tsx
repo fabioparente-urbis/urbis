@@ -41,6 +41,9 @@ type Processo = {
   situacao_lip_motivo?: string;
   situacao_mac?: SituacaoMac;
   situacao_mac_motivo?: string;
+  /** Só vem preenchido quando situacao_mac já é "Aguardando retorno do interessado" — dias
+   *  corridos desde o documento que abriu o prazo (vw_bdi_aguardando_retorno). */
+  dias_aguardando_retorno?: number | null;
 };
 
 type SituacaoGeral =
@@ -77,6 +80,41 @@ const SITUACAO_MAC_COR: Record<SituacaoMac, string> = {
   "Em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
   "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
   "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
+};
+
+// Camada 6 da arquitetura mestra do URBI (05/09/2026): alerta de prazo de retorno do
+// interessado, sobre o dado que já existe (vw_bdi_aguardando_retorno, via /api/processos) —
+// nunca um prazo inventado, só os 2 limiares pedidos. Pulso visual só no âmbar (175–179); o
+// vermelho (180+) é alerta forte e estático — "prazo atingido" nunca arquiva sozinho, só sugere.
+const LIMIAR_ALERTA_DIAS = 175;
+const LIMIAR_PRAZO_ATINGIDO_DIAS = 180;
+
+// A view guarda dias corridos com casa decimal (ex.: 44.5 — a diferença exata em horas desde o
+// documento-fonte). Pro badge, dia corrido é sempre inteiro; floor (não round) porque "175 dias"
+// só deve acender quando 175 dias JÁ se passaram de verdade, nunca antecipado por arredondamento.
+function diasInteiros(dias: number | null | undefined): number | null {
+  return dias == null ? null : Math.floor(dias);
+}
+
+function corBadgeRetorno(dias: number | null | undefined): string {
+  const d = diasInteiros(dias);
+  if (d == null) return SITUACAO_MAC_COR["Aguardando retorno do interessado"];
+  if (d >= LIMIAR_PRAZO_ATINGIDO_DIAS) return "bg-[var(--error-bg)] text-[var(--error)]";
+  if (d >= LIMIAR_ALERTA_DIAS) return "bg-[var(--warning-bg)] text-[var(--warning)] animate-pulse";
+  return SITUACAO_MAC_COR["Aguardando retorno do interessado"];
+}
+
+function textoBadgeRetorno(dias: number | null | undefined): string {
+  const d = diasInteiros(dias);
+  return d != null ? `Aguardando retorno · ${d} dia${d === 1 ? "" : "s"}` : "Aguardando retorno do interessado";
+}
+
+function tituloBadgeRetorno(dias: number | null | undefined, motivo?: string): string | undefined {
+  const d = diasInteiros(dias);
+  if (d == null) return motivo;
+  if (d >= LIMIAR_PRAZO_ATINGIDO_DIAS) return `MAC: prazo atingido (${d} dias) — avaliar arquivamento conforme fluxo aplicável.`;
+  if (d >= LIMIAR_ALERTA_DIAS) return `MAC: se aproximando do prazo de avaliação (${d} de ${LIMIAR_PRAZO_ATINGIDO_DIAS} dias).`;
+  return motivo;
 };
 
 const TAG_COR: Record<ProcessoTag["tipo"], string> = {
@@ -587,9 +625,17 @@ function ProcessosConteudo() {
                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${p.situacao_lip ? SITUACAO_LIP_COR[p.situacao_lip] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                     LIP: {p.situacao_lip || "—"}
                   </span>
-                  <span title={p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${p.situacao_mac ? SITUACAO_MAC_COR[p.situacao_mac] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-                    MAC: {p.situacao_mac || "—"}
+                  <span title={
+                      p.situacao_mac === "Aguardando retorno do interessado"
+                        ? tituloBadgeRetorno(p.dias_aguardando_retorno, p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined)
+                        : (p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined)
+                    }
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+                      p.situacao_mac === "Aguardando retorno do interessado"
+                        ? corBadgeRetorno(p.dias_aguardando_retorno)
+                        : p.situacao_mac ? SITUACAO_MAC_COR[p.situacao_mac] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
+                    }`}>
+                    MAC: {p.situacao_mac === "Aguardando retorno do interessado" ? textoBadgeRetorno(p.dias_aguardando_retorno) : (p.situacao_mac || "—")}
                   </span>
                 </div>
                 {/* Some no telão (lg+) sempre que o MAC já começou — a partir daí
