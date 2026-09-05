@@ -19,15 +19,21 @@
 const RAIZES_DOSSIE = ["processo", "situacoes", "lip", "mac", "fluxo", "cruzamentos", "tecnico", "cobertura"];
 const PADRAO_CAMINHO_TECNICO = new RegExp(`\\b(?:${RAIZES_DOSSIE.join("|")})(?:\\.[a-zA-Z0-9_]+){1,4}\\b`, "g");
 const PADRAO_UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
+// Fase AF (04/09/2026, achado real do 3º reteste): o prompt pede pro modelo NUNCA imprimir o
+// vocabulário interno de certeza literalmente (a seção onde o fato aparece já expressa isso) —
+// mas, como todo o resto que já foi só instrução de prompt, pode ser ignorado. Só o "grau" +
+// "certeza" juntos são exigidos aqui (nunca as 5 palavras soltas, tipo "confirmado" — essas são
+// português comum e apareceriam em prosa legítima, cortar por engano é pior que deixar passar).
+const PADRAO_GRAU_CERTEZA = /grau[ _-]?(?:de[ _-]?)?certeza\s*[:=]\s*["']?[a-zçã_-]+["']?/gi;
 
 /**
- * Remove todo caminho técnico ("lip.campos_tecnicos.X", "mac.resumo_ultima_analise.Y"...) e todo
- * UUID solto do texto, depois limpa a pontuação residual que a remoção deixa pra trás (o caso
- * mais comum: "Rótulo humano (caminho.tecnico)" vira só "Rótulo humano", nunca "Rótulo humano ()"
- * nem "Rótulo humano (, )").
+ * Remove todo caminho técnico ("lip.campos_tecnicos.X", "mac.resumo_ultima_analise.Y"...), todo
+ * UUID solto e toda tag "grau_certeza: X" do texto, depois limpa a pontuação residual que a
+ * remoção deixa pra trás (o caso mais comum: "Rótulo humano (caminho.tecnico)" vira só "Rótulo
+ * humano", nunca "Rótulo humano ()" nem "Rótulo humano (, )").
  */
 export function removerCaminhosTecnicos(texto: string): string {
-  let limpo = texto.replace(PADRAO_CAMINHO_TECNICO, "").replace(PADRAO_UUID, "");
+  let limpo = texto.replace(PADRAO_CAMINHO_TECNICO, "").replace(PADRAO_UUID, "").replace(PADRAO_GRAU_CERTEZA, "");
   // Várias passadas: uma lista com 2+ caminhos técnicos nos mesmos parênteses (ex.:
   // "(situacoes.geral.classe, situacoes.geral.motivo)") deixa resíduo em camadas
   // ("(, )") que só se resolve depois de mais de uma rodada de limpeza.

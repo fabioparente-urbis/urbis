@@ -57,8 +57,11 @@ secao("2 · fontes só com rótulos humanos — prompt instrui usar 'rotulo', nu
 secao("3 · nenhuma divergência sem regra semântica — bloqueio de comparação livre");
 {
   t("prompt tem a REGRA ABSOLUTA contra comparar número bruto por conta própria", rota.includes("REGRA ABSOLUTA — nunca comparar número bruto por conta própria"));
-  t('regra cobre explicitamente LIP × LIP (não só LIP × MAC/documento)', rota.includes("LIP × LIP, LIP × documento, LIP × item do MAC"));
-  t('regra nomeia o par real do achado (areaArt/areaLaudo × areaTotal/areaVertical) como só fato até haver regra aprovada', rota.includes('"areaArt"/"areaLaudo"') && rota.includes('"areaTotal"/"areaVertical"'));
+  // Fase AF (04/09/2026) reformulou esta frase (agora cita rótulo humano, não chave técnica, e
+  // vale explicitamente pro resumo também — ver scripts/testar_fase_af_qualidade_resumo.mts) —
+  // aqui só confirma, de forma tolerante a reformatação de linha, que LIP×LIP continua coberto.
+  t('regra cobre explicitamente LIP × LIP (não só LIP × MAC/documento)', /LIP × LIP,\s*LIP ×\s*documento,\s*LIP × item do MAC/.test(rota));
+  t('regra nomeia o par real do achado (Área a ser Regularizada × ART/Laudo/vistoria) como só fato até haver regra aprovada', rota.includes('"Área a ser Regularizada TOTAL"') && rota.includes("levantamento/ART/laudo"));
   t('instrução antiga que convidava a "cruzar lip.campos_tecnicos com o texto de mac.pendencias" livremente foi removida', !rota.includes('cruze "lip.campos_tecnicos" (valor preenchido) com o texto de'));
   t('nova instrução restringe a fonte de divergência a "cruzamentos"/"lip.incoerencias" (nunca cálculo do modelo)', rota.includes('sua ÚNICA fonte de divergência/incoerência entre dois valores é'));
 }
