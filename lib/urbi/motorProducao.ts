@@ -52,11 +52,29 @@ function truncar(texto: string, limite: number): string {
   return t.length > limite ? `${t.slice(0, limite - 1)}…` : t;
 }
 
-/** Teto duro pra QUALQUER ação, depois de composta (prefixo + texto + grupo) — "curto" é um
- *  requisito do produto, não só do trecho citado dentro dela. */
+/** Teto duro pra QUALQUER ação, depois de composta — "curto" é requisito do produto. Corta
+ *  o CORPO (o trecho citado), nunca o prefixo/sufixo fixo — assim "(grupo)." sempre sobrevive
+ *  inteiro em vez de virar um "(" pendurado sem fechar. */
 const LIMITE_ACAO = 130;
+
+function compor(prefixo: string, corpo: string, sufixo: string): string {
+  const disponivel = Math.max(20, LIMITE_ACAO - prefixo.length - sufixo.length);
+  return prefixo + truncar(corpo, disponivel) + sufixo;
+}
+
+/** Rede de segurança final pra qualquer ação que não passou por `compor` (ex.: rótulo de
+ *  cruzamento já formatado) — se o corte cair no meio de um parêntese aberto, fecha ou recua
+ *  pra antes dele, nunca deixa "(" pendurado. */
 function truncarAcaoFinal(texto: string): string {
-  return texto.length > LIMITE_ACAO ? `${texto.slice(0, LIMITE_ACAO - 1)}…` : texto;
+  if (texto.length <= LIMITE_ACAO) return texto;
+  let cortado = texto.slice(0, LIMITE_ACAO - 1);
+  const abertos = (cortado.match(/\(/g) ?? []).length;
+  const fechados = (cortado.match(/\)/g) ?? []).length;
+  if (abertos > fechados) {
+    const ultimaAbertura = cortado.lastIndexOf("(");
+    cortado = cortado.slice(0, ultimaAbertura).trimEnd();
+  }
+  return `${cortado}…`;
 }
 
 function fraseSituacaoLip(classe: string | undefined): string {
@@ -91,7 +109,7 @@ function candidatosPendencias(mac: any): AcaoPrioritaria[] {
     const pedeDocumento = PADRAO_PEDE_DOCUMENTO.test(normalizar(textoItem));
     return {
       tier: 1,
-      texto: `Corrigir/confirmar "${truncar(textoItem, 90)}"${grupo ? ` (${grupo})` : ""}.`,
+      texto: compor(`Corrigir/confirmar "`, textoItem, `"${grupo ? ` (${grupo})` : ""}.`),
       // BIP só entra quando há vínculo REAL e aprovado (mac_bip_vinculos) — nunca por inferência.
       motivo: vinculos.length > 0
         ? `MAC: não conforme, com vínculo BIP aprovado (${vinculos[0].referencia}).`

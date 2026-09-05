@@ -37,6 +37,12 @@ function validarRelatorio(nome: string, r: RelatorioMotor) {
     t(`[${nome}] ação ${i + 1} sem UUID`, !PADRAO_UUID.test(a.texto) && !PADRAO_UUID.test(a.motivo));
     t(`[${nome}] ações em ordem de prioridade não-decrescente (tier)`, i === 0 || a.tier >= r.acoes[i - 1].tier, `tiers: ${r.acoes.map((x) => x.tier).join(",")}`);
     t(`[${nome}] ação ${i + 1} não promete prazo/data (sem "em X dias"/"até")`, !/\bem \d+ dias?\b|\baté \d{1,2}\/\d{1,2}\b/i.test(a.texto));
+    // Achado real (Slot 5, 48533): truncar o texto composto inteiro cortava o "(grupo)." no
+    // meio, deixando parêntese pendurado sem fechar — corrigido reservando espaço fixo pro
+    // sufixo (ver compor() em motorProducao.ts). Confirma que nunca mais falta o fechamento.
+    const abertos = (a.texto.match(/\(/g) ?? []).length;
+    const fechados = (a.texto.match(/\)/g) ?? []).length;
+    t(`[${nome}] ação ${i + 1} nunca deixa parêntese aberto sem fechar`, abertos === fechados, a.texto);
   }
   const texto = formatarRelatorioMotor(r);
   t(`[${nome}] formatação segue o template exato`, texto.startsWith("Situação:") && texto.includes("\nAgora:\n") && texto.includes("\nEsforço provável:\n•") && texto.includes("\nMotivo:\n•"), texto);
