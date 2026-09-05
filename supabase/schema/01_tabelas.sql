@@ -2064,6 +2064,23 @@ ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_tipo_check CHE
 ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_pkey PRIMARY KEY (id);
 
 -- ======================================================================
+-- urbi_presenca_eventos
+-- ======================================================================
+CREATE TABLE public.urbi_presenca_eventos (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    usuario_id uuid NOT NULL,
+    tipo_evento text NOT NULL,
+    sessao_efemera text,
+    origem text DEFAULT 'web'::text NOT NULL,
+    versao_contrato smallint DEFAULT 1 NOT NULL,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_tipo_evento_check CHECK ((tipo_evento = ANY (ARRAY['sem_interacao_urbis'::text, 'interacao_retomada'::text])));
+ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE;
+ALTER TABLE public.urbi_presenca_eventos ADD CONSTRAINT urbi_presenca_eventos_pkey PRIMARY KEY (id);
+COMMENT ON COLUMN public.urbi_presenca_eventos.sessao_efemera IS "Id aleatório gerado no cliente por carregamento de página (nunca persistente, nunca ligado a\n   cookie de autenticação) — só pra distinguir abas no log bruto, nunca usado em lógica alguma.";
+
+-- ======================================================================
 -- urbi_radar_retratos
 -- ======================================================================
 CREATE TABLE public.urbi_radar_retratos (

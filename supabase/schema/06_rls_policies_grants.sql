@@ -2,7 +2,7 @@
 -- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
--- Tabelas sem RLS ativo (3 de 125):
+-- Tabelas sem RLS ativo (3 de 126):
 --   mac_checklist_itens_historico
 --   mac_vinculos_propostas
 --   urbi_sugestoes
@@ -113,6 +113,7 @@ ALTER TABLE public.urbi_comandos_voz ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_historico ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_legislacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.urbi_presenca_eventos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbi_radar_retratos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbis_api_calls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.urbis_aportes ENABLE ROW LEVEL SECURITY;
@@ -211,7 +212,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
   USING (is_admin_user())
   WITH CHECK (is_admin_user());
 
--- Grants para anon/authenticated/service_role/PUBLIC (194 linhas):
+-- Grants para anon/authenticated/service_role/PUBLIC (195 linhas):
 -- admin_users                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- alertas                                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- analise_itens                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -320,6 +321,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- urbi_config                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_historico                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_legislacao                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_presenca_eventos                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_radar_retratos                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_sugestoes                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_api_calls                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE

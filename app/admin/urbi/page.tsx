@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "prontidao" | "radar" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "prontidao" | "radar" | "presenca" | "config";
 
 // =====================================================================
 // Visão geral
@@ -1384,6 +1384,84 @@ function AbaPreAnaliseDaPilha() {
 }
 
 // =====================================================================
+// Presença no URBIS — telemetria neutra (rodada isolada, 05/09/2026)
+// =====================================================================
+
+type EventoPresenca = { usuario_id: string; usuario_nome: string | null; tipo_evento: string; criado_em: string };
+type EstadoPresenca = { usuario_id: string; usuario_nome: string | null; ultimo_tipo: string; ultimo_evento_em: string; estado: string };
+type PresencaPainel = { ultimos_eventos: EventoPresenca[]; por_usuario: EstadoPresenca[] };
+
+function AbaPresencaUrbi() {
+  const [dados, setDados] = useState<PresencaPainel | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/presenca");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        <strong>Isto mede somente interação com o URBIS; não mede trabalho, produtividade ou
+        presença física.</strong> Só duas transições existem: "sem interação há mais de 30 min" e
+        "interação retomada" — nunca teclas digitadas, conteúdo de campo, texto de conversa ou
+        dado de processo. Fechar a aba ou perder conexão nunca vira conclusão nenhuma aqui, só
+        deixa de haver novo evento.
+      </div>
+      {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
+      {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
+      {dados && (
+        <>
+          <Secao titulo="Estado atual por usuário" acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}>
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Usuário</th><th className={TH}>Estado</th><th className={TH}>Último evento em</th></tr></thead>
+              <tbody>
+                {dados.por_usuario.length === 0
+                  ? <Vazio cols={3}>Nenhum evento de presença registrado ainda.</Vazio>
+                  : dados.por_usuario.map((u, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{u.usuario_nome ?? "—"}</td>
+                      <td className={TD}><Badge tom={u.estado === "interação recente" ? "ok" : "alerta"}>{u.estado}</Badge></td>
+                      <td className={TD}>{fmtData(u.ultimo_evento_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+
+          <Secao titulo="Últimos eventos" descricao="Log bruto das transições mais recentes (todos os usuários).">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Usuário</th><th className={TH}>Evento</th><th className={TH}>Quando</th></tr></thead>
+              <tbody>
+                {dados.ultimos_eventos.length === 0
+                  ? <Vazio cols={3}>Nenhum evento ainda.</Vazio>
+                  : dados.ultimos_eventos.map((e, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{e.usuario_nome ?? "—"}</td>
+                      <td className={TD}><Badge tom={e.tipo_evento === "interacao_retomada" ? "ok" : "alerta"}>{e.tipo_evento}</Badge></td>
+                      <td className={TD}>{fmtData(e.criado_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -1531,7 +1609,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["radar", "Pré-análise da Pilha"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["radar", "Pré-análise da Pilha"], ["presenca", "Presença no URBIS"], ["config", "Configurações"],
   ];
 
   return (
@@ -1568,6 +1646,7 @@ export default function UrbiAdminPage() {
         {aba === "leitura-visual" && <AbaLeituraVisual />}
         {aba === "prontidao" && <AbaProntidaoPiloto />}
         {aba === "radar" && <AbaPreAnaliseDaPilha />}
+        {aba === "presenca" && <AbaPresencaUrbi />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>

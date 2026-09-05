@@ -264,6 +264,65 @@ export default function UrbiGlobal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [usuario]);
 
+  // Telemetria NEUTRA de presença no URBIS (rodada isolada, 05/09/2026) — único significado
+  // permitido é "houve interação recente", nunca produtividade/ocioso/ranking. Nada de heartbeat
+  // por minuto: um único setTimeout de 30 min, rearmado a cada interação genuína (clique, troca
+  // de tela, aba voltando a ficar visível) — só dispara rede quando o ESTADO muda (virou inativo,
+  // ou voltou a interagir), nunca a cada clique. Fechar a aba/perder conexão nunca vira conclusão
+  // nenhuma aqui: só deixa de haver novo evento. Dedupe contra duplicidade mora no servidor
+  // (lib/urbi/presenca.ts), este efeito só decide QUANDO tentar enviar.
+  const presencaInativoRef = useRef(false);
+  const presencaTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presencaSessaoRef = useRef<string>("");
+  const presencaRegistrarInteracaoRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!usuario?.nome) return;
+    if (!presencaSessaoRef.current) {
+      presencaSessaoRef.current = typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID() : String(Date.now());
+    }
+    const TRINTA_MIN = 30 * 60_000;
+    const enviar = (tipo: "sem_interacao_urbis" | "interacao_retomada") => {
+      fetch("/api/urbi/presenca", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, sessao_efemera: presencaSessaoRef.current }),
+      }).catch(() => {});
+    };
+    const rearmar = () => {
+      if (presencaTimeoutRef.current) clearTimeout(presencaTimeoutRef.current);
+      presencaTimeoutRef.current = setTimeout(() => {
+        presencaInativoRef.current = true;
+        enviar("sem_interacao_urbis");
+      }, TRINTA_MIN);
+    };
+    const registrarInteracao = () => {
+      if (presencaInativoRef.current) {
+        presencaInativoRef.current = false;
+        enviar("interacao_retomada");
+      }
+      rearmar();
+    };
+    presencaRegistrarInteracaoRef.current = registrarInteracao;
+    const onVisibility = () => { if (document.visibilityState === "visible") registrarInteracao(); };
+    window.addEventListener("click", registrarInteracao, { passive: true });
+    document.addEventListener("visibilitychange", onVisibility);
+    rearmar();
+    return () => {
+      window.removeEventListener("click", registrarInteracao);
+      document.removeEventListener("visibilitychange", onVisibility);
+      if (presencaTimeoutRef.current) clearTimeout(presencaTimeoutRef.current);
+    };
+  }, [usuario]);
+
+  // Troca de tela também conta como interação (navegação é um dos eventos genéricos previstos) —
+  // reaproveita a MESMA função (envia só se realmente estava marcado inativo, e rearma o
+  // temporizador de 30 min) em vez de duplicar a lógica de envio/dedupe.
+  useEffect(() => {
+    if (!usuario?.nome) return;
+    presencaRegistrarInteracaoRef.current();
+  }, [pathname, usuario]);
+
   // Radar silencioso incremental (Camada 1 da arquitetura mestra do URBI, 05/09/2026) — roda em
   // background enquanto o app está aberto no navegador e o URBI NÃO está atendendo dentro de um
   // processo específico (regra do Fábio: "ao abrir o URBI dentro de um processo, o Radar pausa").
