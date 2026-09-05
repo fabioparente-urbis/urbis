@@ -76,8 +76,11 @@ secao("2 · versão do contrato é gravada no retrato");
   await supabaseAdmin.from("urbi_radar_retratos").insert({ processo_codigo: PROCESSO_REGULARIZACAO, tipo_processo: "regularizacao", versao: 1, estado: "pendente", motivo_disparo: "teste versao_contrato", criado_em: criadoEmAntigo });
   const r = await processarProximoPendente(ADMIN);
   t("processou o processo certo", r.processado && r.codigo === PROCESSO_REGULARIZACAO, JSON.stringify(r));
+  // Não trava num número fixo: VERSAO_CONTRATO_RETRATO sobe legitimamente quando o formato do
+  // retrato muda (ex.: Fase 4 subiu de 1 pra 2 ao acrescentar previsao_tempo) — o que importa
+  // aqui é que o campo É gravado como inteiro positivo, nunca nulo.
   const { data: linha } = await supabaseAdmin.from("urbi_radar_retratos").select("versao_contrato").eq("processo_codigo", PROCESSO_REGULARIZACAO).eq("versao", 1).maybeSingle();
-  t("versao_contrato = 1 gravada", (linha as any)?.versao_contrato === 1, JSON.stringify(linha));
+  t("versao_contrato gravada como inteiro positivo", Number.isInteger((linha as any)?.versao_contrato) && (linha as any).versao_contrato > 0, JSON.stringify(linha));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

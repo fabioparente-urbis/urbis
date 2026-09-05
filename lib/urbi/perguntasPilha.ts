@@ -166,5 +166,28 @@ export async function responderPerguntaPilha(mensagem: string, usuario: Visibili
       : "Nenhum processo visível com exigência recorrente agora.";
   }
 
+  // ── previsão de tempo (Fase 4, 05/09/2026) — nunca inventa certeza; "menor previsão" só
+  // ordena quem JÁ tem estimativa numérica (nunca compara com quem está suspenso/insuficiente).
+  if (/menor previs[ãa]o|previs[ãa]o de tempo|quanto tempo/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const comEstimativa = retratos.filter((r) => r.previsao_tempo?.status === "estimativa") as (RetratoConsultavel & { previsao_tempo: { status: "estimativa"; minDias: number; maxDias: number; confianca: string; amostra: number; fonte: string } })[];
+    const semEstimativa = retratos.length - comEstimativa.length;
+    if (comEstimativa.length === 0) {
+      return `Base insuficiente: nenhum processo visível tem histórico suficiente pra estimar tempo hoje (amostra real ainda pequena — cresce conforme mais processos são concluídos).${semEstimativa > 0 ? ` ${semEstimativa} processo(s) sem estimativa (suspenso por documento ou amostra insuficiente).` : ""}`;
+    }
+    const ordenados = [...comEstimativa].sort((a, b) => a.previsao_tempo.minDias - b.previsao_tempo.minDias);
+    const top = ordenados.slice(0, 5);
+    const linhas = top.map((r, i) => `${i + 1}. ${r.processo_codigo} (${nomeHumanoDoSlot(r.tipo_processo)}) — ${r.previsao_tempo.minDias}–${r.previsao_tempo.maxDias} dia(s), confiança ${r.previsao_tempo.confianca}, ${r.previsao_tempo.amostra} caso(s) comparável(is).`);
+    return `Menor previsão de tempo (só entre quem tem estimativa numérica — ${semEstimativa} processo(s) ficaram de fora por base insuficiente ou suspensão por documento):\n${linhas.join("\n")}\nFonte: BDI — vw_bdi_tempo_etapas.`;
+  }
+
+  if (/dependem? de documento|aguardam? documento do interessado/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const achados = retratos.filter((r) => r.previsao_tempo?.status === "suspensa");
+    return achados.length > 0
+      ? `${achados.length} processo(s) com previsão suspensa por depender de documento do interessado: ${listarCodigos(achados)}.\nFonte: Motor de Produção (esforço "depende_documento").`
+      : "Nenhum processo visível com previsão suspensa por documento agora.";
+  }
+
   return null;
 }

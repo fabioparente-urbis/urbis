@@ -17,6 +17,7 @@ import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorPr
 import { obterStatusRadar, obterRetratoAtual } from "@/lib/urbi/radar";
 import { obterEstadoJobRadar, formatarCartaoRadarComJob } from "@/lib/urbi/radarJob";
 import { alertasLinhaEvidencia, formatarLinhaEvidenciaDetalhada } from "@/lib/urbi/linhaEvidencia";
+import { formatarPrevisao } from "@/lib/urbi/previsao";
 import { responderPerguntaPilha } from "@/lib/urbi/perguntasPilha";
 
 export const maxDuration = 60;
@@ -627,6 +628,12 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
           respostaMotor += `\n\nLinha de evidência (cobrança → retorno → resultado):\n${alertasEvidencia.map((a) => `• ${a}`).join("\n")}\nPeça "ver linha de evidência" para o detalhe completo, com fonte e grau de certeza de cada item.`;
         }
       }
+
+      // Fase 4 (05/09/2026) — previsão de tempo já pronta no retrato do Radar (nunca recalculada
+      // aqui). Só aparece quando há algo a dizer (nunca some silenciosamente uma base
+      // insuficiente — ela é dita por extenso, nunca escondida atrás do silêncio).
+      const previsaoTempo = (retratoAtual as any)?.previsao_tempo ?? null;
+      if (previsaoTempo) respostaMotor += `\n\n${formatarPrevisao(previsaoTempo)}`;
 
       await registrarChamadaIA({
         modulo: "URBI", operacao: "motor_producao", modelo: null, duracaoMs: Date.now() - t0Motor, status: "ok",

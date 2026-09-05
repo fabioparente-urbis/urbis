@@ -82,7 +82,7 @@ function paraNumero(valor: unknown): number | null {
 /** Mesmos 3 limiares já usados pelo filtro de área da Pilha (lib/urbi/navegacao.ts) — reproduzido
  *  aqui como classificação pura, nunca a lógica de filtro em si (evita acoplar um módulo de
  *  navegação de UI a este catálogo, mas nunca diverge dos limiares reais: 250 e 1000). */
-function calcularFaixaArea(area: number | null): string | null {
+export function calcularFaixaArea(area: number | null): string | null {
   if (area === null) return null;
   if (area <= 250) return "ate_250";
   if (area <= 1000) return "de_251_a_1000";

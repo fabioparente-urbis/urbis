@@ -30,13 +30,15 @@ import { montarRelatorioMotor } from "./motorProducao";
 import { montarBlocoAtributosConsultaveis } from "./catalogoConsultaPilha";
 import { montarLinhaEvidenciaExigencias, alertasLinhaEvidencia, type BlocoLinhaEvidencia } from "./linhaEvidencia";
 import { obterProcessosEmAtendimento } from "./atendimento";
+import { preverCicloCompleto } from "./previsao";
 
 /**
  * Versão do CONTRATO do retrato (Fase 3, 05/09/2026) — incrementar em código sempre que o
  * FORMATO do que é calculado mudar de verdade (campo novo, mudança de regra), nunca a cada
  * execução. Não confundir com `versao` (número sequencial de recálculo do MESMO processo).
+ * Subiu pra 2 na Fase 4 (05/09/2026): retrato ganhou o campo `previsao_tempo`.
  */
-const VERSAO_CONTRATO_RETRATO = 1;
+const VERSAO_CONTRATO_RETRATO = 2;
 
 export type VisibilidadeUsuario = {
   userId: string;
@@ -284,6 +286,7 @@ export async function processarProximoPendente(
     const tagsProcesso = Array.isArray((processoTags as any)?.tags) ? (processoTags as any).tags : [];
     const camposConsulta = montarBlocoAtributosConsultaveis(d, relatorio, tagsProcesso);
     const linhaEvidencia = await montarLinhaEvidenciaExigencias(codigo, d, tagsProcesso);
+    const previsaoTempo = await preverCicloCompleto(d, relatorio);
 
     await supabaseAdmin.from("urbi_radar_retratos").update({
       estado: coberturaCompleta ? "atualizado" : "incompleto",
@@ -304,6 +307,7 @@ export async function processarProximoPendente(
       alertas: relatorio,
       campos_consulta: camposConsulta,
       linha_evidencia: linhaEvidencia,
+      previsao_tempo: previsaoTempo,
       versao_contrato: VERSAO_CONTRATO_RETRATO,
       cobertura_completa: coberturaCompleta,
       fontes_indisponiveis: d.cobertura?.fontes_indisponiveis ?? [],
@@ -342,6 +346,7 @@ export type RetratoConsultavel = {
   campos_consulta: import("./catalogoConsultaPilha").BlocoAtributosConsultaveis | null;
   alertas: any;
   linha_evidencia: BlocoLinhaEvidencia | null;
+  previsao_tempo: import("./previsao").PrevisaoTempo | null;
 };
 
 /**
@@ -356,7 +361,7 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
 
   const { data } = await supabaseAdmin
     .from("urbi_radar_retratos")
-    .select("processo_codigo, tipo_processo, campos_consulta, alertas, linha_evidencia, versao")
+    .select("processo_codigo, tipo_processo, campos_consulta, alertas, linha_evidencia, previsao_tempo, versao")
     .in("processo_codigo", codigos)
     .in("estado", ["atualizado", "incompleto"])
     .order("versao", { ascending: false });
@@ -366,7 +371,7 @@ export async function obterUltimosRetratosVisiveis(usuario: VisibilidadeUsuario,
   for (const linha of (data ?? []) as any[]) {
     if (vistos.has(linha.processo_codigo)) continue;
     vistos.add(linha.processo_codigo);
-    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas, linha_evidencia: linha.linha_evidencia ?? null });
+    saida.push({ processo_codigo: linha.processo_codigo, tipo_processo: linha.tipo_processo, campos_consulta: linha.campos_consulta, alertas: linha.alertas, linha_evidencia: linha.linha_evidencia ?? null, previsao_tempo: linha.previsao_tempo ?? null });
   }
   return saida;
 }
