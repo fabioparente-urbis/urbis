@@ -16,8 +16,9 @@ import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarCompara
 import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
 import { obterStatusRadar, obterRetratoAtual } from "@/lib/urbi/radar";
 import { obterEstadoJobRadar, formatarCartaoRadarComJob } from "@/lib/urbi/radarJob";
-import { alertasLinhaEvidencia, formatarLinhaEvidenciaDetalhada } from "@/lib/urbi/linhaEvidencia";
+import { formatarLinhaEvidenciaDetalhada } from "@/lib/urbi/linhaEvidencia";
 import { formatarPrevisao } from "@/lib/urbi/previsao";
+import { montarAlertasProducao } from "@/lib/urbi/alertasProducao";
 import { responderPerguntaPilha } from "@/lib/urbi/perguntasPilha";
 
 export const maxDuration = 60;
@@ -616,16 +617,18 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
       const relatorio = montarRelatorioMotor(dossie.dBruto);
       let respostaMotor = formatarRelatorioMotor(relatorio);
 
-      // ETAPA 4 (05/09/2026) — só os 3 alertas mais relevantes da linha de evidência já pronta no
-      // retrato do Radar (nunca recalculada aqui, nunca bloqueia o Motor se o Radar ainda não
-      // chegou neste processo). "Ver linha de evidência" é só um convite de leitura — URBI nunca
-      // decide nem conclui por conta própria.
+      // Fase 5 (05/09/2026) — alertas de produção consolidados: só os 3 mais úteis, juntando
+      // linha de evidência + LIP quase completo + MAC com poucos bloqueios + retrato
+      // desatualizado + mudança de catálogo, tudo já pronto no retrato do Radar (nunca
+      // recalculado aqui). "Ver linha de evidência" continua sendo o convite de leitura pro
+      // detalhe completo — URBI nunca decide nem conclui por conta própria.
       const retratoAtual = codigoLimpo ? await obterRetratoAtual(codigoLimpo) : null;
       const blocoEvidencia = (retratoAtual as any)?.linha_evidencia ?? null;
-      if (blocoEvidencia?.registros?.length > 0) {
-        const alertasEvidencia = alertasLinhaEvidencia(blocoEvidencia).slice(0, 3);
-        if (alertasEvidencia.length > 0) {
-          respostaMotor += `\n\nLinha de evidência (cobrança → retorno → resultado):\n${alertasEvidencia.map((a) => `• ${a}`).join("\n")}\nPeça "ver linha de evidência" para o detalhe completo, com fonte e grau de certeza de cada item.`;
+      if (retratoAtual) {
+        const alertasProducao = montarAlertasProducao(retratoAtual as any, { incluirPrevisaoBloqueada: false });
+        if (alertasProducao.length > 0) {
+          respostaMotor += `\n\nAlertas:\n${alertasProducao.map((a) => `• ${a}`).join("\n")}`;
+          if (blocoEvidencia?.registros?.length > 0) respostaMotor += `\nPeça "ver linha de evidência" para o detalhe completo, com fonte e grau de certeza de cada item.`;
         }
       }
 
