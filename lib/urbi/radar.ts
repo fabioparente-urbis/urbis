@@ -1,0 +1,348 @@
+/**
+ * lib/urbi/radar.ts — Radar silencioso incremental da Pilha (Camada 1 da arquitetura mestra do
+ * URBI, 05/09/2026).
+ *
+ * ── DESENHO (o menor que ficou confiável, depois da auditoria) ──────────────────────────────
+ * Não existe NENHUM trigger/evento em LIP/MAC/MDP/documento neste banco (auditado antes de
+ * escrever isto), e criar um exigiria tocar rota de escrita de todo slot — proibido. A detecção
+ * de mudança é por DIFF DE TIMESTAMP: cada processo tem um "watermark" = o maior
+ * atualizado_em/criado_em entre processos/analises_mac/mdp_registros/mac_historico/
+ * mhd_documentos. Se o watermark atual é mais novo que o do último retrato, o processo mudou —
+ * enfileira. ZERO alteração em rota de escrita de slot nenhum; isto só LÊ timestamp que já existia.
+ *
+ * Todas as consultas de detecção são EM LOTE (uma por tabela-fonte, para até 200 códigos de uma
+ * vez), nunca uma consulta por processo — é a diferença entre ~5 consultas e ~1000 a cada tick.
+ *
+ * A tabela `urbi_radar_retratos` é ao mesmo tempo o HISTÓRICO (uma linha por versão) e a FILA
+ * (linhas com estado='pendente'/'em_atualizacao') — um mecanismo só.
+ *
+ * REGRA DO FÁBIO: "reutilize a mesma função factual do dossiê, para não divergir contagens,
+ * situações ou alertas". Por isso `processarProximoPendente` só PROJETA o que
+ * `montarDossieFactual` (lib/urbi/montarDossie.ts) e `montarRelatorioMotor`
+ * (lib/urbi/motorProducao.ts) já calculam — nenhum número novo é calculado aqui.
+ *
+ * NUNCA chama Gemini. NUNCA escreve em LIP/MAC/MDP/documento/despacho/numeração — só lê essas
+ * fontes e grava só nesta tabela própria.
+ */
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { montarDossieFactual } from "./montarDossie";
+import { montarRelatorioMotor } from "./motorProducao";
+
+export type VisibilidadeUsuario = {
+  userId: string;
+  irrestrito: boolean;
+  gerencia: string | null;
+  perfis?: string[];
+};
+
+type ProcessoVisivel = { codigo: string; tipo_processo: string | null };
+
+/**
+ * MESMA regra de visibilidade de `/api/processos/route.ts` (Admin/Diretora → tudo; gerente →
+ * analistas da própria gerência; analista → só os próprios) — reproduzida aqui, não importada:
+ * isolamento entre módulos é regra deste projeto, e a rota da Pilha é operação crítica demais
+ * pra acoplar uma dependência nova nela só pro Radar reaproveitar uma função.
+ */
+async function processosVisiveis(usuario: VisibilidadeUsuario, limite: number): Promise<ProcessoVisivel[]> {
+  let query = supabaseAdmin
+    .from("processos")
+    .select("codigo, tipo_processo")
+    .is("excluido_em", null)
+    .order("atualizado_em", { ascending: false })
+    .limit(limite);
+
+  if (usuario.irrestrito) {
+    // Admin/Diretora veem tudo — sem filtro extra.
+  } else if (usuario.gerencia) {
+    const { data: idsUsuarios } = await supabaseAdmin.from("usuarios").select("id").eq("gerencia", usuario.gerencia);
+    const idList = (idsUsuarios ?? []).map((u: any) => u.id);
+    query = idList.length > 0 ? query.in("analista_id", idList) : query.eq("analista_id", usuario.userId);
+  } else {
+    query = query.eq("analista_id", usuario.userId);
+  }
+
+  const { data, error } = await query;
+  if (error) { console.error("[radar] falha ao listar processos visíveis:", error.message); return []; }
+  return (data ?? []) as ProcessoVisivel[];
+}
+
+/**
+ * Watermark de TODOS os códigos de uma vez — 5 consultas em lote (uma por tabela-fonte), nunca
+ * uma consulta por processo. `.in()` com até 200 códigos fica bem dentro do limite do PostgREST.
+ */
+async function calcularWatermarksEmLote(codigos: string[]): Promise<Map<string, Date>> {
+  const maiores = new Map<string, number>();
+  const bump = (codigo: string | null | undefined, iso: string | null | undefined) => {
+    if (!codigo || !iso) return;
+    const t = new Date(iso).getTime();
+    const atual = maiores.get(codigo);
+    if (atual === undefined || t > atual) maiores.set(codigo, t);
+  };
+
+  const [procs, analises, mdps, historicos, mhds] = await Promise.all([
+    supabaseAdmin.from("processos").select("codigo, atualizado_em").in("codigo", codigos).is("excluido_em", null),
+    supabaseAdmin.from("analises_mac").select("processo_codigo, atualizado_em").in("processo_codigo", codigos).is("excluido_em", null),
+    supabaseAdmin.from("mdp_registros").select("processo_codigo, criado_em").in("processo_codigo", codigos),
+    supabaseAdmin.from("mac_historico").select("processo_codigo, criado_em").in("processo_codigo", codigos),
+    supabaseAdmin.from("mhd_documentos").select("processo_codigo, atualizado_em").in("processo_codigo", codigos),
+  ]);
+  for (const r of (procs.data ?? []) as any[]) bump(r.codigo, r.atualizado_em);
+  for (const r of (analises.data ?? []) as any[]) bump(r.processo_codigo, r.atualizado_em);
+  for (const r of (mdps.data ?? []) as any[]) bump(r.processo_codigo, r.criado_em);
+  for (const r of (historicos.data ?? []) as any[]) bump(r.processo_codigo, r.criado_em);
+  for (const r of (mhds.data ?? []) as any[]) bump(r.processo_codigo, r.atualizado_em);
+
+  const saida = new Map<string, Date>();
+  for (const [codigo, t] of maiores) saida.set(codigo, new Date(t));
+  return saida;
+}
+
+/** Qual fonte mudou pra ESTE processo, em linguagem curta — só chamado pra quem de fato vai ser
+ *  enfileirado (poucos, tipicamente), nunca pra todos os visíveis. */
+async function motivoDaMudanca(codigo: string, desde: Date | null): Promise<string> {
+  if (!desde) return "nunca analisado";
+  const limiar = desde.toISOString();
+  const [proc, analises, mdp, historico, mhd] = await Promise.all([
+    supabaseAdmin.from("processos").select("id").eq("codigo", codigo).is("excluido_em", null).gt("atualizado_em", limiar).limit(1),
+    supabaseAdmin.from("analises_mac").select("id").eq("processo_codigo", codigo).is("excluido_em", null).gt("atualizado_em", limiar).limit(1),
+    supabaseAdmin.from("mdp_registros").select("id").eq("processo_codigo", codigo).gt("criado_em", limiar).limit(1),
+    supabaseAdmin.from("mac_historico").select("analise_id").eq("processo_codigo", codigo).gt("criado_em", limiar).limit(1),
+    supabaseAdmin.from("mhd_documentos").select("id").eq("processo_codigo", codigo).gt("atualizado_em", limiar).limit(1),
+  ]);
+  const partes: string[] = [];
+  if ((proc.data ?? []).length > 0) partes.push("LIP/tags");
+  if ((analises.data ?? []).length > 0) partes.push("MAC");
+  if ((mdp.data ?? []).length > 0) partes.push("MDP");
+  if ((historico.data ?? []).length > 0) partes.push("histórico do MAC");
+  if ((mhd.data ?? []).length > 0) partes.push("documento (MHD)");
+  return partes.length > 0 ? `alterado: ${partes.join(", ")}` : "alterado (fonte não identificada individualmente)";
+}
+
+/**
+ * Varre os processos visíveis a este usuário e enfileira (insere retrato 'pendente') qualquer um
+ * cujo watermark seja mais novo que o último retrato — ou que nunca tenha sido analisado. Nunca
+ * duplica: pula processo que já tem linha 'pendente'/'em_atualizacao' em aberto. Custo: ~7
+ * consultas EM LOTE no total (não por processo), mais 1 consulta por processo recém-enfileirado
+ * (tipicamente poucos), pra saber qual fonte mudou.
+ */
+export async function detectarMudancas(usuario: VisibilidadeUsuario, limite = 200): Promise<{ verificados: number; enfileirados: number }> {
+  const processos = await processosVisiveis(usuario, limite);
+  if (processos.length === 0) return { verificados: 0, enfileirados: 0 };
+  const codigos = processos.map((p) => p.codigo);
+  const tipoPorCodigo = new Map(processos.map((p) => [p.codigo, p.tipo_processo]));
+
+  const [{ data: emAberto }, { data: ultimos }, watermarksAtuais] = await Promise.all([
+    supabaseAdmin.from("urbi_radar_retratos").select("processo_codigo").in("processo_codigo", codigos).in("estado", ["pendente", "em_atualizacao"]),
+    supabaseAdmin.from("urbi_radar_retratos").select("processo_codigo, versao, watermark_fontes").in("processo_codigo", codigos).order("versao", { ascending: false }),
+    calcularWatermarksEmLote(codigos),
+  ]);
+
+  const codigosEmAberto = new Set((emAberto ?? []).map((r: any) => r.processo_codigo));
+  const ultimoPorCodigo = new Map<string, { versao: number; watermark_fontes: string | null }>();
+  for (const linha of (ultimos ?? []) as any[]) {
+    if (!ultimoPorCodigo.has(linha.processo_codigo)) ultimoPorCodigo.set(linha.processo_codigo, linha);
+  }
+
+  let enfileirados = 0;
+  for (const codigo of codigos) {
+    if (codigosEmAberto.has(codigo)) continue;
+    const ultimo = ultimoPorCodigo.get(codigo);
+    const watermarkAtual = watermarksAtuais.get(codigo) ?? null;
+    const watermarkRetrato = ultimo?.watermark_fontes ? new Date(ultimo.watermark_fontes) : null;
+    const mudou = !ultimo || !watermarkRetrato || (watermarkAtual && watermarkAtual > watermarkRetrato);
+    if (!mudou) continue;
+
+    const motivo = await motivoDaMudanca(codigo, watermarkRetrato);
+    const { error } = await supabaseAdmin.from("urbi_radar_retratos").insert({
+      processo_codigo: codigo, tipo_processo: tipoPorCodigo.get(codigo) ?? null,
+      versao: (ultimo?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: motivo,
+    });
+    if (!error) enfileirados++;
+    else console.error(`[radar] falha ao enfileirar ${codigo}:`, error.message);
+  }
+
+  return { verificados: processos.length, enfileirados };
+}
+
+/**
+ * Categorias humanas de fonte usadas neste retrato — coarse, nunca o detalhe por campo (isso já
+ * existe em lib/urbi/manifestoFontes.ts, pra dentro da conversa; aqui é só rótulo de cobertura).
+ */
+function fontesDoRetrato(d: Record<string, any>): string[] {
+  const fontes: string[] = [];
+  if (Object.keys(d.lip?.campos_tecnicos ?? {}).length > 0) fontes.push("LIP");
+  if ((d.mac?.numero_analises ?? 0) > 0) fontes.push("MAC");
+  if ((d.fluxo?.documentos_emitidos ?? []).length > 0 || (d.fluxo?.documentos_mhd ?? []).length > 0) fontes.push("Documentos");
+  if ((d.cruzamentos ?? []).length > 0) fontes.push("Cruzamento");
+  const temBip = (d.mac?.pendencias_ultima_analise ?? []).some((p: any) => (p.vinculos_bip ?? []).length > 0);
+  if (temBip) fontes.push("BIP");
+  return fontes;
+}
+
+/** Watermark de UM processo — só usado depois de já saber que ele vai ser processado agora. */
+async function calcularWatermarkUnico(codigo: string): Promise<Date | null> {
+  const mapa = await calcularWatermarksEmLote([codigo]);
+  return mapa.get(codigo) ?? null;
+}
+
+/**
+ * Processa UM item pendente (o mais antigo, entre os visíveis a este usuário) — reivindica com
+ * update condicional (nunca dois processos ao mesmo tempo pegam a mesma linha), roda o dossiê e
+ * o motor JÁ EXISTENTES, grava o retrato. Nunca lança: falha vira estado='erro' na própria linha.
+ */
+export async function processarProximoPendente(
+  usuario: VisibilidadeUsuario,
+): Promise<{ processado: boolean; codigo?: string; estado?: string }> {
+  const processos = await processosVisiveis(usuario, 200);
+  const codigosVisiveis = processos.map((p) => p.codigo);
+  if (codigosVisiveis.length === 0) return { processado: false };
+
+  const { data: candidatos } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .select("id, processo_codigo, tipo_processo, versao")
+    .eq("estado", "pendente")
+    .in("processo_codigo", codigosVisiveis)
+    .order("criado_em", { ascending: true })
+    .limit(1);
+  const alvo = (candidatos ?? [])[0];
+  if (!alvo) return { processado: false };
+
+  // Reivindicação otimista: só avança se ESTA chamada foi quem mudou pendente→em_atualizacao.
+  const { data: reivindicado } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .update({ estado: "em_atualizacao", iniciado_em: new Date().toISOString() })
+    .eq("id", alvo.id).eq("estado", "pendente")
+    .select("id").maybeSingle();
+  if (!reivindicado) return { processado: false }; // outra sessão já pegou este item
+
+  const codigo = alvo.processo_codigo as string;
+  try {
+    const usuarioReq = { id: usuario.userId, perfis: usuario.perfis ?? [], gerencia: usuario.gerencia, irrestrito: usuario.irrestrito, gerenciaDoPerfil: null } as any;
+    const resultado = await montarDossieFactual(codigo, usuarioReq);
+    if (!resultado.ok) {
+      await supabaseAdmin.from("urbi_radar_retratos").update({
+        estado: "erro", erro: resultado.erro, concluido_em: new Date().toISOString(),
+      }).eq("id", alvo.id);
+      return { processado: true, codigo, estado: "erro" };
+    }
+
+    const d = resultado.data as any;
+    const relatorio = montarRelatorioMotor(d);
+    const watermarkFresco = await calcularWatermarkUnico(codigo);
+    const coberturaCompleta = d.cobertura?.completo !== false;
+    const marcacoes: any[] = Array.isArray(d.mac?.marcacoes_ultima_analise) ? d.mac.marcacoes_ultima_analise : [];
+
+    await supabaseAdmin.from("urbi_radar_retratos").update({
+      estado: coberturaCompleta ? "atualizado" : "incompleto",
+      fontes_consultadas: fontesDoRetrato(d),
+      situacao_geral: d.situacoes?.geral?.classe ?? null,
+      situacao_lip: d.situacoes?.lip?.classe ?? null,
+      situacao_mac: d.situacoes?.mac?.classe ?? null,
+      campos_vazios: d.lip?.campos_vazios ?? null,
+      campos_em_x: d.lip?.campos_em_x ?? null,
+      campos_totais: d.lip?.campos_totais ?? null,
+      pendencias_mac: (d.mac?.pendencias_ultima_analise ?? []).length,
+      itens_em_branco_mac: marcacoes.filter((m) => m.status === "em_branco").length,
+      alertas: relatorio,
+      cobertura_completa: coberturaCompleta,
+      fontes_indisponiveis: d.cobertura?.fontes_indisponiveis ?? [],
+      watermark_fontes: watermarkFresco ? watermarkFresco.toISOString() : new Date().toISOString(),
+      concluido_em: new Date().toISOString(),
+    }).eq("id", alvo.id);
+
+    // Qualquer outro 'pendente' remanescente pro mesmo código (ex.: enfileirado de novo entre o
+    // início e o fim deste processamento) fica obsoleto — este retrato fresco já reflete o
+    // estado mais recente que dava pra capturar agora; a próxima detecção decide se mudou de novo.
+    await supabaseAdmin.from("urbi_radar_retratos").delete()
+      .eq("processo_codigo", codigo).eq("estado", "pendente").neq("id", alvo.id);
+
+    return { processado: true, codigo, estado: coberturaCompleta ? "atualizado" : "incompleto" };
+  } catch (e: any) {
+    await supabaseAdmin.from("urbi_radar_retratos").update({
+      estado: "erro", erro: e?.message ?? String(e), concluido_em: new Date().toISOString(),
+    }).eq("id", alvo.id);
+    return { processado: true, codigo, estado: "erro" };
+  }
+}
+
+export type StatusRadar = {
+  totalVisiveis: number;
+  comRetratoAtualizado: number;
+  pendentes: number;
+  emAtualizacao: number;
+  ultimaExecucaoEm: string | null;
+  atualizadosUltimos15Min: number;
+};
+
+/** Só leitura — nunca decide nem analisa processo nenhum sozinho (Home/Pilha só CONSULTAM isto). */
+export async function obterStatusRadar(usuario: VisibilidadeUsuario): Promise<StatusRadar> {
+  const processos = await processosVisiveis(usuario, 200);
+  const codigos = processos.map((p) => p.codigo);
+  if (codigos.length === 0) {
+    return { totalVisiveis: 0, comRetratoAtualizado: 0, pendentes: 0, emAtualizacao: 0, ultimaExecucaoEm: null, atualizadosUltimos15Min: 0 };
+  }
+
+  // Último retrato de CADA processo (maior versão) — feito em memória: a lista de processos
+  // visíveis já é pequena (≤200), então não vale a complexidade de uma query agregada por SQL.
+  const { data: linhas } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .select("processo_codigo, versao, estado, concluido_em")
+    .in("processo_codigo", codigos)
+    .order("versao", { ascending: false });
+
+  const ultimoPorCodigo = new Map<string, { estado: string; concluido_em: string | null }>();
+  for (const linha of (linhas ?? []) as any[]) {
+    if (!ultimoPorCodigo.has(linha.processo_codigo)) {
+      ultimoPorCodigo.set(linha.processo_codigo, { estado: linha.estado, concluido_em: linha.concluido_em });
+    }
+  }
+
+  let comRetratoAtualizado = 0, pendentes = 0, emAtualizacao = 0;
+  let ultimaExecucaoEm: string | null = null;
+  const quinzeMinAtras = Date.now() - 15 * 60 * 1000;
+  let atualizadosUltimos15Min = 0;
+  for (const info of ultimoPorCodigo.values()) {
+    if (info.estado === "atualizado" || info.estado === "incompleto") comRetratoAtualizado++;
+    if (info.estado === "pendente") pendentes++;
+    if (info.estado === "em_atualizacao") emAtualizacao++;
+    if (info.concluido_em) {
+      if (!ultimaExecucaoEm || info.concluido_em > ultimaExecucaoEm) ultimaExecucaoEm = info.concluido_em;
+      if (new Date(info.concluido_em).getTime() >= quinzeMinAtras) atualizadosUltimos15Min++;
+    }
+  }
+  // Processo sem NENHUM retrato ainda conta como pendente implícito (nunca analisado).
+  pendentes += codigos.length - ultimoPorCodigo.size;
+
+  return { totalVisiveis: codigos.length, comRetratoAtualizado, pendentes, emAtualizacao, ultimaExecucaoEm, atualizadosUltimos15Min };
+}
+
+/**
+ * Cartão curto pro cartão de abertura na Home/Pilha (Camada 1, regra 8 do Fábio) — 100%
+ * determinístico, nunca passa por Gemini. Declara explicitamente quando a cobertura está
+ * parcial ou quando nenhuma execução rodou ainda, em vez de fingir que está tudo em dia.
+ */
+export function formatarCartaoRadar(status: StatusRadar): string {
+  if (status.totalVisiveis === 0) return "Pré-análise da Pilha: nenhum processo visível pra pré-analisar agora.";
+  if (!status.ultimaExecucaoEm) {
+    return `Pré-análise da Pilha: ainda não rodou nenhuma vez — 0 de ${status.totalVisiveis} processos com retrato pronto. Gemini não foi acionado.`;
+  }
+  const quando = new Date(status.ultimaExecucaoEm).toLocaleString("pt-BR");
+  const parcial = status.comRetratoAtualizado < status.totalVisiveis;
+  const base = `Pré-análise atualizada em ${quando} — ${status.comRetratoAtualizado} de ${status.totalVisiveis} processos; `
+    + `${status.atualizadosUltimos15Min} atualizado(s) nos últimos 15 minutos. Gemini não foi acionado nessa camada.`;
+  return parcial
+    ? `${base} Cobertura PARCIAL — ${status.pendentes} processo(s) ainda na fila.`
+    : base;
+}
+
+/** O retrato mais recente de um processo específico — usado quando o URBI abre DENTRO dele. */
+export async function obterRetratoAtual(codigo: string) {
+  const { data } = await supabaseAdmin
+    .from("urbi_radar_retratos")
+    .select("*")
+    .eq("processo_codigo", codigo)
+    .order("versao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data ?? null;
+}

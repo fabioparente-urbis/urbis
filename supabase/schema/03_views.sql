@@ -1,5 +1,5 @@
 -- VIEWS — definicao real (o repo nao tem o SQL de nenhuma delas)
--- Gerado por scripts/extrair_schema.mts em 2026-09-04.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================

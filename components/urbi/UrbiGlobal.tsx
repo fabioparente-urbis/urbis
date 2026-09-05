@@ -264,6 +264,26 @@ export default function UrbiGlobal() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [usuario]);
 
+  // Radar silencioso incremental (Camada 1 da arquitetura mestra do URBI, 05/09/2026) — roda em
+  // background enquanto o app está aberto no navegador e o URBI NÃO está atendendo dentro de um
+  // processo específico (regra do Fábio: "ao abrir o URBI dentro de um processo, o Radar pausa").
+  // Detecção (mais cara — varre timestamp de todos os processos visíveis) e processamento (mais
+  // barato — 1 item da fila por vez) são chamadas separadas, em frequências diferentes. Nunca
+  // chama Gemini (as duas rotas só leem timestamp e reaproveitam o dossiê já existente), nunca
+  // escreve em LIP/MAC/MDP/documento — mesma trava de ativação individual do resto do URBI
+  // (usuario.urbi_ativo), pra um usuário sem URBI ligado não gerar tráfego de radar nenhum.
+  useEffect(() => {
+    if (!usuario?.urbi_ativo) return;
+    const pausado = urbiAberto && !!processoCodigo;
+    if (pausado) return;
+    const chamar = (caminho: string) => { fetch(caminho, { method: "POST" }).catch(() => {}); };
+    chamar("/api/urbi/radar/detectar");
+    chamar("/api/urbi/radar/processar");
+    const idProcessar = setInterval(() => chamar("/api/urbi/radar/processar"), 45_000);
+    const idDetectar = setInterval(() => chamar("/api/urbi/radar/detectar"), 5 * 60_000);
+    return () => { clearInterval(idProcessar); clearInterval(idDetectar); };
+  }, [usuario, urbiAberto, processoCodigo]);
+
   // Detecta modal crítico aberto (convenção do app: overlay `fixed inset-0`
   // + `z-50` — usada por todos os modais do processo/MAC) para recolher o
   // URBI enquanto ele estiver visível, em vez de cobrir o modal.

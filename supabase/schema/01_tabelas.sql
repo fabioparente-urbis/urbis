@@ -1,5 +1,5 @@
 -- TABELAS — colunas, defaults e constraints
--- Gerado por scripts/extrair_schema.mts em 2026-09-04.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================
@@ -2062,6 +2062,39 @@ CREATE TABLE public.urbi_legislacao (
 );
 ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_tipo_check CHECK ((tipo = ANY (ARRAY['lei'::text, 'decreto'::text, 'portaria'::text, 'resolucao'::text, 'outro'::text])));
 ALTER TABLE public.urbi_legislacao ADD CONSTRAINT urbi_legislacao_pkey PRIMARY KEY (id);
+
+-- ======================================================================
+-- urbi_radar_retratos
+-- ======================================================================
+CREATE TABLE public.urbi_radar_retratos (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    processo_codigo text NOT NULL,
+    tipo_processo text,
+    versao integer DEFAULT 1 NOT NULL,
+    estado text NOT NULL,
+    motivo_disparo text NOT NULL,
+    fontes_consultadas text[] DEFAULT '{}'::text[] NOT NULL,
+    situacao_geral text,
+    situacao_lip text,
+    situacao_mac text,
+    campos_vazios integer,
+    campos_em_x integer,
+    campos_totais integer,
+    pendencias_mac integer,
+    itens_em_branco_mac integer,
+    alertas jsonb,
+    cobertura_completa boolean,
+    fontes_indisponiveis text[] DEFAULT '{}'::text[] NOT NULL,
+    watermark_fontes timestamp with time zone,
+    iniciado_em timestamp with time zone,
+    concluido_em timestamp with time zone,
+    erro text,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_estado_check CHECK ((estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text, 'atualizado'::text, 'erro'::text, 'incompleto'::text])));
+ALTER TABLE public.urbi_radar_retratos ADD CONSTRAINT urbi_radar_retratos_pkey PRIMARY KEY (id);
+COMMENT ON COLUMN public.urbi_radar_retratos.motivo_disparo IS "Por que este retrato foi (re)calculado — ex.: \"nunca analisado\", \"LIP/tags alterados\", \"MAC\n   alterado\", \"MDP alterado\", \"documento (MHD) alterado\". Nunca um palpite, sempre a fonte real\n   que o diff de timestamp encontrou mudada.";
+COMMENT ON COLUMN public.urbi_radar_retratos.watermark_fontes IS "MAX(atualizado_em/criado_em) das fontes relevantes no momento do cálculo — usado pela PRÓXIMA\n   varredura de detecção pra decidir se o processo mudou de novo desde então.";
 
 -- ======================================================================
 -- urbi_sugestoes

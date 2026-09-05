@@ -1,11 +1,11 @@
 # Schema real do banco — inventário
 
-Gerado por `scripts/extrair_schema.mts` em 2026-09-04.
+Gerado por `scripts/extrair_schema.mts` em 2026-09-05.
 
 PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-bit
 
-**193 objetos** no schema `public`: 124 tabelas, 69 views.
-255 funções, 46 triggers, 335 índices, 32 policies.
+**194 objetos** no schema `public`: 125 tabelas, 69 views.
+255 funções, 46 triggers, 338 índices, 32 policies.
 
 | objeto | tipo | linhas | RLS |
 |---|---|---:|---|
@@ -16,9 +16,9 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `analises_mac` | tabela | 122 | ✅ |
 | `assinaturas` | tabela | 0 | ✅ |
 | `assuntos` | tabela | 15 | ✅ |
-| `auditoria_eventos` | tabela | 6196 | ✅ |
+| `auditoria_eventos` | tabela | 6226 | ✅ |
 | `auditoria_eventos_backup` | tabela | 0 | ✅ |
-| `auditoria_log` | tabela | 5450 | ✅ |
+| `auditoria_log` | tabela | 5454 | ✅ |
 | `auditoria_log_backup` | tabela | 0 | ✅ |
 | `auditoria_sessoes` | tabela | 0 | ✅ |
 | `auditoria_sessoes_backup` | tabela | 0 | ✅ |
@@ -114,10 +114,11 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `tipos_documento` | tabela | 7 | ✅ |
 | `urbi_comandos_voz` | tabela | 9 | ✅ |
 | `urbi_config` | tabela | 8 | ✅ |
-| `urbi_historico` | tabela | 114 | ✅ |
+| `urbi_historico` | tabela | 124 | ✅ |
 | `urbi_legislacao` | tabela | 0 | ✅ |
+| `urbi_radar_retratos` | tabela | 9 | ✅ |
 | `urbi_sugestoes` | tabela | 12 | ❌ |
-| `urbis_api_calls` | tabela | 80 | ✅ |
+| `urbis_api_calls` | tabela | 90 | ✅ |
 | `urbis_aportes` | tabela | 2 | ✅ |
 | `urbis_config` | tabela | 1 | ✅ |
 | `urbis_lip_cores` | tabela | 12 | ✅ |
@@ -130,7 +131,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `urbis_notificacoes` | tabela | 0 | ✅ |
 | `urbis_numeracao_faixas` | tabela | 5 | ✅ |
 | `urbis_numeracao_uso` | tabela | 80 | ✅ |
-| `urbis_sessoes` | tabela | 1368 | ✅ |
+| `urbis_sessoes` | tabela | 1376 | ✅ |
 | `urbis_sessoes_backup` | tabela | 0 | ✅ |
 | `usuarios` | tabela | 6 | ✅ |
 | `mrp_painel_diario` | view | — | — |

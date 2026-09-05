@@ -1,5 +1,5 @@
 -- TRIGGERS — inclui os que alimentam tabelas que nenhum codigo escreve
--- Gerado por scripts/extrair_schema.mts em 2026-09-04.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
 -- auditoria_eventos

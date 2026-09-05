@@ -1,5 +1,5 @@
 -- INDICES
--- Gerado por scripts/extrair_schema.mts em 2026-09-04.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-05.
 -- NAO EDITE A MAO: regenere.
 
 CREATE UNIQUE INDEX admin_users_pkey ON public.admin_users USING btree (user_id);
@@ -284,6 +284,9 @@ CREATE UNIQUE INDEX urbi_config_pkey ON public.urbi_config USING btree (id);
 CREATE UNIQUE INDEX urbi_historico_pkey ON public.urbi_historico USING btree (id);
 CREATE INDEX urbi_historico_processo_codigo_idx ON public.urbi_historico USING btree (processo_codigo);
 CREATE UNIQUE INDEX urbi_legislacao_pkey ON public.urbi_legislacao USING btree (id);
+CREATE INDEX urbi_radar_retratos_fila_idx ON public.urbi_radar_retratos USING btree (estado, criado_em) WHERE (estado = ANY (ARRAY['pendente'::text, 'em_atualizacao'::text]));
+CREATE UNIQUE INDEX urbi_radar_retratos_pkey ON public.urbi_radar_retratos USING btree (id);
+CREATE INDEX urbi_radar_retratos_processo_versao_idx ON public.urbi_radar_retratos USING btree (processo_codigo, versao DESC);
 CREATE INDEX urbi_sugestoes_estado_idx ON public.urbi_sugestoes USING btree (estado);
 CREATE UNIQUE INDEX urbi_sugestoes_pkey ON public.urbi_sugestoes USING btree (id);
 CREATE UNIQUE INDEX urbi_sugestoes_processo_codigo_tipo_chave_key ON public.urbi_sugestoes USING btree (processo_codigo, tipo, chave);

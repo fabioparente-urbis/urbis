@@ -86,7 +86,7 @@ function resumirMotivoErro(motivoErro: string | null): string {
   return limpo.length > 140 ? `${limpo.slice(0, 140)}…` : limpo;
 }
 
-type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "prontidao" | "config";
+type AbaUrbi = "visao" | "conversas" | "sugestoes" | "uso" | "catalogo" | "recorrencia" | "profissionais" | "leitura-visual" | "prontidao" | "radar" | "config";
 
 // =====================================================================
 // Visão geral
@@ -1222,6 +1222,159 @@ function AbaProntidaoPiloto() {
 }
 
 // =====================================================================
+// Pré-análise da Pilha (Radar silencioso, Camada 1 da arquitetura mestra do URBI, 05/09/2026)
+
+type RadarPainel = {
+  cobertura: {
+    totalVisiveis: number; comRetratoAtualizado: number; pendentes: number;
+    emAtualizacao: number; ultimaExecucaoEm: string | null; atualizadosUltimos15Min: number;
+  };
+  fila_pendente: { processo_codigo: string; tipo_processo: string | null; estado: string; motivo_disparo: string; criado_em: string; iniciado_em: string | null }[];
+  erros_recentes: { processo_codigo: string; erro: string | null; concluido_em: string | null; versao: number }[];
+  reanalises_recentes: { processo_codigo: string; versao: number; estado: string; motivo_disparo: string; concluido_em: string | null; alertas: any }[];
+};
+
+function AbaPreAnaliseDaPilha() {
+  const [dados, setDados] = useState<RadarPainel | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [codigoConsulta, setCodigoConsulta] = useState("");
+  const [historico, setHistorico] = useState<any[] | null>(null);
+
+  const carregar = useCallback(async () => {
+    setCarregando(true); setErro(null);
+    try {
+      const res = await fetch("/api/admin/urbi/radar");
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao carregar."); return; }
+      setDados(json);
+    } catch { setErro("Falha técnica ao carregar."); }
+    finally { setCarregando(false); }
+  }, []);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function verHistorico() {
+    if (!codigoConsulta.trim()) return;
+    setHistorico(null);
+    try {
+      const res = await fetch(`/api/admin/urbi/radar?codigo=${encodeURIComponent(codigoConsulta.trim())}`);
+      const json = await res.json();
+      setHistorico(json.ok ? json.historico : []);
+    } catch { setHistorico([]); }
+  }
+
+  return (
+    <div>
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
+        Radar silencioso: pré-análise factual da Pilha, calculada em código a partir do MESMO dossiê
+        e Motor de Produção já usados no chat (lib/urbi/montarDossie.ts, lib/urbi/motorProducao.ts) —
+        <strong> nunca chama Gemini</strong>, nunca escreve em LIP/MAC/MDP/documento/despacho/numeração.
+        Detecção de mudança é por diff de timestamp (sem trigger novo em rota de escrita nenhuma).
+        Pausa sozinho quando o URBI está aberto dentro de um processo específico.
+      </div>
+      {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
+      {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
+      {dados && (
+        <>
+          <Secao titulo="Cobertura agora" acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}>
+            <div className="grid gap-3 p-4 sm:grid-cols-4">
+              <Metrica label="Com retrato pronto" valor={`${dados.cobertura.comRetratoAtualizado} de ${dados.cobertura.totalVisiveis}`} fonte="urbi_radar_retratos, retrato mais recente por processo" />
+              <Metrica label="Fila pendente" valor={dados.cobertura.pendentes} />
+              <Metrica label="Em atualização agora" valor={dados.cobertura.emAtualizacao} />
+              <Metrica label="Atualizados (15 min)" valor={dados.cobertura.atualizadosUltimos15Min} fonte={dados.cobertura.ultimaExecucaoEm ? `última conclusão: ${fmtData(dados.cobertura.ultimaExecucaoEm)}` : "nenhuma execução ainda"} />
+            </div>
+          </Secao>
+
+          <Secao titulo="Fila pendente" descricao="Processos aguardando (ou em) reanálise agora — o Radar processa 1 por vez.">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Processo</th><th className={TH}>Estado</th><th className={TH}>Motivo</th><th className={TH}>Enfileirado em</th></tr></thead>
+              <tbody>
+                {dados.fila_pendente.length === 0
+                  ? <Vazio cols={4}>Fila vazia — nada aguardando reanálise agora.</Vazio>
+                  : dados.fila_pendente.map((f, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{f.processo_codigo}</td>
+                      <td className={TD}><Badge tom={f.estado === "em_atualizacao" ? "info" : "alerta"}>{f.estado}</Badge></td>
+                      <td className={TD}>{f.motivo_disparo}</td>
+                      <td className={TD}>{fmtData(f.criado_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+
+          <Secao titulo="Reanálises recentes" descricao="Últimos retratos concluídos com sucesso, com o resumo do Motor de Produção.">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Processo</th><th className={TH}>Versão</th><th className={TH}>Estado</th><th className={TH}>Situação (motor)</th><th className={TH}>Concluído em</th></tr></thead>
+              <tbody>
+                {dados.reanalises_recentes.length === 0
+                  ? <Vazio cols={5}>Nenhuma reanálise concluída ainda.</Vazio>
+                  : dados.reanalises_recentes.map((r, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{r.processo_codigo}</td>
+                      <td className={TD}>v{r.versao}</td>
+                      <td className={TD}><Badge tom={r.estado === "atualizado" ? "ok" : "alerta"}>{r.estado}</Badge></td>
+                      <td className={`${TD} max-w-xs`}>{r.alertas?.situacao ?? "—"}</td>
+                      <td className={TD}>{fmtData(r.concluido_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+
+          <Secao titulo="Erros recentes">
+            <table className="w-full text-xs">
+              <thead><tr><th className={TH}>Processo</th><th className={TH}>Versão</th><th className={TH}>Motivo</th><th className={TH}>Quando</th></tr></thead>
+              <tbody>
+                {dados.erros_recentes.length === 0
+                  ? <Vazio cols={4}>Nenhum erro recente.</Vazio>
+                  : dados.erros_recentes.map((e, i) => (
+                    <tr key={i} className={TR}>
+                      <td className={TD}>{e.processo_codigo}</td>
+                      <td className={TD}>v{e.versao}</td>
+                      <td className={`${TD} max-w-md`}>{resumirMotivoErro(e.erro)}</td>
+                      <td className={TD}>{fmtData(e.concluido_em)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </Secao>
+
+          <Secao titulo="Histórico por processo" descricao="Todas as versões de retrato já calculadas pra um processo específico.">
+            <div className="flex items-center gap-2 p-4">
+              <input value={codigoConsulta} onChange={(e) => setCodigoConsulta(e.target.value)}
+                placeholder="Código do processo (ex.: 25.5.000046759-5)"
+                className="rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs" />
+              <button onClick={verHistorico} className={BTN_SECUNDARIO}>Ver histórico</button>
+            </div>
+            {historico && (
+              <table className="w-full text-xs">
+                <thead><tr><th className={TH}>Versão</th><th className={TH}>Estado</th><th className={TH}>Motivo</th><th className={TH}>Fontes</th><th className={TH}>Situação (motor)</th><th className={TH}>Concluído em</th></tr></thead>
+                <tbody>
+                  {historico.length === 0
+                    ? <Vazio cols={6}>Nenhum retrato encontrado pra este código.</Vazio>
+                    : historico.map((h: any, i: number) => (
+                      <tr key={i} className={TR}>
+                        <td className={TD}>v{h.versao}</td>
+                        <td className={TD}><Badge tom={h.estado === "atualizado" ? "ok" : h.estado === "erro" ? "erro" : "alerta"}>{h.estado}</Badge></td>
+                        <td className={TD}>{h.motivo_disparo}</td>
+                        <td className={TD}>{(h.fontes_consultadas ?? []).join(", ") || "—"}</td>
+                        <td className={`${TD} max-w-xs`}>{h.alertas?.situacao ?? "—"}</td>
+                        <td className={TD}>{fmtData(h.concluido_em)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            )}
+          </Secao>
+        </>
+      )}
+    </div>
+  );
+}
+
+// =====================================================================
 // Configurações
 // =====================================================================
 
@@ -1369,7 +1522,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["radar", "Pré-análise da Pilha"], ["config", "Configurações"],
   ];
 
   return (
@@ -1405,6 +1558,7 @@ export default function UrbiAdminPage() {
         {aba === "profissionais" && <AbaDesempenhoProfissionais />}
         {aba === "leitura-visual" && <AbaLeituraVisual />}
         {aba === "prontidao" && <AbaProntidaoPiloto />}
+        {aba === "radar" && <AbaPreAnaliseDaPilha />}
         {aba === "config" && <AbaConfig />}
       </div>
     </div>

@@ -14,6 +14,7 @@ import { removerCaminhosTecnicos } from "@/lib/urbi/sanitizarResposta";
 import { textoFontesConsultadas, removerSecaoFontesConsultadas } from "@/lib/urbi/fontesConsultadas";
 import { validarComparacoes, contextoDoRecorte } from "@/lib/urbi/validarComparacoes";
 import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
+import { obterStatusRadar, formatarCartaoRadar } from "@/lib/urbi/radar";
 
 export const maxDuration = 60;
 
@@ -455,12 +456,21 @@ export async function POST(req: NextRequest) {
       }, { status: 503 });
     }
 
+    // Cartão de pré-análise do Radar (Camada 1, regra 8) — só na Home/Pilha (sem processo em
+    // contexto), 100% determinístico, nunca passa por Gemini nem consome o budget/cache da
+    // saudação (recalculado sempre fresco, mesmo quando a saudação em si vem do cache).
+    const semProcessoNoContexto = typeof codigo !== "string" || !codigo.trim();
+    const cartaoRadar = tipo === "OnMount" && semProcessoNoContexto
+      ? formatarCartaoRadar(await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia }))
+      : null;
+
     // Cache da saudação (OnMount): resolve sem custo de Gemini nem consumo de
     // budget se já saudou esse usuário há pouco (ver CACHE_ONMOUNT_TTL_MS).
     if (tipo === "OnMount") {
       const emCache = cacheOnMount.get(ctx.userId);
       if (emCache && Date.now() - emCache.ts < CACHE_ONMOUNT_TTL_MS) {
-        return NextResponse.json({ ok: true, resposta: emCache.resposta, sair: false });
+        const resposta = cartaoRadar ? `${emCache.resposta}\n\n${cartaoRadar}` : emCache.resposta;
+        return NextResponse.json({ ok: true, resposta, sair: false });
       }
     }
 
@@ -555,7 +565,8 @@ Cumprimente o analista pelo nome em 1 frase curta com jeito goiano, mencionando 
       });
       const resposta = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? `Fala, ${nome}! Uai, como posso ajudar?`;
       cacheOnMount.set(ctx.userId, { resposta, ts: Date.now() });
-      return NextResponse.json({ ok: true, resposta, sair: false });
+      const respostaFinal = cartaoRadar ? `${resposta}\n\n${cartaoRadar}` : resposta;
+      return NextResponse.json({ ok: true, resposta: respostaFinal, sair: false });
     }
 
     // Modo é sempre explícito, escolhido pelo usuário no botão BIP do chat —
