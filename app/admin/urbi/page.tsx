@@ -923,13 +923,22 @@ function AbaRecorrencia() {
 // =====================================================================
 
 type LinhaProfissional = {
-  profissional_id: string; nome: string; identidade_validada: boolean; processos_distintos: number;
+  profissional_id: string; nome: string; identidade_validada: boolean; identidade_confirmada_humana: boolean;
+  processos_distintos: number;
   primeira_passada_sem_retorno: number; retorno_comprovado: number; arquivado_indeferido: number;
   sem_situacao_definida: number; amostra_suficiente: boolean;
 };
+type CandidatoDuplicadoProfissional = {
+  profissional_a: { id: string; nome: string }; profissional_b: { id: string; nome: string };
+  campo: "cau" | "crea"; valor_canonico: string;
+};
 type DesempenhoProfissionais = {
   profissionais: LinhaProfissional[]; amostra_minima_processos: number;
-  resumo: { total_profissionais_vivos: number; com_identidade_validada: number; com_amostra_suficiente: number };
+  resumo: {
+    total_profissionais_vivos: number; com_identidade_validada: number;
+    com_identidade_confirmada_humana: number; com_amostra_suficiente: number;
+  };
+  candidatos_duplicados: CandidatoDuplicadoProfissional[];
   fonte: string;
 };
 
@@ -962,9 +971,10 @@ function AbaDesempenhoProfissionais() {
         descricao={dados?.fonte}
         acao={<button onClick={carregar} disabled={carregando} className={BTN_SECUNDARIO}><RefreshCw size={12} className={carregando ? "animate-spin" : ""} /> Atualizar</button>}
       >
-        <div className="grid gap-3 p-4 sm:grid-cols-3">
+        <div className="grid gap-3 p-4 sm:grid-cols-4">
           <Metrica label="Profissionais na base" valor={dados?.resumo.total_profissionais_vivos ?? "—"} fonte="profissionais, soft-merge resolvido" />
           <Metrica label="Com identidade validada" valor={dados?.resumo.com_identidade_validada ?? "—"} fonte="CAU ou CREA gravado" />
+          <Metrica label="Com identidade confirmada por humano" valor={dados?.resumo.com_identidade_confirmada_humana ?? "—"} fonte="validado=true + confirmação registrada" />
           <Metrica label={`Com amostra suficiente (≥${dados?.amostra_minima_processos ?? "—"} processos)`} valor={dados?.resumo.com_amostra_suficiente ?? "—"} fonte="mesmo limiar da aba Recorrência" />
         </div>
         {dados && dados.resumo.com_amostra_suficiente === 0 && (
@@ -972,7 +982,37 @@ function AbaDesempenhoProfissionais() {
             Nenhum profissional atinge a amostra mínima hoje — não é falha desta tela: a base (profissionais + processo_profissionais) veio de um backfill único em 17/07/2026, sem escrita nova desde então, e o máximo real é bem abaixo do limiar. A lacuna fica registrada aqui, não escondida.
           </div>
         )}
+        {dados && dados.resumo.com_identidade_confirmada_humana === 0 && (
+          <div className="mx-4 mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-card-hover)] px-3 py-2 text-[11px] text-[var(--text-muted)]">
+            "Identidade confirmada por humano" é o critério mais estrito do procedimento documentado (validado=true + confirmação registrada) — hoje sempre zero porque não existe ainda um fluxo que grave essa confirmação. Não é regressão desta tela: é a diferença honesta entre "tem CAU/CREA" e "um humano já conferiu esse CAU/CREA".
+          </div>
+        )}
       </Secao>
+
+      {dados && dados.candidatos_duplicados.length > 0 && (
+        <Secao titulo="Candidatos a duplicata" descricao="Mesmo CAU ou CREA após normalizar formatação — só sugestão pra revisão humana via soft-merge, nunca funde sozinho.">
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className={TH}>Profissional A</th>
+                <th className={TH}>Profissional B</th>
+                <th className={TH}>Campo</th>
+                <th className={TH}>Valor normalizado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dados.candidatos_duplicados.map((c, i) => (
+                <tr key={i} className={TR}>
+                  <td className={TD}>{c.profissional_a.nome}</td>
+                  <td className={TD}>{c.profissional_b.nome}</td>
+                  <td className={TD}>{c.campo.toUpperCase()}</td>
+                  <td className={TD}>{c.valor_canonico}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Secao>
+      )}
 
       <Secao titulo="Profissionais (ordem alfabética)" descricao="Nenhuma coluna aqui é nota de desempenho — são contagens auditáveis.">
         <table className="w-full text-xs">
@@ -995,7 +1035,10 @@ function AbaDesempenhoProfissionais() {
             {(dados?.profissionais ?? []).map((p) => (
               <tr key={p.profissional_id} className={TR}>
                 <td className={TD}>{p.nome}</td>
-                <td className={TD}><Badge tom={p.identidade_validada ? "ok" : "neutro"}>{p.identidade_validada ? "validada" : "só nome"}</Badge></td>
+                <td className={`${TD} space-x-1`}>
+                  <Badge tom={p.identidade_validada ? "ok" : "neutro"}>{p.identidade_validada ? "validada" : "só nome"}</Badge>
+                  {p.identidade_confirmada_humana && <Badge tom="ok">confirmada</Badge>}
+                </td>
                 <td className={TD}>{p.processos_distintos}</td>
                 <td className={TD}>{p.primeira_passada_sem_retorno}</td>
                 <td className={TD}>{p.retorno_comprovado}</td>

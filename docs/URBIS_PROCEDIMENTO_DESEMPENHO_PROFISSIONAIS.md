@@ -1,9 +1,12 @@
 # Procedimento auditável — desempenho por profissional (autor/responsável técnico)
 
-**Status: preparação, não implementado.** Nenhum ranking, nenhuma nota, nenhuma
-exposição pública de profissional existe hoje a partir deste documento. Ele só
-registra as regras que uma futura métrica TEM que seguir, para quando houver
-base real (mínimo de 2 processos por profissional, conforme critério abaixo).
+**Status: implementado parcialmente (Fase 9 do mandato de 12 fases, 05/09/2026)**
+— `app/api/admin/urbi/desempenho-profissionais/route.ts`, exibida na aba
+"Desempenho de profissionais" de `/admin/urbi`. Nenhum ranking, nenhuma nota,
+nenhuma exposição pública de profissional — só contagem bruta, sessão
+obrigatória (`Administrador`/`Diretora`, via `autenticar()` + `ctx.irrestrito`).
+As seções abaixo continuam valendo; cada uma diz se já está implementada ou
+segue como regra pra quando a base crescer.
 
 Escopo: **profissional externo** (autor do projeto, responsável técnico —
 arquiteto/engenheiro), não o analista interno do URBIS. Desempenho de analista
@@ -31,25 +34,51 @@ Vínculo processo↔profissional é sempre `processo_profissionais` (FK real
 
 ## 2. Identidade validada — pré-requisito, não detalhe
 
-Só entra na métrica quem tiver `profissionais.validado = true` **e**
-pelo menos um vínculo com `processo_profissionais.confirmado_por` preenchido
-(confirmação humana registrada, colunas já existentes na tabela — ver migration
-citada acima, linhas 43-44). Profissional sem essa validação fica de fora da
-métrica e conta à parte como "identidade não confirmada" — nunca aparece
-misturado a quem já foi conferido.
+**Reconciliado em 05/09/2026 (Fase 9):** este critério estrito
+(`profissionais.validado = true` **e** pelo menos um vínculo com
+`processo_profissionais.confirmado_por` preenchido) hoje classificaria **os 25
+profissionais da base inteira** como "identidade não confirmada" — não existe
+ainda nenhum fluxo que grave essa confirmação humana, então `validado` nunca
+foi setado como `true` para ninguém. Aplicar só este critério esvaziaria a
+tela, escondendo um fato útil (CAU/CREA presente) atrás de um fato que ainda
+não pode existir.
+
+A rota implementada expõe **os dois sinais lado a lado, sem escolher um**:
+- `identidade_validada` = CAU ou CREA gravado (o que já existe hoje, útil
+  mesmo sem confirmação humana — nome sozinho já teve colisão documentada
+  nesta base antes do soft-merge existir);
+- `identidade_confirmada_humana` = o critério estrito deste documento
+  (`validado=true` + `confirmado_por`), hoje sempre `false` na prática, porque
+  o fato que o comprova ainda não existe — e é isso mesmo, não é bug.
+
+Quando existir um fluxo de confirmação humana (fora de escopo desta fase),
+`identidade_confirmada_humana` passa a ter valores reais sem precisar mudar a
+rota — o campo já está pronto, só esperando o fato.
 
 Cadeia de soft-merge (`merged_into_id`) sempre resolvida até o registro vivo
 antes de contar — mesmo laço já implementado em
 [historico/route.ts:74-89](../../app/api/profissionais/historico/route.ts#L74-L89).
 
-## 3. Mínimo de 2 processos — sem isso, sem número
+**Também da Fase 9:** detecção de candidatos a duplicata (`CAU`/`CREA` iguais
+após normalizar formatação — ver `lib/profissionais/canonicalizar.ts`), pois a
+base real tem CAU/CREA sem máscara fixa (`"3186/D-GO"`, `"1019837780D-GO"`,
+`"CREA-1020076283DGO"` são todos formatos reais observados nos mesmos 25
+registros). Só sugere pra revisão humana via o soft-merge já existente —
+nunca funde nada sozinho.
 
-Abaixo de 2 processos vinculados (`papel` = `autor_arquiteto` ou
-`responsavel_engenheiro`, `ativo = true`, contando processos distintos —
-um processo pode gerar 2 vínculos, ex. arquiteto e engenheiro no mesmo
-processo), a resposta é **"dados insuficientes"**, nunca uma métrica com
-denominador 1. Mesmo padrão de `base_insuficiente` já usado em
-[lib/bdi/dossie.ts](../../lib/bdi/dossie.ts) e `lib/bdi/vigia.ts`.
+## 3. Amostra mínima — sem isso, sem número
+
+**Ajustado em 05/09/2026 (Fase 9):** o limiar implementado é **5** processos
+distintos vinculados (`papel` = `autor_arquiteto` ou `responsavel_engenheiro`,
+`ativo = true`), não 2 como este documento pedia originalmente — alinhado de
+propósito ao mesmo limiar (`AMOSTRA_MINIMA_PROCESSOS`) já usado na aba
+Recorrência (Fase H), pra não ter dois números de "amostra mínima" diferentes
+convivendo no mesmo painel administrativo sem motivo. Abaixo do limiar, a
+resposta é **"dados insuficientes"**, nunca uma métrica com denominador baixo
+— mesmo padrão de `base_insuficiente` já usado em
+[lib/bdi/dossie.ts](../../lib/bdi/dossie.ts) e `lib/bdi/vigia.ts`. Com os 25
+profissionais reais de hoje (máximo 3 processos distintos cada), nenhum
+atinge o limiar — resultado esperado, não falha da tela.
 
 ## 4. Separar terminal comprovado de terminal presumido — LACUNA REAL
 
@@ -68,16 +97,13 @@ proibido pelas regras deste projeto. Antes de qualquer métrica de "aprovação"
 precisa existir um fato novo e gravado (ex.: emissão de laudo de aprovação
 como marco, ou um campo de resultado final que hoje não existe).
 
-**Divergência já encontrada, para resolver antes de agregar por profissional:**
-[historico/route.ts:111](../../app/api/profissionais/historico/route.ts#L111)
-conta indeferimento por `analises_mac.status === "indeferido"`, enquanto
-`lib/bdi/situacao.ts` conta por tag de `processos.tags` — e o próprio
-`situacao.ts` (linhas 147-152) documenta que `analises_mac.status` **não é
-confiável**: de 70 análises com despacho já commitado, 65 (93%) continuam
-`em_andamento`, e só a tag muda de fato o resultado. Ou seja, o contador de
-indeferidos que já roda hoje no chat do URBI pode estar **subcontando** —
-antes de virar métrica de desempenho, os dois caminhos têm que ser
-unificados na fonte mais auditada (tag, não status).
+**Divergência já encontrada — RESOLVIDA em 05/09/2026 (Fase 9):**
+[historico/route.ts](../../app/api/profissionais/historico/route.ts#L114-L124)
+já foi corrigida para contar indeferimento pela tag de `processos.tags`,
+nunca mais por `analises_mac.status` (comentário no próprio arquivo referencia
+esta correção). `desempenho-profissionais/route.ts` nasceu já usando a mesma
+fonte (`temTagArquivamento`, tag-only). Os dois caminhos estão unificados na
+fonte mais auditada — nenhuma ação pendente aqui.
 
 Até essa lacuna fechar, a métrica por profissional só pode contar, com prova
 real:
@@ -107,17 +133,34 @@ retrabalho com lógica própria.
   confirmada" (seção 2) nunca aparece classificado ao lado de quem tem base —
   são categorias separadas, não o fim de uma escala.
 
-## Resumo do que falta para implementar (fora de escopo deste documento)
+## Contrato futuro — o que continua deliberadamente fora de escopo
 
-1. Resolver a divergência de indeferimento (seção 4) — decisão de produto,
-   não só código.
-2. Definir o fato real de "aprovação" antes de contar aprovação.
-3. Só então: rota de leitura (sessão obrigatória), agregando por
-   `profissionais.id` com as regras 1-5 acima, testada com dado fabricado
-   (profissional com <2 processos, profissional não validado, sentinela,
-   soft-merge) antes de qualquer exposição real.
+1. **"Aprovação/deferimento" como métrica** — segue proibido (seção 4): não
+   existe fato gravado equivalente em confiabilidade à tag de arquivamento.
+2. **"Documentos frequentemente ausentes" por profissional** — pedido original
+   do mandato de Fase 9, avaliado e **deliberadamente não implementado**: o
+   único sinal parecido hoje ("documento ausente") vive só no fluxo de leitura
+   visual do Slot 5 (`lib/mac-motor/slot5/*`, Gemini/`visao_ligada=false`,
+   desligado por regra suprema) — usar campo-LIP-vazio como proxy pros Slots
+   1/Aceite SEI arriscaria confundir "ainda não preenchido" com "profissional
+   não entregou", o mesmo tipo de sinal contaminado que a Fase 8 já encontrou
+   e descartou para BIP (`atualizado_em` vs mudança real de catálogo). Fica
+   registrado como pergunta em aberto, não como funcionalidade adiada por
+   preguiça: precisa de um fato novo e confiável antes de existir.
+3. **Reingestão viva** (auto-popular `profissionais`/`processo_profissionais`
+   a cada LIP salvo) — exigiria alterar `app/api/processo/salvar/route.ts`,
+   código operacional de Slot, proibido nesta rodada sem autorização explícita
+   para aquele slot especificamente. A base só cresce hoje por backfill manual
+   (`scripts/backfill_profissionais.mjs`, rodado 2x em 17/07/2026).
 
 ---
 **Histórico:** criado em 03/09/2026, junto do fechamento da Fase 5 do plano
 de Inteligência URBIS (Co-Analista) — preparação apenas, conforme instrução
-explícita de não implementar ranking nesta rodada.
+explícita de não implementar ranking nesta rodada. **Atualizado em 05/09/2026
+(Fase 9 do mandato de 12 fases):** rota de leitura implementada
+(`app/api/admin/urbi/desempenho-profissionais/route.ts`), reconciliada com o
+critério estrito de identidade (seção 2, dois sinais lado a lado), amostra
+mínima alinhada a 5 (seção 3), divergência de indeferimento confirmada
+resolvida (seção 4), detecção de candidatos a duplicata de CAU/CREA adicionada
+(`lib/profissionais/canonicalizar.ts`). "Aprovação" e "documentos ausentes"
+continuam fora de escopo, por falta de fato real — ver Contrato futuro acima.

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import { selecionarEmLotes } from "@/lib/urbi/dossieProcesso";
+import { detectarCandidatosDuplicados } from "@/lib/profissionais/canonicalizar";
 
 /**
  * Fase N do plano de Inteligência URBIS — base auditável de desempenho por profissional
@@ -25,6 +26,21 @@ import { selecionarEmLotes } from "@/lib/urbi/dossieProcesso";
  * Identidade "validada" = profissional tem CAU ou CREA (não só nome — nome sozinho já teve
  * colisão documentada nesta base antes do soft-merge existir). Profissional sem identificador
  * forte aparece na lista, marcado como identidade não validada — nunca some em silêncio.
+ *
+ * Fase 9 do mandato de 12 fases (05/09/2026) — RECONCILIAÇÃO com
+ * `docs/URBIS_PROCEDIMENTO_DESEMPENHO_PROFISSIONAIS.md`: o procedimento pede o critério mais
+ * estrito (`validado=true` + `confirmado_por` de algum vínculo), mas hoje NENHUM dos 25
+ * profissionais tem `validado=true` (não existe fluxo de confirmação humana ainda) — aplicar só
+ * o critério estrito esvaziaria a tela inteira. Solução: expor os DOIS sinais, sem escolher um
+ * silenciosamente — `identidade_validada` (CAU/CREA presente, o que já roda) continua existindo,
+ * e `identidade_confirmada_humana` (o critério estrito do procedimento) aparece ao lado, hoje
+ * sempre `false` porque o fato que o comprova ainda não existe na base. Nenhum dos dois vira
+ * "aprovado/reprovado" — são só dois fatos distintos, cada um com sua fonte declarada.
+ *
+ * Também desta fase: `candidatos_duplicados`, comparação determinística de CAU/CREA
+ * (ver `lib/profissionais/canonicalizar.ts`) pra achar profissionais que podem ser a mesma
+ * pessoa cadastrada com formatação diferente — só sugestão pra revisão humana via soft-merge
+ * já existente (`merged_into_id`), nunca funde nada sozinho.
  */
 const AMOSTRA_MINIMA_PROCESSOS = 5;
 const TAGS_ARQUIVAMENTO = new Set(["indeferimento", "arquivamento"]);
@@ -44,7 +60,7 @@ export async function GET(req: NextRequest) {
 
   const { data: profissionais, error: erroProfissionais } = await supabaseAdmin
     .from("profissionais")
-    .select("id, nome_original, cau, crea, merged_into_id");
+    .select("id, nome_original, cau, crea, validado, merged_into_id");
   if (erroProfissionais) {
     console.error("[admin/urbi/desempenho-profissionais GET] falha ao consultar profissionais:", erroProfissionais.message);
     return NextResponse.json({ ok: false, erro: "Falha ao consultar profissionais." }, { status: 500 });
@@ -66,7 +82,7 @@ export async function GET(req: NextRequest) {
 
   const { data: vinculos, error: erroVinculos } = await supabaseAdmin
     .from("processo_profissionais")
-    .select("profissional_id, processos!inner(codigo, tipo_processo, excluido_em, tags)")
+    .select("profissional_id, confirmado_por, processos!inner(codigo, tipo_processo, excluido_em, tags)")
     .eq("ativo", true);
   if (erroVinculos) {
     console.error("[admin/urbi/desempenho-profissionais GET] falha ao consultar vínculos:", erroVinculos.message);
@@ -76,6 +92,7 @@ export async function GET(req: NextRequest) {
   // Processo -> profissional vivo, deduplicado (mesmo processo pode gerar 2 vínculos, ex.:
   // arquiteto E engenheiro; e um profissional_id antigo pode apontar pra um id já mergeado).
   const processosPorProfissional = new Map<string, Map<string, ProcessoVinculado>>();
+  const temConfirmacaoHumana = new Set<string>();
   for (const v of (vinculos ?? []) as any[]) {
     const p = v.processos;
     if (!p || p.excluido_em) continue; // processo excluído não conta
@@ -83,6 +100,7 @@ export async function GET(req: NextRequest) {
     if (!vivo) continue;
     if (!processosPorProfissional.has(vivo.id)) processosPorProfissional.set(vivo.id, new Map());
     processosPorProfissional.get(vivo.id)!.set(p.codigo, { codigo: p.codigo, tipo_processo: p.tipo_processo, tags: p.tags });
+    if (v.confirmado_por) temConfirmacaoHumana.add(vivo.id);
   }
 
   const todosCodigos = [...new Set([...processosPorProfissional.values()].flatMap((m) => [...m.keys()]))];
@@ -142,10 +160,12 @@ export async function GET(req: NextRequest) {
       }
 
       const identidadeValidada = !!(prof.cau || prof.crea);
+      const identidadeConfirmadaHumana = !!prof.validado && temConfirmacaoHumana.has(prof.id);
       return {
         profissional_id: prof.id,
         nome: prof.nome_original,
         identidade_validada: identidadeValidada,
+        identidade_confirmada_humana: identidadeConfirmadaHumana,
         processos_distintos: processosDistintos,
         primeira_passada_sem_retorno: primeiraPassadaSemRetorno,
         retorno_comprovado: retornoComprovado,
@@ -157,7 +177,11 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 
   const comIdentidadeValidada = linhas.filter((l) => l.identidade_validada).length;
+  const comIdentidadeConfirmadaHumana = linhas.filter((l) => l.identidade_confirmada_humana).length;
   const comAmostraSuficiente = linhas.filter((l) => l.amostra_suficiente).length;
+  const candidatosDuplicados = detectarCandidatosDuplicados(
+    vivos.map((p: any) => ({ id: p.id, nome_original: p.nome_original, cau: p.cau, crea: p.crea })),
+  );
 
   return NextResponse.json({
     ok: true,
@@ -167,13 +191,19 @@ export async function GET(req: NextRequest) {
       resumo: {
         total_profissionais_vivos: linhas.length,
         com_identidade_validada: comIdentidadeValidada,
+        com_identidade_confirmada_humana: comIdentidadeConfirmadaHumana,
         com_amostra_suficiente: comAmostraSuficiente,
       },
+      candidatos_duplicados: candidatosDuplicados,
       fonte:
         "profissionais + processo_profissionais (vínculo ativo, soft-merge resolvido) cruzado com analises_mac " +
         "(passada fechada = numero_despacho ou numero_parecer commitado) e processos.tags (indeferimento/arquivamento). " +
         "profissionais/processo_profissionais vieram de um backfill único em 17/07/2026 — sem escrita nova desde então, " +
-        "a amostra não cresce sozinha. Nunca ranking: ordem alfabética, sem nota nem classificação de desempenho.",
+        "a amostra não cresce sozinha. Nunca ranking: ordem alfabética, sem nota nem classificação de desempenho. " +
+        "identidade_confirmada_humana = validado=true + confirmado_por de algum vínculo (critério do procedimento " +
+        "documentado); identidade_validada = CAU/CREA presente (o que já roda hoje) — os dois convivem, nenhum some " +
+        "o outro. candidatos_duplicados = mesmo CAU ou mesmo CREA após normalização de formatação, só sugestão pra " +
+        "revisão humana via soft-merge, nunca funde sozinho.",
     },
   });
 }
