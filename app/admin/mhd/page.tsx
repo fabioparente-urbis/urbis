@@ -74,17 +74,8 @@ export default function MhdAdminPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-6">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-xl font-bold text-[var(--text-primary)]">
-              <HardDrive size={22} /> MHD — Histórico e Documentos
-            </h1>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Módulo satélite: a memória de que documento já entrou em qual processo, por versão
-              e por hash. Só leitura — quem grava é a leitura de pasta/arquivo, dentro do processo.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+        <div className="mb-5">
+          <div className="flex items-center gap-4">
             <button onClick={() => router.push("/")}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               🏠 Home
@@ -93,7 +84,14 @@ export default function MhdAdminPage() {
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">
               🚪 Sair
             </button>
+            <h1 className="flex items-center gap-2 text-xl font-semibold text-[var(--text-primary)]">
+              <HardDrive size={22} /> MHD — Histórico e Documentos
+            </h1>
           </div>
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Módulo satélite: a memória de que documento já entrou em qual processo, por versão
+            e por hash. Só leitura — quem grava é a leitura de pasta/arquivo, dentro do processo.
+          </p>
         </div>
 
         <div className="mb-5 flex gap-2">

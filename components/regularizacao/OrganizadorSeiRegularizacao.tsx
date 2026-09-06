@@ -158,7 +158,8 @@ export default function OrganizadorSeiRegularizacao({
         if (ultimo?.detalhe) {
           setResultado(ultimo.detalhe as ResultadoFatiamento);
           setRecuperadoDoHistorico(true);
-          setAberto(true);
+          // NUNCA abre sozinho — pedido explícito do Fábio (06/09/2026): a aba sempre começa
+          // fechada em todo LIP, mesmo quando já existe índice recuperado do MHD.
         }
       })
       .catch(() => {});

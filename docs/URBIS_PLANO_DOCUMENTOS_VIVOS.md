@@ -637,10 +637,22 @@ usou), achei e corrigi mais ruído no Departamento: e-mail colado na linha do le
 ("Fulano &lt;x@y.com&gt; 13 de abril às 10:06") e "GERÊNCIA" sozinha (sem mais nada depois) — os 4
 continuam com soma de páginas fechada.
 
-**Nota:** o Fábio também mencionou de passagem "MHD sem o padrão de navegação, não gravou" numa
-mensagem rápida antes de dormir — o "não gravou" pode ser eco de um teste anterior ao commit
-04d235d (já corrigido) ou algo novo não detalhado. Registrado aqui para a próxima sessão perguntar
-diretamente, não presumir que já está resolvido.
+**Nota resolvida:** o "não gravou" era eco do cache — consultei o banco de produção direto e
+confirmei 1 evento real gravado (`mhd_eventos`, 24.5.000024350-0, 00:39:14) já antes desta rodada.
+Ele só não tinha soltado o PDF de novo depois das correções, então via o índice antigo (com
+departamento em branco) via a recuperação do histórico e achou que não tinha gravado.
+
+### 16.6 — Correções finais da madrugada, 06/09/2026
+
+1. **Aba nunca mais abre sozinha.** Antes, recuperar o índice do MHD ao reabrir o processo também
+   forçava `aberto = true` — o Fábio pediu que a aba "tem que iniciar sempre fechada em todos os
+   LIP". Corrigido nos dois componentes: o índice ainda é recuperado (fica pronto assim que o
+   analista clicar "Abrir"), mas a aba em si começa fechada sempre, mesmo com histórico existente.
+2. **Conferida a paridade entre os dois slots** (pedido dele: "no slot 1 e 2 o organizador tem que
+   funcionar igualzinho") — `diff` entre os dois componentes mostrou só diferença de comentário e
+   o endpoint próprio de cada rota; nenhuma divergência de comportamento.
+3. **`/admin/mhd`: Home/Sair movidos pra esquerda**, no mesmo layout do MRP e dos outros módulos
+   (antes estavam à direita, alinhados com `justify-between`).
 
 ---
 
@@ -691,3 +703,7 @@ diretamente, não presumir que já está resolvido.
   do filtro; `/admin/mhd` ganhou 🏠 Home / 🚪 Sair. Ruído extra corrigido no Departamento
   (e-mail/hora colados, "GERÊNCIA" solta) — reconferido nos 4 processos reais, soma continua
   fechada nos 4.
+- v11 — 06/09/2026 (madrugada) — **4ª rodada** (ver §16.6): aba nunca mais abre sozinha mesmo com
+  histórico recuperado do MHD; paridade Slot 1/Slot 2 confirmada por `diff`; Home/Sair do
+  `/admin/mhd` movidos pra esquerda (mesmo layout do MRP). "Não gravou" era eco de cache,
+  confirmado sem bug real conferindo direto no banco de produção.
