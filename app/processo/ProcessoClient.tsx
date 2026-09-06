@@ -12,11 +12,17 @@ import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
-// Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — exclusivo da
-// Regularização, atrás de interruptor próprio (default desligado). Carregado sob demanda porque
-// react-pdf usa APIs de navegador (worker), como já feito em BipPdfViewer.
+// Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — um componente por
+// slot (Regularização e Aceite SEI), cada um atrás do seu próprio interruptor (default
+// desligado) — isolamento entre slots do CLAUDE.md, não uma tela genérica com `if (slot)`.
+// Carregados sob demanda porque react-pdf usa APIs de navegador (worker), como já feito em
+// BipPdfViewer.
 const OrganizadorSeiRegularizacao = dynamic(
   () => import("@/components/regularizacao/OrganizadorSeiRegularizacao"),
+  { ssr: false },
+);
+const OrganizadorSeiAceite = dynamic(
+  () => import("@/components/aceiteSei/OrganizadorSeiAceite"),
   { ssr: false },
 );
 
@@ -2977,9 +2983,12 @@ export default function ProcessoClient() {
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
 
-      {/* Documentos Vivos — Fase 2, só Regularização, atrás de interruptor próprio */}
+      {/* Documentos Vivos — Fase 2, um componente por slot, cada um atrás do seu interruptor */}
       {idUrl && tipoUrl === "regularizacao" && (
         <OrganizadorSeiRegularizacao processoCodigo={idUrl} />
+      )}
+      {idUrl && tipoUrl === "aceite_sei" && (
+        <OrganizadorSeiAceite processoCodigo={idUrl} />
       )}
 
       {/* BLOCO LIP */}

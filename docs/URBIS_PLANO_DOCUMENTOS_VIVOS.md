@@ -555,6 +555,25 @@ módulo satélite para o URBI/BDI/MDP consultarem — resposta e proposta na con
 curta é MHD, que é literalmente o módulo "Histórico e Documentos" e é o que a Fase 6 deste plano
 já previa). Ainda não implementado — grava índice ainda não decidido junto com você.
 
+**Decisão sua sobre "URBIS ler o LIP e opinar":** começa pela comparação DETERMINÍSTICA (custo
+zero, sem IA) — a parte de opinar de verdade (que pode exigir Gemini) fica registrada para
+depois, com a governança de sempre (interruptor + teto + custo mostrado antes). Não esquecer.
+
+### 16.2 — Idêntico no Aceite SEI (Slot 2), 06/09/2026
+
+Você pediu ("DEVE TER UM IDENTICO NO ACEITE SEI - SLOT 2") e foi reproduzido por leitura, não
+compartilhado — regra de isolamento entre slots do CLAUDE.md:
+- `components/aceiteSei/OrganizadorSeiAceite.tsx` — cópia deliberada de
+  `OrganizadorSeiRegularizacao.tsx` (mesmas colunas, mesmo filtro, mesma regra SECGER).
+- `app/api/analise-aceite-sei/documentos-sei/route.ts` — cópia deliberada da rota do Slot 1.
+- `urbis_config.documentos_vivos_aceite_sei_ativo` — coluna PRÓPRIA (migration
+  `2026_09_06_documentos_vivos_flag_aceite_sei.sql`, testada com ROLLBACK e aplicada), default
+  `false`. Ligar o Aceite SEI não liga a Regularização e vice-versa.
+- Único código de fato compartilhado entre os dois: `lib/documentosSei/fatiar.ts` — é puro e não
+  conhece slot nenhum (lê PDF do SEI, devolve eventos), então compartilhar ali não fere a regra.
+- `tsc`/`build` limpos. Interruptor do Aceite SEI segue **desligado** — ainda não testado por
+  você nesse slot (o portão de Slot 2 é o mesmo: você organizar um processo real pela tela).
+
 ---
 
 **Histórico de versões**
@@ -578,4 +597,10 @@ já previa). Ainda não implementado — grava índice ainda não decidido junto
 - v6 — 06/09/2026 — **você testou em produção com processo real e o portão da Fase 2 começou a
   fechar** (ver §16.1): renomeado "Organizador de PDF SEI", tabela com Departamento/Assinado
   por/Data, regra SECGER→Interessado, filtro "só última versão de cada tipo". Pergunta em aberto
-  sobre onde persistir o histórico (MHD recomendado) — decisão pendente.
+  sobre onde persistir o histórico (MHD recomendado) — decisão pendente. Decidido: comparação
+  LIP×organizador começa determinística (sem IA); parte de opinar com IA fica para depois, com
+  governança de custo — não esquecer.
+- v7 — 06/09/2026 — **idêntico construído no Aceite SEI (Slot 2)** (ver §16.2), reproduzido por
+  leitura a partir do Slot 1: componente, rota e interruptor próprios
+  (`documentos_vivos_aceite_sei_ativo`, default false, migration aplicada). Ainda não testado
+  nesse slot.
