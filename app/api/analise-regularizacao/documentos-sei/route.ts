@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fatiarPdfSei } from "@/lib/documentosSei/fatiar";
+import { fatiarPdfSei, lerPaginasIntervalo, type EventoSei } from "@/lib/documentosSei/fatiar";
+import { ehContainerGenerico, abrirContainer, type PecaSei } from "@/lib/documentosSei/pecas";
 import { documentosVivosRegularizacaoAtivo } from "@/lib/documentosSei/config";
 import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { registrarEvento } from "@/lib/mhd";
@@ -91,6 +92,34 @@ async function processar(
     });
 
     /**
+     * Fase 3 — abre os contêineres genéricos (ver lib/documentosSei/pecas.ts). Só reabre o PDF
+     * (por intervalo) para os eventos que parecem esconder várias peças — nunca o documento
+     * inteiro de novo. Contagem publicada no resultado (portão da fase: "medida, não estimada").
+     */
+    const eventosComPecas: (EventoSei & { pecas?: PecaSei[] })[] = [];
+    let paginasContainer = 0;
+    let paginasClassificadas = 0;
+    for (const ev of resultado.eventos) {
+      if (!ehContainerGenerico(ev.titulo)) {
+        eventosComPecas.push(ev);
+        continue;
+      }
+      const paginasDoEvento = await lerPaginasIntervalo(buffer, ev.paginaIni, ev.paginaFim);
+      const pecas = abrirContainer(paginasDoEvento);
+      paginasContainer += paginasDoEvento.length;
+      paginasClassificadas += pecas.filter((p) => p.papel !== "classificacao_pendente")
+        .reduce((soma, p) => soma + (p.paginaFim - p.paginaIni + 1), 0);
+      eventosComPecas.push({ ...ev, pecas });
+      void enviar({ tipo: "progresso_pecas", idSei: ev.idSei, pecas: pecas.length });
+    }
+    const coberturaPecas = {
+      totalPaginasContainer: paginasContainer,
+      classificadas: paginasClassificadas,
+      pendentes: paginasContainer - paginasClassificadas,
+    };
+    const resultadoComPecas = { ...resultado, eventos: eventosComPecas, coberturaPecas };
+
+    /**
      * MHD guarda só DADOS e METADADOS (id SEI, título, páginas, data, assinante) — nunca o PDF,
      * seguindo o princípio do próprio módulo e pedido explícito do Fábio (06/09/2026: "no urbis
      * só os dados e meta dados... pra economizar espaço"). Um evento só, não um por documento:
@@ -105,13 +134,13 @@ async function processar(
         assuntoId: permissao.assuntoId,
         tipo: "documentos_sei_organizado",
         titulo: `Organizador de PDF SEI — ${resultado.eventos.length} evento(s), ${resultado.totalPaginas} página(s)`,
-        detalhe: resultado,
+        detalhe: resultadoComPecas,
         usuarioId: usuario?.id ?? null,
       });
       if (erroMhd) console.error("[documentos-sei] MHD não gravou:", erroMhd);
     }
 
-    return enviar({ tipo: "resultado", ok: true, ...resultado });
+    return enviar({ tipo: "resultado", ok: true, ...resultadoComPecas });
   } catch (e: any) {
     console.error("[documentos-sei]", e);
     return enviar({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao fatiar o PDF" });

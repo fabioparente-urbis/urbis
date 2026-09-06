@@ -72,6 +72,9 @@ export type ResultadoFatiamento = {
 
 type ItemPosicionado = { t: string; x: number; y: number; h: number };
 
+/** Texto corrido + dimensões de uma página, para quem precisa reprocessar um intervalo (Fase 3). */
+export type PaginaTexto = { pagina: number; texto: string; largura: number; altura: number };
+
 const RE_TITULO_ID = /^(.+?)\s*\((\d+)\)\s*$/;
 const RE_SEI_PG = /^SEI\s+([\d.\-]+)\s*\/\s*pg\.\s*(\d+)\s*$/i;
 const RE_DATA_LONGA = /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+((?:19|20)\d{2})\b/i;
@@ -226,6 +229,31 @@ async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Prom
     });
   }
   aoAndar?.({ atual: doc.numPages, total: doc.numPages });
+  return paginas;
+}
+
+/**
+ * Lê texto + dimensões de um intervalo de páginas (1-based, inclusive) — usado pela Fase 3
+ * (`lib/documentosSei/pecas.ts`) para reabrir um evento genérico ("Documentação") e classificar
+ * as peças de dentro. Reabre o PDF (não reaproveita `lerPaginas`, que descarta os itens
+ * posicionados depois de montar carimbo/setor/data): custo aceitável porque só roda sobre o(s)
+ * poucos eventos-contêiner de um processo, nunca sobre o PDF inteiro de novo.
+ */
+export async function lerPaginasIntervalo(
+  buffer: Uint8Array,
+  paginaIni: number,
+  paginaFim: number,
+): Promise<PaginaTexto[]> {
+  const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const doc = await pdfjs.getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
+  const paginas: PaginaTexto[] = [];
+  for (let p = paginaIni; p <= paginaFim; p++) {
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const texto = (tc.items as any[]).map((i) => i.str ?? "").join(" ");
+    paginas.push({ pagina: p, texto, largura: vp.width, altura: vp.height });
+  }
   return paginas;
 }
 

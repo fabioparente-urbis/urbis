@@ -381,14 +381,14 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 1 — fatiador determinístico | 1 | 🟡 90% | módulo escrito e rodado contra 4 processos reais, soma fechada nos 4 — falta só a conferência humana do índice (ver §15). Os 10% que faltam são exatamente essa conferência. |
 | 2 — tela "Organizar processo" | 2–3 | 🟢 95% | **portão fechado na prática** — você organizou processos reais de ponta a ponta pela tela várias vezes na madrugada de 06/09, com bugs reais achados e corrigidos ao vivo (setor por cabeçalho, filtro que não colapsava despacho, MHD que sumia sem `mhd_documentos`, aba abrindo sozinha). Os 5% que faltam: portão formal ainda não declarado fechado por você por escrito. Ver §16.1–16.9. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
-| 3 — abrir contêineres (nível 2) | 2–3 | ⚪ 0% | não iniciada; a parte mais incerta |
+| 3 — abrir contêineres (nível 2) | 2–3 | 🟡 70% | **código escrito e no ar** (`lib/documentosSei/pecas.ts`, rotas e telas dos dois slots atualizadas, ver §17): classifica por página dentro de contêineres genéricos, agrupa em peças, publica cobertura (`coberturaPecas`). `compararLip.ts` já sugere os 7 campos que antes ficavam vazios (`certidao`, `levantamento`, `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo`) a partir das peças. Faltam os 30%: rodar contra os 4 processos reais e você conferir a taxa de classificação (portão da fase ainda não fechado por você). |
 | 4 — motor de versões e estados | 2 | ⚪ 0% | não iniciada |
 | 5 — pacote vigente + manifesto | 1–2 | ⚪ 0% | não iniciada |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
-| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 15% | **fatia adiantada**: painel "Comparar com o LIP" (§16.4) já propõe 4 dos 11 campos do §6 (usoSolo, seiCheadv, foto, vistoria), com aceite explícito campo a campo — exatamente o que este item pedia, só que cedo e parcial. Faltam os outros 7 campos, MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
+| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 20% | painel "Comparar com o LIP" (§16.4) propunha 4 dos 11 campos; com a Fase 3 (§17) os outros 7 (exceto o `art` ambíguo, deixado sem sugestão de propósito) também passam a ser sugeridos quando a peça é identificável. Faltam MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 26% concluído · 74% restante** | ≈3,6 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 6 a 15% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 33% concluído · 67% restante** | ≈4,6 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -708,6 +708,41 @@ Mais uma rodada, ainda a mesma madrugada:
 
 ---
 
+## 17. Fase 3 executada — 06/09/2026
+
+Continuação pedida pelo Fábio ("continuar faz[e] 3, 4 e 5"). Implementada a Fase 3 (abrir os
+contêineres genéricos):
+
+- **`lib/documentosSei/pecas.ts`** — novo, isolado (não importa `lerPastaSlot5.ts`). Tabela
+  `ASSINATURAS_PECA` (mesmo espírito de `ASSINATURAS`/`SLOTS_SEI` do Slot 5, escrita do zero pro
+  vocabulário dos Slots 1/2), testada **por página** dentro de um evento-contêiner. `abrirContainer`
+  agrupa páginas consecutivas de mesma classificação em `PecaSei`, mudando de peça também quando a
+  orientação da página vira — página não reconhecida vira `classificacao_pendente`, nunca some.
+  ART de Levantamento e ART da Caixa (campos distintos no LIP) só recebem papel específico quando o
+  texto deixa isso explícito; caso ambíguo fica em `art` genérico, sem sugestão pro LIP (mesmo
+  princípio "melhor vazio que chutado" de `compararLip.ts`).
+- **`lib/documentosSei/fatiar.ts`** — ganhou `lerPaginasIntervalo` (exportada), pra reabrir só o
+  intervalo de páginas de um evento-contêiner sem duplicar a leitura do pdfjs já feita em
+  `lerPaginas`. Nada do comportamento testado da Fase 1 foi tocado.
+- **As duas rotas** (`app/api/analise-regularizacao/documentos-sei` e o par do Aceite SEI) —
+  depois de `fatiarPdfSei`, chamam `abrirContainer` pra cada evento com `ehContainerGenerico`,
+  anexam `.pecas` e publicam `coberturaPecas: {totalPaginasContainer, classificadas, pendentes}`
+  no resultado — portão da fase pede taxa **medida**, não estimada.
+- **Os dois componentes** — linha do evento vira expansível quando tem peças (▶/▼), sub-linhas
+  mostram papel/páginas/ações; `baixarRecorte` generalizada pra aceitar qualquer intervalo (evento
+  ou peça), mesmo mecanismo de antes.
+- **`lib/documentosSei/compararLip.ts`** — passou a também varrer `evento.pecas`, permitindo
+  sugerir `certidao`, `levantamento`, `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo` —
+  os 7 campos que antes ficavam sem sugestão por estarem escondidos dentro de "Documentação".
+
+**Verificado:** `tsc --noEmit` e `npm run build` limpos.
+
+**Não verificado ainda (portão real da fase):** rodar contra os 4 processos reais das Fases 0/1 e
+conferir a olho a taxa de classificação e se nenhuma peça saiu errada — mesmo tipo de conferência
+humana que fechou o portão da Fase 2. Fica pra quando você testar pela tela.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -763,3 +798,8 @@ Mais uma rodada, ainda a mesma madrugada:
   `/admin/mhd` mostra os processos com atividade recente sem precisar buscar (só o número, clique
   abre o detalhe); exportar CSV no navegador; excluir 1 evento por vez, exceção deliberada ao
   "nunca apaga" do MHD, testada contra registro descartável antes de subir.
+- v13 — 06/09/2026 — **Fase 3 executada** (ver §17): `lib/documentosSei/pecas.ts` novo (abre
+  contêineres genéricos em peças, por página), `fatiar.ts` ganhou `lerPaginasIntervalo`, as duas
+  rotas publicam `coberturaPecas`, as duas telas ganharam linha expansível, `compararLip.ts` passou
+  a sugerir os 7 campos do LIP que antes ficavam vazios. `tsc`/`build` limpos; portão real (conferir
+  a taxa de classificação contra os 4 processos reais) ainda depende de você testar pela tela.

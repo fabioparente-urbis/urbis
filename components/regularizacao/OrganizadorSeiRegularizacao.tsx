@@ -28,11 +28,12 @@
  * dado conflitante" — o analista pesa, a tela nunca decide sozinha qual prevalece.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument } from "pdf-lib";
 import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
+import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -44,13 +45,17 @@ type EventoSei = {
   setor?: string;
   data?: string;
   assinante?: string;
+  /** Fase 3: peças separadas de dentro de um contêiner genérico ("Documentação"), quando houver. */
+  pecas?: PecaSei[];
 };
 type PaginaRevisao = { pagina: number; motivo: string };
+type CoberturaPecas = { totalPaginasContainer: number; classificadas: number; pendentes: number };
 type ResultadoFatiamento = {
   numeroProcesso: string;
   totalPaginas: number;
   eventos: EventoSei[];
   paginasRevisao: PaginaRevisao[];
+  coberturaPecas?: CoberturaPecas;
 };
 
 const ROTULO_MOTIVO: Record<string, string> = {
@@ -129,6 +134,7 @@ export default function OrganizadorSeiRegularizacao({
   const [soUltimaVersao, setSoUltimaVersao] = useState(false);
   const [recuperadoDoHistorico, setRecuperadoDoHistorico] = useState(false);
   const [selecionados, setSelecionados] = useState<Record<string, boolean>>({});
+  const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -251,15 +257,19 @@ export default function OrganizadorSeiRegularizacao({
     }
   }
 
-  async function baixarRecorte(ev: EventoSei) {
+  /**
+   * Generalizado na Fase 3 para aceitar qualquer intervalo de páginas — não só o evento inteiro,
+   * também uma peça de dentro de um contêiner. `chave` identifica o alvo no estado `baixando`.
+   */
+  async function baixarRecorte(alvo: { chave: string; paginaIni: number; paginaFim: number; titulo: string }) {
     if (!arquivo) return;
-    setBaixando(ev.idSei);
+    setBaixando(alvo.chave);
     try {
       const bytesOriginal = await arquivo.arrayBuffer();
       const origem = await PDFDocument.load(bytesOriginal);
       const novo = await PDFDocument.create();
       const indices: number[] = [];
-      for (let p = ev.paginaIni; p <= ev.paginaFim; p++) indices.push(p - 1);
+      for (let p = alvo.paginaIni; p <= alvo.paginaFim; p++) indices.push(p - 1);
       const copiadas = await novo.copyPages(origem, indices);
       copiadas.forEach((p) => novo.addPage(p));
       const bytesNovo = await novo.save();
@@ -267,7 +277,7 @@ export default function OrganizadorSeiRegularizacao({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${resultado?.numeroProcesso ?? processoCodigo} - ${ev.titulo} (${ev.idSei}).pdf`;
+      a.download = `${resultado?.numeroProcesso ?? processoCodigo} - ${alvo.titulo}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -361,6 +371,10 @@ export default function OrganizadorSeiRegularizacao({
                   {resultado.paginasRevisao.length > 0 && (
                     <> · {resultado.paginasRevisao.length} página(s) sem rodapé legível</>
                   )}
+                  {resultado.coberturaPecas && resultado.coberturaPecas.totalPaginasContainer > 0 && (
+                    <> · peças de contêiner: {resultado.coberturaPecas.classificadas}/
+                      {resultado.coberturaPecas.totalPaginasContainer} páginas classificadas</>
+                  )}
                 </p>
                 <span className="flex gap-2">
                   <button
@@ -397,9 +411,24 @@ export default function OrganizadorSeiRegularizacao({
                     </tr>
                   </thead>
                   <tbody>
-                    {(soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos).map((ev) => (
-                      <tr key={`${ev.idSei}-${ev.paginaIni}`} className="border-b border-[var(--border)]">
-                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">{ev.idSei}</td>
+                    {(soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos).map((ev) => {
+                      const temPecas = !!ev.pecas?.length;
+                      const aberto2 = !!expandido[ev.idSei];
+                      return (
+                      <Fragment key={`${ev.idSei}-${ev.paginaIni}`}>
+                      <tr className="border-b border-[var(--border)]">
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          {temPecas && (
+                            <button
+                              onClick={() => setExpandido((prev) => ({ ...prev, [ev.idSei]: !prev[ev.idSei] }))}
+                              className="mr-1 text-[var(--text-muted)]"
+                              title={aberto2 ? "Recolher peças" : `Ver ${ev.pecas!.length} peça(s) dentro deste contêiner`}
+                            >
+                              {aberto2 ? "▼" : "▶"}
+                            </button>
+                          )}
+                          {ev.idSei}
+                        </td>
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                           pg. {ev.paginaIni}
                           {ev.paginaFim !== ev.paginaIni ? `–${ev.paginaFim}` : ""}
@@ -425,7 +454,7 @@ export default function OrganizadorSeiRegularizacao({
                               👁 Abrir
                             </button>
                             <button
-                              onClick={() => baixarRecorte(ev)}
+                              onClick={() => baixarRecorte({ chave: ev.idSei, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim, titulo: `${ev.titulo} (${ev.idSei})` })}
                               disabled={!arquivo || baixando === ev.idSei}
                               title={arquivo ? undefined : "Solte o PDF de novo pra baixar o recorte"}
                               className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
@@ -435,7 +464,47 @@ export default function OrganizadorSeiRegularizacao({
                           </span>
                         </td>
                       </tr>
-                    ))}
+                      {temPecas && aberto2 && ev.pecas!.map((peca, i) => {
+                        const chavePeca = `${ev.idSei}-peca-${i}`;
+                        return (
+                          <tr key={chavePeca} className="border-b border-[var(--border)] bg-[var(--bg-secondary)]/40">
+                            <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top pl-5">↳</td>
+                            <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                              pg. {peca.paginaIni}{peca.paginaFim !== peca.paginaIni ? `–${peca.paginaFim}` : ""}
+                            </td>
+                            <td className="py-1 pr-2 text-[var(--text-primary)] align-top" colSpan={3}>
+                              {ROTULO_PAPEL_PECA[peca.papel]}
+                              {peca.confianca === "baixa" && (
+                                <span className="text-[var(--warning)] ml-1">(confiança baixa)</span>
+                              )}
+                            </td>
+                            <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top" />
+                            <td className="py-1 align-top">
+                              <span className="flex gap-2 justify-end shrink-0">
+                                <button
+                                  onClick={() => setVisualizando({ pagina: peca.paginaIni, totalDoPdf: resultado.totalPaginas })}
+                                  disabled={!arquivo}
+                                  title={arquivo ? undefined : "Solte o PDF de novo pra abrir a página"}
+                                  className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
+                                >
+                                  👁 Abrir
+                                </button>
+                                <button
+                                  onClick={() => baixarRecorte({ chave: chavePeca, paginaIni: peca.paginaIni, paginaFim: peca.paginaFim, titulo: `${ev.titulo} (${ev.idSei}) - ${ROTULO_PAPEL_PECA[peca.papel]}` })}
+                                  disabled={!arquivo || baixando === chavePeca}
+                                  title={arquivo ? undefined : "Solte o PDF de novo pra baixar o recorte"}
+                                  className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
+                                >
+                                  {baixando === chavePeca ? "⏳" : "⬇ Baixar"}
+                                </button>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      </Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
 
