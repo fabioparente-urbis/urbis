@@ -27,12 +27,23 @@
  * haver uma ponderação de cada dado conflitante" (Fábio, 06/09/2026).
  */
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument } from "pdf-lib";
 import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
 import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
+import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
+
+const ROTULO_ESTADO: Record<EstadoVersao, string> = {
+  vigente: "🟢 Vigente",
+  substituido: "⚫ Substituído",
+  complementar: "🔵 Complementar",
+  sem_efeito: "🔴 Sem efeito",
+  historico: "🕘 Histórico",
+  duplicado: "🕘 Duplicado",
+  pendente: "🟡 Pendente",
+};
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -183,6 +194,17 @@ export default function OrganizadorSeiAceite({
     setSelecionados(iniciais);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a NOVO resultado, não a
     // toda mudança de camposLipAtuais (senão desmarcaria seleção do analista a cada autosave)
+  }, [resultado]);
+
+  /**
+   * Fase 4 (motor de versões) — resolve vigente/substituído/sem efeito DENTRO deste fatiamento
+   * (um PDF, uma sessão). Só informativo por enquanto: o Organizador ainda não cria documento/
+   * versão persistente por peça no MHD (ver cabeçalho de motorVersoes.ts), então não há onde
+   * "aceitar" gravar — a tela só mostra a proposta, junto do motivo e da confiança.
+   */
+  const estadosPorIdSei = useMemo(() => {
+    if (!resultado) return new Map<string, ReturnType<typeof resolverEstados>[number]>();
+    return new Map(resolverEstados(resultado.eventos).map((r) => [r.idSei, r]));
   }, [resultado]);
 
   if (!ativo) return null;
@@ -405,6 +427,7 @@ export default function OrganizadorSeiAceite({
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Departamento</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Assinado por</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Data</th>
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap" title="Proposta do motor de versões (Fase 4) — só informativo, nada gravado">Estado</th>
                       <th className="py-1.5 font-normal text-right whitespace-nowrap">Ações</th>
                     </tr>
                   </thead>
@@ -441,6 +464,13 @@ export default function OrganizadorSeiAceite({
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                           {ev.data ?? ""}
                         </td>
+                        <td className="py-1.5 pr-2 text-xs whitespace-nowrap align-top">
+                          {(() => {
+                            const est = estadosPorIdSei.get(ev.idSei);
+                            if (!est) return null;
+                            return <span title={`${est.motivo} (confiança ${est.confianca})`}>{ROTULO_ESTADO[est.estado]}</span>;
+                          })()}
+                        </td>
                         <td className="py-1.5 align-top">
                           <span className="flex gap-2 justify-end shrink-0">
                             <button
@@ -476,6 +506,7 @@ export default function OrganizadorSeiAceite({
                                 <span className="text-[var(--warning)] ml-1">(confiança baixa)</span>
                               )}
                             </td>
+                            <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top" />
                             <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top" />
                             <td className="py-1 align-top">
                               <span className="flex gap-2 justify-end shrink-0">

@@ -382,13 +382,13 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 2 — tela "Organizar processo" | 2–3 | 🟢 95% | **portão fechado na prática** — você organizou processos reais de ponta a ponta pela tela várias vezes na madrugada de 06/09, com bugs reais achados e corrigidos ao vivo (setor por cabeçalho, filtro que não colapsava despacho, MHD que sumia sem `mhd_documentos`, aba abrindo sozinha). Os 5% que faltam: portão formal ainda não declarado fechado por você por escrito. Ver §16.1–16.9. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | 🟡 70% | **código escrito e no ar** (`lib/documentosSei/pecas.ts`, rotas e telas dos dois slots atualizadas, ver §17): classifica por página dentro de contêineres genéricos, agrupa em peças, publica cobertura (`coberturaPecas`). `compararLip.ts` já sugere os 7 campos que antes ficavam vazios (`certidao`, `levantamento`, `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo`) a partir das peças. Faltam os 30%: rodar contra os 4 processos reais e você conferir a taxa de classificação (portão da fase ainda não fechado por você). |
-| 4 — motor de versões e estados | 2 | ⚪ 0% | não iniciada |
+| 4 — motor de versões e estados | 2 | 🟡 60% | **código escrito e no ar** (`lib/documentosSei/motorVersoes.ts`, ver §18): resolve vigente/substituído/sem-efeito/histórico DENTRO de um único fatiamento, validado contra os dois casos reais do portão (despacho SEM EFEITO isolado; família 42135097/42135097-1). Escopo reduzido do desenho original: não persiste estado em `mhd_versoes` (banco) — decisão registrada em §18 sobre por que isso pede uma decisão de arquitetura antes (identidade de documento entre uploads diferentes, que a Fase 3 não estabeleceu). Coluna "Estado" nas duas telas, só informativo. |
 | 5 — pacote vigente + manifesto | 1–2 | ⚪ 0% | não iniciada |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 20% | painel "Comparar com o LIP" (§16.4) propunha 4 dos 11 campos; com a Fase 3 (§17) os outros 7 (exceto o `art` ambíguo, deixado sem sugestão de propósito) também passam a ser sugeridos quando a peça é identificável. Faltam MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 33% concluído · 67% restante** | ≈4,6 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 42% concluído · 58% restante** | ≈5,8 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -743,6 +743,46 @@ humana que fechou o portão da Fase 2. Fica pra quando você testar pela tela.
 
 ---
 
+## 18. Fase 4 executada (escopo reduzido) — 06/09/2026
+
+Continuação da mesma sessão da Fase 3. Implementado `lib/documentosSei/motorVersoes.ts` — motor
+puro, zero IA, que resolve o estado de cada evento (vigente, substituído, sem efeito, histórico,
+pendente) dentro de UM fatiamento, seguindo a ordem de confiança do plano (§6 Fase 4): sem-efeito
+explícito (tier 1) → substitui/corrigido/retificação explícito (tier 2) → vistorias sucessivas são
+histórico (regra própria) → data (tier 5) → ordem do evento no PDF (tier 6, nunca confiança
+"alta" sozinho). "ID SEI maior nunca é prova sozinha" — o motor nunca ordena por valor do idSei,
+só por posição no PDF.
+
+**Validado contra os dois casos reais do portão** (script descartável, não commitado): o despacho
+`Despacho 1648 SEM EFEITO` (`25.5.000061039-8`, §15) sai como `sem_efeito` sem apagar os despachos
+vizinhos; a família `42135097`/`42135097-1` (`25.5.000012012-9`, §11) é reconhecida como mesma
+família, com o mais recente como `vigente` e o outro como `substituido` — exatamente o portão
+descrito no plano.
+
+**DECISÃO DE ESCOPO (não estava no plano original, registrada aqui em vez de silenciosa):** o
+plano desenhava a Fase 4 como extensão de `mhd_versoes` (banco). Auditoria antes de escrever
+código achou que isso não tem onde pousar ainda: o Organizador de PDF SEI grava só 1 evento por
+organização em `mhd_eventos` (§16.3) — não cria `mhd_documentos`/`mhd_versoes` por peça. Persistir
+"documento X é a versão 2 do documento Y" entre UPLOADS DIFERENTES do mesmo processo (dias depois)
+exige decidir uma identidade de documento estável entre sessões — decisão de arquitetura nova, do
+mesmo tipo das D1-D4 do plano (§4), que este trabalho não tomou sozinho. Por isso o motor opera só
+DENTRO de um fatiamento (memória, sem gravação) — que já resolve os dois casos do portão, porque
+ambos são do MESMO PDF. Persistência entre sessões fica em aberto para quando a Fase 7 (retorno
+incremental) decidir isso.
+
+**Nas duas telas:** coluna "Estado" nova na tabela principal (badge + motivo/confiança no
+tooltip), só informativo — não há botão de aceite porque não há gravação: mostrar antes de decidir
+onde persistir evita inventar um destino de gravação sem essa decisão ser seu.
+
+**Verificado:** `tsc --noEmit` e `npm run build` limpos; motor testado contra os 2 casos reais
+citados acima.
+
+**Não implementado:** níveis 4 (mesmo número com revisão posterior) e 7 (hash idêntico) da ordem
+de confiança — exigem dado que não existe neste nível (número de revisão do documento, conteúdo de
+página); níveis 8-9 (visual, humano) nunca são implementados por design.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -803,3 +843,8 @@ humana que fechou o portão da Fase 2. Fica pra quando você testar pela tela.
   rotas publicam `coberturaPecas`, as duas telas ganharam linha expansível, `compararLip.ts` passou
   a sugerir os 7 campos do LIP que antes ficavam vazios. `tsc`/`build` limpos; portão real (conferir
   a taxa de classificação contra os 4 processos reais) ainda depende de você testar pela tela.
+- v14 — 06/09/2026 — **Fase 4 executada, escopo reduzido** (ver §18): `lib/documentosSei/
+  motorVersoes.ts` novo, resolve vigente/substituído/sem-efeito/histórico dentro de um único
+  fatiamento (não persiste em `mhd_versoes` ainda — decisão de identidade de documento entre
+  uploads fica em aberto, registrada em §18). Validado contra os 2 casos reais do portão. Coluna
+  "Estado" nova nas duas telas, só informativo. `tsc`/`build` limpos.
