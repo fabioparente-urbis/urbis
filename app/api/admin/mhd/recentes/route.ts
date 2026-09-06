@@ -20,19 +20,43 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador." }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("mhd_eventos")
-    .select("processo_codigo, tipo, titulo, criado_em")
-    .order("criado_em", { ascending: false })
-    .limit(300);
-  if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+  /**
+   * DUAS fontes, não só `mhd_eventos` — achado do Fábio (06/09/2026): os processos do Slot 5
+   * (LER PASTA) gravam documento/versão (`registrarLeitura`) sem necessariamente criar um evento
+   * com o mesmo tipo que a pilha olhava, e sumiam da lista mesmo tendo histórico de verdade.
+   */
+  const [eventos, documentos] = await Promise.all([
+    supabaseAdmin
+      .from("mhd_eventos")
+      .select("processo_codigo, tipo, titulo, criado_em")
+      .order("criado_em", { ascending: false })
+      .limit(300),
+    supabaseAdmin
+      .from("mhd_documentos")
+      .select("processo_codigo, papel, rotulo, atualizado_em")
+      .order("atualizado_em", { ascending: false })
+      .limit(300),
+  ]);
+  if (eventos.error) return NextResponse.json({ ok: false, erro: eventos.error.message }, { status: 500 });
+  if (documentos.error) return NextResponse.json({ ok: false, erro: documentos.error.message }, { status: 500 });
 
-  // 1 linha por processo — a mais recente. 300 eventos brutos cobre bem mais que os processos
-  // ativos de verdade, então o corte acima não perde processo relevante da lista.
+  // 1 linha por processo — a atividade mais recente entre as duas fontes.
   const porProcesso = new Map<string, { processo_codigo: string; tipo: string; titulo: string; criado_em: string }>();
-  for (const ev of data ?? []) {
-    if (!porProcesso.has(ev.processo_codigo)) porProcesso.set(ev.processo_codigo, ev);
+  for (const ev of eventos.data ?? []) {
+    const atual = porProcesso.get(ev.processo_codigo);
+    if (!atual || ev.criado_em > atual.criado_em) porProcesso.set(ev.processo_codigo, ev);
+  }
+  for (const d of documentos.data ?? []) {
+    const registro = {
+      processo_codigo: d.processo_codigo,
+      tipo: "documento_lido",
+      titulo: `Documento lido: ${d.rotulo ?? d.papel}`,
+      criado_em: d.atualizado_em,
+    };
+    const atual = porProcesso.get(d.processo_codigo);
+    if (!atual || registro.criado_em > atual.criado_em) porProcesso.set(d.processo_codigo, registro);
   }
 
-  return NextResponse.json({ ok: true, processos: [...porProcesso.values()] });
+  const processos = [...porProcesso.values()].sort((a, b) => (a.criado_em < b.criado_em ? 1 : -1));
+  return NextResponse.json({ ok: true, processos });
 }
