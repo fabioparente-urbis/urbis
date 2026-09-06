@@ -617,6 +617,31 @@ possível de IA" e "deve haver uma ponderação de cada dado conflitante" quando
   `origem: "urbis"` (sistema determinístico), nunca `"inferido"` (isso é reservado a valor de
   IA/visão) — distinção que já existia no LIP, agora usada aqui também.
 
+### 16.5 — Terceira rodada de ajustes ao vivo, 06/09/2026 (madrugada)
+
+Antes de dormir, o Fábio pediu mais 3 correções, todas feitas e no ar:
+
+1. **Filtro "só última versão" não colapsava despacho/parecer** — ele reportou "várias da CHEADV,
+   várias da fiscalização" mesmo com o filtro ligado. Corrigido: despacho/parecer agora entram no
+   mesmo agrupamento dos demais (por título sem o número) — como o número já sai na normalização,
+   "Despacho 607/1152/1450 - CHEADV - Pendência Documentação" vira só o último, mas "Despacho -
+   Diligência 132" e "Despacho 956 - CHEADV - Documentação conforme" (texto diferente) continuam
+   aparecendo, porque não têm o mesmo residual.
+2. **E-mail some de vez no filtro** (antes só agrupava, mostrando o último — agora nem esse
+   aparece).
+3. **`/admin/mhd` sem o padrão de navegação** — trocado o "← Home" minimalista (copiado de
+   `/admin/urbi`) pelos botões 🏠 Home / 🚪 Sair usados no resto do app.
+
+Também, rodando o fatiador de novo contra os 4 processos reais da Fase 0/1 (não só o que o Fábio
+usou), achei e corrigi mais ruído no Departamento: e-mail colado na linha do letreiro
+("Fulano &lt;x@y.com&gt; 13 de abril às 10:06") e "GERÊNCIA" sozinha (sem mais nada depois) — os 4
+continuam com soma de páginas fechada.
+
+**Nota:** o Fábio também mencionou de passagem "MHD sem o padrão de navegação, não gravou" numa
+mensagem rápida antes de dormir — o "não gravou" pode ser eco de um teste anterior ao commit
+04d235d (já corrigido) ou algo novo não detalhado. Registrado aqui para a próxima sessão perguntar
+diretamente, não presumir que já está resolvido.
+
 ---
 
 **Histórico de versões**
@@ -661,3 +686,8 @@ possível de IA" e "deve haver uma ponderação de cada dado conflitante" quando
   4 dos 11 campos hoje adivinhados pelo Gemini (`usoSolo`, `seiCheadv`, `foto`, `vistoria`) —
   testado no processo real, achou o despacho de aprovação certo, não um de pendência. Painel
   mostra valor atual + fonte ao lado da sugestão, destaca conflito, nunca decide sozinho.
+- v10 — 06/09/2026 (madrugada) — **3ª rodada de ajustes ao vivo** (ver §16.5): filtro "só última
+  versão" agora agrupa despacho/parecer também (não só os demais tipos); e-mail some por completo
+  do filtro; `/admin/mhd` ganhou 🏠 Home / 🚪 Sair. Ruído extra corrigido no Departamento
+  (e-mail/hora colados, "GERÊNCIA" solta) — reconferido nos 4 processos reais, soma continua
+  fechada nos 4.
