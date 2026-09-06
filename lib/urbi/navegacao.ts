@@ -146,8 +146,16 @@ function acharAnalise(t: string): number | null {
   return null;
 }
 
+/** "Duas ou mais análises" e "a partir da segunda análise" contêm, por acidente, o mesmo texto
+ *  que aciona a ordenação "mais análises primeiro" ("... ou MAIS análiseS") — extraído numa
+ *  função só, usada tanto aqui (pra excluir o falso positivo) quanto no cálculo de
+ *  `analisesMinimas` abaixo, pra nunca divergir das duas regras. */
+function pedeAnalisesMinimas(t: string): boolean {
+  return /\b(duas|2|dois)\s+ou\s+mais\s+analises\b/.test(t) || /\ba\s+partir\s+da\s+segunda\s+analise\b/.test(t);
+}
+
 function acharOrdem(t: string): OrdemPilha | null {
-  if (/\b(mais|maior)\s+(analise|analises)\b/.test(t) || /\b(mais|maior)\s+numero\s+de\s+analises\b/.test(t)) return "analises_desc";
+  if (!pedeAnalisesMinimas(t) && (/\b(mais|maior)\s+(analise|analises)\b/.test(t) || /\b(mais|maior)\s+numero\s+de\s+analises\b/.test(t))) return "analises_desc";
   if (/\b(menos|menor)\s+(analise|analises)\b/.test(t) || /\b(menos|menor)\s+numero\s+de\s+analises\b/.test(t)) return "analises_asc";
   if (/\b(maior|maiores)\s+(area|areas)\b/.test(t) || /\barea\s+(maior|decrescente)\b/.test(t)) return "area_desc";
   if (/\b(menor|menores)\s+(area|areas)\b/.test(t) || /\barea\s+(menor|crescente)\b/.test(t)) return "area_asc";
@@ -165,12 +173,16 @@ function acharOrdem(t: string): OrdemPilha | null {
  * "Arquivado/indeferido" exige frase de situação (não só "indeferido" solto)
  * de propósito — isso já significa outra coisa aqui (`acharTag`), e trocar
  * o sentido de um comando que já funciona não é o objetivo deste recorte.
+ * "Arquivado" sozinho é diferente: não existe TAG "arquivado" (só
+ * "indeferimento"), então não há sentido concorrente pra proteger — casa
+ * direto, sem precisar de frase de situação.
  */
 function acharSituacaoGeral(t: string): SituacaoGeralPilha | null {
   if (/\baguardando\s+(o\s+)?retorno(\s+do\s+interessado)?\b/.test(t)) return "Aguardando retorno do interessado";
   if (/\b(situacao\s+)?arquivad[oa]s?\s+(ou|e)\s+indeferid[oa]s?\b/.test(t)
     || /\bindeferid[oa]s?\s+(ou|e)\s+arquivad[oa]s?\b/.test(t)
-    || /\bsituacao\s+(de\s+)?(arquivad|indeferid)/.test(t)) return "Arquivado/indeferido";
+    || /\bsituacao\s+(de\s+)?(arquivad|indeferid)/.test(t)
+    || /\barquivad[oa]s?\b/.test(t)) return "Arquivado/indeferido";
   if (/\blip\s+pendente\b/.test(t) || /\blip\s+incompleto\b/.test(t)) return "LIP pendente";
   if (/\bmac\s+em\s+analise\b/.test(t) || /\bem\s+analise\b/.test(t)) return "MAC em análise";
   if (/\bem\s+cadastro\b/.test(t) || /\brecem[\s-]?cadastrad[oa]s?\b/.test(t)) return "Em cadastro";
@@ -225,12 +237,29 @@ function extrairTermoBusca(t: string): string | null {
 }
 
 /**
+ * "Quais estão na 3ª análise?" e "quais foram indeferidos em 2026?" são PERGUNTAS respondidas
+ * por lib/urbi/perguntasPilha.ts no backend (sem Gemini, com fonte declarada) — não comandos de
+ * filtro. Sem este desvio, "análise" e "indeferi" batiam nos matchers abaixo (virando um filtro
+ * silencioso da tela) ou no `pareceComando` (virando "não entendi" antes de chegar no servidor).
+ * Só dispara quando o texto tem cara de pergunta (começa com quais/qual/quantos/quantas, ou
+ * termina em "?") — comando puro como "análise 3" ou "indeferido" continua filtrando a tela.
+ */
+function ehPerguntaDaPilha(t: string): boolean {
+  const perguntou = /^(quais|qual|quantos|quantas)\b/.test(t) || t.endsWith("?");
+  if (!perguntou) return false;
+  const analiseOrdinal = /\banalise\b/.test(t) && (/\b(primeira|segunda|terceira|quarta|quinta|sexta|setima|oitava)\b/.test(t) || /\d/.test(t));
+  const indeferidoComAno = /indeferid/.test(t) && (/\bano\b/.test(t) || /\b(19|20)\d{2}\b/.test(t));
+  return analiseOrdinal || indeferidoComAno;
+}
+
+/**
  * Interpreta o texto. Devolve `null` quando não reconhece — nunca chuta.
  * A ordem importa: o mais específico é testado antes do mais genérico.
  */
 export function interpretar(textoOriginal: string): ComandoNavegacao | null {
   const t = normalizar(textoOriginal);
   if (!t) return null;
+  if (ehPerguntaDaPilha(t)) return null;
 
   // 1. Voltar
   if (/^(volta|voltar|volte|pagina anterior|tela anterior)\b/.test(t)) {
@@ -266,29 +295,31 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
   const tag = acharTag(t);
   const analise = acharAnalise(t);
   const ordem = acharOrdem(t);
-  const triagem = /\b(mais\s+faceis|mais\s+fáceis|mais\s+simples|simples\s+para\s+analise|simples\s+para\s+análise)\b/.test(t)
-    ? "mais_simples" as const
+  // "mais simples"/variantes aponta para a classificação real do Vigia (mesma fonte do
+  // dropdown "Mais simples para análise" da tela) — não mais para o atalho fixo de área+
+  // histórico, que segue existindo só via o outro dropdown ("Mais simples para começar").
+  const classificacaoVigia = /\b(mais\s+faceis|mais\s+fáceis|mais\s+simples|simples\s+para\s+analise|simples\s+para\s+análise)\b/.test(t)
+    ? "mais simples para análise" as const
     : undefined;
   const usoSolo = /\bsem\s+uso\s+do\s+solo\b/.test(t)
     ? "sem" as const
     : /\bcom\s+uso\s+do\s+solo\b/.test(t) ? "com" as const : undefined;
   const faixaArea = /\b(ate|até)\s+250\b/.test(t)
     ? "ate_250" as const
-    : /\b(acima|mais\s+de)\s+1000\b/.test(t)
+    : /\bacima\s+(de\s+)?1000\b/.test(t) || /\bmais\s+de\s+1000\b/.test(t)
       ? "acima_1000" as const
       : /\b(entre\s+)?251\s+(e|a)\s+1000\b/.test(t) ? "de_251_a_1000" as const : undefined;
-  const analisesMinimas = /\b(duas|2|dois)\s+ou\s+mais\s+analises\b/.test(t) || /\ba\s+partir\s+da\s+segunda\s+analise\b/.test(t)
-    ? 2 : undefined;
+  const analisesMinimas = pedeAnalisesMinimas(t) ? 2 : undefined;
   const situacaoGeral = acharSituacaoGeral(t);
   const mencionaPilha = /\b(pilha|processos|lista)\b/.test(t);
 
-  if (tag || analise !== null || ordem || triagem || usoSolo || faixaArea || analisesMinimas || situacaoGeral || (tipo && mencionaPilha)) {
+  if (tag || analise !== null || ordem || classificacaoVigia || usoSolo || faixaArea || analisesMinimas || situacaoGeral || (tipo && mencionaPilha)) {
     const filtros: FiltrosPilha = {};
     if (tipo) filtros.tipo = tipo.valor;
     if (tag) filtros.tag = tag.valor;
     if (analise !== null) filtros.analise = analise;
     if (ordem) filtros.ordenar = ordem;
-    if (triagem) filtros.triagem = triagem;
+    if (classificacaoVigia) filtros.classificacaoVigia = classificacaoVigia;
     if (usoSolo) filtros.usoSolo = usoSolo;
     if (faixaArea) filtros.faixaArea = faixaArea;
     if (analisesMinimas) filtros.analisesMinimas = analisesMinimas;
@@ -298,7 +329,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (tipo) partes.push(tipo.rotulo);
     if (tag) partes.push(`com ${tag.rotulo}`);
     if (analise !== null) partes.push(`na análise ${analise}`);
-    if (triagem) partes.push("mais simples pelos critérios visíveis");
+    if (classificacaoVigia) partes.push("mais simples para análise (classificação do Vigia)");
     if (usoSolo) partes.push(usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
     if (faixaArea) partes.push(faixaArea === "ate_250" ? "até 250 m²" : faixaArea === "de_251_a_1000" ? "de 251 a 1.000 m²" : "acima de 1.000 m²");
     if (analisesMinimas) partes.push("com 2 ou mais análises");
@@ -352,6 +383,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
 export function pareceComando(textoOriginal: string): boolean {
   const t = normalizar(textoOriginal);
   if (!t) return false;
+  if (ehPerguntaDaPilha(t)) return false;
   // "processo"/"processos" SAÍRAM daqui em 05/09/2026 (piloto humano controlado, Etapa 2):
   // achado real — qualquer pergunta livre sobre "este processo" (o uso mais básico do modo
   // Co-Analista, ex.: "resuma este processo com base no dossiê") continha a palavra e batia
