@@ -687,6 +687,25 @@ NAO SABIA QUE SERIA TAO COMPLICADO"**.
 mantido como está: PDF nunca sobe (já era assim, princípio antigo do módulo), texto extraído
 continua em `mhd_conteudos` na nuvem, reaproveitamento por hash funcionando normal.
 
+### 16.9 — Pilha do MHD: assunto/proprietário, excluir processo, excluir em lote, 06/09/2026
+
+Mais uma rodada, ainda a mesma madrugada:
+
+- **Pilha mostra Assunto e Proprietário**, além do processo e da data da atividade — cruza
+  `processos.tipo_processo` (via `assuntos.slug→nome`) e `processos.dados->proprietario->valor`
+  (mesmo campo do LIP usado em `lib/geradores.ts`). Falha nessa consulta extra nunca derruba a
+  pilha.
+- **Botão "voltar pra pilha" mais visível** — virou botão de verdade com borda, era texto pequeno
+  fácil de não notar.
+- **Excluir processo inteiro** (`app/api/admin/mhd/processo`) — não só 1 evento: apaga
+  documentos+versões (cascade por FK) e eventos do processo inteiro. Resolve a entrada de teste
+  ("TESTE-HIST-44353-AN3") que não tinha como sair da pilha.
+- **Excluir em lote** — única exclusão em lote do módulo, de propósito: marca vários processos
+  na pilha (checkbox, nunca "selecionar tudo" automático) e apaga de uma vez, com confirmação
+  mostrando quantos serão apagados.
+- Testado contra registros descartáveis (documento+versão+evento criados e apagados via SQL
+  direto) antes de subir — confirmado que a versão cascateia junto com o documento.
+
 ---
 
 **Histórico de versões**

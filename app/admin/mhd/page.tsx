@@ -16,9 +16,12 @@ import { isPerfilIrrestrito } from "@/lib/perfis";
  * Mesmo padrão visual e mesmo gate de visibilidade de /admin/urbi e /admin/bdi/leis (BIP):
  * só perfil irrestrito, redireciona pra Home se não autorizado.
  *
- * Basicamente só leitura — a única escrita é excluir 1 evento por vez (limpeza administrativa,
- * exceção deliberada ao "nunca apaga" do MHD; ver app/api/admin/mhd/evento/route.ts). Exportar
- * é geração de CSV no cliente, não toca no servidor.
+ * Basicamente só leitura — a única escrita é excluir (limpeza administrativa, exceção deliberada
+ * ao "nunca apaga" do MHD): 1 evento (app/api/admin/mhd/evento) ou o histórico inteiro de 1
+ * processo (app/api/admin/mhd/processo, documentos+versões+eventos). Exclusão em lote existe só
+ * na pilha (marcar vários processos e apagar de uma vez) — pedido explícito do Fábio
+ * (06/09/2026), sempre com confirmação e sempre marcado à mão, nunca "apagar tudo" de um clique.
+ * Exportar é geração de CSV no cliente, não toca no servidor.
  */
 
 const INPUT = "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]";
@@ -46,6 +49,9 @@ export default function MhdAdminPage() {
   const [dados, setDados] = useState<MhdResposta | null>(null);
   const [recentes, setRecentes] = useState<ProcessoRecente[] | null>(null);
   const [excluindo, setExcluindo] = useState<string | null>(null);
+  const [excluindoProcesso, setExcluindoProcesso] = useState<string | null>(null);
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [excluindoLote, setExcluindoLote] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -132,12 +138,63 @@ export default function MhdAdminPage() {
       const j = await r.json();
       if (!j.ok) throw new Error(j.erro || "Falha ao excluir");
       await buscar(processo);
-      setRecentes(null);
-      fetch("/api/admin/mhd/recentes").then((r) => r.json()).then((j) => { if (j.ok) setRecentes(j.processos); });
+      recarregarPilha();
     } catch (e: any) {
       setErro(e?.message ?? String(e));
     } finally {
       setExcluindo(null);
+    }
+  }
+
+  function recarregarPilha() {
+    setRecentes(null);
+    fetch("/api/admin/mhd/recentes").then((r) => r.json()).then((j) => { if (j.ok) setRecentes(j.processos); });
+  }
+
+  /**
+   * Apaga TODO o histórico do processo (não só 1 evento) — pedido do Fábio (06/09/2026): "nao
+   * tem como excluir processos do MHD.. olha ai tem ate teste seu" (a entrada de teste na pilha
+   * não tinha como sair de lá). Mesma exceção deliberada ao "nunca apaga".
+   */
+  async function excluirProcesso(codigo: string) {
+    if (!confirm(`Apagar TODO o histórico do MHD do processo ${codigo}? Isso não pode ser desfeito.`)) return;
+    setExcluindoProcesso(codigo);
+    try {
+      const r = await fetch(`/api/admin/mhd/processo?codigo=${encodeURIComponent(codigo)}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro || "Falha ao excluir");
+      setMarcados((prev) => { const novo = new Set(prev); novo.delete(codigo); return novo; });
+      recarregarPilha();
+    } catch (e: any) {
+      setErro(e?.message ?? String(e));
+    } finally {
+      setExcluindoProcesso(null);
+    }
+  }
+
+  /**
+   * Excluir em lote — pedido do Fábio logo em seguida: "seria legal poder marcar e excluir de
+   * lote". É a única exclusão em lote do módulo, de propósito: aqui o analista marca cada
+   * processo À MÃO antes (nunca um "excluir tudo" de um clique só), e a confirmação mostra
+   * quantos serão apagados.
+   */
+  async function excluirLote() {
+    const codigos = [...marcados];
+    if (!codigos.length) return;
+    if (!confirm(`Apagar TODO o histórico do MHD de ${codigos.length} processo(s)? Isso não pode ser desfeito.`)) return;
+    setExcluindoLote(true);
+    try {
+      for (const codigo of codigos) {
+        const r = await fetch(`/api/admin/mhd/processo?codigo=${encodeURIComponent(codigo)}`, { method: "DELETE" });
+        const j = await r.json();
+        if (!j.ok) throw new Error(`${codigo}: ${j.erro || "falha ao excluir"}`);
+      }
+      setMarcados(new Set());
+      recarregarPilha();
+    } catch (e: any) {
+      setErro(e?.message ?? String(e));
+    } finally {
+      setExcluindoLote(false);
     }
   }
 
@@ -191,9 +248,21 @@ export default function MhdAdminPage() {
 
         {!dados && (
           <div className="mb-5">
-            <p className="text-sm font-bold text-[var(--text-primary)] mb-2">
-              Pilha de processos com atividade recente
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-bold text-[var(--text-primary)]">
+                Pilha de processos com atividade recente
+              </p>
+              {marcados.size > 0 && (
+                <button
+                  onClick={excluirLote}
+                  disabled={excluindoLote}
+                  className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border border-[var(--error)] bg-[var(--error-bg)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white disabled:opacity-50"
+                >
+                  {excluindoLote ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  Excluir {marcados.size} selecionado(s)
+                </button>
+              )}
+            </div>
             {recentes === null && (
               <p className="text-xs text-[var(--text-muted)]">Carregando…</p>
             )}
@@ -203,24 +272,44 @@ export default function MhdAdminPage() {
             {!!recentes?.length && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
                 <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+                  <span className="w-4 shrink-0" />
                   <span className="w-36 shrink-0">Processo</span>
                   <span className="w-32 shrink-0">Assunto</span>
                   <span className="flex-1">Proprietário</span>
                   <span className="w-36 shrink-0 text-right">Atividade</span>
                 </div>
                 {recentes.map((p) => (
-                  <button
+                  <div
                     key={p.processo_codigo}
-                    onClick={() => buscar(p.processo_codigo)}
                     className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)] flex items-center gap-3"
                   >
-                    <span className="w-36 shrink-0 font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
-                    <span className="w-32 shrink-0 text-xs text-[var(--text-secondary)] truncate">{p.assunto ?? "—"}</span>
-                    <span className="flex-1 text-xs text-[var(--text-secondary)] truncate">{p.proprietario ?? "—"}</span>
-                    <span className="w-36 shrink-0 text-right text-xs text-[var(--text-muted)]">
-                      {new Date(p.criado_em).toLocaleDateString("pt-BR")}
-                    </span>
-                  </button>
+                    <input
+                      type="checkbox"
+                      checked={marcados.has(p.processo_codigo)}
+                      onChange={(e) => setMarcados((prev) => {
+                        const novo = new Set(prev);
+                        if (e.target.checked) novo.add(p.processo_codigo); else novo.delete(p.processo_codigo);
+                        return novo;
+                      })}
+                      className="shrink-0"
+                    />
+                    <button onClick={() => buscar(p.processo_codigo)} className="flex-1 flex items-center gap-3 text-left">
+                      <span className="w-36 shrink-0 font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
+                      <span className="w-32 shrink-0 text-xs text-[var(--text-secondary)] truncate">{p.assunto ?? "—"}</span>
+                      <span className="flex-1 text-xs text-[var(--text-secondary)] truncate">{p.proprietario ?? "—"}</span>
+                      <span className="w-36 shrink-0 text-right text-xs text-[var(--text-muted)]">
+                        {new Date(p.criado_em).toLocaleDateString("pt-BR")}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => excluirProcesso(p.processo_codigo)}
+                      disabled={excluindoProcesso === p.processo_codigo}
+                      title="Apagar TODO o histórico do MHD deste processo (limpeza administrativa — não pode ser desfeito)"
+                      className="shrink-0 p-1 rounded hover:bg-[var(--error-bg)] hover:text-[var(--error)] text-[var(--text-muted)] disabled:opacity-40"
+                    >
+                      {excluindoProcesso === p.processo_codigo ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
