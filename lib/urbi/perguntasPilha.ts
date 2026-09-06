@@ -17,6 +17,7 @@
 import { obterUltimosRetratosVisiveis, obterStatusRadar, type VisibilidadeUsuario, type RetratoConsultavel } from "./radar";
 import { nomeHumanoDoSlot } from "./contratoResposta";
 import type { AtributoFactual } from "./catalogoConsultaPilha";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 /** Retrato concluído há mais que isto entra na lista de "desatualizado" — mesma folga (3x a
  *  cadência esperada do job) já usada em lib/urbi/radarJob.ts/alertasProducao.ts. */
@@ -254,6 +255,37 @@ async function responderPerguntaPilhaInterna(mensagem: string, usuario: Visibili
     return achados.length > 0
       ? `${achados.length} processo(s) com pendência(s) da última análise sem vínculo BIP aprovado: ${listarCodigos(achados)}.\nFonte: MAC — vinculos_bip por item (cobertura completa de BIP é trabalho à parte, ainda em andamento).`
       : "Nenhum processo visível com pendência sem vínculo BIP aprovado agora.";
+  }
+
+  // ── documento pendente de classificação (Fase 6 do plano Documentos Vivos, §21) ────────────
+  // EXCEÇÃO deliberada ao padrão do arquivo (nunca query nova aqui dentro, só o retrato pronto):
+  // a contagem de páginas `classificacao_pendente` (lib/documentosSei/pecas.ts) ainda não faz
+  // parte do retrato do Radar — só existe no `detalhe` (jsonb) do último evento
+  // "documentos_sei_organizado" de cada processo (mhd_eventos). Levar isso pro retrato de verdade
+  // é trabalho à parte (mudaria o pipeline do Radar pros TRÊS slots, não só Documentos Vivos);
+  // aqui é uma consulta direta e pequena, só quando a pergunta pede especificamente isso.
+  if (/documentos?\s+pendentes?\s+(de\s+)?classifica[çc][ãa]o|classifica[çc][ãa]o\s+pendente/.test(t)) {
+    const retratos = await obterUltimosRetratosVisiveis(usuario);
+    const codigos = retratos.map((r) => r.processo_codigo);
+    if (codigos.length === 0) return "Nenhum processo visível.";
+    const { data } = await supabaseAdmin
+      .from("mhd_eventos")
+      .select("processo_codigo, detalhe, criado_em")
+      .eq("tipo", "documentos_sei_organizado")
+      .in("processo_codigo", codigos)
+      .order("criado_em", { ascending: false });
+    const ultimoPorProcesso = new Map<string, any>();
+    for (const ev of data ?? []) {
+      if (!ultimoPorProcesso.has(ev.processo_codigo)) ultimoPorProcesso.set(ev.processo_codigo, ev);
+    }
+    const comPendencia = [...ultimoPorProcesso.entries()]
+      .filter(([, ev]) => Number(ev.detalhe?.coberturaPecas?.pendentes ?? 0) > 0)
+      .map(([codigo]) => codigo);
+    const porTipo = new Map(retratos.map((r) => [r.processo_codigo, r.tipo_processo]));
+    const linha = (codigo: string) => `${codigo} (${nomeHumanoDoSlot(porTipo.get(codigo) ?? null)})`;
+    return comPendencia.length > 0
+      ? `${comPendencia.length} processo(s) com página(s) pendente(s) de classificação no Organizador de PDF SEI: ${comPendencia.slice(0, LIMITE_LISTA).map(linha).join(", ")}${comPendencia.length > LIMITE_LISTA ? ` … e mais ${comPendencia.length - LIMITE_LISTA}` : ""}.\nFonte: MHD — mhd_eventos.detalhe.coberturaPecas (última organização de cada processo).`
+      : "Nenhum processo visível com página pendente de classificação registrada no Organizador de PDF SEI agora.";
   }
 
   return null;

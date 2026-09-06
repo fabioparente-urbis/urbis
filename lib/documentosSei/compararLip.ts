@@ -49,8 +49,12 @@ const REGRAS: Regra[] = [
   { chave: "seiCheadv", teste: (t) => t.includes("cheadv") && t.includes("conforme") },
 ];
 
-/** Papel de peça (Fase 3) → chave do campo LIP. Papel ausente daqui nunca vira sugestão de propósito. */
-const CAMPO_POR_PAPEL_PECA: Record<string, string | undefined> = {
+/**
+ * Papel de peça (Fase 3) → chave do campo LIP. Papel ausente daqui nunca vira sugestão de
+ * propósito. Exportado (Fase 6, §21 do plano) pra `lib/urbi/motorProducao.ts` saber quando um
+ * campo vazio do LIP já tem documento correspondente no MHD, em vez de só "campo vazio".
+ */
+export const CAMPO_POR_PAPEL_PECA: Record<string, string | undefined> = {
   matricula: "certidao",
   certidao: "certidao",
   levantamento: "levantamento",

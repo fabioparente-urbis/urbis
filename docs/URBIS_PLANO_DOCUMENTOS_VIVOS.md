@@ -385,10 +385,10 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 4 — motor de versões e estados | 2 | 🟡 60% | **código escrito e no ar** (`lib/documentosSei/motorVersoes.ts`, ver §18): resolve vigente/substituído/sem-efeito/histórico DENTRO de um único fatiamento, validado contra os dois casos reais do portão (despacho SEM EFEITO isolado; família 42135097/42135097-1). Escopo reduzido do desenho original: não persiste estado em `mhd_versoes` (banco) — decisão registrada em §18 sobre por que isso pede uma decisão de arquitetura antes (identidade de documento entre uploads diferentes, que a Fase 3 não estabeleceu). Coluna "Estado" nas duas telas, só informativo. |
 | 5 — pacote vigente + manifesto | 1–2 | 🟡 75% | **código escrito e no ar** (ver §19): `lib/documentosSei/manifesto.ts` (PDF do manifesto, puro, sem `fs`) + `pacoteVigenteClient.ts` (recorta cada evento com pdf-lib, separa Vigentes/Histórico conforme a Fase 4, zipa com JSZip) + botão "📦 Baixar pacote vigente" nas duas telas. Testado localmente com PDF sintético — soma fechada, pastas corretas. Só sobre EVENTOS (não peças) — mesma fronteira herdada da Fase 4. Faltam os 25%: você conferir o manifesto contra um processo REAL, item a item (portão da fase). |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
-| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 35% | Passo 0 (§20) dá a base: `mhd_documentos`/`mhd_versoes` reais por documento. Radar já cobre sem código (vigia `mhd_documentos.atualizado_em`, que agora é real). Painel "Comparar com o LIP" (§16.4/§17) propõe 10 dos 11 campos. Faltam: pergunta nova da Pilha, enriquecer Motor de Produção com "documento já está no MHD", e o reforço em `linhaEvidencia.ts` (MDP) — sem FK nova, corte deliberado registrado no plano de trabalho da sessão. |
+| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟢 75% | **executada (§21)**: Radar de graça (vigia `mhd_documentos.atualizado_em`, real desde o Passo 0); URBI ganhou pergunta nova da Pilha ("documento pendente de classificação"); Motor de Produção diferencia "documento já no MHD" (esforço `rapido`) de "ninguém trouxe" (`depende_documento`), testado. Falta só MDP: enriquecer `linhaEvidencia.ts` com sinal do MHD foi cortado nesta rodada por risco de tocar uma live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro, não FK nova de qualquer forma (decisão de schema maior, fora do escopo original). |
 | 7 — retorno incremental | 1 | 🟢 90% | **Passo 0 (§20) entrega o portão da fase**: reimportar o mesmo conteúdo processa zero versões novas (dedup por hash do texto); alerta de integridade quando o mesmo idSei reaparece com conteúdo diferente; resumo "X novos, Y versões, Z inalterados" nas duas telas. Faltam os 10%: você conferir isso reimportando um PDF real duas vezes pela tela (portão humano). |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 62% concluído · 38% restante** | ≈8,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 35% de 2 + Fase 7 a 90% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 70% concluído · 30% restante** | ≈9,8 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 75% de 2 + Fase 7 a 90% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -865,6 +865,42 @@ novas/inalterados) e alerta de integridade em destaque quando existir.
 
 ---
 
+## 21. Fase 6 executada (com um corte revisto na hora) — 06/09/2026
+
+Continuação da mesma sessão do Passo 0. Implementado:
+
+- **Radar**: confirmado, zero código — `lib/urbi/radar.ts` já vigia `mhd_documentos.atualizado_em`,
+  que agora é real (Passo 0). Só documentação.
+- **URBI (pergunta da Pilha)**: `lib/urbi/perguntasPilha.ts` ganhou "quais processos têm
+  documento(s) pendente(s) de classificação?" — **exceção deliberada e documentada** ao padrão do
+  arquivo (normalmente só lê o retrato pronto, nunca faz query nova): a contagem de
+  `classificacao_pendente` (Fase 3) ainda não faz parte do pipeline de retrato do Radar — levar
+  isso pra lá é trabalho à parte que mudaria o pipeline pros 3 slots, não só Documentos Vivos.
+  Consulta direta e pequena, só quando a pergunta pede isso.
+- **Motor de Produção** (`lib/urbi/motorProducao.ts`): `candidatosCamposVazios` agora recebe
+  `d.mhd` (já vem pronto no dossiê, nenhuma consulta nova) e cruza contra
+  `lib/documentosSei/compararLip.ts` (`CAMPO_POR_PAPEL_PECA`/`ROTULO_CAMPO_LIP`, agora exportados)
+  — campo do LIP vazio cujo documento já está no MHD vira esforço `rapido` ("aceitar proposta"),
+  não mais `depende_documento` ("cobrar de fora"). Testado com dossiê sintético: campo com
+  documento no MHD saiu `rapido`, campo sem, `depende_documento` — comportamento exatamente como
+  descrito no §14 do plano.
+- **MAC/BIP**: sem mudança de schema, confirmado — a evidência de cada item continua sendo o
+  texto/valor do LIP.
+
+**CORTE REVISTO na hora (registrado, não silencioso):** o plano de trabalho desta sessão previa
+também enriquecer `lib/urbi/linhaEvidencia.ts` (MDP) com um sinal a mais de `mhd_documentos`. Ao
+abrir o arquivo, a lógica de linha de evidência (múltiplas fontes, pontuação por candidato,
+usada em produção pelos 3 slots) se mostrou mais arriscada de tocar sem teste dedicado do que o
+retorno justificava nesta rodada — decidido NÃO mexer, em vez de arriscar uma live-scoring engine
+compartilhada sem conseguir validar de ponta a ponta. MDP continua exatamente como estava (elo
+mais fraco por igualdade de texto, `mdp_registros.conteudo.pendencias_mac[].texto`) — sem FK nova,
+sem sinal do MHD. Fica registrado como trabalho futuro, não como "feito".
+
+**Verificado:** `tsc --noEmit` e `npm run build` limpos; Motor de Produção testado com dossiê
+sintético.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -942,4 +978,10 @@ novas/inalterados) e alerta de integridade em destaque quando existir.
   quebrava na 2ª chamada de `getDocument` sobre o mesmo buffer (`ArrayBuffer` fica detached após
   a 1ª leitura) — `fatiarPdfSei` agora abre o PDF uma vez só e reaproveita o `LeitorPdf` pra todas
   as leituras da requisição. Testado localmente (dedup, versão nova, alerta de integridade, peças).
+  `tsc`/`build` limpos.
+- v17 — 06/09/2026 — **Fase 6 executada** (ver §21): pergunta nova da Pilha (documento pendente de
+  classificação); Motor de Produção diferencia documento já no MHD (esforço `rapido`) de documento
+  que ninguém trouxe (`depende_documento`), testado com dossiê sintético; Radar confirmado sem
+  código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
+  live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.

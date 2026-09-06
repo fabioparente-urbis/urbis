@@ -17,7 +17,15 @@
  *
  * SÓ SUGERE — nunca decide, altera, emite ou pontua. "Esforço provável" nunca é prazo: é uma
  * das 4 classificações fixas, sempre com fonte objetiva.
+ *
+ * Fase 6 do plano Documentos Vivos (§21, 06/09/2026): tier 2 ("documento ausente") passa a
+ * diferenciar campo vazio porque NINGUÉM TROUXE o documento (esforço "depende_documento", cobrar
+ * de fora) de campo vazio cujo documento JÁ ESTÁ no MHD (Organizador de PDF SEI, Slots 1/2) mas
+ * não foi vinculado ao LIP ainda — esforço "rapido" (é só aceitar a sugestão de
+ * `lib/documentosSei/compararLip.ts`, já pronta na tela). `d.mhd` já vem no dossiê
+ * (`montarDossieFactual`), reaproveitado — nenhuma consulta nova aqui.
  */
+import { CAMPO_POR_PAPEL_PECA, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
 
 export type EsforcoProvavel = "rapido" | "exige_atencao" | "depende_documento" | "base_insuficiente";
 
@@ -123,17 +131,39 @@ function candidatosPendencias(mac: any): AcaoPrioritaria[] {
 
 const PREFIXO_DOCUMENTO = "DOC SEI —";
 
-function candidatosCamposVazios(lip: any): { documento: AcaoPrioritaria[]; critico: AcaoPrioritaria[] } {
+function normalizarRotulo(t: string): string {
+  return t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+/** Rótulos de campo LIP (ex.: "Certidão", "ART de Levantamento") que já têm documento no MHD. */
+function rotulosLipJaNoMhd(mhd: any[]): Set<string> {
+  const out = new Set<string>();
+  for (const doc of mhd ?? []) {
+    const campo = CAMPO_POR_PAPEL_PECA[doc?.papel];
+    const rotulo = campo ? ROTULO_CAMPO_LIP[campo] : undefined;
+    if (rotulo) out.add(normalizarRotulo(rotulo));
+  }
+  return out;
+}
+
+function candidatosCamposVazios(lip: any, mhd: any[]): { documento: AcaoPrioritaria[]; critico: AcaoPrioritaria[] } {
   const rotulos: string[] = Array.isArray(lip?.campos_vazios_rotulos) ? lip.campos_vazios_rotulos : [];
+  const jaNoMhd = rotulosLipJaNoMhd(mhd);
   const documento: AcaoPrioritaria[] = [];
   const critico: AcaoPrioritaria[] = [];
   for (const rotulo of rotulos) {
     if (rotulo.startsWith(PREFIXO_DOCUMENTO)) {
+      const nomeCampo = rotulo.slice(PREFIXO_DOCUMENTO.length).trim();
+      const existeNoMhd = jaNoMhd.has(normalizarRotulo(nomeCampo));
       documento.push({
         tier: 2,
-        texto: `Conferir/anexar "${rotulo.slice(PREFIXO_DOCUMENTO.length).trim()}".`,
-        motivo: "LIP: campo de referência de documento vazio.",
-        esforco: "depende_documento",
+        texto: existeNoMhd
+          ? `Aceitar "${nomeCampo}" — já está no Organizador de PDF SEI, só falta vincular ao LIP.`
+          : `Conferir/anexar "${nomeCampo}".`,
+        motivo: existeNoMhd
+          ? "MHD: documento já organizado (Organizador de PDF SEI), ainda não vinculado ao LIP."
+          : "LIP: campo de referência de documento vazio.",
+        esforco: existeNoMhd ? "rapido" : "depende_documento",
       });
     } else {
       critico.push({
@@ -253,7 +283,7 @@ export function montarRelatorioMotor(d: Record<string, any>): RelatorioMotor {
   const tecnico = d.tecnico ?? {};
   const situacoes = d.situacoes ?? {};
 
-  const { documento: acoesDocumento, critico: acoesCritico } = candidatosCamposVazios(lip);
+  const { documento: acoesDocumento, critico: acoesCritico } = candidatosCamposVazios(lip, d.mhd);
   const todasAsAcoes: AcaoPrioritaria[] = [
     ...candidatosPendencias(mac),
     ...acoesDocumento,
