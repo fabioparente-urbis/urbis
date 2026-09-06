@@ -71,9 +71,13 @@ function departamento(ev: EventoSei): string | undefined {
 /**
  * Filtro "só a última versão" — HEURÍSTICA SIMPLES, não é o motor de versões da Fase 4 do plano
  * (que ainda não existe: não lê "SEM EFEITO"/"substitui", não tem hierarquia de confiança).
- * Agrupa por título normalizado e mantém só a página mais recente de cada grupo.
- * Despacho/Parecer/Ofício/Notificação NUNCA são agrupados: são atos numerados, cada um é o seu
- * próprio evento. É só filtro de tela: a lista completa nunca deixa de existir.
+ * Agrupa por título normalizado (número removido) e mantém só a página mais recente de cada
+ * grupo. Despacho/Parecer PASSARAM a agrupar também (06/09/2026, pedido do Fábio — antes ficavam
+ * de fora e "Despacho 607/1152/1450 - CHEADV - Pendência Documentação" apareciam os três, quando
+ * ele queria só o último): como o número do despacho é removido na normalização, só colapsa
+ * despachos com o MESMO texto residual — "Pendência Documentação" (3 ocorrências) vira 1,
+ * "Documentação conforme" (texto diferente) continua separado. É só filtro de tela: a lista
+ * completa (sem o filtro) nunca deixa de existir.
  */
 function normalizarTitulo(titulo: string): string {
   return titulo
@@ -83,19 +87,20 @@ function normalizarTitulo(titulo: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
-function ehAtoNumerado(titulo: string): boolean {
-  return /^(despacho|parecer|of[íi]cio|notifica[cç][ãa]o)\b/i.test(titulo.trim());
+/** e-mail é ruído nesta visão resumida — nem o último aparece (pedido do Fábio, 06/09/2026) */
+function ehEmail(titulo: string): boolean {
+  return /^e-?mail\b/i.test(titulo.trim());
 }
 function filtrarUltimaVersao(eventos: EventoSei[]): EventoSei[] {
+  const semEmail = eventos.filter((ev) => !ehEmail(ev.titulo));
   const ultimoPorGrupo = new Map<string, EventoSei>();
-  for (const ev of eventos) {
-    if (ehAtoNumerado(ev.titulo)) continue;
+  for (const ev of semEmail) {
     const chave = normalizarTitulo(ev.titulo);
     const atual = ultimoPorGrupo.get(chave);
     if (!atual || ev.paginaFim > atual.paginaFim) ultimoPorGrupo.set(chave, ev);
   }
   const mantidos = new Set([...ultimoPorGrupo.values()]);
-  return eventos.filter((ev) => ehAtoNumerado(ev.titulo) || mantidos.has(ev));
+  return semEmail.filter((ev) => mantidos.has(ev));
 }
 
 type CampoLip = { valor: string; fonte?: string };
@@ -338,9 +343,12 @@ export default function OrganizadorSeiAceite({
           {resultado && (
             <div className="mt-2">
               {recuperadoDoHistorico && !arquivo && (
-                <p className="text-xs text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded p-2 mb-3">
-                  📋 Índice recuperado do histórico (MHD) — o PDF em si não fica guardado no servidor.
-                  Solte o PDF de novo aqui pra poder abrir página ou baixar recorte.
+                <p className="text-xs text-[var(--warning)] bg-[var(--warning-bg)] rounded p-2 mb-3">
+                  📋 Índice recuperado do histórico (MHD), de uma leitura anterior — pode estar
+                  DESATUALIZADO se o Organizador melhorou depois dessa leitura (ex.: departamento
+                  em branco que hoje seria encontrado). O PDF em si não fica guardado no servidor:
+                  solte o PDF de novo pra reprocessar com a versão atual e também pra poder abrir
+                  página ou baixar recorte.
                 </p>
               )}
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">

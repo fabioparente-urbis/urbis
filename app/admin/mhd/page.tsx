@@ -19,7 +19,6 @@ import { isPerfilIrrestrito } from "@/lib/perfis";
  * SÓ LEITURA. Nenhuma escrita acontece aqui.
  */
 
-const BTN_SECUNDARIO = "inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)]";
 const INPUT = "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]";
 
 type MhdResposta = {
@@ -85,7 +84,16 @@ export default function MhdAdminPage() {
               e por hash. Só leitura — quem grava é a leitura de pasta/arquivo, dentro do processo.
             </p>
           </div>
-          <button onClick={() => router.push("/")} className={BTN_SECUNDARIO}>← Home</button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.push("/")}
+              className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+              🏠 Home
+            </button>
+            <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+              className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">
+              🚪 Sair
+            </button>
+          </div>
         </div>
 
         <div className="mb-5 flex gap-2">

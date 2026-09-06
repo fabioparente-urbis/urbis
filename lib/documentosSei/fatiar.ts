@@ -142,9 +142,19 @@ function acharSetorNaPagina(itens: ItemPosicionado[]): string | undefined {
   for (const linha of linhas) {
     const texto = linha.map((i) => i.t).join(" ").trim();
     if (!RE_ORGAO.test(texto)) continue;
-    // letreiro de verdade não tem data/hora colada (visto num caso real: marca d'água do SEI
-    // grudada na mesma linha do cabeçalho) — mais seguro ficar sem do que mostrar isso
-    if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(texto) || texto.length > 100) continue;
+    /* Letreiro de verdade não vem colado com e-mail, data ou hora — visto em casos reais
+     * (Fase 1/2, 4 processos): marca d'água do SEI grudada na linha ("... 08/05/2025 - 17:46:58"),
+     * assinatura de e-mail ("Fulano <fulano@x.com> 13 de abril de 2026 às 10:06"). Mais seguro
+     * ficar sem do que mostrar ruído. Também exige mais de uma palavra — "GERÊNCIA" sozinha (viu
+     * no processo 25.5.000061039-8) não identifica setor nenhum. */
+    const pareceRuido =
+      texto.length > 100 ||
+      texto.split(/\s+/).length < 2 ||
+      /@/.test(texto) ||
+      /\d{1,2}\/\d{1,2}\/\d{2,4}/.test(texto) ||
+      /\bàs\s+\d{1,2}[:h]\d{2}\b/i.test(texto) ||
+      RE_DATA_LONGA.test(texto);
+    if (pareceRuido) continue;
     ultimo = texto;
   }
   return ultimo;
