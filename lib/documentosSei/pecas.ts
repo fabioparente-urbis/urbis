@@ -93,6 +93,16 @@ export function ehContainerGenerico(titulo: string): boolean {
 }
 
 /**
+ * Classifica o TÍTULO de um evento que NÃO é contêiner (não tem peças por dentro) usando a mesma
+ * tabela `ASSINATURAS_PECA` — usado pela persistência (Fase 6/7) pra dar papel a um evento avulso
+ * do SEI que não é ato (despacho/parecer/ofício/notificação) nem contêiner. `null` quando nenhuma
+ * assinatura casa — o chamador decide o que fazer (nunca inventa papel).
+ */
+export function classificarTitulo(titulo: string): PapelPeca | null {
+  return classificarPagina(titulo);
+}
+
+/**
  * Separa as peças de um evento-contêiner. `paginasDoEvento` já vem restrito ao intervalo do
  * evento (ver `lerPaginasIntervalo` em `fatiar.ts`) — a contagem fecha por construção, já que toda
  * página do array entra em exatamente uma peça (classificada ou `classificacao_pendente`).

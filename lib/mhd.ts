@@ -214,7 +214,12 @@ export async function historicoDoProcesso(processoCodigo: string) {
 
 // ─────────────────────────── gravação ───────────────────────────
 
-async function acharOuCriarDocumento(
+/**
+ * Exportada (06/09/2026) pro Organizador de PDF SEI (Slots 1/2, `lib/documentosSei/persistencia.ts`)
+ * reaproveitar sem duplicar a query — mudança de visibilidade só, sem tocar comportamento nem
+ * `registrarLeitura` (Slot 5), que continua chamando isto do mesmo jeito.
+ */
+export async function acharOuCriarDocumento(
   processoCodigo: string, assuntoId: string | null, papel: string, escopo: string,
 ): Promise<{ id: string | null; erro?: string }> {
   const { data: existente } = await supabase
@@ -233,8 +238,11 @@ async function acharOuCriarDocumento(
   return { id: data.id };
 }
 
-/** Grava a extração de um hash, ou reaproveita a que já existe. */
-async function acharOuCriarConteudo(e: EntradaMHD): Promise<{ id: string | null; erro?: string }> {
+/**
+ * Grava a extração de um hash, ou reaproveita a que já existe. Exportada (06/09/2026) pelo mesmo
+ * motivo de `acharOuCriarDocumento` acima.
+ */
+export async function acharOuCriarConteudo(e: EntradaMHD): Promise<{ id: string | null; erro?: string }> {
   const { data: existente } = await supabase
     .from("mhd_conteudos").select("id,extrator_versao").eq("hash", e.hash).maybeSingle();
 

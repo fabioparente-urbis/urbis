@@ -203,11 +203,24 @@ type PaginaLida = {
   assinante?: string;
 };
 
-async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Promise<PaginaLida[]> {
+/**
+ * Um PDF aberto pelo pdfjs, pra ser reaproveitado por várias leituras. Achado real (06/09/2026,
+ * testando a Fase 6 contra 2+ contêineres no mesmo PDF): o build "legacy" do pdfjs quebra com
+ * `DataCloneError` na SEGUNDA chamada de `getDocument` dentro do MESMO processo Node (24.x) — o
+ * "worker" falso dele (`LoopbackPort`) carrega estado entre chamadas que o `structuredClone` mais
+ * estrito do Node novo não aceita mais na 2ª vez. Por isso `getDocument` só pode ser chamado UMA
+ * VEZ por requisição — `fatiarPdfSei` abre o documento e devolve o `LeitorPdf` pra quem precisar
+ * ler outros intervalos depois (`lerPaginasIntervalo`) reaproveitar, em vez de abrir de novo.
+ */
+export type LeitorPdf = { doc: any };
+
+async function abrirDocumentoPdf(buffer: Uint8Array): Promise<any> {
   // legacy build: é o que funciona em Node sem DOM (mesma escolha de lib/lerPastaSlot5.ts, sem importar de lá)
   const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await pdfjs.getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
+  return pdfjs.getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
+}
 
+async function lerPaginas(doc: any, aoAndar?: AoAndarFatiamento): Promise<PaginaLida[]> {
   const paginas: PaginaLida[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     aoAndar?.({ atual: p - 1, total: doc.numPages });
@@ -234,21 +247,19 @@ async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Prom
 
 /**
  * Lê texto + dimensões de um intervalo de páginas (1-based, inclusive) — usado pela Fase 3
- * (`lib/documentosSei/pecas.ts`) para reabrir um evento genérico ("Documentação") e classificar
- * as peças de dentro. Reabre o PDF (não reaproveita `lerPaginas`, que descarta os itens
- * posicionados depois de montar carimbo/setor/data): custo aceitável porque só roda sobre o(s)
- * poucos eventos-contêiner de um processo, nunca sobre o PDF inteiro de novo.
+ * (`lib/documentosSei/pecas.ts`) e pela Fase 6/7 (`lib/documentosSei/persistencia.ts`) pra
+ * reabrir um evento (contêiner ou peça) sem reprocessar o PDF inteiro de novo. Recebe o
+ * `LeitorPdf` já aberto por `fatiarPdfSei` — NUNCA abre o documento de novo (ver comentário de
+ * `LeitorPdf` acima: `getDocument` só pode rodar uma vez por requisição).
  */
 export async function lerPaginasIntervalo(
-  buffer: Uint8Array,
+  leitor: LeitorPdf,
   paginaIni: number,
   paginaFim: number,
 ): Promise<PaginaTexto[]> {
-  const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  const doc = await pdfjs.getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
   const paginas: PaginaTexto[] = [];
   for (let p = paginaIni; p <= paginaFim; p++) {
-    const page = await doc.getPage(p);
+    const page = await leitor.doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
     const texto = (tc.items as any[]).map((i) => i.str ?? "").join(" ");
@@ -262,8 +273,13 @@ export async function lerPaginasIntervalo(
  * contagem de páginas não fechar (Σ eventos + Σ revisão ≠ total), lança erro — a chamadora
  * decide o que fazer, mas não finge sucesso.
  */
-export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Promise<ResultadoFatiamento> {
-  const paginas = await lerPaginas(buffer, aoAndar);
+export async function fatiarPdfSei(
+  buffer: Uint8Array,
+  aoAndar?: AoAndarFatiamento,
+): Promise<{ resultado: ResultadoFatiamento; leitor: LeitorPdf }> {
+  const doc = await abrirDocumentoPdf(buffer);
+  const leitor: LeitorPdf = { doc };
+  const paginas = await lerPaginas(doc, aoAndar);
   const totalPaginas = paginas.length;
 
   const contagemProcesso = new Map<string, number>();
@@ -345,5 +361,5 @@ export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamen
     );
   }
 
-  return { numeroProcesso, totalPaginas, eventos, paginasRevisao };
+  return { resultado: { numeroProcesso, totalPaginas, eventos, paginasRevisao }, leitor };
 }

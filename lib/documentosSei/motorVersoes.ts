@@ -15,10 +15,12 @@
  * ambos do MESMO PDF. Persistir o estado entre sessões fica para quando a Fase 7 (retorno
  * incremental) decidir como uma versão sobrevive entre uploads diferentes.
  *
- * Só opera sobre EVENTOS (nível 1, `fatiar.ts`) — não sobre peças (nível 2, `pecas.ts`) ainda:
- * decidir como uma peça dentro de um contêiner "versiona" contra a peça equivalente de outro
- * contêiner exige uma noção de identidade que a Fase 3 não estabeleceu. Peça começa e permanece
- * `vigente` por padrão até essa decisão existir.
+ * `resolverEstados` opera sobre EVENTOS (nível 1, `fatiar.ts`). Peças (nível 2, `pecas.ts`) têm
+ * resolução própria em `resolverEstadosPecas`, mais simples: a identidade agora existe (Fase 6,
+ * `lib/documentosSei/persistencia.ts` — papel é o "escopo" da família, compartilhado entre
+ * contêineres e entre uploads), mas peças não têm título próprio nem "sem efeito"/"substitui"
+ * explícito pra usar como sinal — só a ordem de página (tier 6), por isso a confiança nunca passa
+ * de "baixa" quando há mais de uma peça do mesmo papel no fatiamento.
  *
  * Implementa os níveis 1-3, 5 e 6 da ordem de confiança do plano (sem efeito explícito, substitui
  * explícito, referência ao anterior, data, ordem do evento SEI). Níveis 4 (mesmo número com
@@ -174,4 +176,40 @@ function resolverFamilia(familia: EventoSei[]): ResolucaoVersao[] {
 /** Agrupa e resolve todas as famílias de uma vez — função de conveniência para as telas. */
 export function resolverEstados(eventos: EventoSei[]): ResolucaoVersao[] {
   return agruparFamilias(eventos).flatMap(resolverFamilia);
+}
+
+/** Uma peça de contêiner (`pecas.ts`), com o suficiente pra resolver estado por família de papel. */
+export type AlvoPeca = { chave: string; idSei: string; paginaIni: number; paginaFim: number };
+
+/**
+ * Resolve estado de PEÇAS agrupadas por papel (`chave`) — todas as peças do mesmo papel no
+ * fatiamento inteiro (podem vir de contêineres diferentes) formam uma família. Só o tier 6 (ordem
+ * de página) está disponível — peça não carrega título/data próprios — por isso a confiança nunca
+ * passa de "baixa" quando a família tem mais de um membro.
+ */
+export function resolverEstadosPecas(pecas: AlvoPeca[]): (ResolucaoVersao & { chave: string; paginaIni: number; paginaFim: number })[] {
+  const porPapel = new Map<string, AlvoPeca[]>();
+  for (const p of pecas) {
+    const grupo = porPapel.get(p.chave);
+    if (grupo) grupo.push(p); else porPapel.set(p.chave, [p]);
+  }
+
+  const resultado: (ResolucaoVersao & { chave: string; paginaIni: number; paginaFim: number })[] = [];
+  for (const [chave, grupo] of porPapel) {
+    const ordenado = [...grupo].sort((a, b) => a.paginaFim - b.paginaFim);
+    ordenado.forEach((p, i) => {
+      const vigente = i === ordenado.length - 1;
+      resultado.push({
+        chave, idSei: p.idSei, titulo: chave, paginaIni: p.paginaIni, paginaFim: p.paginaFim,
+        estado: vigente ? "vigente" : "substituido",
+        confianca: ordenado.length > 1 ? "baixa" : "alta",
+        motivo: ordenado.length === 1
+          ? "única ocorrência deste papel no fatiamento"
+          : vigente
+            ? "última ocorrência deste papel na ordem do PDF (peça não tem título/data próprios pra sinal mais forte)"
+            : "substituída pela ocorrência mais recente deste mesmo papel no PDF",
+      });
+    });
+  }
+  return resultado;
 }

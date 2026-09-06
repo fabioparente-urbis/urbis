@@ -385,10 +385,10 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 4 — motor de versões e estados | 2 | 🟡 60% | **código escrito e no ar** (`lib/documentosSei/motorVersoes.ts`, ver §18): resolve vigente/substituído/sem-efeito/histórico DENTRO de um único fatiamento, validado contra os dois casos reais do portão (despacho SEM EFEITO isolado; família 42135097/42135097-1). Escopo reduzido do desenho original: não persiste estado em `mhd_versoes` (banco) — decisão registrada em §18 sobre por que isso pede uma decisão de arquitetura antes (identidade de documento entre uploads diferentes, que a Fase 3 não estabeleceu). Coluna "Estado" nas duas telas, só informativo. |
 | 5 — pacote vigente + manifesto | 1–2 | 🟡 75% | **código escrito e no ar** (ver §19): `lib/documentosSei/manifesto.ts` (PDF do manifesto, puro, sem `fs`) + `pacoteVigenteClient.ts` (recorta cada evento com pdf-lib, separa Vigentes/Histórico conforme a Fase 4, zipa com JSZip) + botão "📦 Baixar pacote vigente" nas duas telas. Testado localmente com PDF sintético — soma fechada, pastas corretas. Só sobre EVENTOS (não peças) — mesma fronteira herdada da Fase 4. Faltam os 25%: você conferir o manifesto contra um processo REAL, item a item (portão da fase). |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
-| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 20% | painel "Comparar com o LIP" (§16.4) propunha 4 dos 11 campos; com a Fase 3 (§17) os outros 7 (exceto o `art` ambíguo, deixado sem sugestão de propósito) também passam a ser sugeridos quando a peça é identificável. Faltam MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
-| 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
+| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 35% | Passo 0 (§20) dá a base: `mhd_documentos`/`mhd_versoes` reais por documento. Radar já cobre sem código (vigia `mhd_documentos.atualizado_em`, que agora é real). Painel "Comparar com o LIP" (§16.4/§17) propõe 10 dos 11 campos. Faltam: pergunta nova da Pilha, enriquecer Motor de Produção com "documento já está no MHD", e o reforço em `linhaEvidencia.ts` (MDP) — sem FK nova, corte deliberado registrado no plano de trabalho da sessão. |
+| 7 — retorno incremental | 1 | 🟢 90% | **Passo 0 (§20) entrega o portão da fase**: reimportar o mesmo conteúdo processa zero versões novas (dedup por hash do texto); alerta de integridade quando o mesmo idSei reaparece com conteúdo diferente; resumo "X novos, Y versões, Z inalterados" nas duas telas. Faltam os 10%: você conferir isso reimportando um PDF real duas vezes pela tela (portão humano). |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 48% concluído · 52% restante** | ≈6,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 62% concluído · 38% restante** | ≈8,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 35% de 2 + Fase 7 a 90% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -816,6 +816,55 @@ processo, item a item — mesmo tipo de conferência humana que fechou o portão
 
 ---
 
+## 20. Passo 0 (pré-requisito Fase 6/7) executado — 06/09/2026
+
+Fábio pediu pra terminar Fases 6/7/8 até 100%. Decidido com ele: persistência real do MHD só nos
+Slots 1/2 agora (Slot 5 fica pra outra conversa, plano próprio, depois deste terminar).
+
+- **Migration** `2026_09_06_mhd_versoes_estado_documentos_vivos.sql` — `mhd_versoes` ganha
+  `estado`/`motivo_estado`/`confianca_estado` (nullable, sem CHECK — Slot 5 nunca preenche,
+  continua decidindo por `vigente`). Testada com `BEGIN`/`ROLLBACK`, aplicada de verdade com
+  confirmação explícita do Fábio (aplicar migration em produção é ação que o agente não faz
+  sozinho).
+- **`lib/mhd.ts`**: `acharOuCriarDocumento`/`acharOuCriarConteudo` viraram `export` (só
+  visibilidade — `registrarLeitura`, do Slot 5, não foi tocada).
+- **`lib/documentosSei/persistencia.ts`** (novo) — o Organizador de PDF SEI passa a criar
+  `mhd_documentos`/`mhd_versoes` DE VERDADE por documento, não só 1 evento-log por organização
+  (que continua existindo, como auditoria). Identidade: atos (despacho/parecer/ofício/notificação)
+  = `papel + escopo(idSei)`, permanentes; demais papéis = `papel + escopo("")`, um "slot" por
+  processo que versiona (mesmo jeito que o LIP já consome — 1 campo, 1 valor). Hash SHA-256 sobre
+  o TEXTO extraído (não bytes do PDF recortado, que mudam a cada recorte no cliente). Alerta de
+  integridade quando o mesmo idSei+papel reaparece com hash diferente — nunca sobrescreve em
+  silêncio.
+- **`lib/documentosSei/motorVersoes.ts`** ganhou `resolverEstadosPecas` — peças (Fase 3) agora
+  também têm família/estado, agrupadas por papel entre contêineres (antes só evento tinha).
+- **`lib/documentosSei/pecas.ts`** ganhou `classificarTitulo` — classifica o título de um evento
+  avulso (não contêiner, não ato) usando a mesma tabela de assinaturas.
+
+**BUG REAL achado e corrigido no caminho:** `pdfjs-dist` (build "legacy", usado em Node) quebra com
+`DataCloneError` na SEGUNDA chamada de `getDocument` dentro do MESMO PDF/objeto de bytes — o
+`transfer` da primeira chamada DETACHA o `ArrayBuffer` de entrada (confirmado isolando o caso:
+`TypedArray.prototype.slice` numa cópia do mesmo buffer já falha com "detached ArrayBuffer" depois
+da 1ª leitura). Isso já era um risco latente da Fase 3 (2+ contêineres no mesmo PDF chamariam
+`lerPaginasIntervalo` mais de uma vez, cada uma reabrindo o documento) — nunca disparou porque os
+testes até aqui só tinham 1 contêiner por processo real. Corrigido AGORA, antes do Fábio testar:
+`fatiarPdfSei` abre o PDF **uma vez** e devolve um `LeitorPdf` reaproveitado por TODAS as leituras
+de intervalo da mesma requisição (Fase 3 e persistência) — `getDocument` nunca roda 2 vezes sobre
+o mesmo buffer. `fatiarPdfSei` muda de assinatura: devolve `{ resultado, leitor }` em vez de só o
+resultado — as duas rotas atualizadas.
+
+**Testado localmente** (script descartável, processo `TESTE-PERSISTENCIA-*`, limpo depois): 1ª
+leitura cria documentos novos; 2ª leitura com o MESMO conteúdo (buffer novo, simulando reupload
+real) processa **zero versões novas** (portão da Fase 7); despacho com MESMO idSei e conteúdo
+DIFERENTE gera alerta de integridade E versão nova (nunca some, nunca sobrescreve sem avisar);
+peças de contêiner persistidas como documentos próprios, papel certo, escopo vazio. `tsc --noEmit`
+e `npm run build` limpos.
+
+**Nas duas telas:** bloco "O que mudou nesta leitura (MHD)" com o resumo (documentos novos/versões
+novas/inalterados) e alerta de integridade em destaque quando existir.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -886,3 +935,11 @@ processo, item a item — mesmo tipo de conferência humana que fechou o portão
   "📦 Baixar pacote vigente" nas duas telas. Testado com PDF sintético reproduzindo os 2 casos do
   portão da Fase 4 — zip saiu com as pastas certas, manifesto incluso. `tsc`/`build` limpos. Escopo
   simplificado pela mesma decisão da Fase 4: opera só sobre o PDF carregado nesta sessão.
+- v16 — 06/09/2026 — **Passo 0 executado** (ver §20): persistência real do MHD só nos Slots 1/2
+  (decisão do Fábio — Slot 5 fica pra outra conversa). `mhd_documentos`/`mhd_versoes` de verdade
+  por documento, migration aplicada em produção com confirmação explícita, dedup por hash de texto
+  cumprindo o portão da Fase 7 de graça. Bug real achado e corrigido no caminho: `pdfjs-dist`
+  quebrava na 2ª chamada de `getDocument` sobre o mesmo buffer (`ArrayBuffer` fica detached após
+  a 1ª leitura) — `fatiarPdfSei` agora abre o PDF uma vez só e reaproveita o `LeitorPdf` pra todas
+  as leituras da requisição. Testado localmente (dedup, versão nova, alerta de integridade, peças).
+  `tsc`/`build` limpos.

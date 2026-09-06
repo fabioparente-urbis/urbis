@@ -61,12 +61,21 @@ type EventoSei = {
 };
 type PaginaRevisao = { pagina: number; motivo: string };
 type CoberturaPecas = { totalPaginasContainer: number; classificadas: number; pendentes: number };
+type ResumoPersistencia = {
+  documentosNovos: number;
+  versoesNovas: number;
+  inalterados: number;
+  alertasIntegridade: { idSei: string; papel: string; motivo: string }[];
+  problemas: string[];
+};
 type ResultadoFatiamento = {
   numeroProcesso: string;
   totalPaginas: number;
   eventos: EventoSei[];
   paginasRevisao: PaginaRevisao[];
   coberturaPecas?: CoberturaPecas;
+  /** Passo 0 das Fases 6/7 — o que foi gravado de verdade no MHD nesta leitura. */
+  persistencia?: ResumoPersistencia | null;
 };
 
 const ROTULO_MOTIVO: Record<string, string> = {
@@ -446,6 +455,22 @@ export default function OrganizadorSeiAceite({
                   </button>
                 </span>
               </div>
+
+              {resultado.persistencia && (
+                <div className="mb-3 text-xs text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded p-2">
+                  <p>
+                    <b className="text-[var(--text-primary)]">O que mudou nesta leitura (MHD):</b>{" "}
+                    {resultado.persistencia.documentosNovos} documento(s) novo(s),{" "}
+                    {resultado.persistencia.versoesNovas} versão(ões) nova(s),{" "}
+                    {resultado.persistencia.inalterados} sem mudança.
+                  </p>
+                  {resultado.persistencia.alertasIntegridade.length > 0 && (
+                    <p className="text-[var(--warning)] mt-1">
+                      ⚠ {resultado.persistencia.alertasIntegridade.map((a) => a.motivo).join(" · ")}
+                    </p>
+                  )}
+                </div>
+              )}
 
               <div className="max-h-[480px] overflow-y-auto pr-1">
                 <table className="w-full text-sm border-collapse">

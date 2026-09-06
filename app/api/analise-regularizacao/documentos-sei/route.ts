@@ -4,6 +4,7 @@ import { ehContainerGenerico, abrirContainer, type PecaSei } from "@/lib/documen
 import { documentosVivosRegularizacaoAtivo } from "@/lib/documentosSei/config";
 import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
 import { registrarEvento } from "@/lib/mhd";
+import { persistirDocumentosVivos } from "@/lib/documentosSei/persistencia";
 
 /**
  * POST /api/analise-regularizacao/documentos-sei — Fase 2 do plano Documentos Vivos
@@ -87,7 +88,7 @@ async function processar(
     }
 
     const buffer = new Uint8Array(await arquivo.arrayBuffer());
-    const resultado = await fatiarPdfSei(buffer, (a) => {
+    const { resultado, leitor } = await fatiarPdfSei(buffer, (a) => {
       void enviar({ tipo: "progresso", ...a });
     });
 
@@ -104,7 +105,7 @@ async function processar(
         eventosComPecas.push(ev);
         continue;
       }
-      const paginasDoEvento = await lerPaginasIntervalo(buffer, ev.paginaIni, ev.paginaFim);
+      const paginasDoEvento = await lerPaginasIntervalo(leitor, ev.paginaIni, ev.paginaFim);
       const pecas = abrirContainer(paginasDoEvento);
       paginasContainer += paginasDoEvento.length;
       paginasClassificadas += pecas.filter((p) => p.papel !== "classificacao_pendente")
@@ -127,6 +128,7 @@ async function processar(
      * de verdade (não regravar o que já é idêntico) é trabalho da Fase 7 (retorno incremental).
      * Nunca bloqueia a resposta: falha aqui vira aviso, a organização da tela continua valendo.
      */
+    let persistencia = null;
     if (processoCodigo) {
       const usuario = await usuarioDaRequisicao(req);
       const erroMhd = await registrarEvento({
@@ -138,9 +140,24 @@ async function processar(
         usuarioId: usuario?.id ?? null,
       });
       if (erroMhd) console.error("[documentos-sei] MHD não gravou:", erroMhd);
+
+      /**
+       * Passo 0 das Fases 6/7 (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §20) — cria/atualiza
+       * mhd_documentos/mhd_versoes DE VERDADE por documento (não só o evento-log acima). Nunca
+       * bloqueia a resposta: falha aqui também vira aviso, a organização da tela continua valendo.
+       */
+      try {
+        persistencia = await persistirDocumentosVivos({
+          leitor, processoCodigo, assuntoId: permissao.assuntoId, usuarioId: usuario?.id ?? null,
+          eventos: eventosComPecas,
+        });
+        if (persistencia.problemas.length) console.error("[documentos-sei] persistência MHD:", persistencia.problemas);
+      } catch (e: any) {
+        console.error("[documentos-sei] persistência MHD falhou:", e);
+      }
     }
 
-    return enviar({ tipo: "resultado", ok: true, ...resultadoComPecas });
+    return enviar({ tipo: "resultado", ok: true, ...resultadoComPecas, persistencia });
   } catch (e: any) {
     console.error("[documentos-sei]", e);
     return enviar({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao fatiar o PDF" });
