@@ -127,9 +127,16 @@ export default function MhdAdminPage() {
               {dados.totais?.paginasIA ?? 0} página(s) enviadas à IA no total
             </p>
 
-            {!dados.documentos.length && (
+            {!dados.documentos.length && !dados.eventos?.length && (
               <p className="text-sm text-[var(--text-muted)]">
-                Nenhum documento na memória para este processo ainda.
+                Nada encontrado ainda para este processo — nem documento versionado, nem evento na
+                linha do tempo (ex.: uma organização de PDF do SEI).
+              </p>
+            )}
+            {!dados.documentos.length && !!dados.eventos?.length && (
+              <p className="text-sm text-[var(--text-muted)]">
+                Nenhum documento VERSIONADO (ART, laudo etc.) neste processo ainda — mas há linha
+                do tempo abaixo.
               </p>
             )}
 
