@@ -31,3 +31,12 @@ export async function documentosVivosRegularizacaoAtivo(): Promise<boolean> {
 export async function documentosVivosAceiteSeiAtivo(): Promise<boolean> {
   return lerInterruptor("documentos_vivos_aceite_sei_ativo");
 }
+
+/**
+ * Fase 8 (§6 do plano) — "Analisar páginas ambíguas (Gemini)". Interruptor PRÓPRIO, separado dos
+ * dois acima: ligar o Organizador (Fase 2) não liga o Gemini da Fase 8, e vice-versa — a Fase 8
+ * gasta dinheiro de verdade, a Fase 2 não gasta nada.
+ */
+export async function documentosVivosGeminiAtivo(): Promise<boolean> {
+  return lerInterruptor("documentos_vivos_gemini_ativo");
+}

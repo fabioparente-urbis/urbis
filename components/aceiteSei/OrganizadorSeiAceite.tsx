@@ -155,6 +155,8 @@ export default function OrganizadorSeiAceite({
   const [selecionados, setSelecionados] = useState<Record<string, boolean>>({});
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const [gerandoPacote, setGerandoPacote] = useState(false);
+  const [analisandoPendentes, setAnalisandoPendentes] = useState(false);
+  const [sugestoesGemini, setSugestoesGemini] = useState<Record<number, string | null> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -340,6 +342,50 @@ export default function OrganizadorSeiAceite({
     }
   }
 
+  /**
+   * Fase 8 — "Analisar páginas ambíguas (Gemini)". Só sob clique explícito (com confirmação de
+   * custo estimado), nunca automático. Estimativa duplicada aqui (não importa
+   * lib/documentosSei/visaoAmbiguas.ts, que carrega lib/visao/rasterizar no topo — módulo
+   * server-only, mupdf/WASM — pra não arriscar entrar no bundle do cliente).
+   */
+  function paginasPendentes(): number[] {
+    const out: number[] = [];
+    for (const ev of resultado?.eventos ?? []) {
+      for (const peca of ev.pecas ?? []) {
+        if (peca.papel !== "classificacao_pendente") continue;
+        for (let p = peca.paginaIni; p <= peca.paginaFim; p++) out.push(p);
+      }
+    }
+    return out;
+  }
+  function estimarCustoUsd(nPaginas: number): number {
+    return nPaginas * (1100 * (0.3 / 1_000_000) + 200 * (2.5 / 1_000_000));
+  }
+  async function analisarPendentes() {
+    if (!arquivo || !resultado) return;
+    const paginas = paginasPendentes();
+    if (!paginas.length) return;
+    const custo = estimarCustoUsd(paginas.length);
+    if (!window.confirm(`Mandar ${paginas.length} página(s) pro Gemini? Custo estimado: US$ ${custo.toFixed(4)}.`)) return;
+    setAnalisandoPendentes(true);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", arquivo, arquivo.name);
+      fd.append("processo_codigo", processoCodigo);
+      fd.append("paginas", JSON.stringify(paginas));
+      const r = await fetch("/api/analise-aceite-sei/documentos-sei/analisar-pendentes", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro ?? "Falha ao analisar páginas ambíguas");
+      const mapa: Record<number, string | null> = {};
+      for (const item of j.resultados) mapa[item.pagina] = item.papel;
+      setSugestoesGemini(mapa);
+    } catch (e: any) {
+      setErro(`Falha ao analisar páginas ambíguas: ${e?.message ?? e}`);
+    } finally {
+      setAnalisandoPendentes(false);
+    }
+  }
+
   return (
     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
       <div className="flex items-center gap-4 flex-wrap">
@@ -447,6 +493,16 @@ export default function OrganizadorSeiAceite({
                   >
                     {gerandoPacote ? "⏳ Gerando..." : "📦 Baixar pacote vigente"}
                   </button>
+                  {paginasPendentes().length > 0 && (
+                    <button
+                      onClick={analisarPendentes}
+                      disabled={!arquivo || analisandoPendentes}
+                      title="Manda as páginas não classificadas pro Gemini — mostra o custo estimado antes, nunca automático"
+                      className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40"
+                    >
+                      {analisandoPendentes ? "⏳ Analisando..." : `🔎 Analisar ${paginasPendentes().length} página(s) ambígua(s) (Gemini)`}
+                    </button>
+                  )}
                   <button
                     onClick={() => { setResultado(null); setArquivo(null); setErro(null); setRecuperadoDoHistorico(false); }}
                     className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
@@ -469,6 +525,19 @@ export default function OrganizadorSeiAceite({
                       ⚠ {resultado.persistencia.alertasIntegridade.map((a) => a.motivo).join(" · ")}
                     </p>
                   )}
+                </div>
+              )}
+
+              {sugestoesGemini && (
+                <div className="mb-3 text-xs text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded p-2">
+                  <p className="font-bold text-[var(--text-primary)] mb-1">
+                    Sugestão do Gemini pras páginas ambíguas (proposta — nada foi aplicado sozinho):
+                  </p>
+                  {Object.entries(sugestoesGemini).map(([pagina, papel]) => (
+                    <p key={pagina}>
+                      pg. {pagina}: {papel ? (ROTULO_PAPEL_PECA as any)[papel] ?? papel : "não reconhecida"}
+                    </p>
+                  ))}
                 </div>
               )}
 

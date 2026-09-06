@@ -1,7 +1,10 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 05/09/2026 · **Estado:** Fases 0, 1 e 2 executadas (ver §15, §16); Fase 2 no Slot 1
-(Regularização), atrás de interruptor desligado — nenhuma mudança no fluxo existente ·
+**Data:** 05/09/2026 · **Versão:** v18 · **Estado:** Fases 0-8 + Passo 0 executados no código
+(ver §15-§22) — ≈76% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
+padrão, nenhuma mudança no fluxo existente. Restam só conferências humanas pela tela (portões
+finais de cada fase) e, opcionalmente, a persistência real equivalente pro Slot 5 (fora do escopo
+deste plano — conversa própria) ·
 **Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
 
 Este documento responde ao pedido: um plano para executar o Organizador de Processos SEI com
@@ -387,8 +390,8 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟢 75% | **executada (§21)**: Radar de graça (vigia `mhd_documentos.atualizado_em`, real desde o Passo 0); URBI ganhou pergunta nova da Pilha ("documento pendente de classificação"); Motor de Produção diferencia "documento já no MHD" (esforço `rapido`) de "ninguém trouxe" (`depende_documento`), testado. Falta só MDP: enriquecer `linhaEvidencia.ts` com sinal do MHD foi cortado nesta rodada por risco de tocar uma live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro, não FK nova de qualquer forma (decisão de schema maior, fora do escopo original). |
 | 7 — retorno incremental | 1 | 🟢 90% | **Passo 0 (§20) entrega o portão da fase**: reimportar o mesmo conteúdo processa zero versões novas (dedup por hash do texto); alerta de integridade quando o mesmo idSei reaparece com conteúdo diferente; resumo "X novos, Y versões, Z inalterados" nas duas telas. Faltam os 10%: você conferir isso reimportando um PDF real duas vezes pela tela (portão humano). |
-| 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 70% concluído · 30% restante** | ≈9,8 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 75% de 2 + Fase 7 a 90% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| 8 — Gemini sob pedido (opcional) | 1 | 🟢 85% | **executada (§22)**: `visaoAmbiguas.ts` + interruptor próprio (default desligado, confirmado) + 2 rotas + botão nas duas telas, com estimativa de custo antes do clique e teto/hora. `tsc`/`build` limpos, gate confirmado (zero chamada possível hoje). Faltam os 15%: testar a chamada real ao Gemini (não dá pra testar sem gastar — fica pra quando o Fábio ligar o interruptor). |
+| **Total do projeto** | **12–16** | **≈ 76% concluído · 24% restante** | ≈10,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 75% de 2 + Fase 7 a 90% de 1 + Fase 8 a 85% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -901,6 +904,39 @@ sintético.
 
 ---
 
+## 22. Fase 8 executada — 06/09/2026
+
+Continuação da mesma sessão. Implementado "Gemini, e só aqui":
+
+- **`lib/documentosSei/visaoAmbiguas.ts`** (novo, isolado) — `classificarPaginaAmbigua` rasteriza
+  UMA página (`recortar` de `lib/visao/rasterizar.ts`, reaproveitado direto — utilitário puro de
+  PDF→PNG via mupdf, sem lógica de slot) e manda um prompt fechado ao Gemini (lista as categorias
+  válidas de `lib/documentosSei/pecas.ts` + "nenhuma"), pedindo JSON. Resposta fora do formato
+  esperado nunca vira papel chutado — fica `null`. `estimarCustoUsd` dá uma estimativa GROSSEIRA
+  (tokens médios de imagem × os mesmos preços de `lib/visao/index.ts`, reproduzidos aqui porque
+  não são exportados de lá) — não existe utilitário de pré-estimativa pronto no projeto.
+- **Migration** `2026_09_06_documentos_vivos_flag_gemini.sql` — `urbis_config
+  .documentos_vivos_gemini_ativo`, default `false`, interruptor PRÓPRIO (separado dos dois do
+  Organizador — ligar um não liga o outro). Testada com ROLLBACK, aplicada com confirmação
+  explícita do Fábio.
+- **Duas rotas novas** (`.../documentos-sei/analisar-pendentes`, cópias deliberadas) — atrás dos
+  DOIS interruptores (Organizador + Gemini); teto de 20 páginas/processo/hora contado em
+  `urbis_api_calls` (`operacao: "documentos_sei_paginas_ambiguas"`, nunca colide com outras
+  métricas); cada chamada registrada via `registrarChamadaIA` (sucesso e erro). Recebe o PDF +
+  lista de páginas pendentes (a tela nunca manda o processo inteiro).
+- **Nas duas telas**: botão "🔎 Analisar N página(s) ambígua(s) (Gemini)" só aparece quando há
+  `classificacao_pendente`; `window.confirm` mostra o custo estimado antes de mandar; resultado
+  vira lista de sugestão por página — **nunca aplicado sozinho** nas peças, o analista decide.
+
+**Verificado:** `tsc --noEmit`, `npm run build` limpos (rotas novas aparecem no build); confirmado
+que `documentos_vivos_gemini_ativo` está `false` em produção agora — nenhum clique possível ainda,
+zero chamadas.
+
+**Não testado (não dá pra testar sem gastar dinheiro de verdade):** a chamada real ao Gemini —
+fica pra quando o Fábio ligar o interruptor e testar pela tela.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -985,3 +1021,9 @@ sintético.
   código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
   live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.
+- v18 — 06/09/2026 — **Fase 8 executada** (ver §22): `lib/documentosSei/visaoAmbiguas.ts` novo
+  (Gemini só sob clique, prompt fechado, JSON, nunca chuta fora do formato); interruptor próprio
+  `documentos_vivos_gemini_ativo` (migration aplicada, default falso, confirmado em produção);
+  2 rotas `analisar-pendentes` (teto 20 páginas/processo/hora, registro em `urbis_api_calls`);
+  botão nas duas telas com custo estimado antes do clique. `tsc`/`build` limpos. Chamada real ao
+  Gemini não testada (custaria dinheiro de verdade) — fica para quando o Fábio ligar e testar.
