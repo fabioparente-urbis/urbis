@@ -156,6 +156,9 @@ export default function Home() {
     // Módulo administrativo do assistente/Co-Analista — mesmo gate de BIP (só irrestrito:
     // Administrador/Diretora), pedido explícito do Fábio de não depender de digitar a URL.
     { chave: "urbi", nome: "URBI", descricao: "Conversas, sugestões, uso e custo do assistente", Icone: Bot, rota: "/admin/urbi", visivel: irrestrito },
+    // MHD só existia dentro do processo ("🗂 HISTÓRICO DOCUMENTAL" na tela do LIP) — sem entrada
+    // própria na Home o Fábio não achava. Mesmo gate de URBI/BIP (06/09/2026).
+    { chave: "mhd", nome: "MHD", descricao: "Histórico e Documentos — memória do que entrou, por hash", Icone: HardDrive, rota: "/admin/mhd", visivel: irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);
