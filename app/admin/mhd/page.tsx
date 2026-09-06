@@ -30,6 +30,8 @@ type MhdResposta = {
   totais?: { documentos: number; versoes: number; paginasIA: number };
 };
 
+type ProcessoRecente = { processo_codigo: string; tipo: string; titulo: string; criado_em: string };
+
 export default function MhdAdminPage() {
   const router = useRouter();
   const [autorizado, setAutorizado] = useState<boolean | null>(null);
@@ -37,6 +39,7 @@ export default function MhdAdminPage() {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [dados, setDados] = useState<MhdResposta | null>(null);
+  const [recentes, setRecentes] = useState<ProcessoRecente[] | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -50,9 +53,24 @@ export default function MhdAdminPage() {
     })();
   }, [router]);
 
-  async function buscar() {
-    const codigo = processo.trim();
+  /**
+   * Pilha de processos com atividade recente no MHD, visível assim que a tela abre — pedido do
+   * Fábio (06/09/2026): "tem que aparecer sem buscar uma pilha de processos". Busca só depois de
+   * autorizado (a rota já reexige irrestrito no servidor, isto é só pra não disparar antes de
+   * saber que a sessão é válida).
+   */
+  useEffect(() => {
+    if (autorizado !== true) return;
+    fetch("/api/admin/mhd/recentes")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setRecentes(j.processos); })
+      .catch(() => setRecentes([]));
+  }, [autorizado]);
+
+  async function buscar(codigoForcado?: string) {
+    const codigo = (codigoForcado ?? processo).trim();
     if (!codigo) return;
+    setProcesso(codigo);
     setCarregando(true);
     setErro(null);
     setDados(null);
@@ -103,7 +121,7 @@ export default function MhdAdminPage() {
             className={`${INPUT} flex-1`}
           />
           <button
-            onClick={buscar}
+            onClick={() => buscar()}
             disabled={carregando || !processo.trim()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-4 py-1.5 text-sm font-medium text-[var(--accent-fg)] transition-colors hover:bg-[var(--accent-hover)] disabled:opacity-50"
           >
@@ -114,6 +132,46 @@ export default function MhdAdminPage() {
 
         {erro && (
           <p className="text-sm text-[var(--error)] bg-[var(--error-bg)] rounded-lg p-3 mb-4">⚠ {erro}</p>
+        )}
+
+        {!dados && (
+          <div className="mb-5">
+            <p className="text-sm font-bold text-[var(--text-primary)] mb-2">
+              Pilha de processos com atividade recente
+            </p>
+            {recentes === null && (
+              <p className="text-xs text-[var(--text-muted)]">Carregando…</p>
+            )}
+            {recentes !== null && !recentes.length && (
+              <p className="text-xs text-[var(--text-muted)]">Nenhuma atividade registrada ainda.</p>
+            )}
+            {!!recentes?.length && (
+              <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                {recentes.map((p) => (
+                  <button
+                    key={p.processo_codigo}
+                    onClick={() => buscar(p.processo_codigo)}
+                    className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)] flex items-center justify-between gap-3"
+                  >
+                    <span className="font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
+                    <span className="text-xs text-[var(--text-muted)] truncate flex-1">{p.titulo}</span>
+                    <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
+                      {new Date(p.criado_em).toLocaleString("pt-BR")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {dados && (
+          <button
+            onClick={() => { setDados(null); setProcesso(""); }}
+            className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] mb-3"
+          >
+            ← voltar pra pilha de processos
+          </button>
         )}
 
         {dados && !dados.ativo && (
