@@ -671,6 +671,25 @@ Mais 3 pedidos, todos no ar:
   de verdade sem querer. Testado contra um registro descartável antes de subir (criado e apagado
   via SQL direto, nunca tocou em dado real).
 
+Também corrigido: a pilha só olhava `mhd_eventos`, e o Slot 5 (LER PASTA) grava
+documento/versão sem necessariamente criar um evento — processos do Slot 5 (48535, 48533)
+sumiam da lista. Agora consulta as duas fontes.
+
+### 16.8 — DECISÃO PENDENTE, não implementada: texto extraído fora da nuvem
+
+Fábio pediu ("nunca salvar online, sempre no dispositivo") que o TEXTO/CONTEÚDO extraído de
+documentos também pare de ficar salvo em Supabase — hoje `mhd_conteudos.texto` guarda isso, e é
+o que sustenta o reaproveitamento por hash do MHD inteiro (nunca reler o mesmo documento duas
+vezes, usado por Slot 5 e potencialmente qualquer slot). Perguntei o escopo exato; a resposta
+ficou parcialmente ambígua sobre se é só reforçar que o PDF nunca sobe (já é assim) ou pedido de
+verdade pra tirar o texto do banco.
+
+**NÃO IMPLEMENTADO.** Mudaria o motivo de existir do MHD, afeta Slot 1 (produção crítica) e Slot 5
+ao mesmo tempo, e a resposta veio de madrugada com escopo não 100% claro — risco alto demais pra
+decidir sozinho. Fica pendente de confirmação numa conversa com mais clareza sobre o design (se
+ele quiser manter a economia de "nunca reler" mas local por máquina, isso é arquitetura diferente
+de só remover a coluna).
+
 ---
 
 **Histórico de versões**
