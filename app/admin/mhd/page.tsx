@@ -230,10 +230,10 @@ export default function MhdAdminPage() {
         {dados && (
           <div className="flex items-center justify-between mb-3">
             <button
-              onClick={() => { setDados(null); setProcesso(""); }}
-              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              onClick={() => { setDados(null); setProcesso(""); setErro(null); }}
+              className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)]"
             >
-              ← voltar pra pilha de processos
+              ← Voltar pra pilha de processos
             </button>
             {dados.ativo && (dados.eventos?.length > 0 || dados.documentos?.length > 0) && (
               <button
