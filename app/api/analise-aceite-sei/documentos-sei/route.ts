@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fatiarPdfSei } from "@/lib/documentosSei/fatiar";
 import { documentosVivosAceiteSeiAtivo } from "@/lib/documentosSei/config";
-import { autorizar } from "@/lib/autorizacao";
+import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
+import { registrarEvento } from "@/lib/mhd";
 
 /**
  * POST /api/analise-aceite-sei/documentos-sei — Fase 2 do plano Documentos Vivos
@@ -90,6 +91,24 @@ async function processar(
     const resultado = await fatiarPdfSei(buffer, (a) => {
       void enviar({ tipo: "progresso", ...a });
     });
+
+    /**
+     * MHD guarda só DADOS e METADADOS (id SEI, título, páginas, data, assinante) — nunca o PDF,
+     * seguindo o princípio do próprio módulo e pedido explícito do Fábio (06/09/2026). Mesmo
+     * padrão da rota irmã do Slot 1. Nunca bloqueia a resposta: falha aqui vira aviso.
+     */
+    if (processoCodigo) {
+      const usuario = await usuarioDaRequisicao(req);
+      const erroMhd = await registrarEvento({
+        processoCodigo,
+        assuntoId: permissao.assuntoId,
+        tipo: "documentos_sei_organizado",
+        titulo: `Organizador de PDF SEI — ${resultado.eventos.length} evento(s), ${resultado.totalPaginas} página(s)`,
+        detalhe: resultado,
+        usuarioId: usuario?.id ?? null,
+      });
+      if (erroMhd) console.error("[documentos-sei/aceite] MHD não gravou:", erroMhd);
+    }
 
     return enviar({ tipo: "resultado", ok: true, ...resultado });
   } catch (e: any) {

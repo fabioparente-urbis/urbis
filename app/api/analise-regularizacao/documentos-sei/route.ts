@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fatiarPdfSei } from "@/lib/documentosSei/fatiar";
 import { documentosVivosRegularizacaoAtivo } from "@/lib/documentosSei/config";
-import { autorizar } from "@/lib/autorizacao";
+import { autorizar, usuarioDaRequisicao } from "@/lib/autorizacao";
+import { registrarEvento } from "@/lib/mhd";
 
 /**
  * POST /api/analise-regularizacao/documentos-sei — Fase 2 do plano Documentos Vivos
@@ -88,6 +89,27 @@ async function processar(
     const resultado = await fatiarPdfSei(buffer, (a) => {
       void enviar({ tipo: "progresso", ...a });
     });
+
+    /**
+     * MHD guarda só DADOS e METADADOS (id SEI, título, páginas, data, assinante) — nunca o PDF,
+     * seguindo o princípio do próprio módulo e pedido explícito do Fábio (06/09/2026: "no urbis
+     * só os dados e meta dados... pra economizar espaço"). Um evento só, não um por documento:
+     * evita empilhar dezenas de linhas a cada vez que o mesmo PDF é reorganizado — de-duplicar
+     * de verdade (não regravar o que já é idêntico) é trabalho da Fase 7 (retorno incremental).
+     * Nunca bloqueia a resposta: falha aqui vira aviso, a organização da tela continua valendo.
+     */
+    if (processoCodigo) {
+      const usuario = await usuarioDaRequisicao(req);
+      const erroMhd = await registrarEvento({
+        processoCodigo,
+        assuntoId: permissao.assuntoId,
+        tipo: "documentos_sei_organizado",
+        titulo: `Organizador de PDF SEI — ${resultado.eventos.length} evento(s), ${resultado.totalPaginas} página(s)`,
+        detalhe: resultado,
+        usuarioId: usuario?.id ?? null,
+      });
+      if (erroMhd) console.error("[documentos-sei] MHD não gravou:", erroMhd);
+    }
 
     return enviar({ tipo: "resultado", ok: true, ...resultado });
   } catch (e: any) {
