@@ -151,13 +151,9 @@ export default function MhdAdminPage() {
                   <button
                     key={p.processo_codigo}
                     onClick={() => buscar(p.processo_codigo)}
-                    className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)] flex items-center justify-between gap-3"
+                    className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)]"
                   >
                     <span className="font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
-                    <span className="text-xs text-[var(--text-muted)] truncate flex-1">{p.titulo}</span>
-                    <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">
-                      {new Date(p.criado_em).toLocaleString("pt-BR")}
-                    </span>
                   </button>
                 ))}
               </div>
