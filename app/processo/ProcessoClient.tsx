@@ -1262,6 +1262,25 @@ export default function ProcessoClient() {
   }
 
   /**
+   * Aceite do painel "Comparar com o LIP" do Organizador de PDF SEI (Documentos Vivos, Fase 2 —
+   * ver docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §16.4). Mesmo mecanismo de `aceitarPropostaPasta`
+   * (setD + autoSalvar), só que o componente já manda só os campos que o analista marcou —
+   * quem decide QUAIS aceitar é sempre a tela do Organizador, nunca esta função.
+   */
+  function aceitarCamposOrganizador(campos: Record<string, { valor: string; fonte: string }>) {
+    setD((prev) => {
+      const novo = { ...prev };
+      for (const [chave, item] of Object.entries(campos)) {
+        if (!item?.valor) continue;
+        novo[chave] = { valor: item.valor, origem: "urbis" as Origem, fonte: item.fonte };
+      }
+      autoSalvar(novo);
+      return novo;
+    });
+    mostrarToast(`✅ ${Object.keys(campos).length} campo(s) aceito(s) do Organizador de PDF SEI`, "sucesso");
+  }
+
+  /**
    * Só entrega os arquivos para a leitura depois de saber o que fazer com o que
    * já está no LIP.
    *
@@ -2983,12 +3002,14 @@ export default function ProcessoClient() {
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
 
-      {/* Documentos Vivos — Fase 2, um componente por slot, cada um atrás do seu interruptor */}
+      {/* Documentos Vivos — Fase 2, um componente por slot, cada um atrás do seu interruptor.
+          `d` (valores atuais do LIP) só é passado pra COMPARAR na tela; quem grava de volta é
+          sempre aceitarCamposOrganizador, nunca o componente sozinho. */}
       {idUrl && tipoUrl === "regularizacao" && (
-        <OrganizadorSeiRegularizacao processoCodigo={idUrl} />
+        <OrganizadorSeiRegularizacao processoCodigo={idUrl} camposLipAtuais={d} onAceitarCampos={aceitarCamposOrganizador} />
       )}
       {idUrl && tipoUrl === "aceite_sei" && (
-        <OrganizadorSeiAceite processoCodigo={idUrl} />
+        <OrganizadorSeiAceite processoCodigo={idUrl} camposLipAtuais={d} onAceitarCampos={aceitarCamposOrganizador} />
       )}
 
       {/* BLOCO LIP */}

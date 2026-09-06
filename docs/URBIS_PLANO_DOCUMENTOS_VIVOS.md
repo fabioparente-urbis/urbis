@@ -592,6 +592,31 @@ Dois pedidos seus, resolvidos juntos:
 Achado no meio do caminho: você testou antes da rota estar no ar (era esperado — a gravação só
 chegou num commit seguinte) e reportou "não salvou o SEI que abri"; corrigido e reenviado.
 
+### 16.4 — Comparação determinística com o LIP, 06/09/2026
+
+Você pediu explicitamente ("TEM QUE SALVAR NO LIP E NO MHD") e, quando perguntado se podia
+gravar direto ou se precisava de um clique de aceite, escolheu **aceite explícito** — mesmo
+padrão do LER PASTA/LER ARQUIVOS. Também pediu, na mesma leva: "a intenção é usar o mínimo
+possível de IA" e "deve haver uma ponderação de cada dado conflitante" quando LER PROCESSO
+(Gemini) e o Organizador discordarem.
+
+- `lib/documentosSei/compararLip.ts` — novo, puro, **zero IA**, compartilhado pelos dois slots
+  (é mapeamento de palavra-chave em título, não lógica de negócio de slot): sugere o Nº SEI do
+  documento pra 4 dos 11 campos hoje adivinhados pelo Gemini (`usoSolo`, `seiCheadv`, `foto`,
+  `vistoria`) — testado no processo real, achou o despacho CHEADV de **aprovação** ("Documentação
+  conforme"), não um dos três de pendência. Os outros 7 campos (`certidao`, `levantamento`,
+  `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo`) ficam **sem sugestão** de propósito —
+  ART normalmente vem dentro de um contêiner genérico que só a Fase 3 vai abrir; melhor vazio que
+  chutado.
+- Painel **"Comparar com o LIP"** nos dois componentes: mostra valor atual (com a fonte, ex.
+  "Gemini") ao lado da sugestão (Nº SEI + documento + página), **linha em destaque quando os dois
+  divergem** — a ponderação é do analista, a tela nunca decide sozinha. Só marca a caixa
+  automaticamente quando o campo do LIP está vazio.
+- `aceitarCamposOrganizador` em `ProcessoClient.tsx` — mesmo mecanismo de `aceitarPropostaPasta`
+  (`setD` + `autoSalvar`), só que o Organizador manda só os campos que o analista marcou.
+  `origem: "urbis"` (sistema determinístico), nunca `"inferido"` (isso é reservado a valor de
+  IA/visão) — distinção que já existia no LIP, agora usada aqui também.
+
 ---
 
 **Histórico de versões**
@@ -631,3 +656,8 @@ chegou num commit seguinte) e reportou "não salvou o SEI que abri"; corrigido e
   rodapé) — "se ler o documento vai saber", como você observou: CHEADV, COMTEC (Secretaria de
   Planejamento), GERFEP/Fiscalização passaram a aparecer de verdade. Nova coluna **Nº SEI**
   (faltava — "a coluna principal").
+- v9 — 06/09/2026 — **comparação determinística com o LIP** (ver §16.4), com aceite explícito
+  campo a campo (você confirmou por escrito: nunca gravar sem clique). `compararLip.ts` sugere
+  4 dos 11 campos hoje adivinhados pelo Gemini (`usoSolo`, `seiCheadv`, `foto`, `vistoria`) —
+  testado no processo real, achou o despacho de aprovação certo, não um de pendência. Painel
+  mostra valor atual + fonte ao lado da sugestão, destaca conflito, nunca decide sozinho.

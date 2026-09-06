@@ -17,13 +17,22 @@
  * mesmo arquivo, no cliente — react-pdf para abrir, pdf-lib para recortar. Sem isso, MHD teria
  * que guardar o PDF inteiro, contrariando o princípio do módulo (nunca guarda arquivo pesado).
  *
- * ZERO gravação: esta tela não grava nada em LIP, MAC nem MHD. É só leitura e organização.
+ * ZERO gravação automática: esta tela nunca escreve sozinha em LIP nem MAC. A ÚNICA escrita é a
+ * de histórico no MHD (dados/metadados, nunca o PDF — ver rota do servidor). A partir de
+ * 06/09/2026 ela também PROPÕE valores para os 11 campos do LIP que hoje o Gemini adivinha numa
+ * passada só (certidao, levantamento, artLev, artCx, laudo, vistoria, foto, usoSolo, seiCheadv,
+ * seiProcuracao, seiEmbargo — ver `lib/documentosSei/compararLip.ts`), mas só grava depois do
+ * ACEITE do analista, campo por campo — mesmo padrão do LER PASTA/LER ARQUIVOS. Quando o campo já
+ * tem valor de outra fonte (ex.: LER PROCESSO/Gemini), a tela mostra os dois lado a lado com a
+ * fonte de cada um — pedido explícito do Fábio (06/09/2026): "deve haver uma ponderação de cada
+ * dado conflitante" — o analista pesa, a tela nunca decide sozinha qual prevalece.
  */
 
 import { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument } from "pdf-lib";
 import "react-pdf/dist/Page/TextLayer.css";
+import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -93,7 +102,17 @@ function filtrarUltimaVersao(eventos: EventoSei[]): EventoSei[] {
   return eventos.filter((ev) => ehAtoNumerado(ev.titulo) || mantidos.has(ev));
 }
 
-export default function OrganizadorSeiRegularizacao({ processoCodigo }: { processoCodigo: string }) {
+type CampoLip = { valor: string; fonte?: string };
+
+export default function OrganizadorSeiRegularizacao({
+  processoCodigo, camposLipAtuais, onAceitarCampos,
+}: {
+  processoCodigo: string;
+  /** valores atuais do LIP, passados pelo ProcessoClient — só pra COMPARAR, nunca gravados daqui */
+  camposLipAtuais?: Record<string, CampoLip>;
+  /** quando fornecido, habilita "Comparar com o LIP"; quem grava de fato é o ProcessoClient */
+  onAceitarCampos?: (campos: Record<string, { valor: string; fonte: string }>) => void;
+}) {
   const [ativo, setAtivo] = useState<boolean | null>(null); // null = ainda não sabe
   const [aberto, setAberto] = useState(false);
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -106,6 +125,7 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
   const [baixando, setBaixando] = useState<string | null>(null);
   const [soUltimaVersao, setSoUltimaVersao] = useState(false);
   const [recuperadoDoHistorico, setRecuperadoDoHistorico] = useState(false);
+  const [selecionados, setSelecionados] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -142,7 +162,36 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
     return () => { cancelado = true; };
   }, [ativo, processoCodigo]);
 
+  /**
+   * Pré-marca só o que está VAZIO no LIP — quando já existe valor de outra fonte, o Fábio pediu
+   * pra nunca decidir sozinho ("deve haver uma ponderação de cada dado conflitante", 06/09/2026):
+   * o analista vê os dois lado a lado e marca por conta própria.
+   */
+  useEffect(() => {
+    if (!resultado) { setSelecionados({}); return; }
+    const sugestoes = sugerirCamposLip(resultado.eventos);
+    const iniciais: Record<string, boolean> = {};
+    for (const chave of Object.keys(sugestoes)) iniciais[chave] = !camposLipAtuais?.[chave]?.valor;
+    setSelecionados(iniciais);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage a NOVO resultado, não a
+    // toda mudança de camposLipAtuais (senão desmarcaria seleção do analista a cada autosave)
+  }, [resultado]);
+
   if (!ativo) return null;
+
+  function aceitarSelecionados() {
+    if (!resultado || !onAceitarCampos) return;
+    const sugestoes = sugerirCamposLip(resultado.eventos);
+    const campos: Record<string, { valor: string; fonte: string }> = {};
+    for (const [chave, marcado] of Object.entries(selecionados)) {
+      if (!marcado) continue;
+      const s = sugestoes[chave];
+      if (!s) continue;
+      campos[chave] = { valor: s.idSei, fonte: `Organizador de PDF SEI — ${s.titulo}, pg. ${s.pagina}` };
+    }
+    if (!Object.keys(campos).length) return;
+    onAceitarCampos(campos);
+  }
 
   async function processar(f: File) {
     setArquivo(f);
@@ -394,6 +443,16 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
                   </div>
                 )}
               </div>
+
+              {onAceitarCampos && (
+                <PainelComparacaoLip
+                  eventos={resultado.eventos}
+                  camposLipAtuais={camposLipAtuais}
+                  selecionados={selecionados}
+                  setSelecionados={setSelecionados}
+                  onAceitar={aceitarSelecionados}
+                />
+              )}
             </div>
           )}
         </div>
@@ -441,6 +500,74 @@ function VisualizadorPdf({
           </Document>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * "Comparar com o LIP" — só sugere, nunca grava. `onAceitar` (do componente pai) é quem de fato
+ * chama o callback que o ProcessoClient usa pra escrever no formulário — este componente só
+ * decide QUAIS campos marcar, nunca escreve em lugar nenhum sozinho.
+ */
+function PainelComparacaoLip({
+  eventos, camposLipAtuais, selecionados, setSelecionados, onAceitar,
+}: {
+  eventos: EventoSei[];
+  camposLipAtuais?: Record<string, { valor: string; fonte?: string }>;
+  selecionados: Record<string, boolean>;
+  setSelecionados: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
+  onAceitar: () => void;
+}) {
+  const sugestoes = sugerirCamposLip(eventos);
+  const chaves = Object.keys(sugestoes);
+  if (!chaves.length) return null;
+  const totalMarcados = chaves.filter((c) => selecionados[c]).length;
+
+  return (
+    <div className="mt-4 border-t border-[var(--border)] pt-4">
+      <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Comparar com o LIP</p>
+      <p className="text-xs text-[var(--text-muted)] mb-3">
+        Sugestão determinística (Nº SEI do documento encontrado), zero IA. Quando o campo já tem
+        valor de outra fonte, os dois aparecem lado a lado — decida você qual vale.
+      </p>
+      <div className="space-y-1">
+        {chaves.map((chave) => {
+          const sugestao: SugestaoCampo = sugestoes[chave];
+          const atual = camposLipAtuais?.[chave];
+          const conflito = !!atual?.valor && atual.valor !== sugestao.idSei;
+          return (
+            <label
+              key={chave}
+              className={`flex items-center gap-3 text-xs rounded p-2 cursor-pointer ${
+                conflito ? "bg-[var(--warning-bg)]" : "bg-[var(--bg-secondary)]"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={!!selecionados[chave]}
+                onChange={(e) => setSelecionados((prev) => ({ ...prev, [chave]: e.target.checked }))}
+              />
+              <span className="font-semibold text-[var(--text-primary)] w-32 shrink-0">
+                {ROTULO_CAMPO_LIP[chave] ?? chave}
+              </span>
+              <span className="text-[var(--text-muted)] flex-1">
+                atual: {atual?.valor ? <b className="text-[var(--text-primary)]">{atual.valor}</b> : "(vazio)"}
+                {atual?.fonte ? ` · ${atual.fonte}` : ""}
+              </span>
+              <span className="text-[var(--text-muted)] flex-1">
+                sugestão: <b className="text-[var(--text-primary)]">{sugestao.idSei}</b> — {sugestao.titulo}, pg. {sugestao.pagina}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <button
+        onClick={onAceitar}
+        disabled={totalMarcados === 0}
+        className="mt-3 text-xs px-3 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] hover:bg-[var(--accent-hover)] disabled:opacity-40"
+      >
+        Aceitar {totalMarcados || ""} selecionado(s) para o LIP
+      </button>
     </div>
   );
 }
