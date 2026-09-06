@@ -383,12 +383,12 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | 🟡 70% | **código escrito e no ar** (`lib/documentosSei/pecas.ts`, rotas e telas dos dois slots atualizadas, ver §17): classifica por página dentro de contêineres genéricos, agrupa em peças, publica cobertura (`coberturaPecas`). `compararLip.ts` já sugere os 7 campos que antes ficavam vazios (`certidao`, `levantamento`, `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo`) a partir das peças. Faltam os 30%: rodar contra os 4 processos reais e você conferir a taxa de classificação (portão da fase ainda não fechado por você). |
 | 4 — motor de versões e estados | 2 | 🟡 60% | **código escrito e no ar** (`lib/documentosSei/motorVersoes.ts`, ver §18): resolve vigente/substituído/sem-efeito/histórico DENTRO de um único fatiamento, validado contra os dois casos reais do portão (despacho SEM EFEITO isolado; família 42135097/42135097-1). Escopo reduzido do desenho original: não persiste estado em `mhd_versoes` (banco) — decisão registrada em §18 sobre por que isso pede uma decisão de arquitetura antes (identidade de documento entre uploads diferentes, que a Fase 3 não estabeleceu). Coluna "Estado" nas duas telas, só informativo. |
-| 5 — pacote vigente + manifesto | 1–2 | ⚪ 0% | não iniciada |
+| 5 — pacote vigente + manifesto | 1–2 | 🟡 75% | **código escrito e no ar** (ver §19): `lib/documentosSei/manifesto.ts` (PDF do manifesto, puro, sem `fs`) + `pacoteVigenteClient.ts` (recorta cada evento com pdf-lib, separa Vigentes/Histórico conforme a Fase 4, zipa com JSZip) + botão "📦 Baixar pacote vigente" nas duas telas. Testado localmente com PDF sintético — soma fechada, pastas corretas. Só sobre EVENTOS (não peças) — mesma fronteira herdada da Fase 4. Faltam os 25%: você conferir o manifesto contra um processo REAL, item a item (portão da fase). |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 20% | painel "Comparar com o LIP" (§16.4) propunha 4 dos 11 campos; com a Fase 3 (§17) os outros 7 (exceto o `art` ambíguo, deixado sem sugestão de propósito) também passam a ser sugeridos quando a peça é identificável. Faltam MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 42% concluído · 58% restante** | ≈5,8 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 48% concluído · 52% restante** | ≈6,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 20% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -783,6 +783,39 @@ página); níveis 8-9 (visual, humano) nunca são implementados por design.
 
 ---
 
+## 19. Fase 5 executada — 06/09/2026
+
+Continuação da mesma sessão das Fases 3 e 4. Implementado o pacote vigente + manifesto (§D2 do
+plano — recorte virtual, `pdf-lib`, na hora do download, nunca materializado no servidor):
+
+- **`lib/documentosSei/manifesto.ts`** (novo, puro, sem `fs`) — `gerarManifestoPdf` monta
+  `00_Manifesto_Documental.pdf` com `pdf-lib` direto (sem logo/marca d'água, ao contrário de
+  `lib/relatorio-pdf.ts`, que só roda no servidor): por documento, título, ID SEI, páginas, estado
+  (Fase 4), confiança, motivo — com paginação automática quando não cabe mais na página.
+- **`lib/documentosSei/pacoteVigenteClient.ts`** (novo, só cliente) — `gerarPacoteVigente` carrega
+  o PDF original **uma vez**, recorta cada evento (reaproveitando a mesma técnica de
+  `baixarRecorte`), separa em `Vigentes/` (estado `vigente`/`complementar`) e `Histórico/` (demais
+  estados), monta o zip com `JSZip` (dependência nova) junto do manifesto.
+- **As duas telas** ganharam o botão "📦 Baixar pacote vigente".
+
+**DECISÃO DE ESCOPO herdada da Fase 4 (§18):** como o motor de versões só resolve estado DENTRO de
+um fatiamento (não entre uploads diferentes), o cenário original da Fase 5 — "documento vigente
+veio de um PDF antigo, que não está carregado agora" — não existe mais nesta versão: o pacote é
+sempre gerado a partir do PDF que está na tela nesta sessão. Isso também simplifica: não foi criada
+a rota leve de `versoesVigentesDoProcesso` prevista no desenho original (não há `mhd_versoes` por
+peça pra consultar ainda). Só sobre EVENTOS (nível 1) — peças (nível 2) não entram no pacote ainda,
+mesma fronteira herdada da Fase 4.
+
+**Testado localmente:** PDF sintético de 10 páginas com os 2 casos reais do portão da Fase 4 —
+zip saiu com `Vigentes/Despacho 1600`, `Historico/Despacho 1648 SEM EFEITO`,
+`Historico/Processo digital - 42135097`, `Vigentes/Processo digital - 42135097-1` e o manifesto,
+soma de páginas fechada. `tsc --noEmit` e `npm run build` limpos.
+
+**Não verificado (portão real da fase):** você conferir o manifesto de um processo REAL contra o
+processo, item a item — mesmo tipo de conferência humana que fechou o portão da Fase 2.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -848,3 +881,8 @@ página); níveis 8-9 (visual, humano) nunca são implementados por design.
   fatiamento (não persiste em `mhd_versoes` ainda — decisão de identidade de documento entre
   uploads fica em aberto, registrada em §18). Validado contra os 2 casos reais do portão. Coluna
   "Estado" nova nas duas telas, só informativo. `tsc`/`build` limpos.
+- v15 — 06/09/2026 — **Fase 5 executada** (ver §19): `lib/documentosSei/manifesto.ts` (manifesto
+  em PDF, puro) + `pacoteVigenteClient.ts` (recorte + zip, JSZip novo em `package.json`) + botão
+  "📦 Baixar pacote vigente" nas duas telas. Testado com PDF sintético reproduzindo os 2 casos do
+  portão da Fase 4 — zip saiu com as pastas certas, manifesto incluso. `tsc`/`build` limpos. Escopo
+  simplificado pela mesma decisão da Fase 4: opera só sobre o PDF carregado nesta sessão.

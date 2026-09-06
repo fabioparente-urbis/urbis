@@ -34,6 +34,7 @@ import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
 import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
+import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
   vigente: "🟢 Vigente",
@@ -144,6 +145,7 @@ export default function OrganizadorSeiAceite({
   const [recuperadoDoHistorico, setRecuperadoDoHistorico] = useState(false);
   const [selecionados, setSelecionados] = useState<Record<string, boolean>>({});
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
+  const [gerandoPacote, setGerandoPacote] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -309,6 +311,26 @@ export default function OrganizadorSeiAceite({
     }
   }
 
+  /**
+   * Fase 5 — pacote vigente + manifesto. Opera só sobre os EVENTOS (nível 1), não sobre as peças
+   * de dentro dos contêineres (Fase 4 ainda não resolve estado por peça — ver §18 do plano).
+   */
+  async function baixarPacoteVigente() {
+    if (!arquivo || !resultado) return;
+    setGerandoPacote(true);
+    try {
+      const estados = resolverEstados(resultado.eventos);
+      const blob = await gerarPacoteVigente({
+        arquivo, numeroProcesso: resultado.numeroProcesso, eventos: resultado.eventos, estados,
+      });
+      baixarBlob(blob, `Pacote vigente - ${resultado.numeroProcesso}.zip`);
+    } catch (e: any) {
+      setErro(`Falha ao gerar o pacote vigente: ${e?.message ?? e}`);
+    } finally {
+      setGerandoPacote(false);
+    }
+  }
+
   return (
     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
       <div className="flex items-center gap-4 flex-wrap">
@@ -407,6 +429,14 @@ export default function OrganizadorSeiAceite({
                     }`}
                   >
                     {soUltimaVersao ? "✓ Só última versão de cada tipo" : "Só última versão de cada tipo"}
+                  </button>
+                  <button
+                    onClick={baixarPacoteVigente}
+                    disabled={!arquivo || gerandoPacote}
+                    title={arquivo ? "Zip com o manifesto + um PDF recortado por documento, separado em Vigentes/Histórico" : "Solte o PDF de novo pra gerar o pacote"}
+                    className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40"
+                  >
+                    {gerandoPacote ? "⏳ Gerando..." : "📦 Baixar pacote vigente"}
                   </button>
                   <button
                     onClick={() => { setResultado(null); setArquivo(null); setErro(null); setRecuperadoDoHistorico(false); }}

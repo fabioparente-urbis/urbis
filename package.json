@@ -20,6 +20,7 @@
     "exceljs": "^4.4.0",
     "fabric": "^7.4.0",
     "fflate": "^0.8.3",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.8.0",
     "marked": "^18.0.11",
     "mupdf": "^1.28.0",
