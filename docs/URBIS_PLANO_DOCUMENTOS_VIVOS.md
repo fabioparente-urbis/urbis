@@ -654,6 +654,23 @@ departamento em branco) via a recuperação do histórico e achou que não tinha
 3. **`/admin/mhd`: Home/Sair movidos pra esquerda**, no mesmo layout do MRP e dos outros módulos
    (antes estavam à direita, alinhados com `justify-between`).
 
+### 16.7 — Pilha de processos, exportar e excluir no `/admin/mhd`, 06/09/2026
+
+Mais 3 pedidos, todos no ar:
+
+- **Pilha de processos sem precisar buscar.** `app/api/admin/mhd/recentes` — só irrestrito, lista
+  global (não autoriza por processo: quem acessa a página já é admin). Mostra só o número do
+  processo por linha (não título/data — pedido explícito: "quero só a primeira linha"); clicar
+  abre o detalhe completo.
+- **Exportar CSV** — gerado no NAVEGADOR a partir do que já foi carregado (eventos + versões),
+  sem rota nova no servidor.
+- **Excluir 1 evento** — `DELETE /api/admin/mhd/evento?id=<uuid>`. **Exceção deliberada** ao
+  princípio "MHD nunca apaga" (ver cabeçalho de `lib/mhd.ts`): existe só pra limpeza
+  administrativa (registro de teste, duplicata), pedido explícito do Fábio. Confirmação
+  obrigatória no navegador, um registro de cada vez, nunca em lote — dificulta apagar histórico
+  de verdade sem querer. Testado contra um registro descartável antes de subir (criado e apagado
+  via SQL direto, nunca tocou em dado real).
+
 ---
 
 **Histórico de versões**
@@ -707,3 +724,7 @@ departamento em branco) via a recuperação do histórico e achou que não tinha
   histórico recuperado do MHD; paridade Slot 1/Slot 2 confirmada por `diff`; Home/Sair do
   `/admin/mhd` movidos pra esquerda (mesmo layout do MRP). "Não gravou" era eco de cache,
   confirmado sem bug real conferindo direto no banco de produção.
+- v12 — 06/09/2026 (madrugada) — **pilha de processos + exportar + excluir** (ver §16.7):
+  `/admin/mhd` mostra os processos com atividade recente sem precisar buscar (só o número, clique
+  abre o detalhe); exportar CSV no navegador; excluir 1 evento por vez, exceção deliberada ao
+  "nunca apaga" do MHD, testada contra registro descartável antes de subir.

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { HardDrive, Search, Loader2 } from "lucide-react";
+import { HardDrive, Search, Loader2, Download, Trash2 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 
 /**
@@ -16,7 +16,9 @@ import { isPerfilIrrestrito } from "@/lib/perfis";
  * Mesmo padrão visual e mesmo gate de visibilidade de /admin/urbi e /admin/bdi/leis (BIP):
  * só perfil irrestrito, redireciona pra Home se não autorizado.
  *
- * SÓ LEITURA. Nenhuma escrita acontece aqui.
+ * Basicamente só leitura — a única escrita é excluir 1 evento por vez (limpeza administrativa,
+ * exceção deliberada ao "nunca apaga" do MHD; ver app/api/admin/mhd/evento/route.ts). Exportar
+ * é geração de CSV no cliente, não toca no servidor.
  */
 
 const INPUT = "rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]";
@@ -40,6 +42,7 @@ export default function MhdAdminPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [dados, setDados] = useState<MhdResposta | null>(null);
   const [recentes, setRecentes] = useState<ProcessoRecente[] | null>(null);
+  const [excluindo, setExcluindo] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -83,6 +86,55 @@ export default function MhdAdminPage() {
       setErro(e?.message ?? String(e));
     } finally {
       setCarregando(false);
+    }
+  }
+
+  /** CSV gerado no navegador — não toca no servidor, e por isso não precisa de rota nova. */
+  function exportarCsv() {
+    if (!dados) return;
+    const linhas: string[] = ["tipo;data;titulo"];
+    const escapar = (s: string) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+    for (const e of dados.eventos ?? []) {
+      linhas.push([escapar("evento"), escapar(new Date(e.criado_em).toLocaleString("pt-BR")), escapar(e.titulo)].join(";"));
+    }
+    for (const d of dados.documentos ?? []) {
+      for (const v of d.versoes ?? []) {
+        linhas.push([
+          escapar("documento"),
+          escapar(new Date(v.lido_em).toLocaleString("pt-BR")),
+          escapar(`${d.rotulo} v${v.versao}${v.vigente ? " (vigente)" : ""} — ${v.nome_arquivo}`),
+        ].join(";"));
+      }
+    }
+    const blob = new Blob(["﻿" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mhd_${processo.replace(/[^\w.-]/g, "_")}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+
+  /**
+   * EXCEÇÃO DELIBERADA ao "nunca apaga" do MHD — limpeza administrativa, pedido explícito do
+   * Fábio (06/09/2026). Confirmação obrigatória, um registro de cada vez.
+   */
+  async function excluirEvento(id: string) {
+    if (!confirm("Apagar este evento do histórico? Isso não pode ser desfeito.")) return;
+    setExcluindo(id);
+    try {
+      const r = await fetch(`/api/admin/mhd/evento?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro || "Falha ao excluir");
+      await buscar(processo);
+      setRecentes(null);
+      fetch("/api/admin/mhd/recentes").then((r) => r.json()).then((j) => { if (j.ok) setRecentes(j.processos); });
+    } catch (e: any) {
+      setErro(e?.message ?? String(e));
+    } finally {
+      setExcluindo(null);
     }
   }
 
@@ -162,12 +214,22 @@ export default function MhdAdminPage() {
         )}
 
         {dados && (
-          <button
-            onClick={() => { setDados(null); setProcesso(""); }}
-            className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] mb-3"
-          >
-            ← voltar pra pilha de processos
-          </button>
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={() => { setDados(null); setProcesso(""); }}
+              className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+            >
+              ← voltar pra pilha de processos
+            </button>
+            {dados.ativo && (dados.eventos?.length > 0 || dados.documentos?.length > 0) && (
+              <button
+                onClick={exportarCsv}
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)]"
+              >
+                <Download size={12} /> Exportar CSV
+              </button>
+            )}
+          </div>
         )}
 
         {dados && !dados.ativo && (
@@ -228,12 +290,22 @@ export default function MhdAdminPage() {
                 <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Linha do tempo</p>
                 <div className="space-y-1">
                   {dados.eventos.map((e: any) => (
-                    <p key={e.id} className="text-xs text-[var(--text-secondary)]">
-                      <span className="text-[var(--text-muted)]">
-                        {new Date(e.criado_em).toLocaleString("pt-BR")}
-                      </span>{" "}
-                      <span className="text-[var(--text-muted)]">[{e.tipo}]</span> {e.titulo}
-                    </p>
+                    <div key={e.id} className="flex items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+                      <p>
+                        <span className="text-[var(--text-muted)]">
+                          {new Date(e.criado_em).toLocaleString("pt-BR")}
+                        </span>{" "}
+                        <span className="text-[var(--text-muted)]">[{e.tipo}]</span> {e.titulo}
+                      </p>
+                      <button
+                        onClick={() => excluirEvento(e.id)}
+                        disabled={excluindo === e.id}
+                        title="Apagar este evento (limpeza administrativa — não pode ser desfeito)"
+                        className="shrink-0 p-1 rounded hover:bg-[var(--error-bg)] hover:text-[var(--error)] text-[var(--text-muted)] disabled:opacity-40"
+                      >
+                        {excluindo === e.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                      </button>
+                    </div>
                   ))}
                 </div>
               </div>
