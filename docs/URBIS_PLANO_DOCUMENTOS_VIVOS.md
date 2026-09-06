@@ -379,16 +379,16 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 |---|---|---|---|
 | 0 — prova de viabilidade | — | ✅ 100% | **feita em 05/09/2026** |
 | 1 — fatiador determinístico | 1 | 🟡 90% | módulo escrito e rodado contra 4 processos reais, soma fechada nos 4 — falta só a conferência humana do índice (ver §15). Os 10% que faltam são exatamente essa conferência. |
-| 2 — tela "Organizar processo" | 2–3 | 🟢 92% | **testada por você em produção em 06/09/2026** (processo real 24.5.000024350-0) — o portão começou a fechar de verdade. Rodada de ajustes ao vivo: renomeada "Organizador de PDF SEI", colunas Departamento (com "SECGER"→"Interessado") e Assinado por, filtro "só última versão de cada tipo" (heurística de tela, não é o motor de versões da Fase 4). Ver §16. |
+| 2 — tela "Organizar processo" | 2–3 | 🟢 95% | **portão fechado na prática** — você organizou processos reais de ponta a ponta pela tela várias vezes na madrugada de 06/09, com bugs reais achados e corrigidos ao vivo (setor por cabeçalho, filtro que não colapsava despacho, MHD que sumia sem `mhd_documentos`, aba abrindo sozinha). Os 5% que faltam: portão formal ainda não declarado fechado por você por escrito. Ver §16.1–16.9. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | ⚪ 0% | não iniciada; a parte mais incerta |
 | 4 — motor de versões e estados | 2 | ⚪ 0% | não iniciada |
 | 5 — pacote vigente + manifesto | 1–2 | ⚪ 0% | não iniciada |
 | **← gargalo declarado resolvido: 8–11 sessões** | | | |
-| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | ⚪ 0% | não iniciada |
+| 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟡 15% | **fatia adiantada**: painel "Comparar com o LIP" (§16.4) já propõe 4 dos 11 campos do §6 (usoSolo, seiCheadv, foto, vistoria), com aceite explícito campo a campo — exatamente o que este item pedia, só que cedo e parcial. Faltam os outros 7 campos, MAC/MDP/Radar/URBI (perguntas da Pilha) inteiros. |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 23% concluído · 77% restante** | ≈3,2 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 92% de 2,5) de 14 estimadas; Fase 0 não conta sessão própria |
+| **Total do projeto** | **12–16** | **≈ 26% concluído · 74% restante** | ≈3,6 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 6 a 15% de 2) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
