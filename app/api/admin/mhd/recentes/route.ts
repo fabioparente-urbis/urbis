@@ -57,6 +57,40 @@ export async function GET(req: NextRequest) {
     if (!atual || registro.criado_em > atual.criado_em) porProcesso.set(d.processo_codigo, registro);
   }
 
-  const processos = [...porProcesso.values()].sort((a, b) => (a.criado_em < b.criado_em ? 1 : -1));
+  const codigos = [...porProcesso.keys()];
+
+  /**
+   * Assunto + proprietário — pedido do Fábio (06/09/2026): "o mhd tem que mostrar só o número
+   * do processo, data, assunto, proprietário". `assunto` vem de `processos.tipo_processo`
+   * (slug) cruzado com `assuntos.nome`; `proprietário` vem de `processos.dados->proprietario`
+   * (campo do LIP, mesmo padrão usado em `lib/geradores.ts`/`gerarChecklistBasico.ts`). Falha
+   * aqui nunca derruba a pilha — só fica sem essas duas colunas naquela linha.
+   */
+  let porCodigoProcesso = new Map<string, { tipoProcesso: string | null; proprietario: string | null }>();
+  let nomeAssunto = new Map<string, string>();
+  if (codigos.length) {
+    const [proc, assuntos] = await Promise.all([
+      supabaseAdmin.from("processos").select("codigo, tipo_processo, dados").in("codigo", codigos),
+      supabaseAdmin.from("assuntos").select("slug, nome"),
+    ]);
+    for (const a of assuntos.data ?? []) nomeAssunto.set(a.slug, a.nome);
+    for (const p of proc.data ?? []) {
+      porCodigoProcesso.set(p.codigo, {
+        tipoProcesso: p.tipo_processo ?? null,
+        proprietario: (p.dados as any)?.proprietario?.valor ?? null,
+      });
+    }
+  }
+
+  const processos = [...porProcesso.values()]
+    .map((p) => {
+      const extra = porCodigoProcesso.get(p.processo_codigo);
+      return {
+        ...p,
+        assunto: extra?.tipoProcesso ? (nomeAssunto.get(extra.tipoProcesso) ?? extra.tipoProcesso) : null,
+        proprietario: extra?.proprietario ?? null,
+      };
+    })
+    .sort((a, b) => (a.criado_em < b.criado_em ? 1 : -1));
   return NextResponse.json({ ok: true, processos });
 }

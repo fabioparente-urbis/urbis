@@ -32,7 +32,10 @@ type MhdResposta = {
   totais?: { documentos: number; versoes: number; paginasIA: number };
 };
 
-type ProcessoRecente = { processo_codigo: string; tipo: string; titulo: string; criado_em: string };
+type ProcessoRecente = {
+  processo_codigo: string; tipo: string; titulo: string; criado_em: string;
+  assunto: string | null; proprietario: string | null;
+};
 
 export default function MhdAdminPage() {
   const router = useRouter();
@@ -199,13 +202,24 @@ export default function MhdAdminPage() {
             )}
             {!!recentes?.length && (
               <div className="border border-[var(--border)] rounded-lg overflow-hidden">
+                <div className="flex items-center gap-3 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+                  <span className="w-36 shrink-0">Processo</span>
+                  <span className="w-32 shrink-0">Assunto</span>
+                  <span className="flex-1">Proprietário</span>
+                  <span className="w-36 shrink-0 text-right">Atividade</span>
+                </div>
                 {recentes.map((p) => (
                   <button
                     key={p.processo_codigo}
                     onClick={() => buscar(p.processo_codigo)}
-                    className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)]"
+                    className="w-full text-left px-3 py-2 text-sm border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-card-hover)] flex items-center gap-3"
                   >
-                    <span className="font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
+                    <span className="w-36 shrink-0 font-medium text-[var(--text-primary)]">{p.processo_codigo}</span>
+                    <span className="w-32 shrink-0 text-xs text-[var(--text-secondary)] truncate">{p.assunto ?? "—"}</span>
+                    <span className="flex-1 text-xs text-[var(--text-secondary)] truncate">{p.proprietario ?? "—"}</span>
+                    <span className="w-36 shrink-0 text-right text-xs text-[var(--text-muted)]">
+                      {new Date(p.criado_em).toLocaleDateString("pt-BR")}
+                    </span>
                   </button>
                 ))}
               </div>
