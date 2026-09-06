@@ -574,6 +574,24 @@ compartilhado — regra de isolamento entre slots do CLAUDE.md:
 - `tsc`/`build` limpos. Interruptor do Aceite SEI segue **desligado** — ainda não testado por
   você nesse slot (o portão de Slot 2 é o mesmo: você organizar um processo real pela tela).
 
+### 16.3 — MHD ganha entrada na Home + Organizador grava histórico, 06/09/2026
+
+Dois pedidos seus, resolvidos juntos:
+
+1. **"NAO ENCONTREI O MHD... COLOCA ELE NA HOME AO LADO DO URBI"** — `/admin/mhd`, página nova
+   (busca por processo, mesmo padrão visual/gate de `/admin/urbi` e `/admin/bdi/leis` — só
+   irrestrito), card novo na Home ao lado de URBI/BIP.
+2. **"MAS AI SALVA EM PDF... NA MAQUINA E NO URBIS SO OS DADOS E META DADOS... PRA ECONOMIZAR
+   ESPACO... SO ADMIN VE"** — respondeu sozinho à pergunta em aberto do §16.1. O Organizador
+   passou a chamar `registrarEvento` (`lib/mhd.ts`, já existente, reaproveitado) e grava em
+   `mhd_eventos` **1 evento por organização** (não 1 por documento — evita empilhar dezenas de
+   linhas a cada reorganização do mesmo PDF; de-duplicar de verdade é Fase 7). `detalhe` (jsonb)
+   guarda id SEI, título, páginas, data, assinante — **nunca o PDF nem qualquer binário**, exatamente
+   o princípio que o MHD já tinha. Visível só em `/admin/mhd` (irrestrito).
+
+Achado no meio do caminho: você testou antes da rota estar no ar (era esperado — a gravação só
+chegou num commit seguinte) e reportou "não salvou o SEI que abri"; corrigido e reenviado.
+
 ---
 
 **Histórico de versões**
@@ -604,3 +622,12 @@ compartilhado — regra de isolamento entre slots do CLAUDE.md:
   leitura a partir do Slot 1: componente, rota e interruptor próprios
   (`documentos_vivos_aceite_sei_ativo`, default false, migration aplicada). Ainda não testado
   nesse slot.
+- v8 — 06/09/2026 — **MHD ganha entrada na Home + Organizador grava histórico** (ver §16.3).
+  Corrigidos 2 problemas achados por você testando ao vivo: `historicoDoProcesso` (`lib/mhd.ts`)
+  descartava eventos gravados quando o processo não tinha `mhd_documentos` — corrigido, eventos
+  agora sempre voltam; e o Organizador perdia o índice ao sair do processo — agora recupera do
+  MHD ao reabrir (PDF em si continua não voltando, "Abrir"/"Baixar" ficam desabilitados até
+  soltar o arquivo de novo). Departamento passou a ler o CABEÇALHO da página (não só a linha do
+  rodapé) — "se ler o documento vai saber", como você observou: CHEADV, COMTEC (Secretaria de
+  Planejamento), GERFEP/Fiscalização passaram a aparecer de verdade. Nova coluna **Nº SEI**
+  (faltava — "a coluna principal").

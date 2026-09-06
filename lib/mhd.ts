@@ -168,12 +168,27 @@ export async function buscarPorHash(
   return { conhecidos, desatualizados };
 }
 
-/** Documentos lógicos do processo, com versões e conteúdo — alimenta a tela do MHD. */
+/**
+ * Documentos lógicos do processo, com versões e conteúdo, mais a linha do tempo de eventos —
+ * alimenta a tela do MHD.
+ *
+ * Os EVENTOS são buscados sempre, mesmo sem nenhum `mhd_documentos` — corrigido 06/09/2026: o
+ * Organizador de PDF SEI grava eventos direto (`registrarEvento`, sem criar documento/versão,
+ * de propósito — ver docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §16.3), e o retorno antecipado daqui
+ * quando `docs` vinha vazio jogava fora eventos que TINHAM sido gravados com sucesso — a tela do
+ * MHD (e a Home) mostravam "vazio" para um processo que na verdade tinha histórico.
+ */
 export async function historicoDoProcesso(processoCodigo: string) {
-  const { data: docs, error } = await supabase
+  const { data: docs } = await supabase
     .from("mhd_documentos").select("*")
     .eq("processo_codigo", processoCodigo).order("papel");
-  if (error || !docs?.length) return { documentos: [], eventos: [] };
+
+  const { data: eventos } = await supabase
+    .from("mhd_eventos").select("*")
+    .eq("processo_codigo", processoCodigo)
+    .order("criado_em", { ascending: false }).limit(300);
+
+  if (!docs?.length) return { documentos: [], eventos: eventos ?? [] };
 
   const { data: versoes } = await supabase
     .from("mhd_versoes")
@@ -181,11 +196,6 @@ export async function historicoDoProcesso(processoCodigo: string) {
             "mhd_conteudos(paginas,papeis,revisao,data_documento,origem,paginas_ia,extrator_versao,dados)")
     .in("documento_id", docs.map((d: any) => d.id))
     .order("versao", { ascending: false });
-
-  const { data: eventos } = await supabase
-    .from("mhd_eventos").select("*")
-    .eq("processo_codigo", processoCodigo)
-    .order("criado_em", { ascending: false }).limit(300);
 
   return {
     documentos: docs.map((d: any) => ({

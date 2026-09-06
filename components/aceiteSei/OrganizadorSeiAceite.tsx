@@ -58,7 +58,7 @@ const ROTULO_MOTIVO: Record<string, string> = {
  * mostrar "SECGER" na coluna Departamento confunde mais do que ajuda.
  */
 function departamento(ev: EventoSei): string | undefined {
-  if (ev.setor && /secger/i.test(ev.setor)) return "Interessado";
+  if (ev.setor && /secger|secretaria\s+geral/i.test(ev.setor)) return "Interessado";
   return ev.setor;
 }
 
@@ -104,6 +104,7 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
   const [visualizando, setVisualizando] = useState<{ pagina: number; totalDoPdf: number } | null>(null);
   const [baixando, setBaixando] = useState<string | null>(null);
   const [soUltimaVersao, setSoUltimaVersao] = useState(false);
+  const [recuperadoDoHistorico, setRecuperadoDoHistorico] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -115,12 +116,38 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
     return () => { cancelado = true; };
   }, []);
 
+  /**
+   * Sair do processo e voltar perdia o índice já organizado — o PDF nunca ficou no servidor
+   * (de propósito), mas os DADOS/METADADOS já ficam no MHD desde 06/09/2026 (ver
+   * docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §16.3). Recupera a última organização daqui, se houver.
+   * O PDF em si continua não voltando: "Abrir"/"Baixar" ficam desabilitados até o analista soltar
+   * o arquivo de novo (aviso na tela, nunca finge que o arquivo está disponível).
+   */
+  useEffect(() => {
+    if (ativo !== true) return;
+    let cancelado = false;
+    fetch(`/api/mhd?processo=${encodeURIComponent(processoCodigo)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelado || !j?.ok || !j.ativo) return;
+        const ultimo = (j.eventos ?? []).find((e: any) => e.tipo === "documentos_sei_organizado");
+        if (ultimo?.detalhe) {
+          setResultado(ultimo.detalhe as ResultadoFatiamento);
+          setRecuperadoDoHistorico(true);
+          setAberto(true);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [ativo, processoCodigo]);
+
   if (!ativo) return null;
 
   async function processar(f: File) {
     setArquivo(f);
     setResultado(null);
     setErro(null);
+    setRecuperadoDoHistorico(false);
     setProcessando(true);
     setProgresso(0);
     try {
@@ -264,6 +291,12 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
 
           {resultado && (
             <div className="mt-2">
+              {recuperadoDoHistorico && !arquivo && (
+                <p className="text-xs text-[var(--text-muted)] bg-[var(--bg-secondary)] rounded p-2 mb-3">
+                  📋 Índice recuperado do histórico (MHD) — o PDF em si não fica guardado no servidor.
+                  Solte o PDF de novo aqui pra poder abrir página ou baixar recorte.
+                </p>
+              )}
               <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <p className="text-xs text-[var(--text-muted)]">
                   Processo {resultado.numeroProcesso} · {resultado.totalPaginas} páginas ·{" "}
@@ -285,7 +318,7 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
                     {soUltimaVersao ? "✓ Só última versão de cada tipo" : "Só última versão de cada tipo"}
                   </button>
                   <button
-                    onClick={() => { setResultado(null); setArquivo(null); setErro(null); }}
+                    onClick={() => { setResultado(null); setArquivo(null); setErro(null); setRecuperadoDoHistorico(false); }}
                     className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
                   >
                     Organizar outro PDF
@@ -297,6 +330,7 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border-strong)] sticky top-0 bg-[var(--bg-card)]">
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Nº SEI</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Páginas</th>
                       <th className="py-1.5 pr-2 font-normal">Documento</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Departamento</th>
@@ -308,6 +342,7 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
                   <tbody>
                     {(soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos).map((ev) => (
                       <tr key={`${ev.idSei}-${ev.paginaIni}`} className="border-b border-[var(--border)]">
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">{ev.idSei}</td>
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                           pg. {ev.paginaIni}
                           {ev.paginaFim !== ev.paginaIni ? `–${ev.paginaFim}` : ""}
@@ -326,14 +361,17 @@ export default function OrganizadorSeiAceite({ processoCodigo }: { processoCodig
                           <span className="flex gap-2 justify-end shrink-0">
                             <button
                               onClick={() => setVisualizando({ pagina: ev.paginaIni, totalDoPdf: resultado.totalPaginas })}
-                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] whitespace-nowrap"
+                              disabled={!arquivo}
+                              title={arquivo ? undefined : "Solte o PDF de novo pra abrir a página"}
+                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
                             >
                               👁 Abrir
                             </button>
                             <button
                               onClick={() => baixarRecorte(ev)}
-                              disabled={baixando === ev.idSei}
-                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-50 whitespace-nowrap"
+                              disabled={!arquivo || baixando === ev.idSei}
+                              title={arquivo ? undefined : "Solte o PDF de novo pra baixar o recorte"}
+                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
                             >
                               {baixando === ev.idSei ? "⏳" : "⬇ Baixar"}
                             </button>

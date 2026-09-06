@@ -122,23 +122,32 @@ function acharCarimbo(itens: ItemPosicionado[]): Carimbo | null {
   return melhor?.carimbo ?? null;
 }
 
-/** Melhor esforço: primeiro item, na mesma linha do carimbo, à esquerda do título, que pareça letreiro de órgão. */
-function acharSetor(itens: ItemPosicionado[], carimbo: Carimbo): string | undefined {
-  const linhas = agruparEmLinhas(itens);
+const RE_ORGAO = /^(prefeitura|secretaria|chefia|diretoria|ger[êe]ncia|superintend[êe]ncia|coordenadoria|comiss[ãa]o)\b/i;
+/** abaixo desta altura (pontos) já é corpo do documento — acima é letreiro/cabeçalho */
+const ALTURA_CABECALHO = 260;
+
+/**
+ * Melhor esforço: o departamento/setor emissor. Antes só olhava a linha do rodapé (o que deixava
+ * quase tudo em branco); a partir de 06/09/2026 lê o CABEÇALHO da página — "se ler o documento
+ * vai saber", como o Fábio observou. Um despacho real (Fase 0/1) trouxe três linhas no topo:
+ * "Prefeitura de Goiânia" → "Secretaria Municipal de Eficiência" → "Chefia da Advocacia
+ * Setorial" — a ÚLTIMA é a mais específica (a que emitiu de fato), por isso pega a última
+ * ocorrência dentro da faixa do cabeçalho, nunca uma linha qualquer da página (o corpo do
+ * despacho pode CITAR outra secretaria de passagem — "Secretaria Municipal da Fazenda" — que não
+ * é quem emitiu; por isso a busca para em `ALTURA_CABECALHO` e não desce pro corpo do texto).
+ */
+function acharSetorNaPagina(itens: ItemPosicionado[]): string | undefined {
+  const linhas = agruparEmLinhas(itens).filter((l) => l[0] && l[0].y < ALTURA_CABECALHO);
+  let ultimo: string | undefined;
   for (const linha of linhas) {
-    const temCarimbo = linha.some((i) => {
-      const m = RE_TITULO_ID.exec(i.t.trim());
-      return m && m[2] === carimbo.idSei;
-    });
-    if (!temCarimbo) continue;
-    const candidato = linha.find((i) => {
-      const t = i.t.trim();
-      if (!t || RE_TITULO_ID.test(t) || RE_SEI_PG.test(t) || /^assinado\s+digitalmente/i.test(t)) return false;
-      return /prefeitura|secretaria|chefia|diretoria|gerência|gerencia|superintend/i.test(t);
-    });
-    if (candidato) return candidato.t.trim();
+    const texto = linha.map((i) => i.t).join(" ").trim();
+    if (!RE_ORGAO.test(texto)) continue;
+    // letreiro de verdade não tem data/hora colada (visto num caso real: marca d'água do SEI
+    // grudada na mesma linha do cabeçalho) — mais seguro ficar sem do que mostrar isso
+    if (/\d{1,2}\/\d{1,2}\/\d{2,4}/.test(texto) || texto.length > 100) continue;
+    ultimo = texto;
   }
-  return undefined;
+  return ultimo;
 }
 
 const RE_HORA = /\bàs\s+(\d{1,2})[:h](\d{2})\b/i;
@@ -201,7 +210,7 @@ async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Prom
     paginas.push({
       pagina: p,
       carimbo,
-      setor: carimbo ? acharSetor(itens, carimbo) : undefined,
+      setor: acharSetorNaPagina(itens),
       data: acharData(textoPagina),
       assinante: acharAssinante(textoPagina),
     });
