@@ -2,6 +2,7 @@
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
 import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
@@ -11,6 +12,13 @@ import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
+// Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — exclusivo da
+// Regularização, atrás de interruptor próprio (default desligado). Carregado sob demanda porque
+// react-pdf usa APIs de navegador (worker), como já feito em BipPdfViewer.
+const OrganizadorSeiRegularizacao = dynamic(
+  () => import("@/components/regularizacao/OrganizadorSeiRegularizacao"),
+  { ssr: false },
+);
 
 /**
  * De onde veio o valor que está no formulário.
@@ -2968,6 +2976,11 @@ export default function ProcessoClient() {
           com a origem de cada um, e a triagem por evidência. Nunca escreve
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
+
+      {/* Documentos Vivos — Fase 2, só Regularização, atrás de interruptor próprio */}
+      {idUrl && tipoUrl === "regularizacao" && (
+        <OrganizadorSeiRegularizacao processoCodigo={idUrl} />
+      )}
 
       {/* BLOCO LIP */}
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">

@@ -53,6 +53,14 @@ export type PaginaRevisao = {
   motivo: MotivoRevisao;
 };
 
+/**
+ * Andamento da leitura, para a barra de progresso ser honesta — mesma ideia de
+ * `lib/lerPastaSlot5.ts` (`Andamento`/`AoAndar`), reproduzida aqui em vez de importada: regra de
+ * isolamento entre slots do CLAUDE.md.
+ */
+export type AndamentoFatiamento = { atual: number; total: number };
+export type AoAndarFatiamento = (a: AndamentoFatiamento) => void;
+
 export type ResultadoFatiamento = {
   numeroProcesso: string;
   totalPaginas: number;
@@ -147,13 +155,14 @@ type PaginaLida = {
   data?: string;
 };
 
-async function lerPaginas(buffer: Uint8Array): Promise<PaginaLida[]> {
+async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Promise<PaginaLida[]> {
   // legacy build: é o que funciona em Node sem DOM (mesma escolha de lib/lerPastaSlot5.ts, sem importar de lá)
   const pdfjs: any = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const doc = await pdfjs.getDocument({ data: buffer, useSystemFonts: true, isEvalSupported: false }).promise;
 
   const paginas: PaginaLida[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
+    aoAndar?.({ atual: p - 1, total: doc.numPages });
     const page = await doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
@@ -170,6 +179,7 @@ async function lerPaginas(buffer: Uint8Array): Promise<PaginaLida[]> {
       data: acharData(textoPagina),
     });
   }
+  aoAndar?.({ atual: doc.numPages, total: doc.numPages });
   return paginas;
 }
 
@@ -178,8 +188,8 @@ async function lerPaginas(buffer: Uint8Array): Promise<PaginaLida[]> {
  * contagem de páginas não fechar (Σ eventos + Σ revisão ≠ total), lança erro — a chamadora
  * decide o que fazer, mas não finge sucesso.
  */
-export async function fatiarPdfSei(buffer: Uint8Array): Promise<ResultadoFatiamento> {
-  const paginas = await lerPaginas(buffer);
+export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Promise<ResultadoFatiamento> {
+  const paginas = await lerPaginas(buffer, aoAndar);
   const totalPaginas = paginas.length;
 
   const contagemProcesso = new Map<string, number>();

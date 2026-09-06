@@ -1,7 +1,8 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 05/09/2026 · **Estado:** Fase 0 e Fase 1 executadas (ver §15); nada tocou em nenhum
-slot ainda · **Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
+**Data:** 05/09/2026 · **Estado:** Fases 0, 1 e 2 executadas (ver §15, §16); Fase 2 no Slot 1
+(Regularização), atrás de interruptor desligado — nenhuma mudança no fluxo existente ·
+**Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
 
 Este documento responde ao pedido: um plano para executar o Organizador de Processos SEI com
 segurança e eficiência, em ambiente visual intuitivo, orquestrado por BDI/MDP/URBI, alimentando
@@ -108,11 +109,12 @@ mudança de política de dados (volume, custo, LGPD, retenção). Precisa da sua
 Alternativa sem mudar política: guardar **só o hash + o índice de páginas**, e pedir o arquivo de
 novo quando precisar gerar um recorte.
 
-### D4 — Qual slot primeiro?
-Recomendo **Aceite SEI (Slot 2) primeiro**, não Regularização. Mesmo problema, mesma estrutura de
-PDF, mas Slot 1 é sua produção crítica rodando liso. Erra-se barato no 2, migra-se provado para o
-1. (Se o volume de dor estiver todo no Slot 1, isso muda — mas então a Fase 6 exige piloto em
-paralelo, nunca substituição direta.)
+### D4 — Qual slot primeiro? ✅ **RESPONDIDA — Regularização (Slot 1)** *(05/09/2026)*
+Recomendação era Aceite SEI (Slot 2) primeiro — mesmo problema, mesma estrutura de PDF, Slot 1
+sendo produção crítica. Fábio decidiu, por escrito, começar pelo Slot 1 mesmo assim. Vale a
+salvaguarda que já estava aqui: **tudo aditivo, interruptor próprio desligado por padrão, nada do
+fluxo atual muda** — e a Fase 6 (se algum dia substituir o que já existe) exige piloto em
+paralelo, nunca substituição direta.
 
 ---
 
@@ -182,6 +184,9 @@ decisão — não se segue em frente "dando um jeito".
 - **Zero IA nesta fase.** Já entrega valor sozinha: o analista para de rolar 200 páginas.
 
 **Portão:** você organiza um processo real de ponta a ponta pela tela, sem tocar em código.
+
+**Status 05/09/2026: código escrito, atrás de interruptor DESLIGADO — portão ainda não testado por
+você.** Ver §16.
 
 ---
 
@@ -374,7 +379,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 |---|---|---|---|
 | 0 — prova de viabilidade | — | ✅ 100% | **feita em 05/09/2026** |
 | 1 — fatiador determinístico | 1 | 🟡 90% | módulo escrito e rodado contra 4 processos reais, soma fechada nos 4 — falta só a conferência humana do índice (ver §15). Os 10% que faltam são exatamente essa conferência. |
-| 2 — tela "Organizar processo" | 2–3 | ⚪ 0% | não iniciada |
+| 2 — tela "Organizar processo" | 2–3 | 🟡 85% | Regularização (Slot 1) escolhida por você como D4; aba, rota e componente escritos, `tsc`/`build` limpos, atrás de interruptor desligado (ver §16). Os 15% que faltam são o portão de verdade: você organizar um processo real pela tela — não posso logar como você para fazer isso. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | ⚪ 0% | não iniciada; a parte mais incerta |
 | 4 — motor de versões e estados | 2 | ⚪ 0% | não iniciada |
@@ -383,7 +388,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | ⚪ 0% | não iniciada |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 7% concluído · 93% restante** | 1 sessão batida (Fase 1) de 14 estimadas (meio-termo); Fase 0 não conta sessão própria |
+| **Total do projeto** | **12–16** | **≈ 22% concluído · 78% restante** | ≈3 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 85% de 2,5) de 14 estimadas; Fase 0 não conta sessão própria |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -472,6 +477,51 @@ pergunta real.
 
 ---
 
+## 16. Fase 2 executada — 05/09/2026, Regularização (Slot 1)
+
+D4 foi respondida por você quando perguntado antes de tocar em qualquer slot: **Regularização
+(Slot 1)** primeiro, contrariando a recomendação do plano (que era Slot 2, por ser produção menos
+crítica). Registrado com a salvaguarda de sempre: tudo aditivo, atrás de interruptor próprio.
+
+**O que foi construído:**
+- `supabase/migrations/2026_09_05_documentos_vivos_flag.sql` — coluna
+  `urbis_config.documentos_vivos_regularizacao_ativo`, **default `false`**, aplicada de verdade
+  (testada em transação com ROLLBACK antes, como manda o padrão do repo). Liga-se por SQL direto
+  (`UPDATE urbis_config SET documentos_vivos_regularizacao_ativo = true WHERE id = 1`) — sem UI de
+  admin ainda, mesma trilha que `chat_gemini_ativo` seguiu no começo.
+- `lib/documentosSei/config.ts` — helper que lê o interruptor, fail-**fechado** (erro de leitura
+  = desligado), ao contrário de `lib/visao` que falha aberto — aqui a feature é nova e Slot 1 é
+  produção crítica, então nunca vale arriscar ligar por acidente.
+- `app/api/analise-regularizacao/documentos-sei/route.ts` — rota nova e isolada (não reaproveita
+  `app/api/lip/ler-pasta` nem `lib/lerPastaSlot5.ts`), recebe o PDF em multipart, roda
+  `fatiarPdfSei` com progresso NDJSON (mesmo contrato de `ler-pasta`, reproduzido por leitura) e
+  devolve só a proposta — nenhuma gravação em MHD/LIP/MAC.
+- `components/regularizacao/OrganizadorSeiRegularizacao.tsx` — aba nova, componente próprio (não
+  inflou ainda mais `ProcessoClient.tsx`, que já passa de 3300 linhas): arrastar o PDF, barra de
+  progresso real, linha do tempo dos eventos com ID SEI/título/páginas/data/setor, "abrir na
+  página" (react-pdf) e "baixar recorte" (pdf-lib, no navegador). **O PDF original nunca volta ao
+  servidor depois da leitura** — fica só na memória do navegador (o `File` que o analista soltou),
+  e as duas ações usam esse mesmo arquivo no cliente. Isso evita de vez a pergunta de guardar o
+  PDF no servidor (D3 já tinha decidido que não).
+- `app/processo/ProcessoClient.tsx` — 2 linhas de import + 1 bloco condicional
+  (`{tipoUrl === "regularizacao" && <OrganizadorSeiRegularizacao .../>}`), nada mais tocado.
+
+**Verificado:** `tsc --noEmit` limpo, `npm run build` limpo (rota nova aparece no build). Com o
+interruptor ligado temporariamente em produção só para checar que a tela não quebra sem sessão
+válida (confirmado: sem login, o componente cai para "desligado" e não aparece, sem erro no
+console) — devolvido a `false` logo em seguida.
+
+**O que NÃO foi verificado:** o portão de verdade (§ "Fase 2" acima) — organizar um processo real
+de ponta a ponta pela tela — porque isso exige uma sessão logada como você, e eu não tenho suas
+credenciais nem devo tentar contorná-las. **Para testar:** rode o SQL acima para ligar o
+interruptor, abra um processo de Regularização, e arraste um PDF do SEI na aba "Documentos" nova.
+Quando estiver satisfeito, me avise — ou desligue de novo se preferir revisar o código primeiro.
+
+**Nada foi tocado no fluxo atual da Regularização.** LIP, MAC, numeração, despacho — tudo como
+estava. A aba só aparece com o interruptor ligado, e mesmo ligada não grava nada em lugar nenhum.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -485,3 +535,8 @@ pergunta real.
 - v4 — 05/09/2026 — §12 ganhou coluna de `%` por fase e total do projeto (≈7% concluído, medido
   em sessões batidas / 14 estimadas). Regra nova: esta tabela se atualiza a cada commit do
   projeto, no mesmo commit que leva o código — nunca depois.
+- v5 — 05/09/2026 — **D4 respondida (Regularização/Slot 1 primeiro) e Fase 2 executada** (ver
+  §16): aba "Documentos" nova, interruptor `documentos_vivos_regularizacao_ativo` (default
+  false, migration aplicada), rota `app/api/analise-regularizacao/documentos-sei`, componente
+  `OrganizadorSeiRegularizacao`. `tsc`/`build` limpos; falta você testar o portão de ponta a
+  ponta pela tela — não tenho como logar como você para fazer isso.
