@@ -34,6 +34,7 @@ type EventoSei = {
   paginaFim: number;
   setor?: string;
   data?: string;
+  assinante?: string;
 };
 type PaginaRevisao = { pagina: number; motivo: string };
 type ResultadoFatiamento = {
@@ -49,6 +50,49 @@ const ROTULO_MOTIVO: Record<string, string> = {
   pagina_rodape_diverge: "número de página do rodapé não bate com a posição real",
 };
 
+/**
+ * SECGER é o protocolo geral — quem manda pro analista quando o interessado protocola, e quem
+ * entrega ao interessado quando o URBIS despacha pra fora. Não é quem EMITIU o documento, então
+ * mostrar "SECGER" na coluna Departamento confunde mais do que ajuda — o Fábio pediu (05/09/2026)
+ * pra aparecer "Interessado" nesse caso.
+ */
+function departamento(ev: EventoSei): string | undefined {
+  if (ev.setor && /secger/i.test(ev.setor)) return "Interessado";
+  return ev.setor;
+}
+
+/**
+ * Filtro "só a última versão" pedido pelo Fábio (05/09/2026) — HEURÍSTICA SIMPLES, não é o motor
+ * de versões da Fase 4 do plano (que ainda não existe: não lê "SEM EFEITO"/"substitui", não tem
+ * hierarquia de confiança). Agrupa por título normalizado e mantém só a página mais recente de
+ * cada grupo — suficiente pra "vistoria", "uso do solo", "relatório", que se repetem ao longo do
+ * processo. Despacho/Parecer/Ofício/Notificação NUNCA são agrupados: são atos numerados, cada um
+ * é o seu próprio evento (regra já registrada no plano — "despachos sucessivos são atos, não
+ * versões"). É só filtro de tela: a lista completa nunca deixa de existir, isto só esconde linha.
+ */
+function normalizarTitulo(titulo: string): string {
+  return titulo
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b\d+([./-]\d+)*\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function ehAtoNumerado(titulo: string): boolean {
+  return /^(despacho|parecer|of[íi]cio|notifica[cç][ãa]o)\b/i.test(titulo.trim());
+}
+function filtrarUltimaVersao(eventos: EventoSei[]): EventoSei[] {
+  const ultimoPorGrupo = new Map<string, EventoSei>();
+  for (const ev of eventos) {
+    if (ehAtoNumerado(ev.titulo)) continue;
+    const chave = normalizarTitulo(ev.titulo);
+    const atual = ultimoPorGrupo.get(chave);
+    if (!atual || ev.paginaFim > atual.paginaFim) ultimoPorGrupo.set(chave, ev);
+  }
+  const mantidos = new Set([...ultimoPorGrupo.values()]);
+  return eventos.filter((ev) => ehAtoNumerado(ev.titulo) || mantidos.has(ev));
+}
+
 export default function OrganizadorSeiRegularizacao({ processoCodigo }: { processoCodigo: string }) {
   const [ativo, setAtivo] = useState<boolean | null>(null); // null = ainda não sabe
   const [aberto, setAberto] = useState(false);
@@ -60,6 +104,7 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
   const [erro, setErro] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState<{ pagina: number; totalDoPdf: number } | null>(null);
   const [baixando, setBaixando] = useState<string | null>(null);
+  const [soUltimaVersao, setSoUltimaVersao] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -158,7 +203,7 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
     <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
       <div className="flex items-center gap-4 flex-wrap">
         <div>
-          <p className="text-sm font-bold text-[var(--text-primary)]">🗂 Documentos — organizar PDF do SEI</p>
+          <p className="text-sm font-bold text-[var(--text-primary)]">🗂 Organizador de PDF SEI</p>
           <p className="text-xs text-[var(--text-muted)] mt-0.5">
             Arraste o PDF único mesclado do SEI para ver a linha do tempo de eventos, em vez de rolar o
             processo inteiro. Recurso novo — zero IA, não grava nada aqui.
@@ -228,44 +273,77 @@ export default function OrganizadorSeiRegularizacao({ processoCodigo }: { proces
                     <> · {resultado.paginasRevisao.length} página(s) sem rodapé legível</>
                   )}
                 </p>
-                <button
-                  onClick={() => { setResultado(null); setArquivo(null); setErro(null); }}
-                  className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
-                >
-                  Organizar outro PDF
-                </button>
+                <span className="flex gap-2">
+                  <button
+                    onClick={() => setSoUltimaVersao((v) => !v)}
+                    title="Agrupa por tipo de documento e mostra só a última página de cada um — despacho e parecer nunca são agrupados, cada um continua aparecendo"
+                    className={`text-xs px-3 py-1 rounded border ${
+                      soUltimaVersao
+                        ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
+                        : "bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border-[var(--border-strong)]"
+                    }`}
+                  >
+                    {soUltimaVersao ? "✓ Só última versão de cada tipo" : "Só última versão de cada tipo"}
+                  </button>
+                  <button
+                    onClick={() => { setResultado(null); setArquivo(null); setErro(null); }}
+                    className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+                  >
+                    Organizar outro PDF
+                  </button>
+                </span>
               </div>
 
-              <div className="space-y-1 max-h-[480px] overflow-y-auto pr-1">
-                {resultado.eventos.map((ev) => (
-                  <div
-                    key={`${ev.idSei}-${ev.paginaIni}`}
-                    className="flex items-center gap-3 flex-wrap text-sm border-b border-[var(--border)] py-1.5"
-                  >
-                    <span className="text-[var(--text-muted)] text-xs whitespace-nowrap">
-                      pg. {ev.paginaIni}
-                      {ev.paginaFim !== ev.paginaIni ? `–${ev.paginaFim}` : ""}
-                    </span>
-                    <span className="text-[var(--text-primary)]">{ev.titulo}</span>
-                    {ev.data && <span className="text-xs text-[var(--text-muted)]">· {ev.data}</span>}
-                    {ev.setor && <span className="text-xs text-[var(--text-muted)]">· {ev.setor}</span>}
-                    <span className="ml-auto flex gap-2 shrink-0">
-                      <button
-                        onClick={() => setVisualizando({ pagina: ev.paginaIni, totalDoPdf: resultado.totalPaginas })}
-                        className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
-                      >
-                        👁 Abrir
-                      </button>
-                      <button
-                        onClick={() => baixarRecorte(ev)}
-                        disabled={baixando === ev.idSei}
-                        className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-50"
-                      >
-                        {baixando === ev.idSei ? "⏳" : "⬇ Baixar"}
-                      </button>
-                    </span>
-                  </div>
-                ))}
+              <div className="max-h-[480px] overflow-y-auto pr-1">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border-strong)] sticky top-0 bg-[var(--bg-card)]">
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Páginas</th>
+                      <th className="py-1.5 pr-2 font-normal">Documento</th>
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Departamento</th>
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Assinado por</th>
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Data</th>
+                      <th className="py-1.5 font-normal text-right whitespace-nowrap">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos).map((ev) => (
+                      <tr key={`${ev.idSei}-${ev.paginaIni}`} className="border-b border-[var(--border)]">
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          pg. {ev.paginaIni}
+                          {ev.paginaFim !== ev.paginaIni ? `–${ev.paginaFim}` : ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-[var(--text-primary)] align-top">{ev.titulo}</td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] align-top">
+                          {departamento(ev) ?? ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] align-top">
+                          {ev.assinante ?? ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          {ev.data ?? ""}
+                        </td>
+                        <td className="py-1.5 align-top">
+                          <span className="flex gap-2 justify-end shrink-0">
+                            <button
+                              onClick={() => setVisualizando({ pagina: ev.paginaIni, totalDoPdf: resultado.totalPaginas })}
+                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] whitespace-nowrap"
+                            >
+                              👁 Abrir
+                            </button>
+                            <button
+                              onClick={() => baixarRecorte(ev)}
+                              disabled={baixando === ev.idSei}
+                              className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-50 whitespace-nowrap"
+                            >
+                              {baixando === ev.idSei ? "⏳" : "⬇ Baixar"}
+                            </button>
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
                 {resultado.paginasRevisao.length > 0 && (
                   <div className="mt-3 text-xs text-[var(--text-muted)]">

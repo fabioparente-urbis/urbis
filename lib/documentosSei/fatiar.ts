@@ -38,6 +38,8 @@ export type EventoSei = {
   setor?: string;
   /** melhor esforço — ver cabeçalho do arquivo */
   data?: string;
+  /** melhor esforço — ver cabeçalho do arquivo */
+  assinante?: string;
 };
 
 export type MotivoRevisao =
@@ -139,13 +141,36 @@ function acharSetor(itens: ItemPosicionado[], carimbo: Carimbo): string | undefi
   return undefined;
 }
 
-/** Melhor esforço: última data por extenso encontrada no texto da página (assinatura costuma vir perto do fim). */
+const RE_HORA = /\bàs\s+(\d{1,2})[:h](\d{2})\b/i;
+
+// padrão-padrão do SEI: "Documento assinado eletronicamente por FULANO DE TAL, Cargo, em..."
+const RE_ASSINADO_ELETRONICAMENTE = /documento\s+assinado\s+eletronicamente\s+por\s+([^,\n]{3,80})/i;
+// assinatura tipo SIFIS: nome em CAIXA ALTA seguido do cargo ("ANDRE LUIZ JUBE VIANA Auditor - Matrícula ...")
+const RE_NOME_MAIUSCULO_COM_CARGO =
+  /\b([A-ZÀÂÃÁÉÊÍÓÔÕÚÇ][A-ZÀÂÃÁÉÊÍÓÔÕÚÇ'’.\s]{4,60}[A-ZÀÂÃÁÉÊÍÓÔÕÚÇ])\s+(?:Auditor|Fiscal|Analista|Assistente|Chefe|Diretor[a]?|Gerente|Coordenador[a]?|Engenheiro[a]?|Arquiteto[a]?|Advogad[oa]|Secretári[oa])\b/;
+
+/** Melhor esforço: quem assinou o documento — nunca bloqueia nada, só ajuda o analista a identificar. */
+function acharAssinante(textoPagina: string): string | undefined {
+  const eletronico = RE_ASSINADO_ELETRONICAMENTE.exec(textoPagina);
+  if (eletronico) return eletronico[1].trim();
+  const sifis = RE_NOME_MAIUSCULO_COM_CARGO.exec(textoPagina);
+  return sifis ? sifis[1].trim() : undefined;
+}
+
+/**
+ * Melhor esforço: última data por extenso encontrada no texto da página (assinatura costuma vir
+ * perto do fim). Quando a assinatura eletrônica do SEI traz horário logo depois ("..., às
+ * 14:32,...") ele entra junto — senão fica só a data.
+ */
 function acharData(textoPagina: string): string | undefined {
   let ultima: RegExpExecArray | null = null;
   const re = new RegExp(RE_DATA_LONGA, "gi");
   let m: RegExpExecArray | null;
   while ((m = re.exec(textoPagina))) ultima = m;
-  return ultima ? ultima[0] : undefined;
+  if (!ultima) return undefined;
+  const depoisDaData = textoPagina.slice(ultima.index + ultima[0].length, ultima.index + ultima[0].length + 30);
+  const hora = RE_HORA.exec(depoisDaData);
+  return hora ? `${ultima[0]}, às ${hora[1].padStart(2, "0")}:${hora[2]}` : ultima[0];
 }
 
 type PaginaLida = {
@@ -153,6 +178,7 @@ type PaginaLida = {
   carimbo: Carimbo | null;
   setor?: string;
   data?: string;
+  assinante?: string;
 };
 
 async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Promise<PaginaLida[]> {
@@ -177,6 +203,7 @@ async function lerPaginas(buffer: Uint8Array, aoAndar?: AoAndarFatiamento): Prom
       carimbo,
       setor: carimbo ? acharSetor(itens, carimbo) : undefined,
       data: acharData(textoPagina),
+      assinante: acharAssinante(textoPagina),
     });
   }
   aoAndar?.({ atual: doc.numPages, total: doc.numPages });
@@ -200,12 +227,12 @@ export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamen
   const numeroProcesso = [...contagemProcesso.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
 
   // carimbo válido = tem rodapé, processo bate com o do PDF, e "pg. N" bate com a posição real
-  type Validada = { pagina: number; carimbo: Carimbo; setor?: string; data?: string };
+  type Validada = { pagina: number; carimbo: Carimbo; setor?: string; data?: string; assinante?: string };
   const validas: (Validada | null)[] = paginas.map((p) => {
     if (!p.carimbo) return null;
     if (p.carimbo.numeroProcesso !== numeroProcesso) return null;
     if (p.carimbo.paginaRodape !== p.pagina) return null;
-    return { pagina: p.pagina, carimbo: p.carimbo, setor: p.setor, data: p.data };
+    return { pagina: p.pagina, carimbo: p.carimbo, setor: p.setor, data: p.data, assinante: p.assinante };
   });
 
   const paginasRevisao: PaginaRevisao[] = [];
@@ -249,6 +276,7 @@ export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamen
       atual.paginaFim = paginas[idx].pagina;
       if (!atual.setor && validas[idx]?.setor) atual.setor = validas[idx]!.setor;
       if (!atual.data && validas[idx]?.data) atual.data = validas[idx]!.data;
+      if (!atual.assinante && validas[idx]?.assinante) atual.assinante = validas[idx]!.assinante;
       continue;
     }
     const v = validas[idx];
@@ -259,6 +287,7 @@ export async function fatiarPdfSei(buffer: Uint8Array, aoAndar?: AoAndarFatiamen
       paginaFim: paginas[idx].pagina,
       setor: v?.setor,
       data: v?.data,
+      assinante: v?.assinante,
     });
   }
 

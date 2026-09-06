@@ -379,7 +379,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 |---|---|---|---|
 | 0 — prova de viabilidade | — | ✅ 100% | **feita em 05/09/2026** |
 | 1 — fatiador determinístico | 1 | 🟡 90% | módulo escrito e rodado contra 4 processos reais, soma fechada nos 4 — falta só a conferência humana do índice (ver §15). Os 10% que faltam são exatamente essa conferência. |
-| 2 — tela "Organizar processo" | 2–3 | 🟡 85% | Regularização (Slot 1) escolhida por você como D4; aba, rota e componente escritos, `tsc`/`build` limpos, atrás de interruptor desligado (ver §16). Os 15% que faltam são o portão de verdade: você organizar um processo real pela tela — não posso logar como você para fazer isso. |
+| 2 — tela "Organizar processo" | 2–3 | 🟢 92% | **testada por você em produção em 06/09/2026** (processo real 24.5.000024350-0) — o portão começou a fechar de verdade. Rodada de ajustes ao vivo: renomeada "Organizador de PDF SEI", colunas Departamento (com "SECGER"→"Interessado") e Assinado por, filtro "só última versão de cada tipo" (heurística de tela, não é o motor de versões da Fase 4). Ver §16. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | ⚪ 0% | não iniciada; a parte mais incerta |
 | 4 — motor de versões e estados | 2 | ⚪ 0% | não iniciada |
@@ -388,7 +388,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | ⚪ 0% | não iniciada |
 | 7 — retorno incremental | 1 | ⚪ 0% | não iniciada |
 | 8 — Gemini sob pedido (opcional) | 1 | ⚪ 0% | não iniciada; pode nunca ser necessária |
-| **Total do projeto** | **12–16** | **≈ 22% concluído · 78% restante** | ≈3 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 85% de 2,5) de 14 estimadas; Fase 0 não conta sessão própria |
+| **Total do projeto** | **12–16** | **≈ 23% concluído · 77% restante** | ≈3,2 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 92% de 2,5) de 14 estimadas; Fase 0 não conta sessão própria |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -520,6 +520,41 @@ Quando estiver satisfeito, me avise — ou desligue de novo se preferir revisar 
 **Nada foi tocado no fluxo atual da Regularização.** LIP, MAC, numeração, despacho — tudo como
 estava. A aba só aparece com o interruptor ligado, e mesmo ligada não grava nada em lugar nenhum.
 
+### 16.1 — Ajustes ao vivo, 06/09/2026 (você testando em produção)
+
+Você ligou o interruptor e testou com um processo real (`24.5.000024350-0`) — o portão da Fase 2
+começou a fechar de verdade. Dessa sessão de uso saíram ajustes, todos aditivos:
+
+- **Renomeado** para "🗂 Organizador de PDF SEI" (nome que você usou, e que também é o nome do
+  rascunho original do ChatGPT que deu origem a este plano).
+- Lista virou **tabela** com colunas: Páginas, Documento, **Departamento**, **Assinado por**,
+  Data, Ações.
+- **`assinante`** — novo campo em `EventoSei` (`lib/documentosSei/fatiar.ts`), melhor esforço:
+  reconhece o padrão-padrão do SEI ("Documento assinado eletronicamente por Fulano,") e o padrão
+  de assinatura SIFIS (nome em CAIXA ALTA seguido do cargo). Testado no processo real: nomes
+  saindo certos (ex.: "Suze Pontes Leite", "RONALDO PIRES MARTINS").
+- **Regra "SECGER" → "Interessado"** na coluna Departamento: você explicou o fluxo (interessado
+  manda pra SECGER, que manda pra nós; nós mandamos pra SECGER, que entrega ao interessado) —
+  SECGER é o protocolo geral, não quem emitiu, então aparece como "Interessado".
+- **Data com hora**, quando o SEI traz ("..., às 14:32").
+- **Filtro "só última versão de cada tipo"** — botão que alterna a exibição, lista completa
+  continua sendo o padrão. HEURÍSTICA DE TELA, não é o motor de versões da Fase 4: agrupa por
+  título normalizado e mantém a página mais recente de cada grupo; Despacho/Parecer/Ofício/
+  Notificação nunca são agrupados (são atos numerados, cada um se mantém — mesma distinção já
+  registrada em §6 Fase 4: "despachos sucessivos são atos, não versões"). Testado com os títulos
+  reais do processo: "Documentação" (5 ocorrências) e "Processo" (2) colapsam para a última;
+  despachos continuam todos visíveis.
+- Setor (Departamento) sem "SECGER" ainda sai em branco na maioria dos documentos deste processo
+  — a heurística de `acharSetor` exige palavras como "prefeitura/secretaria/chefia" na MESMA
+  linha do carimbo, e nem todo documento tem letreiro de órgão ali. Fica registrado como limite
+  conhecido, não bug: melhorar isso é o tipo de ajuste que só vale a pena depois de ver mais
+  processos reais.
+
+**Pergunta em aberto, feita por você:** este histórico de documentos deveria ficar salvo em algum
+módulo satélite para o URBI/BDI/MDP consultarem — resposta e proposta na conversa (a resposta
+curta é MHD, que é literalmente o módulo "Histórico e Documentos" e é o que a Fase 6 deste plano
+já previa). Ainda não implementado — grava índice ainda não decidido junto com você.
+
 ---
 
 **Histórico de versões**
@@ -540,3 +575,7 @@ estava. A aba só aparece com o interruptor ligado, e mesmo ligada não grava na
   false, migration aplicada), rota `app/api/analise-regularizacao/documentos-sei`, componente
   `OrganizadorSeiRegularizacao`. `tsc`/`build` limpos; falta você testar o portão de ponta a
   ponta pela tela — não tenho como logar como você para fazer isso.
+- v6 — 06/09/2026 — **você testou em produção com processo real e o portão da Fase 2 começou a
+  fechar** (ver §16.1): renomeado "Organizador de PDF SEI", tabela com Departamento/Assinado
+  por/Data, regra SECGER→Interessado, filtro "só última versão de cada tipo". Pergunta em aberto
+  sobre onde persistir o histórico (MHD recomendado) — decisão pendente.
