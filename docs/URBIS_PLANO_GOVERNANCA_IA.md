@@ -1,6 +1,6 @@
 # Plano — Governança de gasto com IA (LIP / MAC / URBI / BDI)
 
-**Data:** 07/09/2026 · **Versão:** v1 · **Estado:** planejamento, nada implementado ·
+**Data:** 07/09/2026 · **Versão:** v2 · **Estado:** planejamento; só o aviso padrão de "IA desligada" (§5.6) já está no ar ·
 **Escopo:** todo gasto com Gemini no URBIS, em todos os módulos e slots. Não é projeto de um slot —
 é infraestrutura transversal, como `lib/visao` e o MHD.
 
@@ -122,6 +122,26 @@ do plano que RESOLVE o incidente de 07/09 em vez de avisar sobre ele.
    quê; os botões vêm depois. A falha de 07/09 foi de visão, não de controle.
 4. **Quem liga, assina.** Ligar registra usuário, data, prazo e motivo em texto livre.
 5. **Custo zero por padrão** continua valendo — nada aqui liga nada sozinho.
+6. **Bloqueio por IA desligada tem UM texto só, e ele diz o que fazer.** Regra do Fábio
+   (07/09/2026): quando o analista pedir algo que precisa de IA e ela estiver DESLIGADA, a resposta
+   é sempre *"Os gastos com IA estão desligados. Solicite ao Administrador que libere gastos com IA
+   para usar esta função."* — constante `AVISO_IA_DESLIGADA` em `lib/constants.ts`, nunca frase
+   inventada por cada rota.
+
+   **Só vale para bloqueio por interruptor/orçamento.** Teto de RITMO ("20 páginas/hora", "limite
+   de chamadas/hora") continua dizendo "tente de novo daqui a pouco": ali pedir liberação não
+   adianta nada, o bloqueio se desfaz sozinho, e mandar o analista incomodar o Administrador por
+   algo que passa em uma hora é ruído que ensina a ignorar o aviso.
+
+   **O aviso vem ANTES de qualquer confirmação de custo.** Perguntar "confirma US$ 0,004?" e só
+   depois dizer que está desligado faz a pessoa aprovar um gasto que nunca poderia acontecer.
+
+   **Estado de hoje:** implementado nos dois pontos da Fase 8 do Organizador. O chat já tinha texto
+   equivalente por conta própria (`CHAT_DESLIGADO`) e será unificado na Fase 2. `lib/visao` é o
+   caso pior e **não foi tocado**: hoje ele degrada em SILÊNCIO — o campo do analista fica vazio e
+   ele não tem como saber que faltou liberar IA nem que existe alguém que destrava. Corrigir isso
+   é mudança de comportamento visível no Slot 5, que obriga a atualizar os dois manuais versionados
+   (`CLAUDE.md`), então entra como trabalho próprio na Fase 1 — não de passagem.
 6. **Transversal, nunca por slot.** Isto é infraestrutura como `lib/visao`: um código só serve os
    três slots. A regra de isolamento do `CLAUDE.md` vale para LIP/MAC, não para governança.
 
@@ -140,7 +160,9 @@ com o rótulo certo. Conferido com o script de interruptores, que passa a mostra
 ### Fase 1 — Teto global em dinheiro + falhar fechado *(1 sessão)*
 Um número, valendo para tudo, lido de `urbis_api_calls.custo_estimado_usd`. Protege os 12 pontos
 sem interruptor **sem precisar mexer em 12 arquivos** — é o maior retorno por esforço do plano
-inteiro. Junto, `lib/visao` passa a falhar fechado.
+inteiro. Junto, `lib/visao` passa a falhar fechado **e a dizer ao analista que está desligada**
+(§5.6) em vez de deixar o campo vazio sem explicação — com os dois manuais do Slot 5 atualizados na
+mesma sessão, como manda o `CLAUDE.md`.
 
 **Portão:** com o teto baixado a zero, nenhuma chamada nova acontece em nenhum módulo, e a tela
 diz por quê. Com o teto normal, nada muda no uso do dia a dia.
@@ -219,12 +241,12 @@ construído, seria trocar de assunto.
 | Fase | Sessões | % da fase | Estado |
 |---|---|---|---|
 | 0 — pontos cegos de registro | 1 | ⬜ 0% | não iniciada |
-| 1 — teto em dinheiro + falhar fechado | 1 | ⬜ 0% | não iniciada |
+| 1 — teto em dinheiro + falhar fechado | 1 | 🟡 10% | aviso padrão de "IA desligada" (§5.6) já implementado nos 2 pontos da Fase 8; falta o teto em si e o `lib/visao` |
 | 2 — fonte única de governança | 1 | ⬜ 0% | não iniciada |
 | 3 — hierarquia com prazo e motivo | 1-2 | ⬜ 0% | não iniciada |
 | 4 — painel no /admin | 1-2 | ⬜ 0% | não iniciada |
 | 5 — orçamento por usuário + "só eu" | 1 | ⬜ 0% | não iniciada |
-| **Total** | **6-8** | **0%** | planejamento fechado, aguardando D1-D4 |
+| **Total** | **6-8** | **≈2%** | planejamento fechado, aguardando D1-D4 |
 
 Regra herdada dos outros planos: esta tabela é atualizada a CADA commit deste projeto, no mesmo
 commit que leva o código — nunca depois.
@@ -246,6 +268,12 @@ commit que leva o código — nunca depois.
 ---
 
 **Histórico de versões**
+- v2 — 07/09/2026 — regra nova do Fábio (§5.6): bloqueio por IA desligada tem texto único, que diz
+  ao analista para solicitar liberação ao Administrador. Distinção acrescentada na conversa: vale
+  só para bloqueio por interruptor/orçamento — teto de ritmo continua dizendo "tente daqui a
+  pouco", porque ali pedir liberação não resolve nada. Implementado já nos dois pontos da Fase 8 do
+  Organizador (constante `AVISO_IA_DESLIGADA`), inclusive ANTES da confirmação de custo. `lib/visao`
+  fica para a Fase 1 por exigir atualização dos manuais do Slot 5.
 - v1 — 07/09/2026 — criado a partir do incidente do dia (interruptor do Gemini ligado em produção
   contra o que o plano de Documentos Vivos afirmava) e da ideia do Fábio de botões de liberação de
   gasto por módulo/slot/usuário. Auditoria real dos 15 pontos de chamada, 3 interruptores, 7 pontos

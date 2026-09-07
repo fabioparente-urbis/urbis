@@ -5,7 +5,7 @@ import { documentosVivosGeminiAtivo, documentosVivosRegularizacaoAtivo } from "@
 import { autorizar } from "@/lib/autorizacao";
 import { registrarChamadaIA } from "@/lib/iaUso";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { GEMINI_MODEL } from "@/lib/constants";
+import { GEMINI_MODEL, AVISO_IA_DESLIGADA } from "@/lib/constants";
 
 /**
  * POST /api/analise-regularizacao/documentos-sei/analisar-pendentes — Fase 8 do plano Documentos
@@ -47,11 +47,21 @@ export async function POST(req: NextRequest) {
   const [organizadorAtivo, geminiAtivo] = await Promise.all([
     documentosVivosRegularizacaoAtivo(), documentosVivosGeminiAtivo(),
   ]);
-  if (!organizadorAtivo || !geminiAtivo) {
+  /**
+   * Os DOIS bloqueios existem, mas dizem coisas diferentes ao analista (regra do Fábio,
+   * 07/09/2026 — `docs/URBIS_PLANO_GOVERNANCA_IA.md` §5):
+   * - Organizador desligado: a aba inteira não deveria estar visível. Não é assunto de gasto.
+   * - Gemini desligado: é gasto travado, e o analista precisa saber que existe alguém que
+   *   destrava — senão ele só vê "não funcionou" e não tem o que fazer com essa informação.
+   */
+  if (!organizadorAtivo) {
     return NextResponse.json(
-      { ok: false, erro: "Análise de páginas ambíguas (Gemini) ainda não está ativada." },
+      { ok: false, erro: "O Organizador de PDF SEI não está ativado para a Regularização." },
       { status: 403 },
     );
+  }
+  if (!geminiAtivo) {
+    return NextResponse.json({ ok: false, erro: AVISO_IA_DESLIGADA, iaDesligada: true }, { status: 403 });
   }
 
   const form = await req.formData();

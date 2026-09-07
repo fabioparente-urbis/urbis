@@ -30,6 +30,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument } from "pdf-lib";
+import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
 import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
@@ -378,6 +379,14 @@ export default function OrganizadorSeiAceite({
     if (!arquivo || !resultado) return;
     const paginas = paginasPendentes();
     if (!paginas.length) return;
+    /**
+     * Interruptor conferido ANTES de perguntar do custo (regra do Fábio, 07/09/2026 —
+     * `docs/URBIS_PLANO_GOVERNANCA_IA.md` §5). Perguntar "confirma US$ 0,004?" e só então dizer
+     * que está desligado faz o analista aprovar um gasto que nunca poderia acontecer, e não
+     * ensina nada. O servidor recusa de novo de qualquer jeito — isto aqui é para o analista,
+     * não para a segurança.
+     */
+    if (!geminiAtivo) { setErro(AVISO_IA_DESLIGADA); return; }
     const custo = estimarCustoUsd(paginas.length);
     if (!window.confirm(`Mandar ${paginas.length} página(s) pro Gemini? Custo estimado: US$ ${custo.toFixed(4)}.`)) return;
     setAnalisandoPendentes(true);
@@ -388,6 +397,9 @@ export default function OrganizadorSeiAceite({
       fd.append("paginas", JSON.stringify(paginas));
       const r = await fetch("/api/analise-aceite-sei/documentos-sei/analisar-pendentes", { method: "POST", body: fd });
       const j = await r.json();
+      // "IA desligada" é instrução, não falha: vai limpo, sem o prefixo "Falha ao..." que faria
+      // o analista ler como defeito do sistema em vez de algo que ele resolve pedindo liberação.
+      if (!j.ok && j.iaDesligada) { setErro(j.erro ?? AVISO_IA_DESLIGADA); return; }
       if (!j.ok) throw new Error(j.erro ?? "Falha ao analisar páginas ambíguas");
       const mapa: Record<number, string | null> = {};
       for (const item of j.resultados) mapa[item.pagina] = item.papel;
