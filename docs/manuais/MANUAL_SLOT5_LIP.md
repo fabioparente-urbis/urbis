@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.22
-**Data:** 2026-09-05
+**Versão:** 1.23
+**Data:** 2026-09-06
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1159,10 +1159,46 @@ nunca a de outro.
 
 ---
 
+## 23. Organizador de Documentos (06/09/2026)
+
+Painel novo na tela do LIP, exclusivo do Slot 5 (`ehSlot5`) — pedido do Fábio depois do projeto
+"Documentos Vivos" dos Slots 1/2 (Regularização/Aceite SEI, ver
+`docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md`), com uma correção importante dele mesmo: **não é
+fatiador**. O Slot 5 recebe os documentos como arquivos já separados numa pasta
+(`lib/lerPastaSlot5.ts`), não um PDF único mesclado do SEI como Regularização/Aceite — não existe
+o que fatiar aqui.
+
+`components/aprovacaoProjeto/OrganizadorSlot5.tsx`, renderizado em `ProcessoClient.tsx` logo ao
+lado dos Organizadores dos outros dois slots. **100% leitura sobre o MHD** (`GET /api/mhd?processo=`
+— a mesma rota que `abrirMHD` já usava para o modal de histórico): tabela por papel/versão/vigente/
+arquivo/data, com filtro "só vigente". Não reclassifica nada, não toca `lerPastaSlot5.ts`, não
+grava documento nem versão, não muda o fluxo de "LER PASTA" existente (nem o do LIP, nem o do MAC
+em `app/analise-aprovacao-projeto/[codigo]/page.tsx`).
+
+**"Abrir na íntegra"**: o arquivo nunca fica guardado no servidor (mesmo princípio dos outros dois
+slots) — o analista solta a pasta local de novo, dentro deste painel; cada `File` é casado por
+NOME com a linha vinda do MHD. PDF abre inteiro (nunca recortado) no mesmo visualizador
+`react-pdf` dos Slots 1/2; imagem abre com `<img>`; qualquer outro tipo (DWG/DXF/RAR — o Slot 5
+aceita todos, `lib/lerPastaSlot5.ts`) não tem visualizador no projeto, só "⬇ Baixar".
+
+**Mesmo procedimento do MHD que o Organizador de PDF SEI já usa** (pedido explícito do Fábio):
+toda vez que o painel é aberto, `POST /api/mac/slot-05/organizador-evento` grava 1 evento em
+`mhd_eventos` (`tipo: "documentos_organizados_slot5"`, só metadado — processo e quantos
+documentos existiam no momento) — aparece na pilha/histórico do `/admin/mhd`, igual às demais
+ações do módulo.
+
+**Verificado:** `tsc --noEmit` e `npm run build` limpos, rota nova aparece no build. Portão real
+(abrir com um processo do Slot 5 que já tenha documentos no MHD, soltar a pasta local de novo,
+confirmar abrir um PDF e baixar um arquivo não-PDF) ainda depende do Fábio testar pela tela — não
+tenho como logar como ele.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.23 | 2026-09-06 | Seção 23: **Organizador de Documentos** novo, exclusivo do Slot 5 — `components/aprovacaoProjeto/OrganizadorSlot5.tsx`, painel só-leitura sobre o MHD (`GET /api/mhd?processo=`), sem fatiamento (o Slot 5 já recebe arquivos separados, ao contrário dos Slots 1/2). "Abrir na íntegra" reaproveita o visualizador `react-pdf` dos outros slots; imagem via `<img>`; outros tipos (DWG/RAR) só "Baixar" — arquivo nunca sai do navegador do analista. Grava 1 evento de auditoria no MHD por abertura (`POST /api/mac/slot-05/organizador-evento`, `tipo: documentos_organizados_slot5`), mesmo procedimento do Organizador de PDF SEI dos Slots 1/2. Nenhum fluxo existente (LER PASTA do LIP ou do MAC) foi tocado. tsc/build limpos; portão real (testar com processo real) pendente do Fábio. Ver `MANUAL_SLOT5_MAC.md` v1.24 |
 | 1.22 | 2026-09-05 | Seção "Infra reaproveitável": `lib/visao/quadroAreas.ts` ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, mapeando as 5 chaves escalares de área da receita pro catálogo semântico novo (`lib/urbi/catalogoSemantico.ts`, Fase AA) — só tipo/mapeamento, receita continua `ativa: false`, nenhum PDF processado. Achado real da mesma fase, fora do Slot 5 mas testado contra processo real do Slot 5 (48533, 118 cruzamentos): `cruzamento.ts` (lib/urbi/) parou de vazar UUID de item MAC no campo exibido ao analista/Gemini — ganhou campo `rotulo` (nome do item) separado da `chave` interna (id, só dedupe). tsc + build limpos, scripts/testar_catalogo_semantico.mts novo (22 asserções) e scripts/testar_visao.mts/testar_quadro_areas.mts re-rodados sem regressão. Ver `MANUAL_SLOT5_MAC.md` v1.23 |
 | 1.21 | 2026-09-04 | Seção "Infra reaproveitável": receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lib/visao/receitas.ts) — 3ª receita do catálogo — mas com `Receita.ativa = false` (campo novo no tipo), e `executarVisao` (lib/visao/index.ts) passou a checar esse campo antes de orçamento/recorte, pulando a receita sempre que desativada. Nenhuma leitura de pasta chama Gemini por causa dela hoje; checklist de ativação em `CHECKLIST_ATIVACAO_VISAO` (lib/visao/quadroAreas.ts). Testado sem regressão: scripts/testar_visao.mts continua com as mesmas 11 falhas pré-existentes (nenhuma nova), scripts/testar_quadro_areas.mts com todas as asserções passando. Ver `MANUAL_SLOT5_MAC.md` v1.22 |
 | 1.20 | 2026-09-03 | Nenhuma mudança na tela nem em `processos.dados` do LIP. Registrado por conferência: motor de execução do MAC (`lib/mac-motor/slot5/`) ganhou um 4º arquétipo experimental isolado (`carimboMetadados.ts`) — extrai só metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título), sem gravar nada, sem tocar em campo do LIP, sem wiring a nenhuma tela. Ver `MANUAL_SLOT5_MAC.md` v1.21 |

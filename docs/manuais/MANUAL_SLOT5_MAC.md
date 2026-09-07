@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.23
-**Data:** 2026-09-05
+**Versão:** 1.24
+**Data:** 2026-09-06
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1294,6 +1294,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.24 | 2026-09-06 | Nenhuma mudança no motor/checklist do MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.23): painel novo **Organizador de Documentos** (lado LIP, `components/aprovacaoProjeto/OrganizadorSlot5.tsx`), só leitura sobre o MHD, sem fatiamento. A única peça que mora sob `/api/mac/slot-05/` é a rota nova `organizador-evento` — só grava 1 evento de auditoria (`mhd_eventos`) por abertura do painel, não toca `analises_mac`, checklist, nem a tela `app/analise-aprovacao-projeto/[codigo]/page.tsx` (o "LER PASTA (IA)" do MAC continua igual) |
 | 1.23 | 2026-09-05 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.22): `lib/visao/quadroAreas.ts` (lado LIP) ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, ligando a receita ao catálogo semântico novo `lib/urbi/catalogoSemantico.ts` (Fase AA, transversal aos 3 slots). `comparadorQuadroCarimbo.ts` (motor MAC) intocado |
 | 1.22 | 2026-09-04 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.21): a receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lado LIP, `lib/visao/receitas.ts`), ainda com `ativa: false`. `comparadorQuadroCarimbo.ts` (motor MAC, seção 4) continua separado de `lib/visao/quadroAreasComparacao.ts` (lado LIP) — esta rodada não uniu os dois |
 | 1.21 | 2026-09-03 | Seção 4.5: arquétipo 4 do motor piloto — `lib/mac-motor/slot5/experimental/carimboMetadados.ts`, biblioteca isolada e experimental (autorização explícita do Fábio), extrai metadado não pessoal do carimbo (número de projeto/prancha, escala, data, título) e compara consistência entre páginas. Sem `mac_item_id`, não gravado, não wired a nenhuma tela nem rota, nenhum arquivo existente alterado. `alturaDaEdificacao` cogitada e descartada por ambiguidade de qual cota extrair. Extração ainda não validada contra Gemini/documento real — só a lógica determinística tem teste |

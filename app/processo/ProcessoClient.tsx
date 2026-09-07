@@ -25,6 +25,10 @@ const OrganizadorSeiAceite = dynamic(
   () => import("@/components/aceiteSei/OrganizadorSeiAceite"),
   { ssr: false },
 );
+const OrganizadorSlot5 = dynamic(
+  () => import("@/components/aprovacaoProjeto/OrganizadorSlot5"),
+  { ssr: false },
+);
 
 /**
  * De onde veio o valor que está no formulário.
@@ -3011,6 +3015,9 @@ export default function ProcessoClient() {
       {idUrl && tipoUrl === "aceite_sei" && (
         <OrganizadorSeiAceite processoCodigo={idUrl} camposLipAtuais={d} onAceitarCampos={aceitarCamposOrganizador} />
       )}
+      {/* Organizador de Documentos — Slot 5, só leitura sobre o MHD (ver componente).
+          Não é fatiador: o Slot 5 já recebe arquivos separados, não um PDF único do SEI. */}
+      {idUrl && ehSlot5 && <OrganizadorSlot5 processoCodigo={idUrl} />}
 
       {/* BLOCO LIP */}
       <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
