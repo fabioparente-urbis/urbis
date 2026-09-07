@@ -1,6 +1,7 @@
 # Plano — URBI Assessor Ativo (processo aberto + Pilha) · todos os slots ativos
 
-**Data:** 07/09/2026 · **Versão:** v1 · **Estado:** planejamento, nada implementado ainda ·
+**Data:** 07/09/2026 · **Versão:** v2 · **Estado:** planejamento fechado (sinaleiro decidido),
+implementação da Fase 1 começando ·
 **Escopo:** todos os slots ativos (Regularização, Aceite SEI, Aprovação de Projeto) — URBI/BDI/
 Radar/Motor de Produção são módulos **satélite**, servem os três ao mesmo tempo por desenho; não
 há isolamento por slot a respeitar aqui como há em LIP/MAC.
@@ -43,23 +44,38 @@ real é **camada de apresentação + proatividade**, não motor novo.
 Mesma disciplina do plano de Documentos Vivos — decisão de UX/comportamento muda o desenho, não
 é opinião técnica.
 
-### D1 — O Vigia ganha só um badge, ou passa a abrir sozinho quando tem coisa grave?
-Você mesmo fixou a regra "nunca empurrar na cara" em 02/09. Um badge de severidade no cabeçalho
-FECHADO (ex.: "🔴 3 avisos") não quebra essa regra (ainda precisa clicar pra ver o conteúdo) — abrir
-sozinho, quebraria. Recomendo: **badge, não abertura automática** — mas é sua regra, sua decisão.
+### D1/D2/D4 — RESOLVIDAS (07/09/2026): o Sinaleiro do URBI
 
-### D2 — O chat abre sozinho com um resumo ao entrar no processo, ou só fica "com algo a dizer"?
-Hoje é 100% manual (botão ou Shift+U). Abrir sozinho ao entrar em CADA processo pode incomodar
-quem já conhece o caso. Alternativa: um indicador (ex.: ícone do URBI "aceso") quando há ação
-tier 1/2 pendente, sem abrir nada — o analista decide clicar.
+Decisão do Fábio, refinada nesta sessão: o ícone do URBI (já existe, sempre visível,
+`components/urbi/UrbiGlobal.tsx`) vira um **sinaleiro** — cor indica o tipo de intervenção
+pendente, sem nunca empurrar nada sozinho na tela:
 
-### D3 — Na Pilha, ordenar por urgência é o padrão da tela, ou fica como opção que o analista liga?
-Mudar o padrão da ordenação de uma tela que todo mundo já usa todo dia é mudança de hábito de
-verdade — vale decidir com cuidado, não só tecnicamente.
+- 🟢 **Verde — Sugerir.** Campo vazio com valor disponível pra preencher, comparar campos. Sem
+  pressa, é ajuda.
+- 🟡 **Amarelo — Corrigir/Revisar.** Algo já preenchido diverge do documento ou de outro
+  cruzamento (Vigia, `lib/urbi/cruzamento.ts`). Precisa de atenção.
+- 🔴 **Vermelho — Fiscalizar/bloqueante.** Ação tier 1 do Motor de Produção, alerta de
+  integridade, incoerência real. Trava a análise até resolver.
+- **Sem cor** — nada pendente (estado de hoje).
 
-### D4 — Generalizar a bolha de dica (`urbi:dica`) pra Vigia e Motor de Produção — todo aviso vira
-uma bolha temporária de 10s, ou os mais importantes merecem um lugar fixo na tela (não some
-sozinho)? Bolha é menos intrusiva; lugar fixo é mais fácil de não perder.
+Regras do sinaleiro:
+1. **Nunca acumula.** Um ícone, uma cor por vez — a de maior prioridade quando há mais de um tipo
+   (vermelho > amarelo > verde). Um número ao lado mostra quantos itens daquela cor existem.
+2. **Clicar nunca aplica nada sozinho** — só abre a lista dos itens daquela cor, com motivo e
+   fonte declarados (mesmo estilo do Vigia hoje). Aceitar uma sugestão continua sendo uma ação à
+   parte, item por item — clicar no sinaleiro é "deixa eu ver o que é", não "aceito tudo".
+3. **Cor + ícone/forma, nunca só cor** — acessibilidade (daltonismo).
+4. Item que o analista já viu e decidiu ignorar não volta a incomodar, a menos que o fato mude
+   (documento novo, campo alterado).
+
+Isso resolve D1 (Vigia sem quebrar a regra "nunca empurrar na cara" — o sinaleiro é indicador, não
+abertura forçada), D2 (chat "com algo a dizer" = a cor do sinaleiro) e D4 (generaliza `urbi:dica`
+substituindo a bolha avulsa por um estado persistente e sempre no mesmo lugar).
+
+### D3 — ainda em aberto: Na Pilha, ordenar por urgência é o padrão da tela, ou fica como opção
+que o analista liga? Mudar o padrão de uma tela que todo mundo usa todo dia é mudança de hábito
+de verdade — vale decidir com calma, não só tecnicamente. Fica pendente pra quando chegar na
+Fase 2.
 
 ---
 
@@ -85,13 +101,18 @@ sozinho)? Bolha é menos intrusiva; lugar fixo é mais fácil de não perder.
 
 Cada fase tem portão de saída — sem prova, não avança.
 
-### Fase 1 — Vigia com badge de severidade (processo aberto)
-Cabeçalho do Vigia, hoje sempre neutro/fechado, ganha uma cor/contagem calculada do que já é
-buscado no `useEffect` existente (nenhuma consulta nova) — ex.: "🔎 Vigia do processo · 🔴 3
-avisos". Continua fechado por padrão (D1). Zero custo, mudança pequena e de baixo risco.
+### Fase 1 — O Sinaleiro (ícone do URBI ganha cor, processo aberto)
+Base de tudo que vem depois. `components/urbi/UrbiGlobal.tsx` já tem o ícone fixo na tela — ganha
+um pequeno "farol" (cor + forma, nunca só cor) calculado a partir do que já é buscado hoje sem
+custo novo: Vigia (`/api/bdi/vigia`, já dispara sozinho no `useEffect`) e, quando há processo em
+contexto, o relatório do Motor de Produção. Prioridade fixa vermelho > amarelo > verde, nunca mais
+de uma cor ao mesmo tempo, número do lado mostrando quantos itens. Clicar abre uma lista curta
+(motivo + fonte de cada item, mesmo estilo do Vigia) — nunca aplica nada sozinho. O cabeçalho do
+Vigia em si continua fechado por padrão (a regra de 02/09 não muda); o sinaleiro é quem avisa que
+vale abrir.
 
-**Portão:** processo com avisos reais mostra a contagem certa no cabeçalho fechado; processo sem
-avisos não mostra nada (nunca "0 avisos" alarmista à toa).
+**Portão:** processo com avisos reais mostra a cor e a contagem certas; processo limpo fica sem
+cor (nunca "tudo verde" alarmista à toa). Cores nunca se acumulam — sempre uma só, a mais urgente.
 
 ### Fase 2 — Pilha ativa: esforço e alertas do Radar na tela `/processos`
 A tela da Pilha passa a ler `urbi_radar_retratos` (mesma fonte que já alimenta as perguntas do
@@ -102,13 +123,13 @@ Radar; só leitura do que ele já grava a cada ~1 min.
 **Portão:** ordenar a Pilha por "esforço" bate com o que a pergunta "mais perto de emitir?" no
 chat já responde pros mesmos processos — mesma fonte, mesma resposta, sem divergência.
 
-### Fase 3 — Aviso proativo generalizado (Vigia + Motor de Produção → bolha)
-Generaliza o mecanismo `urbi:dica` (hoje só usado pra histórico de Responsável Técnico): quando o
-processo abre e o Motor de Produção tem ação tier 1 (bloqueante) ou o Vigia acha incoerência real,
-dispara a mesma bolha de 10s — sem abrir o chat inteiro. Depende de D2/D4.
+### Fase 3 — Sinaleiro cobre também o histórico de Responsável Técnico
+Hoje o único aviso genuinamente proativo do sistema é a bolha `urbi:dica` (só pra histórico de
+RT). Esta fase migra essa dica pra dentro do sinaleiro (cor amarela, mesmo critério de hoje) em
+vez de uma bolha avulsa de 10s que pode passar despercebida — fica persistente até o analista ver.
 
-**Portão:** processo com pendência bloqueante real mostra a bolha ao abrir; processo limpo não
-mostra nada (nunca bolha vazia).
+**Portão:** preencher um RT com histórico relevante acende o sinaleiro amarelo, com o mesmo dado
+que a bolha antiga mostrava; nada se perde na migração.
 
 ### Fase 4 — Chat abre já sabendo do processo (resumo automático ao abrir, não ao digitar)
 Hoje o relatório do Motor de Produção só aparece depois que o analista manda uma mensagem. Passa
@@ -200,3 +221,14 @@ sessões estimadas e o prazo em dois ritmos de referência.
 - Zero chamada de IA nova até a Fase 8 ser explicitamente decidida.
 - `tsc`/`build` limpos a cada fase, commit por fase, tabela de progresso atualizada no mesmo
   commit — mesma disciplina do plano de Documentos Vivos.
+
+---
+
+**Histórico de versões**
+- v1 — 07/09/2026 — criado, a partir de auditoria real (2 agentes) do que já existe (Vigia,
+  dossiê, Motor de Produção, Radar, perguntas da Pilha, `urbi:dica`). D1-D4 abertas.
+- v2 — 07/09/2026 — D1/D2/D4 fechadas: o ícone do URBI vira um **sinaleiro** (🟢 sugerir / 🟡
+  corrigir-revisar / 🔴 fiscalizar-bloqueante), sempre uma cor só, número junto, clicar só abre a
+  lista — nunca aplica sozinho. Ideia e cores do próprio Fábio (sinaleiro de trânsito), refinada
+  na sessão. Fases 1 e 3 reescritas em torno do sinaleiro. D3 (ordenação padrão da Pilha) segue
+  aberta, decidir na Fase 2.
