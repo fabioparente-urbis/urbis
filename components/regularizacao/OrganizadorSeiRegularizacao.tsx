@@ -37,6 +37,7 @@ import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/do
 import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
+import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
   vigente: "🟢 Vigente",
@@ -316,6 +317,11 @@ export default function OrganizadorSeiRegularizacao({
     setBaixando(alvo.chave);
     try {
       const bytesOriginal = await arquivo.arrayBuffer();
+      // Data + hash curto do PDF de ORIGEM no nome (07/09/2026, ver hashOrigem.ts): sem isso, o
+      // recorte avulso é o pior caso do princípio §5.7 ("todo documento derivado nasce
+      // rastreável") — nenhum manifesto o acompanha, e dois recortes com o mesmo título baixados
+      // dias depois, de um PDF do SEI diferente, ficavam com o MESMO nome de arquivo.
+      const hashOrigem = await hashCurtoOrigem(bytesOriginal);
       const origem = await PDFDocument.load(bytesOriginal);
       const novo = await PDFDocument.create();
       const indices: number[] = [];
@@ -327,7 +333,7 @@ export default function OrganizadorSeiRegularizacao({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${resultado?.numeroProcesso ?? processoCodigo} - ${alvo.titulo}.pdf`;
+      a.download = `${resultado?.numeroProcesso ?? processoCodigo} - ${alvo.titulo} - ${dataParaNomeArquivo()} - ${hashOrigem}.pdf`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -348,10 +354,10 @@ export default function OrganizadorSeiRegularizacao({
     setGerandoPacote(true);
     try {
       const estados = resolverEstados(resultado.eventos);
-      const blob = await gerarPacoteVigente({
+      const { blob, nomeArquivo } = await gerarPacoteVigente({
         arquivo, numeroProcesso: resultado.numeroProcesso, eventos: resultado.eventos, estados,
       });
-      baixarBlob(blob, `Pacote vigente - ${resultado.numeroProcesso}.zip`);
+      baixarBlob(blob, nomeArquivo);
     } catch (e: any) {
       setErro(`Falha ao gerar o pacote vigente: ${e?.message ?? e}`);
     } finally {

@@ -1,6 +1,6 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 07/09/2026 · **Versão:** v20 · **Estado:** Fases 0-8 + Passo 0 executados no código
+**Data:** 07/09/2026 · **Versão:** v21 · **Estado:** Fases 0-8 + Passo 0 executados no código
 (ver §15-§22) — ≈76% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
 padrão, nenhuma mudança no fluxo existente. **Auditoria independente de 07/09/2026 ZERADA (§23):
 todo achado ou foi corrigido, ou recusado por escrito com motivo. Saldo: 2 defeitos graves, 4
@@ -1119,7 +1119,37 @@ consumidor externo, e mexer nisso é risco sem retorno num código em produção
 produção (§22) — exige acesso ao banco. Fecha com um `SELECT` de dez segundos, e fica registrado
 como pendência do Fábio, não como achado em aberto.
 
-### 23.7 — Ferramenta nova: conferência dos portões sem clicar processo por processo
+### 23.7 — Corrigido: pacote e recorte não se distinguiam pelo nome do arquivo
+Achado numa conversa com o Fábio, fora da auditoria original. O pacote vigente e o recorte avulso
+sempre baixavam com o MESMO nome (`Pacote vigente - <processo>.zip`,
+`<processo> - <título>.pdf`). O Fábio confirmou o que já estava decidido desde a Fase 2 (§16): os
+arquivos derivados **ficam guardados no dispositivo do analista**, nunca somem — o URBIS só guarda
+dados e metadados, para economizar espaço, por decisão explícita dele. Isso torna o problema maior,
+não menor: baixar o mesmo pacote duas vezes, dias depois, com um PDF do SEI diferente (documento
+novo entrou no processo), produzia dois arquivos **indistinguíveis pelo nome**, acumulados na pasta
+do analista sem forma de saber qual é qual sem abrir os dois. O recorte avulso era o caso pior: nem
+manifesto o acompanha.
+
+Feria o princípio §5.7 pela metade: o manifesto já tinha a DATA de geração, mas nada dizia DE QUAL
+PDF de origem aquele pacote específico veio.
+
+Corrigido com `lib/documentosSei/hashOrigem.ts` (novo, só cliente, `crypto.subtle` — SHA-256 dos
+bytes do PDF de origem, 8 caracteres). Pacote e recorte agora nomeiam com data + hash curto:
+
+```
+Pacote vigente - 25.5.000012012-9 - 2026-09-07 - 8beb5fce.zip
+25.5.000012012-9 - Despacho 1600 - 2026-09-07 - 8beb5fce.pdf
+```
+
+`gerarManifestoPdf` ganhou um terceiro parâmetro obrigatório com o mesmo hash, mostrado no
+cabeçalho ao lado da data. Testado: dois pacotes do mesmo processo com o mesmo PDF de origem saem
+com o MESMO hash; PDFs diferentes, hash diferente. Não é o hash de identidade de documento do
+Passo 0 (esse é sobre o texto extraído + Nº SEI, no servidor) — este é só um rótulo estável para o
+nome do arquivo, calculado no navegador, sem enviar nada a lugar nenhum.
+
+`tsc`/`build` limpos. Paridade Slot 1 × Slot 2 conferida nos trechos novos.
+
+### 23.8 — Ferramenta nova: conferência dos portões sem clicar processo por processo
 `scripts/conferir_documentos_sei.mts` (novo). Roda o pipeline inteiro — fatiador, peças, motor de
 versões — sobre PDFs locais e imprime UMA tabela por processo: índice de eventos com Nº SEI, estado
 e departamento; peças achadas dentro de cada contêiner; páginas em revisão agrupadas por motivo; e
@@ -1136,7 +1166,7 @@ e 3) são conferência de índice e de taxa — trabalho que fica muito mais bar
 que clicando pela tela. **Não substitui** os portões das Fases 2, 5 e 7, que são de uso real pela
 tela e continuam abertos.
 
-### 23.8 — Efeito no `%` do §12
+### 23.9 — Efeito no `%` do §12
 **Nenhum portão humano foi fechado, então nenhum `%` subiu.** O que mudou é a qualidade do que já
 estava contado: o portão da Fase 4 e o da Fase 7 agora se apoiam em código que faz o que diz —
 antes, os 60% e os 90% descansavam sobre um motor que podia eleger o documento errado e sobre uma
@@ -1229,6 +1259,12 @@ dedup que colidia justamente nos documentos mais comuns dos processos reais. O t
   código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
   live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.
+- v21 — 07/09/2026 — **arquivos derivados ganharam identidade no nome** (§23.7), achado numa
+  conversa com o Fábio: pacote vigente e recorte avulso sempre baixavam com o mesmo nome, e como os
+  arquivos ficam guardados no dispositivo do analista (decisão dele, não do código), dois pacotes
+  do mesmo processo, gerados dias depois com um PDF do SEI diferente, eram indistinguíveis. Agora
+  levam data + hash curto do PDF de origem (`lib/documentosSei/hashOrigem.ts`, novo) no nome e no
+  cabeçalho do manifesto. `tsc`/`build` limpos.
 - v20 — 07/09/2026 — **auditoria ZERADA** (§23.6-§23.7): fechados todos os achados que a v19
   tinha deixado em aberto. Fase 8 ganhou o CACHE que o §6 prometia e não existia (reaproveitando
   `mhd_interpretacoes_visao`, sem tabela nova nem migration) e um TETO GLOBAL de 200 páginas/hora —

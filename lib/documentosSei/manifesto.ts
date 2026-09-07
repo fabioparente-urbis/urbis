@@ -51,7 +51,17 @@ function quebrarLinhas(texto: string, fonte: PDFFont, tamanho: number, larguraMa
  * item (título, ID SEI, páginas, estado, confiança, motivo — motivo quebra em várias linhas
  * quando precisa). Pagina automaticamente quando o conteúdo não cabe mais.
  */
-export async function gerarManifestoPdf(numeroProcesso: string, itens: ItemManifesto[]): Promise<Uint8Array> {
+/**
+ * `hashOrigem` (8 hex, ver `hashOrigem.ts`) identifica de qual PDF ESTE manifesto veio — sem ele,
+ * dois manifestos do mesmo processo, gerados dias depois com um PDF diferente do SEI, teriam o
+ * cabeçalho idêntico exceto pela hora. Acrescentado em 07/09/2026: o princípio §5.7 do plano pede
+ * "todo documento derivado nasce rastreável", e faltava dizer DE ONDE o pacote veio, não só QUANDO.
+ */
+export async function gerarManifestoPdf(
+  numeroProcesso: string,
+  itens: ItemManifesto[],
+  hashOrigem: string,
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const fonteNormal = await doc.embedFont(StandardFonts.Helvetica);
   const fonteNegrito = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -69,9 +79,10 @@ export async function gerarManifestoPdf(numeroProcesso: string, itens: ItemManif
 
   pagina.drawText("Manifesto Documental", { x: MARGEM, y, size: 16, font: fonteNegrito, color: COR_TITULO });
   y -= 22;
-  pagina.drawText(`Processo ${numeroProcesso} · gerado em ${new Date().toLocaleString("pt-BR")}`, {
-    x: MARGEM, y, size: 9, font: fonteNormal, color: COR_TEXTO,
-  });
+  pagina.drawText(
+    `Processo ${numeroProcesso} · gerado em ${new Date().toLocaleString("pt-BR")} · PDF de origem ${hashOrigem}`,
+    { x: MARGEM, y, size: 9, font: fonteNormal, color: COR_TEXTO },
+  );
   y -= 12;
   pagina.drawText(`${itens.length} documento(s)`, { x: MARGEM, y, size: 9, font: fonteNormal, color: COR_TEXTO });
   y -= 20;

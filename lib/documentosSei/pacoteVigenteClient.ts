@@ -14,6 +14,7 @@
 import { PDFDocument } from "pdf-lib";
 import JSZip from "jszip";
 import { gerarManifestoPdf, type ItemManifesto } from "./manifesto";
+import { hashCurtoOrigem, dataParaNomeArquivo } from "./hashOrigem";
 import type { ResolucaoVersao } from "./motorVersoes";
 
 export type ItemPacote = {
@@ -32,17 +33,22 @@ function nomeArquivo(titulo: string, idSei: string): string {
  * `estados` vem de `resolverEstados` (Fase 4) — chave por `idSei`. Item sem resolução (não
  * deveria acontecer, mas nunca quebra) entra no manifesto como pendência, nunca é descartado.
  */
+export type PacoteVigente = { blob: Blob; nomeArquivo: string };
+
 export async function gerarPacoteVigente(args: {
   arquivo: File;
   numeroProcesso: string;
   eventos: ItemPacote[];
   estados: ResolucaoVersao[];
-}): Promise<Blob> {
+}): Promise<PacoteVigente> {
   const { arquivo, numeroProcesso, eventos, estados } = args;
   const estadoPorIdSei = new Map(estados.map((e) => [e.idSei, e]));
 
   const bytesOriginal = await arquivo.arrayBuffer();
   const origem = await PDFDocument.load(bytesOriginal);
+  // Identidade do PDF de origem — ver hashOrigem.ts. Calculado uma vez, usado no nome do zip E no
+  // cabeçalho do manifesto, pra dois pacotes do mesmo processo nunca ficarem indistinguíveis.
+  const hashOrigem = await hashCurtoOrigem(bytesOriginal);
 
   const zip = new JSZip();
   const itensManifesto: ItemManifesto[] = [];
@@ -70,10 +76,12 @@ export async function gerarPacoteVigente(args: {
     });
   }
 
-  const manifestoBytes = await gerarManifestoPdf(numeroProcesso, itensManifesto);
+  const manifestoBytes = await gerarManifestoPdf(numeroProcesso, itensManifesto, hashOrigem);
   zip.file("00_Manifesto_Documental.pdf", manifestoBytes);
 
-  return zip.generateAsync({ type: "blob" });
+  const blob = await zip.generateAsync({ type: "blob" });
+  const nomeDoPacote = `Pacote vigente - ${numeroProcesso} - ${dataParaNomeArquivo()} - ${hashOrigem}.zip`;
+  return { blob, nomeArquivo: nomeDoPacote };
 }
 
 export function baixarBlob(blob: Blob, nomeArquivo: string) {
