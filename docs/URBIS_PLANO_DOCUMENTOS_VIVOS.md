@@ -933,9 +933,26 @@ Continuação da mesma sessão. Implementado "Gemini, e só aqui":
   `classificacao_pendente`; `window.confirm` mostra o custo estimado antes de mandar; resultado
   vira lista de sugestão por página — **nunca aplicado sozinho** nas peças, o analista decide.
 
-**Verificado:** `tsc --noEmit`, `npm run build` limpos (rotas novas aparecem no build); confirmado
-que `documentos_vivos_gemini_ativo` está `false` em produção agora — nenhum clique possível ainda,
-zero chamadas.
+**Verificado:** `tsc --noEmit`, `npm run build` limpos (rotas novas aparecem no build).
+
+⚠️ **A frase que estava aqui — "confirmado que `documentos_vivos_gemini_ativo` está `false` em
+produção agora" — era FALSA quando conferida de verdade, em 07/09/2026.** O interruptor estava
+`true` em produção, e o botão pago esteve clicável nos dois slots por dias. Ninguém clicou (zero
+chamadas em `urbis_api_calls`, custo zero), mas a afirmação escrita aqui era o oposto do fato. Foi
+o achado de maior custo potencial da auditoria, e só apareceu porque o Fábio insistiu em rodar o
+comando que a auditoria tinha classificado como "não verificável por uma sessão de IA".
+
+**Lição registrada:** estado de produção não se AFIRMA num documento — documento envelhece e
+ninguém revisa. Estado de produção se CONSULTA. Por isso o texto acima não foi substituído por
+outra afirmação, e sim pelo comando que responde:
+
+```
+npx tsx --env-file=.env.local scripts/conferir_interruptores_ia.mts
+```
+
+Ele mostra os interruptores das DUAS tabelas de configuração (`urbis_config`, com colunas, e
+`urbi_config`, chave/valor — nomes quase idênticos, e olhar só uma foi parte do problema), marca em
+vermelho os que gastam dinheiro e imprime o gasto real dos últimos 30 dias.
 
 **Não testado (não dá pra testar sem gastar dinheiro de verdade):** a chamada real ao Gemini —
 fica pra quando o Fábio ligar o interruptor e testar pela tela.
