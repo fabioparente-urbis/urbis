@@ -159,13 +159,21 @@ export default function OrganizadorSeiRegularizacao({
   const [gerandoPacote, setGerandoPacote] = useState(false);
   const [analisandoPendentes, setAnalisandoPendentes] = useState(false);
   const [sugestoesGemini, setSugestoesGemini] = useState<Record<number, string | null> | null>(null);
+  const [geminiAtivo, setGeminiAtivo] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelado = false;
     fetch("/api/admin/config")
       .then((r) => (r.ok ? r.json() : { ok: false }))
-      .then((j) => { if (!cancelado) setAtivo(!!j?.data?.documentos_vivos_regularizacao_ativo); })
+      .then((j) => {
+        if (cancelado) return;
+        setAtivo(!!j?.data?.documentos_vivos_regularizacao_ativo);
+        // Fase 8: aviso recorrente enquanto o Gemini estiver ligado (gasta dinheiro real por
+        // página) — pedido explícito do Fábio (06/09/2026): não deixar isso passar despercebido.
+        // Reaparece toda vez que a tela é aberta, não só uma vez por sessão.
+        setGeminiAtivo(!!j?.data?.documentos_vivos_gemini_ativo);
+      })
       .catch(() => { if (!cancelado) setAtivo(false); });
     return () => { cancelado = true; };
   }, []);
@@ -405,6 +413,14 @@ export default function OrganizadorSeiRegularizacao({
           {aberto ? "Fechar" : "Abrir"}
         </button>
       </div>
+
+      {geminiAtivo && (
+        <p className="mt-3 text-xs text-[var(--warning)] bg-[var(--warning-bg)] rounded p-2">
+          💰 "Analisar páginas ambíguas (Gemini)" está LIGADO — cada clique gasta dinheiro real
+          (cobrado por token/página). Desligue em <code>urbis_config.documentos_vivos_gemini_ativo</code>{" "}
+          quando não precisar mais.
+        </p>
+      )}
 
       {aberto && (
         <div className="mt-4">
