@@ -257,7 +257,9 @@ export default function OrganizadorSeiRegularizacao({
       const fd = new FormData();
       fd.append("arquivo", f, f.name);
       fd.append("processo_codigo", processoCodigo);
-      const r = await fetch("/api/analise-regularizacao/documentos-sei", { method: "POST", body: fd });
+      // processo_codigo também na query string: deixa o servidor autorizar ANTES de ler o PDF
+      // inteiro (§23.6 da auditoria). O corpo continua mandando o mesmo valor.
+      const r = await fetch(`/api/analise-regularizacao/documentos-sei?processo_codigo=${encodeURIComponent(processoCodigo)}`, { method: "POST", body: fd });
       if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
 
       const leitor = r.body.getReader();
@@ -277,6 +279,10 @@ export default function OrganizadorSeiRegularizacao({
           erroFluxo = ev.erro || "Falha ao organizar o PDF";
         } else if (ev.tipo === "resultado") {
           dados = ev as ResultadoFatiamento;
+        } else if (ev.tipo === "persistencia") {
+          // linha separada de propósito: o índice chega antes da gravação, então uma gravação
+          // lenta (ou que falhe) nunca custa o resultado na tela. Ver §23.6 do plano.
+          if (dados) dados.persistencia = ev.persistencia ?? null;
         }
       };
 

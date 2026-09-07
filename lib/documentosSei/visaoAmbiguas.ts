@@ -11,7 +11,9 @@
  * Devolve só PROPOSTA — nunca troca `classificacao_pendente` sozinho. Quem decide é o analista,
  * na tela, por página.
  */
+import { createHash } from "crypto";
 import { recortar } from "@/lib/visao/rasterizar";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { GEMINI_MODEL } from "@/lib/constants";
 import type { PapelPeca } from "./pecas";
 
@@ -49,7 +51,70 @@ export type ResultadoClassificacaoAmbigua = {
   tokensSaida: number;
   custoUsd: number;
   ms: number;
+  /** veio do cache — não rasterizou, não chamou o Gemini, não custou nada */
+  reaproveitada: boolean;
 };
+
+/**
+ * CACHE (§6 Fase 8 do plano: "cache por conteúdo+receita+modelo"). Acrescentado em 07/09/2026 —
+ * a auditoria (§23.6) achou que a Fase 8 tinha entregue o interruptor e o teto, mas NÃO o cache,
+ * e sem ele reclassificar a mesma página paga de novo.
+ *
+ * Reaproveita `mhd_interpretacoes_visao`, que já existe e foi desenhada exatamente para isto
+ * ("global por hash de conteúdo: o mesmo recorte do mesmo PDF não é reinterpretado nem repago, em
+ * nenhum processo"). Nenhuma tabela nova, nenhuma migration — e a chave única da tabela
+ * (hash_documento, pagina, regiao_hash, receita_hash, modelo) é exatamente a chave que este caso
+ * precisa. Linhas do Slot 5 e daqui nunca se confundem porque o `receita_hash` é diferente.
+ *
+ * O hash é do PDF INTEIRO, calculado UMA vez por requisição, e não da imagem da página: assim a
+ * consulta ao cache acontece ANTES de rasterizar, que é justamente o trabalho caro que o cache
+ * existe pra evitar.
+ */
+const REGIAO = { x0: 0, y0: 0, x1: 1, y1: 1, alvoPx: 1024 };
+const RECEITA_VERSAO = 1;
+
+function sha256(s: string | Uint8Array): string {
+  return createHash("sha256").update(s as any).digest("hex");
+}
+
+const REGIAO_HASH = sha256(JSON.stringify(REGIAO));
+/** Muda o prompt ou a lista de papéis válidos, muda o hash — cache antigo é ignorado, nunca reusado errado. */
+const RECEITA_HASH = sha256(`documentos_sei_paginas_ambiguas|v${RECEITA_VERSAO}|${PROMPT}|${PAPEIS_VALIDOS.join(",")}|${JSON.stringify(REGIAO)}`);
+
+/** SHA-256 do PDF inteiro — a identidade do conteúdo, uma vez por requisição. */
+export function hashPdf(pdf: Uint8Array): string {
+  return sha256(pdf);
+}
+
+async function doCache(hashDocumento: string, pagina: number): Promise<{ papel: PapelPeca | null; bruto: string } | null> {
+  const { data, error } = await supabase
+    .from("mhd_interpretacoes_visao")
+    .select("valores,bruto,abstencao")
+    .eq("hash_documento", hashDocumento).eq("pagina", pagina)
+    .eq("regiao_hash", REGIAO_HASH).eq("receita_hash", RECEITA_HASH).eq("modelo", GEMINI_MODEL)
+    .order("criado_em", { ascending: false }).limit(1).maybeSingle();
+  if (error || !data) return null;
+  const d = data as any;
+  const candidato = String(d.valores?.papel ?? "");
+  return {
+    papel: (PAPEIS_VALIDOS as string[]).includes(candidato) ? (candidato as PapelPeca) : null,
+    bruto: d.bruto ?? "",
+  };
+}
+
+/** Falha ao gravar cache nunca derruba a classificação — só significa que a próxima vez paga de novo. */
+async function gravarCache(
+  hashDocumento: string, pagina: number,
+  r: { papel: PapelPeca | null; bruto: string; custoUsd: number; ms: number },
+): Promise<void> {
+  const { error } = await supabase.from("mhd_interpretacoes_visao").insert({
+    hash_documento: hashDocumento, pagina, regiao: REGIAO, regiao_hash: REGIAO_HASH,
+    receita_versao: RECEITA_VERSAO, receita_hash: RECEITA_HASH, modelo: GEMINI_MODEL,
+    abstencao: r.papel === null, valores: { papel: r.papel }, bruto: r.bruto,
+    custo_ia: r.custoUsd, ms_modelo: Math.round(r.ms),
+  });
+  if (error) console.error("[documentos-sei/visao] cache não gravado:", error.message);
+}
 
 /**
  * `pagina1Based` é a posição no PDF INTEIRO (1-based, mesma convenção de `EventoSei`/`PecaSei`) —
@@ -58,9 +123,22 @@ export type ResultadoClassificacaoAmbigua = {
 export async function classificarPaginaAmbigua(
   pdf: Uint8Array,
   pagina1Based: number,
+  hashDocumento: string,
 ): Promise<ResultadoClassificacaoAmbigua> {
   const t0 = performance.now();
-  const recorte = await recortar(pdf, { pagina: pagina1Based - 1, x0: 0, y0: 0, x1: 1, y1: 1, alvoPx: 1024 });
+
+  // cache ANTES de rasterizar: reaproveitar não custa nada, então vem antes de qualquer trabalho
+  // caro — mesma ordem (e mesmo motivo) de `lib/visao/index.ts`.
+  const guardado = await doCache(hashDocumento, pagina1Based);
+  if (guardado) {
+    return {
+      pagina: pagina1Based, papel: guardado.papel, bruto: guardado.bruto,
+      tokensEntrada: 0, tokensSaida: 0, custoUsd: 0, ms: performance.now() - t0,
+      reaproveitada: true,
+    };
+  }
+
+  const recorte = await recortar(pdf, { pagina: pagina1Based - 1, ...REGIAO });
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
@@ -100,5 +178,7 @@ export async function classificarPaginaAmbigua(
     // resposta fora do formato esperado — fica sem papel, nunca chuta a partir de texto solto
   }
 
-  return { pagina: pagina1Based, papel, bruto, tokensEntrada, tokensSaida, custoUsd, ms: performance.now() - t0 };
+  const ms = performance.now() - t0;
+  await gravarCache(hashDocumento, pagina1Based, { papel, bruto, custoUsd, ms });
+  return { pagina: pagina1Based, papel, bruto, tokensEntrada, tokensSaida, custoUsd, ms, reaproveitada: false };
 }

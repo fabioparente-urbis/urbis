@@ -1,11 +1,13 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 07/09/2026 · **Versão:** v19 · **Estado:** Fases 0-8 + Passo 0 executados no código
+**Data:** 07/09/2026 · **Versão:** v20 · **Estado:** Fases 0-8 + Passo 0 executados no código
 (ver §15-§22) — ≈76% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
-padrão, nenhuma mudança no fluxo existente. **Auditoria independente em 07/09/2026 achou e
-corrigiu 2 defeitos graves, 2 divergências entre documentação e código e 2 bugs de interação
-revelados pelas próprias correções (§23); a divergência tela × banco dos contêineres foi decidida
-por você e corrigida (§23.5). Nenhum portão humano foi fechado por ela.** Restam as conferências
+padrão, nenhuma mudança no fluxo existente. **Auditoria independente de 07/09/2026 ZERADA (§23):
+todo achado ou foi corrigido, ou recusado por escrito com motivo. Saldo: 2 defeitos graves, 4
+divergências documentação × código, 2 bugs de interação revelados pelas correções, 1 achado da
+própria auditoria retirado por estar errado, e 1 achado que só o Fábio fecha (um `SELECT`).
+Nenhum portão humano foi fechado — eles seguem sendo o que de fato falta**, e agora têm ferramenta
+própria de conferência (§23.7). Restam as conferências
 humanas pela tela (portões finais de cada fase) e, opcionalmente, a persistência real equivalente
 pro Slot 5 (fora do escopo deste plano — conversa própria) ·
 **Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
@@ -1041,20 +1043,83 @@ falso, e visível na tela. `agruparFamilias` agora unifica fragmentos pelo `idSe
 somando o intervalo de páginas e recuperando o título real do fragmento que o tem. Corrige tela e
 persistência de uma vez só, porque as duas passam pela mesma função. Testado.
 
-### 23.6 — Achados menores, não corrigidos (ficam registrados)
-- **Fase 8 entregou 1 dos 3 controles de custo do §6.** A rota tem teto por processo (20/hora),
-  mas **não tem teto por usuário nem cache**, e o §6 prometeu os três, citando `lib/visao/index.ts`
-  como modelo — que tem `TETO_POR_PROCESSO`, `TETO_POR_USUARIO` e cache. Sem teto por usuário o
-  limite por processo não limita o gasto total (20 páginas/hora × N processos).
-- **Persistência em série, sem transação, dentro de `maxDuration = 120`.** Centenas de idas ao
-  banco em sequência, sem progresso na tela nesse trecho; se estourar o tempo, o analista perde o
-  resultado e as gravações já feitas ficam pela metade, sem registro disso.
-- **`autorizar()` roda depois de o multipart de até 350 MB já ter sido consumido** nas duas rotas.
-- **Dedup olha só a última versão** (`limit(1)`): reimportar um PDF mais antigo cria versão nova.
-- **Não verificável nesta sessão:** que `documentos_vivos_gemini_ativo` esteja `false` em produção
-  (§22) — exige acesso ao banco. Fica como não-verificado, não como errado.
+### 23.6 — Segunda rodada: os achados menores, fechados (07/09/2026)
+Decidido zerar a auditoria: **todo achado ou está corrigido, ou está recusado por escrito com
+motivo.** Recusar é forma legítima de fechar; esquecer não é. O que a primeira rodada deixou
+aberto, item a item:
 
-### 23.7 — Efeito no `%` do §12
+**Custo (M2, B1, B2) — corrigido.**
+- **Cache**, que o §6 prometeu e a Fase 8 não tinha entregue: reaproveita
+  `mhd_interpretacoes_visao`, tabela que já existe e foi desenhada exatamente para isto ("global
+  por hash de conteúdo: o mesmo recorte do mesmo PDF não é reinterpretado nem repago"). **Sem
+  tabela nova, sem migration.** Chave = hash do PDF + página + região + receita + modelo; o hash é
+  do PDF inteiro e sai UMA vez por requisição, para a consulta ao cache acontecer ANTES de
+  rasterizar, que é o trabalho caro. Mudar o prompt muda o `receita_hash` e invalida o cache — nunca
+  reusa resposta de uma pergunta diferente. Página vinda do cache não custa e não consome teto.
+- **Teto global de 200 páginas/hora**, somando processos e usuários. Aqui houve **desvio consciente
+  do que a sessão tinha proposto** (teto por usuário, como `lib/visao`): `urbis_api_calls` não tem
+  coluna de usuário, e acrescentá-la é migration numa tabela que TODO o registro de IA usa (LIP
+  s2/s3, visão do Slot 5). O objetivo aqui é teto de gasto, não repartição justa entre analistas —
+  e um teto global entrega isso sem tocar em schema. Ordem de grandeza: ~US$ 0,0008/página, logo
+  200/hora é ~US$ 0,17/h no pior caso. O teto não existe para economizar centavos, e sim para que
+  um laço com defeito não vire conta de verdade. Se um dia houver muitos analistas concorrendo, aí
+  vale a coluna e o teto por usuário.
+- **Teto reconferido a cada página** (B1), não só uma vez no início: não elimina a corrida entre
+  dois cliques simultâneos, mas encolhe a janela de "um lote" para "uma página".
+- **Lista de páginas validada** (B2): inteiro positivo, sem repetição (página repetida pagava duas
+  vezes), e conferida contra o total real de páginas do PDF depois de aberto — antes, página fora
+  do intervalo virava erro de rasterizador registrado como chamada de IA.
+
+**Robustez da persistência (M5, B5) — corrigido.**
+- A tela recebe o índice **antes** de qualquer gravação; a persistência virou uma segunda linha do
+  stream (`{tipo:"persistencia"}`). Antes, um `maxDuration` estourado custava o índice inteiro ao
+  analista E deixava meia persistência gravada sem nada dizendo isso. Agora falhar na gravação
+  custa só o registro.
+- **B5:** a dedup passou a olhar TODAS as versões, não só a última. Reimportar um PDF mais antigo,
+  cujo conteúdo já era a versão 1, criava uma versão 3 idêntica à 1. Junto, um bug que só apareceu
+  ao corrigir isso: o bloco de "conteúdo já registrado" atualizava o estado da ÚLTIMA versão, não
+  da que de fato casou o conteúdo — com a busca ampliada, marcaria o documento errado.
+
+**Superfície das rotas (M6) — corrigido.** `autorizar()` agora roda **antes** de `req.formData()`.
+Isso só foi possível porque o número do processo passou a vir também na query string: lê-lo do
+multipart obrigaria a consumir o corpo primeiro, que é exatamente o que se queria evitar. O corpo
+continua mandando o mesmo valor, e a rota recusa se os dois divergirem — senão alguém autorizado
+num processo gravaria MHD em outro.
+
+**B3 — corrigido pela metade, porque metade do achado estava ERRADO.** A varredura de código morto
+da primeira rodada cobriu `app`, `lib` e `components` e **esqueceu `scripts/`**, que é onde vive a
+suíte de testes deste repositório. Reconferido no repositório inteiro: só `unidadeDoCampo`
+(`lib/urbi/catalogoSemantico.ts`) é morto de verdade, e foi removido.
+`previsaoGranularidadeIndisponivel` **não é morto** — `scripts/testar_previsao_tempo.mts` usa. O
+relatório de auditoria foi corrigido no mesmo lugar onde errou.
+
+**B4 — RECUSADO, e o achado retirado.** Pelo mesmo motivo: `CRITERIOS`, `contarAnalises`,
+`temIndeferimento`, `FRASE_SEM_REGRA` e `USUARIO_SISTEMA` são todos consumidos por `scripts/`. O
+`export` é a superfície de teste do módulo, não excesso. Só `CATALOGO_SEMANTICO` fica sem
+consumidor externo, e mexer nisso é risco sem retorno num código em produção.
+
+**Não verificável por uma sessão de IA:** que `documentos_vivos_gemini_ativo` esteja `false` em
+produção (§22) — exige acesso ao banco. Fecha com um `SELECT` de dez segundos, e fica registrado
+como pendência do Fábio, não como achado em aberto.
+
+### 23.7 — Ferramenta nova: conferência dos portões sem clicar processo por processo
+`scripts/conferir_documentos_sei.mts` (novo). Roda o pipeline inteiro — fatiador, peças, motor de
+versões — sobre PDFs locais e imprime UMA tabela por processo: índice de eventos com Nº SEI, estado
+e departamento; peças achadas dentro de cada contêiner; páginas em revisão agrupadas por motivo; e
+a **taxa de classificação medida** que o portão da Fase 3 pede.
+
+Não toca no banco, não chama IA, não precisa de `.env` nem de sessão:
+
+```
+npx tsx scripts/conferir_documentos_sei.mts caminho/do/processo.pdf [outro.pdf ...]
+```
+
+Existe porque os portões humanos são hoje a maior parte do que falta (§12), e dois deles (Fases 1
+e 3) são conferência de índice e de taxa — trabalho que fica muito mais barato lendo uma tabela do
+que clicando pela tela. **Não substitui** os portões das Fases 2, 5 e 7, que são de uso real pela
+tela e continuam abertos.
+
+### 23.8 — Efeito no `%` do §12
 **Nenhum portão humano foi fechado, então nenhum `%` subiu.** O que mudou é a qualidade do que já
 estava contado: o portão da Fase 4 e o da Fase 7 agora se apoiam em código que faz o que diz —
 antes, os 60% e os 90% descansavam sobre um motor que podia eleger o documento errado e sobre uma
@@ -1147,6 +1212,20 @@ dedup que colidia justamente nos documentos mais comuns dos processos reais. O t
   código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
   live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.
+- v20 — 07/09/2026 — **auditoria ZERADA** (§23.6-§23.7): fechados todos os achados que a v19
+  tinha deixado em aberto. Fase 8 ganhou o CACHE que o §6 prometia e não existia (reaproveitando
+  `mhd_interpretacoes_visao`, sem tabela nova nem migration) e um TETO GLOBAL de 200 páginas/hora —
+  desvio consciente do "teto por usuário" proposto, porque este exigiria migration numa tabela que
+  todo o registro de IA usa, e o que se quer aqui é teto de gasto, não repartição entre analistas.
+  Teto reconferido a cada página e lista de páginas validada de verdade (repetida pagava 2×). A
+  persistência saiu do caminho crítico: a tela recebe o índice ANTES de qualquer gravação, então
+  timeout não custa mais o trabalho do analista; a dedup passou a olhar todas as versões, não só a
+  última. `autorizar()` passou a rodar ANTES de engolir os 350 MB do upload. **Um achado da própria
+  auditoria foi retirado por estar errado:** a varredura de código morto tinha esquecido
+  `scripts/`, onde vive a suíte de testes — B4 caiu inteiro e B3 caiu pela metade; só
+  `unidadeDoCampo` era morto de verdade. Novo `scripts/conferir_documentos_sei.mts` imprime uma
+  tabela de conferência por processo (índice, peças, revisão, taxa medida) pra baratear os portões
+  das Fases 1 e 3. `tsc`/`build` limpos. Os `%` do §12 seguem intocados — nenhum portão fechou.
 - v19 — 07/09/2026 — **auditoria independente** (ver §23), sessão dedicada só a verificar, sem
   confiar no que estava marcado como feito. Achou e corrigiu 2 defeitos GRAVES que os portões
   humanos existiam pra pegar: o motor de versões comparava datas como texto e podia eleger o

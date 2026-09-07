@@ -207,12 +207,17 @@ de ler o corpo) é barato.
 - **B2** — `analisar-pendentes/route.ts:43-47`: a lista `paginas` vem do cliente e não é validada
   contra as peças realmente `classificacao_pendente`, nem contra o intervalo do PDF. O tipo é
   checado, o conteúdo não.
-- **B3** — Código morto de verdade (exportado, nenhuma chamada em lugar nenhum):
-  `lib/urbi/catalogoSemantico.ts:158` `unidadeDoCampo` e `lib/urbi/previsao.ts:111`
-  `previsaoGranularidadeIndisponivel`.
-- **B4** — Exportados sem necessidade (usados só dentro do próprio arquivo):
-  `CATALOGO_SEMANTICO` (`catalogoSemantico.ts:78`), `CRITERIOS`, `contarAnalises`,
-  `temIndeferimento` (`lib/bdi/vigia.ts:328,102,114`). Alargam a superfície pública à toa.
+- **B3** — Código morto. ⚠️ **PARCIALMENTE ERRADO, corrigido em 07/09/2026 na mesma sessão:**
+  a varredura original cobriu `app`, `lib` e `components`, mas **não `scripts/`**, que é onde mora
+  a suíte de testes do projeto. Reconferido no repositório inteiro: só
+  `lib/urbi/catalogoSemantico.ts:158` `unidadeDoCampo` é morto de verdade.
+  `lib/urbi/previsao.ts:111` `previsaoGranularidadeIndisponivel` **não é morto** — é usado por
+  `scripts/testar_previsao_tempo.mts:12,72`.
+- **B4** — Exportados sem necessidade. ⚠️ **ERRADO pelo mesmo motivo.** `CRITERIOS`,
+  `contarAnalises`, `temIndeferimento`, `FRASE_SEM_REGRA` e `USUARIO_SISTEMA` são todos
+  consumidos por `scripts/` — o `export` é a superfície de teste do módulo, não excesso. Só
+  `CATALOGO_SEMANTICO` fica sem consumidor externo, e mesmo esse não justifica risco.
+  **Achado retirado.**
 - **B5** — `persistencia.ts:163-166`: a dedup olha só a **última** versão (`limit(1)`).
   Reimportar um PDF mais antigo, cujo conteúdo já existe como versão anterior, cria versão nova em
   vez de reconhecer o que já estava lá.

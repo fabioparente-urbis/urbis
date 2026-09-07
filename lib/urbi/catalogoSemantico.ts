@@ -155,10 +155,6 @@ export function rotuloDoCampo(slot: Slot, chave: string): string | null {
   return chavePorSlot(slot, chave)?.rotuloHumano ?? null;
 }
 
-export function unidadeDoCampo(slot: Slot, chave: string): Unidade | null {
-  return chavePorSlot(slot, chave)?.unidade ?? null;
-}
-
 export type RegraComparacaoSemantica = {
   domA: DominioSemantico;
   domB: DominioSemantico;

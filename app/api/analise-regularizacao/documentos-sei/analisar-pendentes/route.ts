@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { classificarPaginaAmbigua, estimarCustoUsd } from "@/lib/documentosSei/visaoAmbiguas";
+import { classificarPaginaAmbigua, estimarCustoUsd, hashPdf } from "@/lib/documentosSei/visaoAmbiguas";
+import { contarPaginas } from "@/lib/visao/rasterizar";
 import { documentosVivosGeminiAtivo, documentosVivosRegularizacaoAtivo } from "@/lib/documentosSei/config";
 import { autorizar } from "@/lib/autorizacao";
 import { registrarChamadaIA } from "@/lib/iaUso";
@@ -24,6 +25,24 @@ export const maxDuration = 60;
 const MAX_BYTES = 350 * 1024 * 1024;
 const TETO_PAGINAS_POR_PROCESSO_HORA = 20;
 
+/**
+ * Teto GLOBAL por hora, somando todos os processos e todos os usuários. Acrescentado em
+ * 07/09/2026 (§23.6 da auditoria): sozinho, o teto por processo NÃO limita o gasto — 20
+ * páginas/hora × N processos abertos não tem topo. Este é o número que de fato impede a conta de
+ * escapar, que é a regra de custo zero do projeto.
+ *
+ * Por que global e não "por usuário", como `lib/visao/index.ts` faz: `urbis_api_calls` não tem
+ * coluna de usuário, e acrescentar uma é migration numa tabela que TODO o registro de IA usa
+ * (LIP s2/s3, visão do Slot 5) — risco desproporcional para o que se quer aqui, que é um teto de
+ * gasto, não repartição justa entre analistas. Um teto global entrega isso sem tocar em schema.
+ * Se um dia houver muitos analistas concorrendo, aí sim vale a coluna e o teto por usuário.
+ *
+ * Ordem de grandeza para calibrar: ~US$ 0,0008 por página, então 200 páginas/hora é ~US$ 0,17/h
+ * no pior caso. O teto não existe para economizar centavos — existe para que um laço com defeito
+ * ou um clique repetido não vire uma conta de verdade.
+ */
+const TETO_PAGINAS_GLOBAL_HORA = 200;
+
 export async function POST(req: NextRequest) {
   const [organizadorAtivo, geminiAtivo] = await Promise.all([
     documentosVivosRegularizacaoAtivo(), documentosVivosGeminiAtivo(),
@@ -40,8 +59,15 @@ export async function POST(req: NextRequest) {
   const processoCodigo = String(form.get("processo_codigo") ?? "");
   let paginas: number[];
   try {
-    paginas = JSON.parse(String(form.get("paginas") ?? "[]"));
-    if (!Array.isArray(paginas) || paginas.some((p) => typeof p !== "number")) throw new Error();
+    const bruto = JSON.parse(String(form.get("paginas") ?? "[]"));
+    if (!Array.isArray(bruto)) throw new Error();
+    // A lista vem do cliente. Antes só o TIPO era conferido (§23.6 / B2 da auditoria): página
+    // repetida pagava duas vezes, e número negativo ou fora do PDF virava erro registrado como
+    // chamada de IA. Agora: inteiro positivo, sem repetição, em ordem — o intervalo real do PDF é
+    // conferido adiante, quando o arquivo já está aberto.
+    paginas = [...new Set(bruto)]
+      .filter((p): p is number => typeof p === "number" && Number.isInteger(p) && p >= 1)
+      .sort((a, b) => a - b);
   } catch {
     return NextResponse.json({ ok: false, erro: "Lista de páginas inválida." }, { status: 400 });
   }
@@ -73,15 +99,59 @@ export async function POST(req: NextRequest) {
     }, { status: 429 });
   }
 
+  const { count: countGlobal } = await supabaseAdmin
+    .from("urbis_api_calls").select("id", { count: "exact", head: true })
+    .eq("operacao", "documentos_sei_paginas_ambiguas")
+    .gte("criado_em", umaHoraAtras);
+  if ((countGlobal ?? 0) + paginas.length > TETO_PAGINAS_GLOBAL_HORA) {
+    return NextResponse.json({
+      ok: false,
+      erro: `Teto global de ${TETO_PAGINAS_GLOBAL_HORA} página(s)/hora atingido (${countGlobal ?? 0} já usada(s) no sistema).`,
+    }, { status: 429 });
+  }
+
   const buffer = new Uint8Array(await arquivo.arrayBuffer());
+
+  // agora que o PDF está aberto, dá pra recusar página fora do intervalo real em vez de deixar o
+  // rasterizador estourar e o erro virar chamada registrada (§23.6 / B2).
+  const totalPaginas = await contarPaginas(buffer);
+  const foraDoIntervalo = paginas.filter((p) => p > totalPaginas);
+  if (foraDoIntervalo.length) {
+    return NextResponse.json({
+      ok: false,
+      erro: `Página(s) fora do PDF (${totalPaginas} páginas): ${foraDoIntervalo.join(", ")}.`,
+    }, { status: 400 });
+  }
+
+  const hashDocumento = hashPdf(buffer); // uma vez por requisição — chave do cache
   const resultados: { pagina: number; papel: string | null; erro?: string }[] = [];
   let custoTotalUsd = 0;
+  let reaproveitadas = 0;
+  let cobradas = 0;
 
   for (const pagina of paginas) {
+    /**
+     * Teto reconferido A CADA PÁGINA, não só uma vez no começo (§23.6 / B1). Não elimina a corrida
+     * entre dois cliques simultâneos — para isso seria preciso reservar no banco — mas encolhe a
+     * janela de "um lote inteiro" para "uma página", que é o suficiente para o dano possível aqui.
+     * Só conta o que foi COBRADO: página servida pelo cache não gastou nada e não consome teto.
+     */
+    if (cobradas > 0) {
+      const { count: agora } = await supabaseAdmin
+        .from("urbis_api_calls").select("id", { count: "exact", head: true })
+        .eq("operacao", "documentos_sei_paginas_ambiguas")
+        .gte("criado_em", umaHoraAtras);
+      if ((agora ?? 0) >= TETO_PAGINAS_GLOBAL_HORA) {
+        resultados.push({ pagina, papel: null, erro: "teto global atingido durante a análise" });
+        continue;
+      }
+    }
     try {
-      const r = await classificarPaginaAmbigua(buffer, pagina);
+      const r = await classificarPaginaAmbigua(buffer, pagina, hashDocumento);
       custoTotalUsd += r.custoUsd;
       resultados.push({ pagina: r.pagina, papel: r.papel });
+      if (r.reaproveitada) { reaproveitadas++; continue; } // cache: não custou, não registra chamada
+      cobradas++;
       await registrarChamadaIA({
         modulo: "LIP", slot: "regularizacao", operacao: "documentos_sei_paginas_ambiguas",
         processoCodigo, modelo: GEMINI_MODEL, tokensEntrada: r.tokensEntrada, tokensSaida: r.tokensSaida,
@@ -96,7 +166,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, resultados, custoTotalUsd });
+  return NextResponse.json({ ok: true, resultados, custoTotalUsd, reaproveitadas, cobradas });
 }
 
 export async function GET(req: NextRequest) {

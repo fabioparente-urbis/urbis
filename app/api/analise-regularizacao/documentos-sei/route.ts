@@ -51,6 +51,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  /**
+   * AUTORIZAÇÃO ANTES DE LER O CORPO (§23.6 / M6 da auditoria). Antes, `autorizar()` só rodava
+   * depois de `req.formData()` já ter materializado até 350 MB em memória — quem não tinha sessão
+   * válida conseguia fazer o servidor engolir o arquivo inteiro para só então levar 403.
+   *
+   * Isso só é possível porque o número do processo passou a vir na QUERY STRING além do corpo: sem
+   * ele não dá para saber a que processo autorizar, e lê-lo do multipart obrigaria a consumir o
+   * corpo primeiro — que é exatamente o que se quer evitar. A tela manda nos dois lugares.
+   */
+  const processoDaUrl = req.nextUrl.searchParams.get("processo_codigo") ?? "";
+  const permissao = await autorizar(req, processoDaUrl);
+  if (!permissao.ok) {
+    return NextResponse.json({ ok: false, erro: permissao.erro }, { status: 403 });
+  }
+
   // multipart consumido ANTES de abrir o stream — mesmo motivo de app/api/lip/ler-pasta/route.ts:
   // ler o corpo depois de já ter devolvido resposta arrisca o runtime fechar a entrada no meio.
   const form = await req.formData();
@@ -58,7 +73,7 @@ export async function POST(req: NextRequest) {
   const fluxo = new TransformStream();
   const escritor = fluxo.writable.getWriter();
 
-  processar(req, form, escritor).catch(async (e: any) => {
+  processar(req, form, permissao, escritor).catch(async (e: any) => {
     console.error("[documentos-sei]", e);
     try { await escritor.write(linha({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao fatiar o PDF" })); } catch {}
   }).finally(() => { escritor.close().catch(() => {}); });
@@ -75,6 +90,7 @@ export async function POST(req: NextRequest) {
 async function processar(
   req: NextRequest,
   form: FormData,
+  permissao: Extract<Awaited<ReturnType<typeof autorizar>>, { ok: true }>,
   escritor: WritableStreamDefaultWriter<Uint8Array>,
 ) {
   const enviar = (o: unknown) => escritor.write(linha(o));
@@ -92,9 +108,10 @@ async function processar(
       });
     }
 
-    const permissao = await autorizar(req, processoCodigo);
-    if (!permissao.ok) {
-      return enviar({ tipo: "erro", ok: false, erro: permissao.erro });
+    // O processo do corpo tem que ser o mesmo já autorizado pela URL — senão alguém autorizado
+    // num processo estaria gravando MHD em outro.
+    if (processoCodigo !== (req.nextUrl.searchParams.get("processo_codigo") ?? "")) {
+      return enviar({ tipo: "erro", ok: false, erro: "Processo do corpo diverge do autorizado na URL." });
     }
 
     const buffer = new Uint8Array(await arquivo.arrayBuffer());
@@ -133,11 +150,17 @@ async function processar(
     /**
      * MHD guarda só DADOS e METADADOS (id SEI, título, páginas, data, assinante) — nunca o PDF,
      * seguindo o princípio do próprio módulo e pedido explícito do Fábio (06/09/2026: "no urbis
-     * só os dados e meta dados... pra economizar espaço"). Um evento só, não um por documento:
-     * evita empilhar dezenas de linhas a cada vez que o mesmo PDF é reorganizado — de-duplicar
-     * de verdade (não regravar o que já é idêntico) é trabalho da Fase 7 (retorno incremental).
-     * Nunca bloqueia a resposta: falha aqui vira aviso, a organização da tela continua valendo.
+     * só os dados e meta dados... pra economizar espaço"). São duas gravações: o evento-log da
+     * organização e, desde o Passo 0 (§20), um documento/versão por peça.
+     *
+     * A tela recebe o índice ANTES de qualquer gravação (§23.6 da auditoria). Antes, a resposta só
+     * saía depois de centenas de idas ao banco em série: se `maxDuration` estourasse, o analista
+     * perdia o índice inteiro E ficava com meia persistência gravada, sem nada dizendo isso. Agora
+     * o trabalho dele está seguro na tela primeiro; a gravação vira uma segunda linha do stream, e
+     * falhar nela custa só o registro — nunca a organização do PDF.
      */
+    await enviar({ tipo: "resultado", ok: true, ...resultadoComPecas });
+
     let persistencia = null;
     if (processoCodigo) {
       const usuario = await usuarioDaRequisicao(req);
@@ -167,7 +190,7 @@ async function processar(
       }
     }
 
-    return enviar({ tipo: "resultado", ok: true, ...resultadoComPecas, persistencia });
+    return enviar({ tipo: "persistencia", persistencia });
   } catch (e: any) {
     console.error("[documentos-sei]", e);
     return enviar({ tipo: "erro", ok: false, erro: e?.message ?? "Falha ao fatiar o PDF" });

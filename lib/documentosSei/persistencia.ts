@@ -222,19 +222,28 @@ export async function persistirDocumentosVivos(args: {
     const confiancaEstado = item.estadoResolucao?.confianca ?? null;
     const vigente = estado === "vigente";
 
+    /**
+     * TODAS as versões, não só a última (§23.6 / B5 da auditoria). Antes isto era `.limit(1)`:
+     * reimportar um PDF mais antigo, cujo conteúdo já estava gravado como versão 1, criava uma
+     * versão 3 idêntica à 1 — "documento novo" que não era novo nenhum. O portão da Fase 7
+     * ("reimportar processa zero") só valia para o último upload, não para qualquer um.
+     */
     const { data: anteriores } = await supabase
       .from("mhd_versoes").select("id,versao,conteudo_id")
-      .eq("documento_id", doc.id).order("versao", { ascending: false }).limit(1);
+      .eq("documento_id", doc.id).order("versao", { ascending: false });
     const anterior = anteriores?.[0] ?? null;
+    const jaGravada = anteriores?.find((v: any) => v.conteudo_id === conteudo.id) ?? null;
 
-    if (anterior?.conteudo_id === conteudo.id) {
-      // mesmo conteúdo já registrado — nunca cria versão nova, só sincroniza estado/vigência
-      // (pode ter mudado: um documento que era vigente sozinho pode virar substituído se, nesta
-      // mesma remessa, apareceu quem substitui)
+    if (jaGravada) {
+      // mesmo conteúdo já registrado — nunca cria versão nova, só sincroniza estado/vigência NA
+      // VERSÃO QUE DE FATO CASOU (não na última: com a busca em todas as versões, a que tem este
+      // conteúdo pode ser uma antiga, e escrever na última marcaria o documento errado).
+      // O estado pode ter mudado desde então: um documento que era vigente sozinho vira
+      // substituído se, nesta remessa, apareceu quem o substitui.
       await supabase.from("mhd_versoes")
         .update({ estado, motivo_estado: motivoEstado, confianca_estado: confiancaEstado, vigente })
-        .eq("id", anterior.id);
-      if (vigente) await supabase.from("mhd_versoes").update({ vigente: false }).eq("documento_id", doc.id).neq("id", anterior.id);
+        .eq("id", jaGravada.id);
+      if (vigente) await supabase.from("mhd_versoes").update({ vigente: false }).eq("documento_id", doc.id).neq("id", jaGravada.id);
       resumo.inalterados++;
       continue;
     }
