@@ -1,10 +1,13 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 05/09/2026 · **Versão:** v18 · **Estado:** Fases 0-8 + Passo 0 executados no código
+**Data:** 07/09/2026 · **Versão:** v19 · **Estado:** Fases 0-8 + Passo 0 executados no código
 (ver §15-§22) — ≈76% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
-padrão, nenhuma mudança no fluxo existente. Restam só conferências humanas pela tela (portões
-finais de cada fase) e, opcionalmente, a persistência real equivalente pro Slot 5 (fora do escopo
-deste plano — conversa própria) ·
+padrão, nenhuma mudança no fluxo existente. **Auditoria independente em 07/09/2026 achou e
+corrigiu 2 defeitos graves, 2 divergências entre documentação e código e 2 bugs de interação
+revelados pelas próprias correções (§23); a divergência tela × banco dos contêineres foi decidida
+por você e corrigida (§23.5). Nenhum portão humano foi fechado por ela.** Restam as conferências
+humanas pela tela (portões finais de cada fase) e, opcionalmente, a persistência real equivalente
+pro Slot 5 (fora do escopo deste plano — conversa própria) ·
 **Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
 
 Este documento responde ao pedido: um plano para executar o Organizador de Processos SEI com
@@ -937,6 +940,129 @@ fica pra quando o Fábio ligar o interruptor e testar pela tela.
 
 ---
 
+## 23. Auditoria independente — 07/09/2026
+
+Sessão dedicada só a auditar, sem confiar no que estava marcado como feito: leitura do código
+real, `tsc`, e execução dos módulos puros contra dados sintéticos que reproduzem os casos do
+plano. Relatório completo em `docs/AUDITORIA_2026_09_07.md`.
+
+**O que se confirmou:** o fatiador fecha a soma de verdade (o `throw` é real), a paridade Slot 1 ×
+Slot 2 é exata (só comentários e endpoint diferem), a integração da Fase 6 com o Motor de Produção
+existe mesmo, e `lib/urbi`/`lib/bdi` não têm nenhum TODO/FIXME esquecido. O §21 estava certo ao
+registrar o MDP como trabalho futuro e não como feito.
+
+### 23.1 — Motor de versões comparava datas como TEXTO (grave, corrigido)
+`lib/documentosSei/motorVersoes.ts` — o tier 5 ordenava as datas em português com `>` direto sobre
+a string. Resultado provado executando: `"2 de dezembro de 2026"` ganhava de
+`"10 de janeiro de 2027"`, elegendo o documento **mais antigo** como `vigente`, com confiança
+`media` e o motivo na tela dizendo "data mais recente da família" — o oposto do que fez. Só
+aparecia quando o dia do mês do documento novo começava com dígito menor (10 vs 2, 15 vs 3); com
+dias que por acaso ordenam junto com a cronologia (2 vs 9) o teste passa, que é por que a
+validação da Fase 4 não pegou.
+
+Era o risco nº 2 da tabela do §7 acontecendo de verdade ("análise sobre documento superado — dano
+real ao cidadão"), e desde o Passo 0 o resultado ia **gravado** em `mhd_versoes`.
+
+Corrigido com `chaveOrdenavelData`, que converte "13 de abril de 2026, às 10:06" numa chave
+ordenável e devolve `null` quando não entende. Data ilegível na família agora **derruba o tier 5
+inteiro** (cai pro tier 6, confiança `baixa`) em vez de comparar contra `undefined`. Testado em 4
+casos: o que falhava, hora do mesmo dia, mês acentuado, e a degradação para tier 6.
+
+### 23.2 — O hash da Fase 7 colidia entre documentos digitalizados (grave, corrigido)
+`lib/documentosSei/persistencia.ts` — o hash de identidade era SHA-256 só do TEXTO extraído.
+Página digitalizada não tem camada de texto, então **todo documento sem texto tinha o mesmo hash**.
+Não é caso de borda: o §11 deste plano mediu 48% das páginas como histórico digitalizado, e um dos
+processos reais tinha só 12,5% de texto nativo.
+
+Três efeitos, todos silenciosos: a procedência (idSei + páginas de origem — o argumento central do
+projeto) passava a apontar pro documento errado, porque `acharOuCriarConteudo` reaproveita a linha
+pelo hash sem atualizar `dados`; o alerta de integridade nunca disparava; e um digitalizado
+trocado por OUTRO digitalizado do mesmo papel era tratado como `inalterado`, sem versão nova e sem
+aviso. O portão da Fase 7 passava, mas por um motivo errado.
+
+Corrigido: o hash agora inclui `idSei` (permanente no SEI, estável entre uploads — nunca a posição
+da página, que escorrega) + `papel` + número de páginas + o texto. Testado em 5 casos: os
+documentos que colidiam agora diferem, o reupload idêntico continua dedupando (portão da Fase 7
+preservado), e o alerta de integridade continua disparando. **Limite conhecido que permanece:**
+duas peças do mesmo papel, no mesmo contêiner, mesmo número de páginas e ambas sem texto seguem
+indistinguíveis — registrado no código, não escondido.
+
+### 23.3 — O fatiador prometia mandar página com rodapé contraditório para revisão, e não mandava
+`lib/documentosSei/fatiar.ts` — o cabeçalho do arquivo sempre disse "algo está fora de ordem e a
+página vai para revisão, nunca é aceita no escuro", mas o código deixava a regra de continuidade
+absorver a página quando os vizinhos concordavam, sem ela aparecer em `paginasRevisao`. Provado com
+PDF sintético no formato real do SEI.
+
+Corrigido: página com rodapé legível que CONTRADIZ o arquivo (outro processo, ou `pg. N` fora de
+posição) vai direto para revisão. Página SEM rodapé continua sendo absorvida por continuidade,
+como sempre foi — é o caso que a regra existe para resolver.
+
+**Bug adicional achado por essa correção:** o laço que monta os eventos assumia páginas contíguas
+e esticava `paginaIni..paginaFim` por cima de uma página em revisão no meio, contando-a duas vezes.
+O guarda de soma fechada pegou na hora (a prova de que ele funciona). O evento agora é cortado no
+buraco e recomeça depois. Esse mesmo defeito já era alcançável antes por outro caminho (vizinhos
+discordando) e ali **derrubava a requisição inteira** em vez de devolver o índice — os dois casos
+ficaram corretos.
+
+### 23.4 — Os cabeçalhos das duas rotas afirmavam não gravar nada (corrigido)
+As duas rotas `documentos-sei` diziam "ZERO IA, zero gravação: nem MHD, nem `processos.dados` são
+tocados aqui" enquanto gravavam `mhd_eventos`, `mhd_documentos` e `mhd_versoes` logo abaixo. O
+texto ficou verdadeiro até o Passo 0 e ninguém o atualizou. Reescritos para dizer exatamente o que
+gravam, e para registrar que essa gravação automática é uma exceção consciente ao princípio §5.4
+(pedida por você em 06/09, §16.3) — princípio que **continua valendo integralmente para o LIP**,
+onde nada é escrito sem aceite campo a campo.
+
+### 23.5 — Contêiner passou a ter estado gravado (decidido por você, 07/09/2026)
+A tela resolvia estado de **todos** os eventos; a persistência, só dos **não-contêineres**. As duas
+discordavam — e não era divergência acadêmica: `ehContainerGenerico("Processo digital - 42135097")`
+é `true` (o título começa com "Processo"), ou seja, a família `42135097`/`42135097-1` — **metade do
+portão declarado da Fase 4** — é um contêiner. O estado dela aparecia na tela e **nunca era
+gravado**. A validação registrada no §18 é real, mas foi feita chamando `resolverEstados` isolado,
+fora do caminho que o código de produção percorre.
+
+Levado a você como decisão de arquitetura (não bug), e decidido: **gravar o estado dos contêineres
+também**, porque a tela mostrava ao analista uma informação que o resto do sistema não enxergava.
+
+Como ficou:
+- `construirItens` resolve estado sobre **todos** os eventos — a mesma chamada que as telas fazem.
+  Uma fonte só, sem chance de tela e banco divergirem de novo.
+- O contêiner vira documento próprio com `papel = "container"`, deliberadamente **fora** de
+  `CAMPO_POR_PAPEL_PECA` — nunca vira sugestão de campo do LIP, porque contêiner genérico não é
+  documento de nada. As peças de dentro continuam sendo persistidas à parte, como já eram.
+- `escopo = tituloSemNumeros(titulo)` — a MESMA chave de família do motor, agora exportada de lá em
+  vez de recalculada. Sem isso, "Documentação" e "Processo digital" cairiam no mesmo
+  `mhd_documentos` e virariam versões um do outro, que é falso. Testado: caem em famílias
+  separadas, e a dupla 42135097/-1 cai na mesma.
+
+**Bug de interação achado e corrigido junto:** depois da correção do §23.3, um documento cujo miolo
+cai em revisão vira DOIS eventos com o mesmo `idSei` (o evento é cortado no buraco). Sem tratar
+isso, a família enxergaria "dois documentos iguais" e marcaria um como `substituido` pelo outro —
+falso, e visível na tela. `agruparFamilias` agora unifica fragmentos pelo `idSei` antes de agrupar,
+somando o intervalo de páginas e recuperando o título real do fragmento que o tem. Corrige tela e
+persistência de uma vez só, porque as duas passam pela mesma função. Testado.
+
+### 23.6 — Achados menores, não corrigidos (ficam registrados)
+- **Fase 8 entregou 1 dos 3 controles de custo do §6.** A rota tem teto por processo (20/hora),
+  mas **não tem teto por usuário nem cache**, e o §6 prometeu os três, citando `lib/visao/index.ts`
+  como modelo — que tem `TETO_POR_PROCESSO`, `TETO_POR_USUARIO` e cache. Sem teto por usuário o
+  limite por processo não limita o gasto total (20 páginas/hora × N processos).
+- **Persistência em série, sem transação, dentro de `maxDuration = 120`.** Centenas de idas ao
+  banco em sequência, sem progresso na tela nesse trecho; se estourar o tempo, o analista perde o
+  resultado e as gravações já feitas ficam pela metade, sem registro disso.
+- **`autorizar()` roda depois de o multipart de até 350 MB já ter sido consumido** nas duas rotas.
+- **Dedup olha só a última versão** (`limit(1)`): reimportar um PDF mais antigo cria versão nova.
+- **Não verificável nesta sessão:** que `documentos_vivos_gemini_ativo` esteja `false` em produção
+  (§22) — exige acesso ao banco. Fica como não-verificado, não como errado.
+
+### 23.7 — Efeito no `%` do §12
+**Nenhum portão humano foi fechado, então nenhum `%` subiu.** O que mudou é a qualidade do que já
+estava contado: o portão da Fase 4 e o da Fase 7 agora se apoiam em código que faz o que diz —
+antes, os 60% e os 90% descansavam sobre um motor que podia eleger o documento errado e sobre uma
+dedup que colidia justamente nos documentos mais comuns dos processos reais. O total segue
+**≈76%**, e continua medindo código escrito, não comportamento conferido por você na tela.
+
+---
+
 **Histórico de versões**
 - v1 — 05/09/2026 — criado. Plano ancorado em auditoria real do repositório (MHD, `ler-pasta`,
   `lib/visao`, Radar, `analisar/route.ts`). Nada implementado.
@@ -1021,6 +1147,21 @@ fica pra quando o Fábio ligar o interruptor e testar pela tela.
   código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
   live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.
+- v19 — 07/09/2026 — **auditoria independente** (ver §23), sessão dedicada só a verificar, sem
+  confiar no que estava marcado como feito. Achou e corrigiu 2 defeitos GRAVES que os portões
+  humanos existiam pra pegar: o motor de versões comparava datas como texto e podia eleger o
+  documento MAIS ANTIGO como vigente (§23.1), e o hash da Fase 7 colidia entre todos os documentos
+  digitalizados, que são 48% das páginas reais (§23.2) — os dois já iam gravados em `mhd_versoes`
+  desde o Passo 0. Corrigidas também 2 divergências entre documentação e código: o fatiador
+  prometia mandar página de rodapé contraditório pra revisão e não mandava (§23.3, mais um bug de
+  contagem que a correção revelou e que o guarda de soma fechada pegou), e os cabeçalhos das duas
+  rotas afirmavam não gravar nada enquanto gravavam no MHD (§23.4). `tsc` e `build` limpos, tudo
+  testado com dado sintético reproduzindo os casos do plano. **Nenhum portão humano foi fechado e
+  nenhum `%` subiu** (§23.7). A divergência tela × banco dos contêineres foi levada a você como
+  decisão de arquitetura e decidida na hora: contêiner passa a ter estado gravado (§23.5) — é o
+  caso do portão da Fase 4, que aparecia na tela e nunca ia pro banco. Essa correção revelou um
+  segundo bug de interação (documento cortado em dois fragmentos virava "duas versões" de si
+  mesmo), corrigido em `agruparFamilias`, que conserta tela e persistência de uma vez.
 - v18 — 06/09/2026 — **Fase 8 executada** (ver §22): `lib/documentosSei/visaoAmbiguas.ts` novo
   (Gemini só sob clique, prompt fechado, JSON, nunca chuta fora do formato); interruptor próprio
   `documentos_vivos_gemini_ativo` (migration aplicada, default falso, confirmado em produção);

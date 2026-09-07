@@ -15,9 +15,17 @@ import { persistirDocumentosVivos } from "@/lib/documentosSei/persistencia";
  * entre slots é regra do CLAUDE.md: as duas rotas são cópias deliberadas, não uma rota genérica
  * com `if (slot)`. Só `fatiarPdfSei` é de fato compartilhado — é puro e não conhece slot nenhum.
  *
- * Recebe o PDF único do SEI (multipart) e devolve a linha do tempo de eventos. ZERO IA, zero
- * gravação: a resposta é só a proposta — nem MHD, nem `processos.dados` são tocados aqui. O PDF
+ * Recebe o PDF único do SEI (multipart) e devolve a linha do tempo de eventos. ZERO IA. O PDF
  * original NUNCA fica no servidor depois da resposta.
+ *
+ * O QUE ESTA ROTA GRAVA (corrigido em 07/09/2026 — até então este cabeçalho dizia "zero gravação:
+ * nem MHD", o que deixou de ser verdade no Passo 0 e ninguém atualizou aqui): `mhd_eventos`
+ * (1 evento-log por organização) e `mhd_documentos`/`mhd_versoes` por documento, via
+ * `lib/documentosSei/persistencia.ts` (§20 do plano) — só DADOS e METADADOS, nunca o PDF.
+ * Gravação AUTOMÁTICA, sem aceite, por pedido explícito do Fábio (06/09/2026, §16.3): exceção
+ * consciente ao princípio §5.4 do plano, que continua valendo INTEGRALMENTE para o LIP —
+ * `processos.dados` não é tocado aqui, só com aceite campo a campo na tela. Mesmo padrão da rota
+ * irmã do Slot 1.
  *
  * Atrás de interruptor próprio, desligado por padrão
  * (`urbis_config.documentos_vivos_aceite_sei_ativo`).

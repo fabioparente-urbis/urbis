@@ -57,8 +57,17 @@ function normalizar(t: string): string {
   return t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
-/** Título sem números — mesma técnica já usada nas telas para "só última versão de cada tipo". */
-function tituloSemNumeros(titulo: string): string {
+/**
+ * Título sem números — mesma técnica já usada nas telas para "só última versão de cada tipo", e a
+ * CHAVE DE FAMÍLIA deste motor: "Processo digital - 42135097" e "Processo digital - 42135097-1"
+ * caem os dois em "processo digital -", que é como o portão da Fase 4 os reconhece como a mesma
+ * família.
+ *
+ * Exportada em 07/09/2026 (§23.5) para `lib/documentosSei/persistencia.ts` usar a MESMA chave ao
+ * gravar o estado de um contêiner — se cada lado calculasse a sua, tela e banco voltariam a
+ * divergir, que é exatamente o problema que aquela seção resolveu.
+ */
+export function tituloSemNumeros(titulo: string): string {
   return normalizar(titulo)
     .replace(/\b\d+([./-]\d+)*\b/g, "")
     .replace(/\s+/g, " ")
@@ -70,12 +79,78 @@ const RE_SEM_EFEITO = /\bsem\s+efeito\b/;
 const RE_SUBSTITUI = /\b(substitui|corrigid[oa]|retifica[çc][ãa]o|retifica)\b/;
 const RE_VISTORIA = /\bvistoria\b/;
 
+const MESES: Record<string, number> = {
+  janeiro: 1, fevereiro: 2, marco: 3, abril: 4, maio: 5, junho: 6,
+  julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
+};
+
+/**
+ * `EventoSei.data` é TEXTO em português, do jeito que o SEI escreve na página ("13 de abril de
+ * 2026", às vezes com hora: "13 de abril de 2026, às 10:06") — ver `acharData` em `fatiar.ts`.
+ *
+ * BUG REAL corrigido em 07/09/2026 (auditoria): o tier 5 comparava essas strings DIRETAMENTE com
+ * `>`, o que é ordem alfabética, não cronológica — "2 de dezembro de 2026" ganhava de "10 de
+ * janeiro de 2027" porque "2" > "1". O efeito era eleger o documento MAIS ANTIGO como `vigente`,
+ * com confiança "media" e o motivo escrito na tela dizendo "data mais recente da família" — o
+ * oposto do que tinha acontecido. Passava despercebido sempre que os dias do mês por acaso
+ * ordenassem junto com a cronologia (2 vs 9), que é o caso dos testes feitos até aqui.
+ *
+ * Devolve uma chave "AAAAMMDDHHMM" ordenável, ou `null` quando a data não casa o formato. `null`
+ * NUNCA é tratado como "data antiga": quem chama desiste do tier 5 inteiro e cai pro tier 6
+ * (ordem de página, confiança "baixa") — melhor admitir que não sabe do que ordenar no escuro.
+ */
+export function chaveOrdenavelData(texto: string | undefined): string | null {
+  if (!texto) return null;
+  const m = /\b(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+((?:19|20)\d{2})\b/i.exec(normalizar(texto));
+  if (!m) return null;
+  const mes = MESES[m[2]];
+  if (!mes) return null;
+  const hora = /\bas\s+(\d{1,2})[:h](\d{2})\b/i.exec(normalizar(texto));
+  return [
+    m[3],
+    String(mes).padStart(2, "0"),
+    m[1].padStart(2, "0"),
+    hora ? hora[1].padStart(2, "0") : "00",
+    hora ? hora[2] : "00",
+  ].join("");
+}
+
+/** Mesmo texto que `fatiar.ts` usa quando a página foi anexada sem carimbo próprio. */
+const TITULO_HERDADO = "(herdado por continuidade)";
+
+/**
+ * Um mesmo documento do SEI pode chegar aqui em MAIS DE UM pedaço: quando uma página do meio dele
+ * cai em revisão (rodapé contraditório, ou vizinhos discordando), `fatiarPdfSei` corta o evento no
+ * buraco e recomeça depois — dois eventos, o MESMO `idSei`. São fragmentos do mesmo documento, não
+ * duas versões dele: sem unificar, a família enxergaria "dois documentos iguais" e marcaria um
+ * como `substituido` pelo outro, que é falso e apareceria assim na tela do analista.
+ *
+ * Unifica pelo `idSei` (a identidade real do documento no SEI), somando o intervalo de páginas e
+ * aproveitando o primeiro título/setor/data/assinante de verdade que aparecer — fragmento herdado
+ * por continuidade não tem título próprio.
+ */
+function unificarFragmentos(eventos: EventoSei[]): EventoSei[] {
+  const porId = new Map<string, EventoSei>();
+  for (const ev of eventos) {
+    const existente = porId.get(ev.idSei);
+    if (!existente) { porId.set(ev.idSei, { ...ev }); continue; }
+    existente.paginaIni = Math.min(existente.paginaIni, ev.paginaIni);
+    existente.paginaFim = Math.max(existente.paginaFim, ev.paginaFim);
+    if (existente.titulo === TITULO_HERDADO && ev.titulo !== TITULO_HERDADO) existente.titulo = ev.titulo;
+    existente.setor ??= ev.setor;
+    existente.data ??= ev.data;
+    existente.assinante ??= ev.assinante;
+  }
+  return [...porId.values()];
+}
+
 /**
  * Agrupa eventos em famílias (mesmo tipo de documento). Atos numerados (despacho/parecer/
  * ofício/notificação) NUNCA agrupam entre si — "despachos sucessivos são atos, não versões"
  * (plano §6 Fase 4) — cada um é sua própria família de 1.
  */
-export function agruparFamilias(eventos: EventoSei[]): EventoSei[][] {
+export function agruparFamilias(eventosBrutos: EventoSei[]): EventoSei[][] {
+  const eventos = unificarFragmentos(eventosBrutos);
   const familias = new Map<string, EventoSei[]>();
   const avulsos: EventoSei[][] = [];
   for (const ev of eventos) {
@@ -129,9 +204,12 @@ function resolverFamilia(familia: EventoSei[]): ResolucaoVersao[] {
     // de negócio explícita do plano, não só ordem de página)
     confiancaVigente = "media";
     motivoVigente = "vistoria mais recente da família (vistorias sucessivas nunca são \"a mesma versão\", mas a última é a que vale)";
-  } else if (ordenada.every((ev) => ev.data)) {
-    // tier 5: data, quando toda a família tem data extraída
-    const maisRecente = ordenada.reduce((acc, ev, i) => (i === 0 || (ev.data ?? "") > (ordenada[acc].data ?? "") ? i : acc), 0);
+  } else if (ordenada.every((ev) => chaveOrdenavelData(ev.data) !== null)) {
+    // tier 5: data — só quando TODA a família tem data que o parser entendeu de verdade. Uma data
+    // ilegível na família derruba o tier inteiro (cai pro tier 6, confiança "baixa"), em vez de
+    // comparar contra `undefined` e fingir que decidiu.
+    const chaves = ordenada.map((ev) => chaveOrdenavelData(ev.data)!);
+    const maisRecente = chaves.reduce((acc, chave, i) => (chave > chaves[acc] ? i : acc), 0);
     indiceVigente = maisRecente;
     confiancaVigente = "media";
     motivoVigente = "data de assinatura mais recente da família";

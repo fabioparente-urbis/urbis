@@ -28,7 +28,7 @@ import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { acharOuCriarConteudo, acharOuCriarDocumento } from "@/lib/mhd";
 import { lerPaginasIntervalo, type EventoSei, type LeitorPdf, type PaginaTexto } from "./fatiar";
 import { ehContainerGenerico, classificarTitulo, type PecaSei } from "./pecas";
-import { resolverEstados, resolverEstadosPecas, type ResolucaoVersao } from "./motorVersoes";
+import { resolverEstados, resolverEstadosPecas, tituloSemNumeros, type ResolucaoVersao } from "./motorVersoes";
 
 const RE_ATO = /^\s*(despacho|parecer|of[ií]cio|notifica[çc][ãa]o)\b/;
 
@@ -41,10 +41,38 @@ function tipoAto(titulo: string): string | null {
   return m ? m[1] : null;
 }
 
-/** SHA-256 sobre o texto das páginas, normalizado — estável entre reuploads do mesmo conteúdo. */
-export function hashConteudo(paginas: Pick<PaginaTexto, "texto">[]): string {
+/**
+ * SHA-256 da identidade + conteúdo do documento — estável entre reuploads do mesmo documento.
+ *
+ * BUG REAL corrigido em 07/09/2026 (auditoria): o hash era só sobre o TEXTO das páginas. Página
+ * digitalizada não tem camada de texto, então o texto extraído vem VAZIO — e todo documento sem
+ * texto acabava com o MESMO hash, independentemente do conteúdo. Não é caso de borda: o §11 do
+ * plano mediu 48% das páginas como histórico digitalizado, e num dos processos reais só 12,5%
+ * das páginas tinham texto nativo. Consequências, todas silenciosas: `acharOuCriarConteudo`
+ * reaproveitava a linha do PRIMEIRO documento sem atualizar `dados`, então a procedência (idSei +
+ * páginas de origem — o argumento central do projeto) passava a apontar pro documento errado; o
+ * alerta de integridade nunca disparava; e um digitalizado trocado por OUTRO digitalizado do mesmo
+ * papel era tratado como "inalterado", sem versão nova e sem aviso.
+ *
+ * O hash agora inclui a identidade estável do documento:
+ * - `idSei` — permanente no SEI, o mesmo em qualquer reupload do processo (nunca a posição da
+ *   página, que ESCORREGA quando um documento novo entra antes dela e quebraria a dedup);
+ * - `papel` — determinístico, vem do título/classificação;
+ * - número de páginas — discrimina de graça duas peças distintas do mesmo papel dentro do mesmo
+ *   contêiner (que compartilham o `idSei` do contêiner) quando têm tamanhos diferentes;
+ * - o texto normalizado, como antes.
+ *
+ * LIMITE CONHECIDO que permanece: duas peças do MESMO papel, no MESMO contêiner, com o MESMO
+ * número de páginas e ambas sem texto continuam indistinguíveis neste nível — não há sinal para
+ * separá-las sem ler a imagem (Fase 8). Fica registrado em vez de escondido.
+ */
+export function hashConteudo(
+  identidade: { idSei: string; papel: string },
+  paginas: Pick<PaginaTexto, "texto">[],
+): string {
   const normalizado = paginas.map((p) => p.texto.trim().replace(/\s+/g, " ").toLowerCase()).join("\n");
-  return createHash("sha256").update(normalizado, "utf8").digest("hex");
+  const base = `sei:${identidade.idSei}\npapel:${identidade.papel}\npaginas:${paginas.length}\n${normalizado}`;
+  return createHash("sha256").update(base, "utf8").digest("hex");
 }
 
 type ItemParaPersistir = {
@@ -71,18 +99,52 @@ export type ResumoPersistencia = {
  * (o contêiner é só um bolso, não um documento com identidade própria).
  */
 function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemParaPersistir[] {
-  const eventosNaoContainer = eventos.filter((ev) => !ehContainerGenerico(ev.titulo));
-  const estadosEventos = resolverEstados(eventosNaoContainer);
+  /**
+   * Estado resolvido sobre TODOS os eventos, contêineres inclusive — exatamente a mesma chamada
+   * que as duas telas fazem (`resolverEstados(resultado.eventos)`).
+   *
+   * Corrigido em 07/09/2026 (§23.5 do plano, decisão sua): antes isto resolvia só os
+   * NÃO-contêineres, então a tela e o banco discordavam. E não era divergência acadêmica —
+   * `ehContainerGenerico("Processo digital - 42135097")` é `true` (o título começa com
+   * "Processo"), ou seja, a família 42135097/42135097-1, que é METADE do portão declarado da
+   * Fase 4, é um contêiner: o estado dela aparecia na tela e nunca era gravado em lugar nenhum.
+   */
+  const estadosEventos = resolverEstados(eventos);
   const estadoPorIdSei = new Map(estadosEventos.map((r) => [r.idSei, r]));
 
   const itens: ItemParaPersistir[] = [];
-  for (const ev of eventosNaoContainer) {
+  for (const ev of eventos) {
+    if (ehContainerGenerico(ev.titulo)) continue; // tratados logo abaixo, com identidade própria
     const ato = tipoAto(ev.titulo);
     const papel = ato ?? classificarTitulo(ev.titulo) ?? "outro";
     const escopo = ato || papel === "outro" ? ev.idSei : "";
     itens.push({
       idSei: ev.idSei, titulo: ev.titulo, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim,
       papel, escopo, estadoResolucao: estadoPorIdSei.get(ev.idSei),
+    });
+  }
+
+  /**
+   * O CONTÊINER em si, agora com identidade própria (§23.5). Continua valendo que ele "é um bolso,
+   * não um documento" — as peças de dentro seguem sendo persistidas separadamente, logo abaixo —
+   * mas o bolso precisa existir no MHD para que a duplicata que o analista vê na tela
+   * ("Processo digital - 42135097" substituído por "-1") seja visível pro resto do sistema.
+   *
+   * `papel = "container"`: fora de `CAMPO_POR_PAPEL_PECA` (`compararLip.ts`) de propósito — nunca
+   * vira sugestão de campo do LIP, porque um contêiner genérico não é documento de nada.
+   * `escopo = tituloSemNumeros(...)`: a MESMA chave de família do motor, importada de lá em vez de
+   * recalculada aqui. Uma família de contêiner por escopo — sem isso, "Documentação" e "Processo
+   * digital" cairiam no mesmo `mhd_documentos` e virariam versões um do outro, que é falso.
+   */
+  const containersVistos = new Set<string>();
+  for (const ev of eventos) {
+    if (!ehContainerGenerico(ev.titulo)) continue;
+    if (containersVistos.has(ev.idSei)) continue; // fragmentos do mesmo contêiner, um item só
+    containersVistos.add(ev.idSei);
+    itens.push({
+      idSei: ev.idSei, titulo: ev.titulo, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim,
+      papel: "container", escopo: tituloSemNumeros(ev.titulo),
+      estadoResolucao: estadoPorIdSei.get(ev.idSei),
     });
   }
 
@@ -128,7 +190,7 @@ export async function persistirDocumentosVivos(args: {
 
   for (const item of itens) {
     const paginas = await lerPaginasIntervalo(args.leitor, item.paginaIni, item.paginaFim);
-    const hash = hashConteudo(paginas);
+    const hash = hashConteudo({ idSei: item.idSei, papel: item.papel }, paginas);
 
     // alerta de integridade: mesmo idSei + mesmo papel já visto com hash diferente
     const { data: jaVisto } = await supabase

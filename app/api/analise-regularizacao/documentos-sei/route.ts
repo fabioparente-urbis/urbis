@@ -11,10 +11,20 @@ import { persistirDocumentosVivos } from "@/lib/documentosSei/persistencia";
  * (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md), exclusiva da Regularização (Slot 1).
  *
  * Recebe o PDF único do SEI (multipart) e devolve a linha do tempo de eventos, fatiada por
- * `lib/documentosSei/fatiar.ts`. ZERO IA, zero gravação: a resposta é só a proposta — nem MHD,
- * nem `processos.dados` são tocados aqui. O PDF original NUNCA fica no servidor depois da
+ * `lib/documentosSei/fatiar.ts`. ZERO IA. O PDF original NUNCA fica no servidor depois da
  * resposta: quem mantém o arquivo (para "abrir no original" e "baixar recorte") é a própria tela,
  * com o `File` que o analista soltou.
+ *
+ * O QUE ESTA ROTA GRAVA (corrigido em 07/09/2026 — até então este cabeçalho dizia "zero gravação:
+ * nem MHD", o que deixou de ser verdade no Passo 0 e ninguém atualizou aqui):
+ * - `mhd_eventos`: 1 evento-log por organização (auditoria de que o PDF foi organizado);
+ * - `mhd_documentos`/`mhd_versoes`: um documento por peça/evento, via
+ *   `lib/documentosSei/persistencia.ts` (§20 do plano). São DADOS e METADADOS apenas — id SEI,
+ *   título, páginas, hash do texto — nunca o PDF.
+ * Ambas são gravações AUTOMÁTICAS, sem clique de aceite, por pedido explícito do Fábio
+ * (06/09/2026, §16.3). Isso é uma exceção consciente ao princípio §5.4 do plano ("proposta, nunca
+ * gravação automática"), que vale INTEGRALMENTE para o LIP: nenhum campo de `processos.dados` é
+ * tocado aqui — a proposta para o LIP só vira gravação com aceite campo a campo na tela.
  *
  * Rota NOVA, própria da Regularização — não reaproveita `app/api/lip/ler-pasta` nem
  * `lib/lerPastaSlot5.ts` (isolamento entre slots do CLAUDE.md). Atrás de interruptor próprio,

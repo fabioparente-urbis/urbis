@@ -313,6 +313,24 @@ export async function fatiarPdfSei(
     if (original.carimbo && original.carimbo.numeroProcesso !== numeroProcesso) motivo = "processo_divergente";
     else if (original.carimbo && original.carimbo.paginaRodape !== original.pagina) motivo = "pagina_rodape_diverge";
 
+    /**
+     * Página que TEM rodapé legível mas ele CONTRADIZ o arquivo (outro processo, ou "pg. N" que não
+     * bate com a posição real) nunca é absorvida por continuidade — vai direto para revisão.
+     *
+     * Corrigido em 07/09/2026 (auditoria): o cabeçalho deste arquivo sempre prometeu isso ("algo
+     * está fora de ordem e a página vai para revisão, nunca é aceita no escuro"), mas o código
+     * caía na continuidade abaixo e, quando os vizinhos concordavam, engolia a página em silêncio
+     * — sem aparecer em `paginasRevisao`, contra o princípio §5.2/§5.3 do plano.
+     *
+     * A continuidade continua valendo para o caso que ela existe para resolver: página SEM rodapé
+     * legível (miolo de desenho técnico, digitalização), onde não há sinal contraditório nenhum,
+     * só ausência de sinal.
+     */
+    if (motivo !== "sem_rodape_sem_continuidade") {
+      paginasRevisao.push({ pagina: original.pagina, motivo });
+      continue;
+    }
+
     // continuidade: só anexa quando o vizinho válido de cada lado existe E os dois lados concordam
     let antes: string | null = null;
     for (let k = idx - 1; k >= 0; k--) {
@@ -330,12 +348,25 @@ export async function fatiarPdfSei(
     }
   }
 
+  /**
+   * Um evento é um intervalo CONTÍNUO de páginas. Se uma página do meio foi para revisão, o evento
+   * PRECISA ser cortado ali e recomeçar depois — senão `paginaIni..paginaFim` passaria por cima da
+   * página em revisão e ela seria contada duas vezes (uma no evento, outra em `paginasRevisao`),
+   * quebrando a soma fechada. Por isso a continuação exige que a página ANTERIOR pertença ao mesmo
+   * evento (`idEfetivo[idx - 1] === id`), não só que o último evento tenha o mesmo `idSei`.
+   *
+   * Antes de 07/09/2026 isso nunca acontecia porque página com rodapé contraditório era absorvida
+   * pela continuidade (o defeito corrigido acima); com ela indo para revisão como sempre foi
+   * prometido, o corte passou a ser necessário. O mesmo buraco já era possível antes por outro
+   * caminho (vizinhos discordando), e ali derrubava a requisição inteira no guarda de soma abaixo
+   * em vez de devolver o índice — agora os dois casos ficam corretos.
+   */
   const eventos: EventoSei[] = [];
   for (let idx = 0; idx < totalPaginas; idx++) {
     const id = idEfetivo[idx];
     if (!id) continue;
     const atual = eventos[eventos.length - 1];
-    if (atual && atual.idSei === id) {
+    if (atual && atual.idSei === id && idx > 0 && idEfetivo[idx - 1] === id) {
       atual.paginaFim = paginas[idx].pagina;
       if (!atual.setor && validas[idx]?.setor) atual.setor = validas[idx]!.setor;
       if (!atual.data && validas[idx]?.data) atual.data = validas[idx]!.data;
