@@ -1346,12 +1346,32 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     // `amplo` já foi calculado uma vez, acima de `chatContent` — mesma variável em todo lugar,
     // de propósito (ver o comentário lá).
     const balao = !modalAberto && balaoVisivel && (
-      <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={
+      <div
+        role="complementary"
+        aria-label="Assistente URBI"
+        className="urbi-balao"
+        // Esc fecha também no modo amplo — este painel vive FORA do container do canto, que é
+        // quem tinha o onKeyDown. Sem isto, no amplo não havia tecla de saída (achado real,
+        // 08/09/2026: "tem nem como sair").
+        onKeyDown={amplo ? aoTeclarEscape : undefined}
+        style={
         amplo
           ? {
-              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              /**
+               * PAINEL LATERAL, não modal (08/09/2026, corrigido ao vivo: "não tem como digitar
+               * e nem clicar na pilha"). A primeira versão do "amplo" era um painel centralizado
+               * com fundo escurecido cobrindo a tela — e prendia o analista: escondia o avatar
+               * (única forma de fechar), bloqueava o clique na lista atrás e não tinha tecla de
+               * saída. Um co-analista não pode impedir o trabalho que ele existe pra ajudar.
+               *
+               * Agora ocupa a faixa direita inteira, de cima até 150px do rodapé — a lista à
+               * esquerda continua visível e clicável, e o canto de baixo fica livre pro boneco,
+               * que nunca some ("o boneco não pode sumir... o analista tem que senti-lo como um
+               * assessor").
+               */
+              position: "fixed", top: 16, bottom: 150, right: 16,
               background: "#ffffff", borderRadius: 16,
-              padding: "16px 20px", width: "min(1100px, 94vw)", height: "min(88vh, 900px)",
+              padding: "16px 20px", width: "min(760px, 46vw)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.35)",
               display: "flex", flexDirection: "column",
               pointerEvents: "all", zIndex: 46,
@@ -1398,13 +1418,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       <>
         <style>{css}</style>
         <div role="status" aria-live="polite" style={srOnlyStyle}>{anuncio}</div>
-        {amplo && balaoVisivel && (
-          // Fundo escurecido — "ele mesmo aceitou tampar a tela". Não fecha ao clicar fora: só o
-          // avatar (ou Esc) fecha, pra nunca perder a conversa por um clique sem querer ao lado.
-          <div aria-hidden="true" style={{
-            position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 44,
-          }} />
-        )}
+        {/* O fundo escurecido saiu (08/09/2026, ao vivo): ele prendia o analista — "não tem como
+            ir trabalhando", "não tem como digitar e nem clicar na pilha". O URBI ampliado é um
+            painel de trabalho AO LADO, não uma janela modal que para o serviço. Sem fundo, a tela
+            atrás continua inteira: dá pra ler a Pilha, clicar num processo e conversar com o URBI
+            ao mesmo tempo. */}
         {amplo && balao}
         <div
           onKeyDown={aoTeclarEscape}
@@ -1414,7 +1432,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             right: cornerPos.right,
             // Abaixo dos modais do processo/MAC (todos em z-50) — o URBI nunca
             // cobre um modal aberto, só fica visível ao lado/atrás dele.
-            zIndex: 45,
+            // No modo amplo, sobe ACIMA do próprio painel (46): o boneco é a única forma de
+            // fechar, e ficar escondido atrás do painel deixava o analista preso ("tem nem como
+            // sair", 08/09/2026). "O boneco não pode sumir" — nem atrás da própria conversa.
+            zIndex: amplo ? 47 : 45,
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-end",
