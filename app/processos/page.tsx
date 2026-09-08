@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha, type EsforcoProvavelPilha } from "@/lib/urbi/navegacao";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
+import { explicarTag } from "@/lib/urbi/explicarTag";
 
 type ProcessoTag = {
   id?: string;
@@ -53,6 +54,8 @@ type Processo = {
   tem_acao_bloqueante?: boolean;
   acao_bloqueante_texto?: string | null;
   acao_bloqueante_motivo?: string | null;
+  /** Números de documento deste processo que existem no MDP (`/api/processos`, 08/09/2026). */
+  documentos_mdp?: string[];
 };
 
 type SituacaoGeral =
@@ -628,24 +631,54 @@ function ProcessosConteudo() {
                     <div className="flex flex-wrap gap-1 mt-1">
                       {(p.tags.filter((t, idx, arr) =>
                         arr.findIndex(x => x.tipo === t.tipo && (x.numero_analise ?? null) === (t.numero_analise ?? null)) === idx
-                      )).map((t, i) => (
-                        <span
-                          key={t.id ?? `${t.tipo}-${i}`}
-                          title={t.data ? `Emitido em ${t.data}` : undefined}
-                          className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
-                        >
-                          {rotuloTag(t)}
-                          {formatarDataTag(t.data) && <span className="font-normal opacity-80">· {formatarDataTag(t.data)}</span>}
-                          {souAdmin && t.id && (
+                      )).map((t, i) => {
+                        // 08/09/2026, pedido do Fábio: "ao clicar nelas o URBI tem que explicar...
+                        // e ao clicar nos despachos e pareceres deve se abrir o MDP do documento
+                        // caso ele exista". A tag virou botão: clique sempre pede ao URBI pra
+                        // explicar o que aquele documento significa; se o número dele existir no
+                        // MDP (`documentos_mdp`, calculado em /api/processos), a resposta do URBI
+                        // já vem com um botão "Abrir no MDP" — nunca um link direto que possa
+                        // levar pra uma tela vazia quando o documento não está lá.
+                        const noMdp = !!(t.numero_despacho && p.documentos_mdp?.includes(t.numero_despacho));
+                        return (
+                          <span
+                            key={t.id ?? `${t.tipo}-${i}`}
+                            title={t.data ? `Emitido em ${t.data}` : undefined}
+                            className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}
+                          >
                             <button
-                              onClick={(e) => { e.stopPropagation(); removerTag(p.id, p.codigo, t.id!); }}
-                              className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
-                              title="Remover tag">
-                              ×
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const mensagem = explicarTag({
+                                  familia: "documento",
+                                  tipo: t.tipo,
+                                  numero: t.numero_despacho ?? null,
+                                  numeroAnalise: t.numero_analise ?? null,
+                                  data: formatarDataTag(t.data) ?? t.data ?? null,
+                                  noMdp,
+                                });
+                                const acoes = noMdp
+                                  ? [{ rotulo: "Abrir no MDP", href: `/mdp/${encodeURIComponent(p.codigo)}?numero=${encodeURIComponent(t.numero_despacho!)}` }]
+                                  : undefined;
+                                window.dispatchEvent(new CustomEvent("urbi:explicar", { detail: { mensagem, acoes } }));
+                              }}
+                              className="hover:underline decoration-dotted underline-offset-2"
+                            >
+                              {rotuloTag(t)}
+                              {formatarDataTag(t.data) && <span className="font-normal opacity-80"> · {formatarDataTag(t.data)}</span>}
                             </button>
-                          )}
-                        </span>
-                      ))}
+                            {souAdmin && t.id && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); removerTag(p.id, p.codigo, t.id!); }}
+                                className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                                title="Remover tag">
+                                ×
+                              </button>
+                            )}
+                          </span>
+                        );
+                      })}
                     </div>
                   )}
                   <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
@@ -658,31 +691,53 @@ function ProcessosConteudo() {
                   )}
                 </div>
 
-                {/* Tipo */}
-                <span className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block ${TIPO_COR[p.tipo_processo] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                {/* Tipo — clicável desde 08/09/2026, mesmo padrão de toda tag da Pilha agora. */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent("urbi:explicar", {
+                      detail: { mensagem: explicarTag({ familia: "tipo", valor: p.tipo_processo }) },
+                    }));
+                  }}
+                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap hidden md:block hover:ring-2 hover:ring-[var(--accent)] ${TIPO_COR[p.tipo_processo] || "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {rotuloTipo(p.tipo_processo)}
-                </span>
+                </button>
 
                 {/* Situação — LIP, MAC e geral separados (lib/bdi/situacao.ts), não o
                     antigo processos.status. LIP/MAC escondidos em telas pequenas —
                     a geral já resume os dois; título de cada um traz o motivo. */}
                 <div className="hidden lg:flex items-center gap-1">
-                  <span title={p.situacao_lip_motivo ? `LIP: ${p.situacao_lip_motivo}` : undefined}
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${p.situacao_lip ? SITUACAO_LIP_COR[p.situacao_lip] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                  <button type="button"
+                    title={p.situacao_lip_motivo ? `LIP: ${p.situacao_lip_motivo}` : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent("urbi:explicar", { detail: { mensagem: explicarTag({
+                        familia: "lip", valor: p.situacao_lip || "—", motivo: p.situacao_lip_motivo, marcadoManualmente: !!p.lip_incompleto,
+                      }) } }));
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap hover:ring-2 hover:ring-[var(--accent)] ${p.situacao_lip ? SITUACAO_LIP_COR[p.situacao_lip] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                     LIP: {p.situacao_lip || "—"}
-                  </span>
-                  <span title={
+                  </button>
+                  <button type="button"
+                    title={
                       p.situacao_mac === "Aguardando retorno do interessado"
                         ? tituloBadgeRetorno(p.dias_aguardando_retorno, p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined)
                         : (p.situacao_mac_motivo ? `MAC: ${p.situacao_mac_motivo}` : undefined)
                     }
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.dispatchEvent(new CustomEvent("urbi:explicar", { detail: { mensagem: explicarTag({
+                        familia: "mac", valor: p.situacao_mac || "—", motivo: p.situacao_mac_motivo, diasAguardando: p.dias_aguardando_retorno,
+                      }) } }));
+                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap hover:ring-2 hover:ring-[var(--accent)] ${
                       p.situacao_mac === "Aguardando retorno do interessado"
                         ? corBadgeRetorno(p.dias_aguardando_retorno)
                         : p.situacao_mac ? SITUACAO_MAC_COR[p.situacao_mac] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"
                     }`}>
                     MAC: {p.situacao_mac === "Aguardando retorno do interessado" ? textoBadgeRetorno(p.dias_aguardando_retorno) : (p.situacao_mac || "—")}
-                  </span>
+                  </button>
                 </div>
                 {/* Sempre escondida no telão (lg+, 08/09/2026 — pedido do Fábio: "tem que
                     padronizar e diminuir tags"): `situacaoGeral()` é 100% DERIVADA do par

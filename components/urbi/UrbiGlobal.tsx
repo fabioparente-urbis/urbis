@@ -62,6 +62,9 @@ export default function UrbiGlobal() {
   const [peekAtivo, setPeekAtivo] = useState(false);
   const [dicaPeek, setDicaPeek] = useState<string | null>(null);
   const [mensagemInicial, setMensagemInicial] = useState<string | null>(null);
+  /** Botões que acompanham `mensagemInicial` — hoje só "urbi:explicar" preenche isso (08/09/2026,
+   *  tag de documento na Pilha com "Abrir no MDP"). */
+  const [acoesIniciais, setAcoesIniciais] = useState<{ rotulo: string; href?: string }[] | undefined>(undefined);
   const dicasPendentesRef = useRef<Map<string, string[]>>(new Map());
   const peekTimerRef = useRef<any>(null);
   const processoIdRef = useRef<string | null>(null);
@@ -137,15 +140,16 @@ export default function UrbiGlobal() {
    */
   useEffect(() => {
     function onExplicar(e: Event) {
-      const { mensagem } = (e as CustomEvent).detail || {};
+      const { mensagem, acoes } = (e as CustomEvent).detail || {};
       if (!mensagem) return;
       // Aqui o analista PEDIU (clicou na tag), então não é intervenção espontânea — não abre
       // pedindo veredito. Veredito é pra quando o URBI se mete sozinho; perguntar "faz sentido?"
       // pra quem acabou de perguntar seria devolver a pergunta.
       if (urbiAbertoRef.current) {
-        window.dispatchEvent(new CustomEvent("urbi:entregar-dica", { detail: { mensagem } }));
+        window.dispatchEvent(new CustomEvent("urbi:entregar-dica", { detail: { mensagem, acoes } }));
         return;
       }
+      setAcoesIniciais(acoes);
       setMensagemInicial(mensagem);
       setUrbiAberto(true);
     }
@@ -682,7 +686,8 @@ export default function UrbiGlobal() {
         urbiVoz={usuario?.urbi_voz ?? false}
         modalAberto={modalAberto}
         mensagemInicial={mensagemInicial}
-        onMensagemInicialConsumida={() => setMensagemInicial(null)}
+        acoesIniciais={acoesIniciais}
+        onMensagemInicialConsumida={() => { setMensagemInicial(null); setAcoesIniciais(undefined); }}
       />
     </>
   );

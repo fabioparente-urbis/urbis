@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 type Registro = {
@@ -29,8 +29,19 @@ const TIPO_COR: Record<string, string> = {
 };
 
 export default function MdpProcessoPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-[var(--text-muted)]">Carregando...</div>}>
+      <MdpProcessoConteudo />
+    </Suspense>
+  );
+}
+
+/** useSearchParams (o "?numero=" que abre já no documento certo) obriga fronteira de Suspense —
+ *  mesmo padrão de app/processos/page.tsx. */
+function MdpProcessoConteudo() {
   const { codigo } = useParams<{ codigo: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [registros, setRegistros] = useState<Registro[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [expandido, setExpandido] = useState<string | null>(null);
@@ -39,9 +50,24 @@ export default function MdpProcessoPage() {
     if (!codigo) return;
     fetch(`/api/mdp?processo=${encodeURIComponent(codigo)}`, { credentials: "include" })
       .then(r => r.json())
-      .then(j => { if (j.ok) setRegistros(j.data); })
+      .then(j => {
+        if (j.ok) {
+          setRegistros(j.data);
+          /**
+           * "?numero=" — a tag da Pilha aponta pra cá quando o analista clica num
+           * despacho/parecer que já sabe existir no MDP (08/09/2026, pedido do Fábio: "ao clicar
+           * nos despachos e pareceres deve se abrir o MDP do documento caso ele exista"). Abre
+           * direto no documento certo, em vez de largar o analista numa lista pra ele achar.
+           */
+          const numeroAlvo = searchParams?.get("numero");
+          if (numeroAlvo) {
+            const achado = (j.data as Registro[]).find((r) => r.numero === numeroAlvo);
+            if (achado) setExpandido(achado.id);
+          }
+        }
+      })
       .finally(() => setCarregando(false));
-  }, [codigo]);
+  }, [codigo, searchParams]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">

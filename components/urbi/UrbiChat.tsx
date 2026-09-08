@@ -177,6 +177,10 @@ type Props = {
   // mensagem pronta (dica pendente de um processo), pula a saudação via
   // IA e mostra essa mensagem direto. Consumida uma vez e limpa pelo pai.
   mensagemInicial?: string | null;
+  /** Botões junto da `mensagemInicial` (08/09/2026 — clicar numa tag de documento na Pilha, com
+   *  o chat fechado, e ter "Abrir no MDP" já na primeira mensagem, não só quando o chat já
+   *  estava aberto). */
+  acoesIniciais?: Msg["acoes"];
   onMensagemInicialConsumida?: () => void;
 };
 
@@ -281,7 +285,7 @@ function OrientacaoCoAnalista({ onFechar, small }: { onFechar: () => void; small
   );
 }
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, onMensagemInicialConsumida }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, acoesIniciais, onMensagemInicialConsumida }: Props) {
   const router = useRouter();
   // Permissão de áudio: decidida só pelo administrador (urbi_modo_audio) pra
   // qualquer usuário, ele mesmo incluído — o Administrador concede ou remove
@@ -637,11 +641,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // reabrir/reiniciar. Se estiver fechado, quem trata é o UrbiGlobal (peek).
   useEffect(() => {
     const handler = (e: Event) => {
-      const { mensagem } = (e as CustomEvent).detail || {};
+      // `acoes` — 08/09/2026, pedido do Fábio: clicar numa tag de documento na Pilha e, se o
+      // documento existir no MDP, ter um botão pra abrir ele direto (mesmo padrão já usado pelo
+      // veredito de intervenção, "Ir lá resolver").
+      const { mensagem, acoes } = (e as CustomEvent).detail || {};
       if (!mensagem || fase === "fora") return;
       setPoseOpacity(0);
       setTimeout(() => { setPoseId(selectPose("atencao", poseId)); setPoseOpacity(1); }, 200);
-      setMsgs(m => [...m, { role: "urbi", texto: mensagem }]);
+      setMsgs(m => [...m, { role: "urbi", texto: mensagem, acoes }]);
       setHistory(h => [...h, { role: "model", parts: [{ text: mensagem }] }]);
       anunciar("URBI respondeu.");
       if (permiteAudio && !speech.mudo) falar(mensagem);
@@ -963,7 +970,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       setPoseId("atencao");
       setBalaoVisivel(true);
       if (mensagemInicial) {
-        setMsgs([{ role: "urbi", texto: mensagemInicial }]);
+        setMsgs([{ role: "urbi", texto: mensagemInicial, acoes: acoesIniciais }]);
         setHistory([{ role: "model", parts: [{ text: mensagemInicial }] }]);
         anunciar("URBI respondeu.");
         resetIdleTimer();

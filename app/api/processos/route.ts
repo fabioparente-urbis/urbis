@@ -182,6 +182,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    /**
+     * Quais documentos deste processo EXISTEM no MDP (08/09/2026, pedido do Fábio: "ao clicar nos
+     * despachos e pareceres deve se abrir o MDP do documento CASO ELE EXISTA"). Guarda só o número
+     * — é o que a tag da Pilha tem em mãos pra decidir se vira link ou não. Sem isso a tag levaria
+     * o analista pra uma tela vazia, que é pior do que não levar a lugar nenhum.
+     */
+    const documentosMdpPorCodigo = new Map<string, string[]>();
+    if (codigos.length > 0) {
+      const { data: linhasMdp } = await supabase
+        .from("mdp_registros")
+        .select("processo_codigo, numero")
+        .in("processo_codigo", codigos)
+        .not("numero", "is", null);
+      for (const linha of linhasMdp ?? []) {
+        const l = linha as any;
+        const numero = String(l.numero ?? "").trim();
+        if (!numero) continue;
+        const lista = documentosMdpPorCodigo.get(l.processo_codigo) ?? [];
+        if (!lista.includes(numero)) lista.push(numero);
+        documentosMdpPorCodigo.set(l.processo_codigo, lista);
+      }
+    }
+
     // Esforço/pendências do Radar (Fase 2 do plano Assessor Ativo, 07/09/2026): lê o retrato MAIS
     // RECENTE de cada processo em urbi_radar_retratos — nenhum cálculo novo, a mesma fonte que já
     // alimenta as perguntas da Pilha no chat (lib/urbi/perguntasPilha.ts) e o relatório do Motor
@@ -262,6 +285,9 @@ export async function GET(req: NextRequest) {
         sem_pendencias_motor: radarPorCodigo.get(p.codigo)?.semPendenciasMotor ?? false,
         acao_bloqueante_texto: radarPorCodigo.get(p.codigo)?.acaoTexto ?? null,
         acao_bloqueante_motivo: radarPorCodigo.get(p.codigo)?.acaoMotivo ?? null,
+        /** Números de documento deste processo que existem no MDP — a tag da Pilha só vira link
+         *  pro MDP quando o número dela está aqui. */
+        documentos_mdp: documentosMdpPorCodigo.get(p.codigo) ?? [],
       };
     });
 
