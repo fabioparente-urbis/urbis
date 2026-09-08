@@ -101,13 +101,23 @@ export default function UrbiGlobal() {
     try { sessionStorage.setItem(`urbi:aberto:${pathname}`, urbiAberto ? "true" : "false"); } catch {}
   }, [urbiAberto, pathname]);
 
-  // "Dispensa esconde NAQUELA tela" — ao trocar de pathname de verdade (não a primeira
-  // renderização, que já leu o estado salvo daquela mesma tela no useState acima), o
-  // fechamento/abertura da tela ANTERIOR nunca deveria valer pra tela nova: ela sempre chega
-  // fechada, e só reabre pela Home ou por Shift+U — nunca herdando o que aconteceu em outro lugar.
+  /**
+   * O URBI ABERTO ACOMPANHA a navegação — corrigido em 08/09/2026: "quando chamo o URBI na home,
+   * e mudo de página o URBI tá indo embora" (Fábio). Chamar o URBI e vê-lo sumir ao abrir um
+   * processo é o oposto do que ele existe pra fazer: o analista chama justamente pra levar a
+   * conversa junto pro processo.
+   *
+   * O `setUrbiAberto(false)` que ficava aqui vinha da correção de 05/09 ("dispensa esconde NAQUELA
+   * tela"): a chave do sessionStorage era ÚNICA pra sessão, então dispensar numa tela deixava o
+   * URBI fechado em qualquer outra visitada depois. Aquela causa já foi resolvida na raiz — a
+   * chave passou a ser `urbi:aberto:${pathname}`, por tela. Forçar o fechamento aqui virou só
+   * efeito colateral, e derrubava também quem tinha sido aberto de propósito.
+   *
+   * O que continua valendo por tela é a dispensa do CARD GRANDE de condição bloqueante: essa sim
+   * é relida a cada troca, senão dispensar o aviso num processo o esconderia no seguinte.
+   */
   useEffect(() => {
     if (pathnameAnteriorRef.current !== null && pathnameAnteriorRef.current !== pathname) {
-      setUrbiAberto(false);
       setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
     }
     pathnameAnteriorRef.current = pathname;
