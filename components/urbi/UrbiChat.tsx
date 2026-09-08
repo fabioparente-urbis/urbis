@@ -978,6 +978,19 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     if (e.key === "Escape") { e.stopPropagation(); fechar(); }
   }
 
+  /**
+   * BUG REAL corrigido em 08/09/2026 ("olha o bug... não tem como voltar", achado pelo Fábio ao
+   * vivo): `tamanho` sozinho não diz o tamanho REAL do painel — com um modal aberto na tela
+   * (`modalAberto`), o layout recua pra caixa pequena de sempre mesmo com `tamanho === "amplo"`
+   * (ver o bloco `modo === "corner"` abaixo). `chatContent` usava `tamanho` puro pra decidir se a
+   * lista de mensagens tinha limite de altura — quando as duas coisas discordavam (amplo
+   * "logicamente" mas pequeno na tela), a lista de mensagens ficava SEM limite dentro de uma
+   * caixa de 720px, empurrando a caixa de digitar e os botões pra fora da tela: nada pra clicar,
+   * sem jeito de fechar ou encolher. Uma ÚNICA variável, calculada uma vez, elimina a
+   * possibilidade de as duas discordarem de novo.
+   */
+  const amplo = tamanho === "amplo" && !modalAberto;
+
   const chatContent = (small?: boolean) => (
     <>
       {/* Modo ativo — sempre visível, nunca muda sozinho por palavra-chave */}
@@ -1035,7 +1048,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         // que sobra ao redor do cabeçalho/rodapé, então a rolagem não pode ter um teto em pixels
         // (senão sobraria vazio embaixo dele, o oposto de "ampliar o view").
         flex: 1, overflowY: "auto",
-        maxHeight: tamanho === "amplo" ? "none" : (small ? 220 : 300) * (expandido ? 2 : 1),
+        maxHeight: amplo ? "none" : (small ? 220 : 300) * (expandido ? 2 : 1),
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
         userSelect: "text",
       }}>
@@ -1271,7 +1284,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     // continuam ancorados no canto, exatamente como sempre foram (balãozinho com ponta pro
     // avatar). O avatar em si NUNCA se move — é sempre ele que abre/fecha o balão, em qualquer
     // tamanho (clicar no URBI pra mostrar ou esconder o chat, como pedido).
-    const amplo = tamanho === "amplo" && !modalAberto;
+    // `amplo` já foi calculado uma vez, acima de `chatContent` — mesma variável em todo lugar,
+    // de propósito (ver o comentário lá).
     const balao = !modalAberto && balaoVisivel && (
       <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={
         amplo
