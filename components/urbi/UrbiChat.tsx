@@ -168,6 +168,27 @@ function lerCornerPosSalvo(): { bottom: number; right: number } {
 }
 
 /**
+ * Tamanho da caixa de conversa (08/09/2026, pedido do Fábio: "o espaço da tela tá pequeno... à
+ * medida que eu interajo com o URBI, já aceitei ele tampar a tela... podemos ampliar o view").
+ * Três degraus em vez de dois — o antigo `expandido` (compacto/560px) não chegava perto do que
+ * ele pediu. "Amplo" cobre a maior parte da tela, centralizado, com o fundo escurecido (ele
+ * mesmo aceitou tampar); os outros dois continuam ancorados no canto, como sempre foram.
+ * Lembrado por sessão/aba, mesmo padrão de `cornerPos`.
+ */
+type TamanhoChat = "compacto" | "expandido" | "amplo";
+const PROXIMO_TAMANHO: Record<TamanhoChat, TamanhoChat> = {
+  compacto: "expandido", expandido: "amplo", amplo: "compacto",
+};
+function lerTamanhoSalvo(): TamanhoChat {
+  if (typeof window === "undefined") return "compacto";
+  try {
+    const salvo = sessionStorage.getItem("urbi:tamanhoChat");
+    if (salvo === "compacto" || salvo === "expandido" || salvo === "amplo") return salvo;
+  } catch {}
+  return "compacto";
+}
+
+/**
  * Painel curto "o que o URBI sabe e não sabe" — Fase S da Inteligência URBIS (05/09/2026),
  * pedido explícito pra orientação do analista dentro do próprio widget (não só em /admin/urbi,
  * que é restrito a Administrador/Diretora). Vocabulário sempre "vale conferir"/"base
@@ -265,7 +286,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // atrapalhar o arrastar do balão) e não tinha jeito de ampliar pra colar uma resposta longa
   // inteira. Duas correções pedidas: botão de copiar por mensagem, e alternar o tamanho do
   // balão (dobra/volta ao original) — nunca persistido, reseta ao fechar o URBI.
-  const [expandido, setExpandido] = useState(false);
+  const [tamanho, setTamanho] = useState<TamanhoChat>(lerTamanhoSalvo);
+  const expandido = tamanho !== "compacto"; // mantém a leitura de altura do modo "center" (linha ~999), inalterada
   const [copiadoIndice, setCopiadoIndice] = useState<number | null>(null);
   // Fase AB — qual mensagem tem o bloco "Fontes do dossiê carregadas" aberto (só uma por vez,
   // fecha ao trocar). Nunca persistido, reseta ao fechar/reabrir o URBI como o resto da conversa.
@@ -501,6 +523,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   useEffect(() => {
     try { sessionStorage.setItem("urbi:cornerPos", JSON.stringify(cornerPos)); } catch {}
   }, [cornerPos]);
+
+  // Tamanho da caixa persiste pela sessão do navegador, mesmo padrão de cornerPos acima.
+  useEffect(() => {
+    try { sessionStorage.setItem("urbi:tamanhoChat", tamanho); } catch {}
+  }, [tamanho]);
 
   // ----- Web Speech (STT + TTS) ------------------------------------------
   // Carregar preferências ao montar
@@ -965,15 +992,23 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         <button
           type="button"
           className="urbi-focavel"
-          aria-label={expandido ? "Voltar a caixa ao tamanho original" : "Ampliar a caixa de conversa"}
-          title={expandido ? "Voltar ao tamanho original" : "Ampliar (pra ler/copiar resposta longa)"}
-          onClick={() => setExpandido((v) => !v)}
+          aria-label={
+            tamanho === "compacto" ? "Ampliar a caixa de conversa"
+            : tamanho === "expandido" ? "Ampliar mais, cobrindo a maior parte da tela"
+            : "Voltar a caixa ao tamanho original"
+          }
+          title={
+            tamanho === "compacto" ? "Ampliar (pra ler/copiar resposta longa)"
+            : tamanho === "expandido" ? "Ampliar mais"
+            : "Voltar ao tamanho original"
+          }
+          onClick={() => setTamanho((v) => PROXIMO_TAMANHO[v])}
           style={{
             background: "transparent", border: "1px solid #e2e8f0", borderRadius: 4,
             width: 18, height: 18, lineHeight: 1, fontSize: 11, fontWeight: 700,
             color: "#94a3b8", cursor: "pointer", padding: 0, flexShrink: 0,
           }}
-        >{expandido ? "⤡" : "⤢"}</button>
+        >{tamanho === "amplo" ? "⤡" : "⤢"}</button>
         {/* Fase U (05/09/2026) — achado de auditoria: o painel fala "deste processo", então só
             faz sentido aparecer com processo em contexto; fora disso a frase seria falsa. */}
         {processoCodigo && (
@@ -996,7 +1031,11 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       ) : (
       <>
       <div style={{
-        flex: 1, overflowY: "auto", maxHeight: (small ? 220 : 300) * (expandido ? 2 : 1),
+        // "amplo" tem altura FIXA no painel (min(88vh,900px)) — aqui o flex:1 já enche o espaço
+        // que sobra ao redor do cabeçalho/rodapé, então a rolagem não pode ter um teto em pixels
+        // (senão sobraria vazio embaixo dele, o oposto de "ampliar o view").
+        flex: 1, overflowY: "auto",
+        maxHeight: tamanho === "amplo" ? "none" : (small ? 220 : 300) * (expandido ? 2 : 1),
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
         userSelect: "text",
       }}>
@@ -1226,10 +1265,74 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   );
 
   if (modo === "corner") {
+    // "Amplo" (08/09/2026, pedido do Fábio: "aceitei ele tampar a tela... podemos ampliar o
+    // view") vira um painel CENTRALIZADO, com fundo escurecido — desacoplado do canto, que fica
+    // pequeno demais pra cobrir boa parte da tela sem sair da viewport. "Compacto" e "expandido"
+    // continuam ancorados no canto, exatamente como sempre foram (balãozinho com ponta pro
+    // avatar). O avatar em si NUNCA se move — é sempre ele que abre/fecha o balão, em qualquer
+    // tamanho (clicar no URBI pra mostrar ou esconder o chat, como pedido).
+    const amplo = tamanho === "amplo" && !modalAberto;
+    const balao = !modalAberto && balaoVisivel && (
+      <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={
+        amplo
+          ? {
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+              background: "#ffffff", borderRadius: 16,
+              padding: "16px 20px", width: "min(1100px, 94vw)", height: "min(88vh, 900px)",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.35)",
+              display: "flex", flexDirection: "column",
+              pointerEvents: "all", zIndex: 46,
+            }
+          : {
+              position: "relative",
+              background: "#ffffff", borderRadius: 16,
+              padding: "14px 16px", width: expandido ? 560 : 280, maxHeight: expandido ? 720 : 360,
+              boxShadow: "0 8px 32px #00000033",
+              display: "flex", flexDirection: "column",
+              pointerEvents: "all",
+              marginBottom: 6,
+            }
+      }>
+        {chatContent(true)}
+        {!amplo && (
+          <>
+            <div aria-hidden="true" style={{
+              position: "absolute",
+              bottom: -10,
+              right: 32,
+              width: 0,
+              height: 0,
+              borderLeft: "10px solid transparent",
+              borderRight: "10px solid transparent",
+              borderTop: "10px solid #ffffff",
+            }} />
+            <div aria-hidden="true" style={{
+              position: "absolute",
+              bottom: -13,
+              right: 30,
+              width: 0,
+              height: 0,
+              borderLeft: "12px solid transparent",
+              borderRight: "12px solid transparent",
+              borderTop: "12px solid rgba(0,0,0,0.08)",
+              zIndex: -1,
+            }} />
+          </>
+        )}
+      </div>
+    );
     return (
       <>
         <style>{css}</style>
         <div role="status" aria-live="polite" style={srOnlyStyle}>{anuncio}</div>
+        {amplo && balaoVisivel && (
+          // Fundo escurecido — "ele mesmo aceitou tampar a tela". Não fecha ao clicar fora: só o
+          // avatar (ou Esc) fecha, pra nunca perder a conversa por um clique sem querer ao lado.
+          <div aria-hidden="true" style={{
+            position: "fixed", inset: 0, background: "rgba(15,23,42,0.45)", zIndex: 44,
+          }} />
+        )}
+        {amplo && balao}
         <div
           onKeyDown={aoTeclarEscape}
           style={{
@@ -1245,40 +1348,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             gap: 0,
             userSelect: "none",
           }}>
-          {!modalAberto && balaoVisivel && (
-            <div role="complementary" aria-label="Assistente URBI" className="urbi-balao" style={{
-              position: "relative",
-              background: "#ffffff", borderRadius: 16,
-              padding: "14px 16px", width: expandido ? 560 : 280, maxHeight: expandido ? 720 : 360,
-              boxShadow: "0 8px 32px #00000033",
-              display: "flex", flexDirection: "column",
-              pointerEvents: "all",
-              marginBottom: 6,
-            }}>
-              {chatContent(true)}
-              <div aria-hidden="true" style={{
-                position: "absolute",
-                bottom: -10,
-                right: 32,
-                width: 0,
-                height: 0,
-                borderLeft: "10px solid transparent",
-                borderRight: "10px solid transparent",
-                borderTop: "10px solid #ffffff",
-              }} />
-              <div aria-hidden="true" style={{
-                position: "absolute",
-                bottom: -13,
-                right: 30,
-                width: 0,
-                height: 0,
-                borderLeft: "12px solid transparent",
-                borderRight: "12px solid transparent",
-                borderTop: "12px solid rgba(0,0,0,0.08)",
-                zIndex: -1,
-              }} />
-            </div>
-          )}
+          {!amplo && balao}
           {modalAberto ? (
             <button
               type="button"
