@@ -242,8 +242,8 @@ export async function GET(req: NextRequest) {
       // geral (que já é composta das duas). Mesma lógica, sem recalcular
       // nada: situacaoGeral() por dentro já chama situacaoMac(), mas o card
       // da Pilha quer ver LIP e MAC lado a lado, não só o resumo.
-      const sitGeral = situacaoGeral(campos, ultimaPassada, tags);
-      const sitLip = situacaoLip(campos);
+      const sitGeral = situacaoGeral(campos, ultimaPassada, tags, p.lip_incompleto === true);
+      const sitLip = situacaoLip(campos, p.lip_incompleto === true);
       const sitMac = situacaoMac(ultimaPassada, tags);
       return {
         ...p,

@@ -75,6 +75,13 @@ export type FiltrosPilha = {
   acaoBloqueante?: boolean;
   /** Mesmo campo `sem_pendencias_motor` do briefing — "pronto pra despachar". */
   prontoParaDespachar?: boolean;
+  /** `situacao_lip === "Incompleto"` (`/api/processos`, lib/bdi/situacao.ts) — 08/09/2026, pedido
+   *  do Fábio: faltava enxergar na Pilha o LIP que ficou pra trás, inclusive quando ele mesmo
+   *  marcou manualmente "não concluído" com os campos todos preenchidos. */
+  lipInacabado?: boolean;
+  /** `situacao_mac === "Em análise"` (mesma fonte) — MAC já foi aberto e não fechou com despacho,
+   *  parecer ou laudo ainda. */
+  macInacabado?: boolean;
 };
 
 /** Ordem fixa do menos pro mais custoso — processo sem retrato do Radar ainda vai pro fim,
@@ -328,9 +335,13 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
       : /\b(entre\s+)?251\s+(e|a)\s+1000\b/.test(t) ? "de_251_a_1000" as const : undefined;
   const analisesMinimas = pedeAnalisesMinimas(t) ? 2 : undefined;
   const situacaoGeral = acharSituacaoGeral(t);
+  // "lip inacabado"/"mac inacabado" são mais específicos que a frase que `acharSituacaoGeral`
+  // reconhece (essa vira o rótulo composto "LIP pendente") — checados antes, valem sozinhos.
+  const lipInacabado = /\blip\s+inacabad[oa]\b/.test(t) || /\blip\s+n[ãa]o\s+conclu[íi]d[oa]\b/.test(t);
+  const macInacabado = /\bmac\s+inacabad[oa]\b/.test(t) || /\bmac\s+n[ãa]o\s+conclu[íi]d[oa]\b/.test(t);
   const mencionaPilha = /\b(pilha|processos|lista)\b/.test(t);
 
-  if (tag || analise !== null || ordem || classificacaoVigia || usoSolo || faixaArea || analisesMinimas || situacaoGeral || (tipo && mencionaPilha)) {
+  if (tag || analise !== null || ordem || classificacaoVigia || usoSolo || faixaArea || analisesMinimas || situacaoGeral || lipInacabado || macInacabado || (tipo && mencionaPilha)) {
     const filtros: FiltrosPilha = {};
     if (tipo) filtros.tipo = tipo.valor;
     if (tag) filtros.tag = tag.valor;
@@ -341,6 +352,8 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (faixaArea) filtros.faixaArea = faixaArea;
     if (analisesMinimas) filtros.analisesMinimas = analisesMinimas;
     if (situacaoGeral) filtros.situacaoGeral = situacaoGeral;
+    if (lipInacabado) filtros.lipInacabado = true;
+    if (macInacabado) filtros.macInacabado = true;
 
     const partes: string[] = [];
     if (tipo) partes.push(tipo.rotulo);
@@ -351,6 +364,8 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (faixaArea) partes.push(faixaArea === "ate_250" ? "até 250 m²" : faixaArea === "de_251_a_1000" ? "de 251 a 1.000 m²" : "acima de 1.000 m²");
     if (analisesMinimas) partes.push("com 2 ou mais análises");
     if (situacaoGeral) partes.push(`com situação "${situacaoGeral}"`);
+    if (lipInacabado) partes.push("com LIP inacabado");
+    if (macInacabado) partes.push("com MAC inacabado");
     if (ordem) {
       partes.push(
         ordem === "area_desc" ? "da maior para a menor área"
@@ -423,6 +438,7 @@ export const AJUDA_COMANDOS =
   "localizar processo por número ou por nome; filtrar a pilha por tipo, laudo, indeferimento, " +
   "despacho, Uso do Solo e análise 1 a 5; filtrar por situação (em cadastro, LIP pendente, " +
   "MAC em análise, aguardando retorno do interessado, arquivado ou indeferido); " +
+  "filtrar por LIP inacabado ou MAC inacabado; " +
   "mostrar os mais simples por critérios; ordenar por área, análises ou data; " +
   "abrir um resultado; e limpar filtros.";
 
@@ -446,6 +462,9 @@ type ProcessoParaFiltro = {
   /** Mesmos dois campos do "Briefing do dia" da Home (`app/page.tsx`) — já vêm prontos da API. */
   tem_acao_bloqueante?: boolean | null;
   sem_pendencias_motor?: boolean | null;
+  /** `situacao_lip`/`situacao_mac` — já vêm prontos de `/api/processos` (lib/bdi/situacao.ts). */
+  situacao_lip?: string | null;
+  situacao_mac?: string | null;
 };
 
 function numeroArea(v: unknown): number | null {
@@ -544,6 +563,14 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
     saida = saida.filter((p) => p.sem_pendencias_motor === true);
   }
 
+  if (filtros.lipInacabado) {
+    saida = saida.filter((p) => p.situacao_lip === "Incompleto");
+  }
+
+  if (filtros.macInacabado) {
+    saida = saida.filter((p) => p.situacao_mac === "Em análise");
+  }
+
   if (filtros.tag || filtros.analise !== undefined) {
     saida = saida.filter((p) => {
       const tags = Array.isArray(p.tags) ? p.tags : [];
@@ -605,6 +632,8 @@ export function filtrosParaQuery(filtros: FiltrosPilha): string {
   if (filtros.situacaoGeral) p.set("situacaoGeral", filtros.situacaoGeral);
   if (filtros.acaoBloqueante) p.set("acaoBloqueante", "1");
   if (filtros.prontoParaDespachar) p.set("prontoParaDespachar", "1");
+  if (filtros.lipInacabado) p.set("lipInacabado", "1");
+  if (filtros.macInacabado) p.set("macInacabado", "1");
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -626,6 +655,8 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   const situacaoGeral = params.get("situacaoGeral");
   const acaoBloqueante = params.get("acaoBloqueante");
   const prontoParaDespachar = params.get("prontoParaDespachar");
+  const lipInacabado = params.get("lipInacabado");
+  const macInacabado = params.get("macInacabado");
 
   if (busca) f.busca = busca;
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
@@ -657,5 +688,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   }
   if (acaoBloqueante === "1") f.acaoBloqueante = true;
   if (prontoParaDespachar === "1") f.prontoParaDespachar = true;
+  if (lipInacabado === "1") f.lipInacabado = true;
+  if (macInacabado === "1") f.macInacabado = true;
   return f;
 }

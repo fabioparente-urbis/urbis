@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("processos")
-    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags", { count: "exact" })
+    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags, lip_incompleto", { count: "exact" })
     .is("excluido_em", null)
     .order("atualizado_em", { ascending: false })
     .range(offset, offset + limite - 1);
@@ -224,8 +224,8 @@ export async function GET(req: NextRequest) {
     const ultimaPassada = ultimaPassadaPorCodigo.get(codigo) ?? null;
 
     // --- as 3 situações (lib/bdi/situacao.ts), idênticas às da Pilha
-    const sitGeral = situacaoGeral(campos, ultimaPassada, tags);
-    const sitLip = situacaoLip(campos);
+    const sitGeral = situacaoGeral(campos, ultimaPassada, tags, (p as any).lip_incompleto === true);
+    const sitLip = situacaoLip(campos, (p as any).lip_incompleto === true);
     const sitMac = situacaoMac(ultimaPassada, tags);
 
     // --- o que falta preencher: nomes de campo, nunca o valor

@@ -354,10 +354,12 @@ function ProcessosConteudo() {
   // Vindos do "Briefing do dia" da Home (08/09/2026, botão pedido pelo Fábio).
   if (filtrosAtivos.acaoBloqueante) rotulosFiltro.push("com ação bloqueante");
   if (filtrosAtivos.prontoParaDespachar) rotulosFiltro.push("pronto pra despachar");
+  if (filtrosAtivos.lipInacabado) rotulosFiltro.push("LIP inacabado");
+  if (filtrosAtivos.macInacabado) rotulosFiltro.push("MAC inacabado");
 
   function limparTriagem() {
     setFiltrosTriagem({});
-    if (filtrosUrl.tag || filtrosUrl.analise !== undefined || filtrosUrl.ordenar || filtrosUrl.triagem || filtrosUrl.faixaArea || filtrosUrl.usoSolo || filtrosUrl.analisesMinimas || filtrosUrl.classificacaoVigia || filtrosUrl.porte) {
+    if (filtrosUrl.tag || filtrosUrl.analise !== undefined || filtrosUrl.ordenar || filtrosUrl.triagem || filtrosUrl.faixaArea || filtrosUrl.usoSolo || filtrosUrl.analisesMinimas || filtrosUrl.classificacaoVigia || filtrosUrl.porte || filtrosUrl.lipInacabado || filtrosUrl.macInacabado) {
       router.push("/processos");
     }
   }
@@ -557,6 +559,18 @@ function ProcessosConteudo() {
             <option value="despacho">Com despacho</option>
             <option value="despacho_interno">Com despacho interno</option>
             <option value="indeferimento">Com indeferimento</option>
+          </select>
+          <select value={filtrosTriagem.lipInacabado ? "1" : ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, lipInacabado: e.target.value === "1" ? true : undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">LIP inacabado: todos</option>
+            <option value="1">Só LIP inacabado</option>
+          </select>
+          <select value={filtrosTriagem.macInacabado ? "1" : ""}
+            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, macInacabado: e.target.value === "1" ? true : undefined }))}
+            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
+            <option value="">MAC inacabado: todos</option>
+            <option value="1">Só MAC inacabado</option>
           </select>
           <select value={filtrosTriagem.analise?.toString() ?? ""}
             onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, analise: e.target.value ? Number(e.target.value) : undefined }))}

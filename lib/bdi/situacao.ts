@@ -103,7 +103,19 @@ function temTagDeArquivamento(tags: TagProcesso[]): boolean {
  * ou seja, `campos_totais` é 0, ou os poucos campos existentes não têm
  * nenhum valor real).
  */
-export function situacaoLip(campos: ResumoCamposLip | null): ClassificacaoComMotivo<SituacaoLip> {
+/**
+ * `marcadoIncompleto` é o `processos.lip_incompleto` — o "⚪ Marcar LIP não concluído" que o
+ * analista aciona na tela (`ProcessoClient.tsx`). Achado em 08/09/2026: a rota já buscava essa
+ * coluna do banco mas nunca a passava pra cá — então um LIP com todo campo preenchido aparecia
+ * "Completo" na Pilha mesmo com o analista tendo marcado manualmente que não terminou. A conta de
+ * campo vazio/preenchido continua sendo a fonte pra "Não iniciado"/"Incompleto" (ela sabe de coisa
+ * que a marcação manual não sabe); só o resultado "Completo" é que se curva à marcação manual,
+ * porque é exatamente o caso em que os campos mentem sozinhos.
+ */
+export function situacaoLip(
+  campos: ResumoCamposLip | null,
+  marcadoIncompleto?: boolean,
+): ClassificacaoComMotivo<SituacaoLip> {
   if (!campos || campos.campos_totais === 0) {
     return { classe: "Não iniciado", motivo: "Nenhum campo do LIP tem dado gravado ainda." };
   }
@@ -118,6 +130,12 @@ export function situacaoLip(campos: ResumoCamposLip | null): ClassificacaoComMot
     return {
       classe: "Incompleto",
       motivo: `${campos.campos_vazios} de ${campos.campos_totais} campo(s) do LIP ainda vazio(s) (vw_bdi_campos_criticos).`,
+    };
+  }
+  if (marcadoIncompleto) {
+    return {
+      classe: "Incompleto",
+      motivo: "Analista marcou \"LIP não concluído\" na tela — vale mesmo com todo campo preenchido (processos.lip_incompleto).",
     };
   }
   return {
@@ -222,6 +240,7 @@ export function situacaoGeral(
   campos: ResumoCamposLip | null,
   ultimaPassada: UltimaPassadaMac,
   tags: TagProcesso[],
+  lipMarcadoIncompleto?: boolean,
 ): ClassificacaoComMotivo<SituacaoGeral> {
   const mac = situacaoMac(ultimaPassada, tags);
   if (mac.classe === "Arquivado/indeferido") return { classe: "Arquivado/indeferido", motivo: mac.motivo };
@@ -231,7 +250,7 @@ export function situacaoGeral(
   }
 
   // MAC ainda não começou (classe "Não iniciado") — a situação geral é do LIP.
-  const lip = situacaoLip(campos);
+  const lip = situacaoLip(campos, lipMarcadoIncompleto);
   if (lip.classe === "Não iniciado") return { classe: "Em cadastro", motivo: lip.motivo };
   return { classe: "LIP pendente", motivo: lip.motivo };
 }
