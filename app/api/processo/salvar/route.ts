@@ -4,6 +4,7 @@ import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
 import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
 import { chavesCaixaDispensadasSlot1 } from "@/lib/caixaRecargaSlot1";
+import { sincronizarProfissionaisDoLip, precisaResincronizarProfissionais } from "@/lib/profissionais/sincronizar";
 
 /**
  * Retorna as chaves do objeto `dados` cujos campos estão marcados como
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
     // ACEITE do mesmo SEI colidem.
     const { data: existente, error: erroBusca } = await supabaseAdmin
       .from("processos")
-      .select("id, codigo, analista_id, tipo_processo, assunto_id")
+      .select("id, codigo, analista_id, tipo_processo, assunto_id, dados")
       .eq("codigo", id)
       .eq("tipo_processo", tipoProcesso)
       .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
@@ -304,6 +305,17 @@ export async function POST(req: NextRequest) {
       }
     } catch {
       // Falha silenciosa: coluna chave_lip/tipo_processo pode não existir ainda.
+    }
+
+    // Sincronização ao vivo do módulo Profissionais (achado 08/09/2026: a tabela só tinha a
+    // carga inicial de julho, nunca era atualizada por save nenhum — ver lib/profissionais/
+    // sincronizar.ts). Só roda quando CAU/CREA/nome do RT de fato mudou desde o `dados` anterior
+    // (evita bater no banco a cada autosave de campo que não tem nada a ver com isso). Nunca
+    // aguarda nem deixa erro chegar na resposta — não é isso que define se o LIP foi salvo.
+    if (processoId && dados && precisaResincronizarProfissionais(existente?.dados ?? null, dados)) {
+      sincronizarProfissionaisDoLip(processoId, dados).catch((erroSyncProfissionais: any) => {
+        console.error("[processo/salvar] falha ao sincronizar profissionais (RT):", erroSyncProfissionais?.message);
+      });
     }
 
     return renovarCookieAuth(
