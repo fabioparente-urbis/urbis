@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { montarAvisos, triar, type EntradaVigia } from "@/lib/bdi/vigia";
+import { lerRegrasBloqueio } from "@/lib/urbi/regrasBloqueio";
+
+/** "DD/MM/AAAA" (formato usado em mdp_registros.data_despacho) → Date, ou null se ilegível. */
+function parseDataBR(v: string | null | undefined): Date | null {
+  const m = String(v ?? "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 /**
  * Vigia de um processo: fatos verificáveis + triagem por evidência.
@@ -95,12 +104,45 @@ export async function GET(req: NextRequest) {
     .select("tipo, restantes, situacao")
     .eq("usuario_id", ctx.userId);
 
+  // --- condições que impedem a análise (Fase A, 08/09/2026) ---------------
+  const regras = await lerRegrasBloqueio();
+
+  let marcoTemporalReprovado = false;
+  if (regras.COND_MARCO_TEMPORAL.ativo) {
+    const { data: eventoMarco } = await supabase
+      .from("auditoria_eventos")
+      .select("id")
+      .eq("processo_codigo", codigo)
+      .eq("acao", "LIP_MARCO_TEMPORAL_REPROVADO")
+      .limit(1)
+      .maybeSingle();
+    marcoTemporalReprovado = !!eventoMarco;
+  }
+
+  let diasSemUltimaEmissao: number | null = null;
+  if (regras.COND_180_DIAS.ativo) {
+    const { data: ultimaEmissao } = await supabase
+      .from("mdp_registros")
+      .select("data_despacho, criado_em")
+      .eq("processo_codigo", codigo)
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (ultimaEmissao) {
+      const dataRef = parseDataBR((ultimaEmissao as any).data_despacho) ?? new Date((ultimaEmissao as any).criado_em);
+      diasSemUltimaEmissao = Math.floor((Date.now() - dataRef.getTime()) / 86_400_000);
+    }
+  }
+
   const entrada: EntradaVigia = {
     processo: processo as any,
     retrabalho: retrabalho ?? null,
     exigenciasRecorrentes,
     vinculosLegais,
     numeracao: (numeracao ?? []) as any,
+    regras,
+    marcoTemporalReprovado,
+    diasSemUltimaEmissao,
   };
 
   return NextResponse.json({

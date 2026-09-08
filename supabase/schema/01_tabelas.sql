@@ -2183,6 +2183,23 @@ ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_processo_codigo_
 COMMENT ON COLUMN public.urbi_sugestoes.slot IS "tipo_processo do processo no momento em que a sugestão foi gravada (lib/urbi/sugestoes.ts,\n   registrarSugestoesAutomaticas) — self-contido, não depende de JOIN com processos pra\n   auditoria. NULL só em linha gravada antes desta coluna existir (nenhuma hoje).";
 
 -- ======================================================================
+-- urbi_regras_bloqueio
+-- ======================================================================
+CREATE TABLE public.urbi_regras_bloqueio (
+    chave text NOT NULL,
+    ativo boolean DEFAULT false NOT NULL,
+    parametros jsonb DEFAULT '{}'::jsonb NOT NULL,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL,
+    atualizado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_regras_bloqueio ADD CONSTRAINT urbi_regras_bloqueio_pkey PRIMARY KEY (chave);
+COMMENT ON TABLE public.urbi_regras_bloqueio IS "Liga/desliga por regra das condições que fazem o URBI avisar/bloquear a análise de um\n   processo (Slot 1 e Slot 2). Fail-safe DESLIGADO em erro de leitura, mesmo padrão de\n   lib/documentosSei/config.ts. Editada por SQL direto até valer a pena UI de admin.";
+COMMENT ON COLUMN public.urbi_regras_bloqueio.parametros IS "Limiares específicos da regra, ex.: {\"diasBloqueio\":180,\"diasAviso\":170} para\n   COND_180_DIAS. Vazio ({}) para regras sem parâmetro.";
+-- Chaves seedadas (ver migrations 2026_09_08_urbi_regras_bloqueio.sql e
+-- 2026_09_08_urbi_regras_bloqueio_fase_b.sql): COND_180_DIAS, COND_FISCAL_DIVERGE,
+-- COND_MARCO_TEMPORAL, COND_USO_SOLO, COND_BUSCA_ENDERECO, COND_ASSUNTO_ERRADO, COND_CHEADV_APTO.
+
+-- ======================================================================
 -- urbis_api_calls
 -- ======================================================================
 CREATE TABLE public.urbis_api_calls (

@@ -816,7 +816,31 @@ export default function MacPage() {
    * processo com pendência de LIP, a reemissão pedia número novo e
    * queimava a numeração, mesmo com o botão dizendo "Reemitir nº X".
    */
+  // Busca 1x por abertura de tela — mesmo endpoint que já alimenta o avatar do URBI
+  // (app/api/bdi/vigia), sem duplicar lógica de cálculo.
+  useEffect(() => {
+    if (!codigo) return;
+    let vivo = true;
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (!vivo || !j?.ok) return;
+        const aviso = (j.avisos ?? []).find((a: any) => a.id === "cond_180_dias");
+        setBloqueio180DiasMsg(aviso ? String(aviso.detalhe) : null);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [codigo]);
+
   async function prepararNumeracao(tipo: "despacho" | "arquivamento") {
+    if (bloqueio180DiasMsg) {
+      setReemitindo(false);
+      setNumeroDespacho("");
+      setNumeracaoBloqueio(bloqueio180DiasMsg);
+      setNumeracaoCarregando(false);
+      setModalDespacho(true);
+      return;
+    }
     const serie = tipo === "arquivamento" ? "parecer" : "despacho";
     const jaEmitido = serie === "parecer" ? analiseAtual?.numero_parecer : analiseAtual?.numero_despacho;
 

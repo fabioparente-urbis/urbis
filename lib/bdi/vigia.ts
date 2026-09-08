@@ -11,6 +11,7 @@
  * ler, discordar e mexer num lugar só. Cada regra tem peso e motivo escritos
  * logo abaixo, e mudar um número muda a triagem inteira.
  */
+import { compararAreas } from "@/lib/compatibilidadeArea";
 
 /** De onde saiu cada aviso. Aparece na tela junto do aviso. */
 export type FonteAviso =
@@ -29,6 +30,12 @@ export type Aviso = {
   detalhe: string;
   fonte: FonteAviso;
   severidade: Severidade;
+  /**
+   * true só nas condições que impedem a análise (pedido do Fábio, 08/09/2026 — ver
+   * ~/.claude/plans/floating-humming-orbit.md). Aciona a intervenção grande do URBI, não só a
+   * cor do avatar. Ausente/false em todo aviso normal — nem todo "alerta" é bloqueante.
+   */
+  bloqueante?: boolean;
 };
 
 export type ClasseTriagem = "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
@@ -96,6 +103,16 @@ function valorCampo(dados: Record<string, any> | null | undefined, chave: string
   const v = dados?.[chave];
   if (!v || typeof v !== "object") return "";
   return typeof v.valor === "string" ? v.valor.trim() : "";
+}
+
+/** Mesmo campo, mas devolvendo { valor, fonte } — formato que compararAreas espera. */
+function parseObjCampo(dados: Record<string, any> | null | undefined, chave: string): { valor: string | null; fonte: string | null } {
+  const v = dados?.[chave];
+  if (!v || typeof v !== "object") return { valor: null, fonte: null };
+  return {
+    valor: typeof v.valor === "string" ? v.valor.trim() : null,
+    fonte: typeof v.fonte === "string" ? v.fonte : null,
+  };
 }
 
 /** Quantas análises o processo já teve, pelo maior numero_analise das tags. */
@@ -188,12 +205,29 @@ export function acharIncoerencias(p: DadosProcesso): Incoerencia[] {
 
 // ------------------------------------------------------------- os avisos
 
+export type ChaveRegraBloqueio =
+  | "COND_180_DIAS" | "COND_FISCAL_DIVERGE" | "COND_MARCO_TEMPORAL"
+  | "COND_USO_SOLO" | "COND_BUSCA_ENDERECO" | "COND_ASSUNTO_ERRADO" | "COND_CHEADV_APTO";
+
+export type RegraBloqueio = { ativo: boolean; parametros: Record<string, any> };
+
 export type EntradaVigia = {
   processo: DadosProcesso;
   retrabalho?: LinhaRetrabalho | null;
   exigenciasRecorrentes?: ExigenciaRecorrente[];
   vinculosLegais?: VinculoLegal[];
   numeracao?: SaldoNumeracao[];
+  /**
+   * Condições que impedem a análise (Fase A, 08/09/2026) — cada uma só entra se a chave
+   * correspondente estiver `ativo` em `regras` (lib/urbi/regrasBloqueio.ts). O que dá para
+   * derivar do próprio `processo.dados` (vistoriaLevante, áreas, uso do solo, busca de
+   * endereço) é lido aqui dentro; o que precisa de outra tabela vem pronto do chamador:
+   */
+  regras?: Partial<Record<ChaveRegraBloqueio, RegraBloqueio>>;
+  /** true quando existe evento LIP_MARCO_TEMPORAL_REPROVADO para este processo (auditoria_eventos). */
+  marcoTemporalReprovado?: boolean;
+  /** Dias corridos desde a última emissão em mdp_registros. null = nunca emitiu nada ainda. */
+  diasSemUltimaEmissao?: number | null;
 };
 
 /**
@@ -311,6 +345,143 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
       fonte: "view do BDI",
       severidade: restantes === 0 ? "alerta" : "atencao",
     });
+  }
+
+  // ── Condições que impedem a análise (Fase A, 08/09/2026) ────────────────
+  // Cada bloco só roda se a regra estiver ligada — fail-safe desligado, ver
+  // lib/urbi/regrasBloqueio.ts. "bloqueante: true" é o que dispara a intervenção grande do
+  // URBI, além de colorir o avatar de vermelho (lib/urbi/sinaleiro.ts).
+  const regra = (chave: ChaveRegraBloqueio): RegraBloqueio =>
+    e.regras?.[chave] ?? { ativo: false, parametros: {} };
+  const tipo = String(e.processo.tipo_processo ?? "").toLowerCase().trim();
+  const ehRegularizacao = tipo.startsWith("regularizacao");
+
+  if (regra("COND_FISCAL_DIVERGE").ativo) {
+    const vistoriaLevante = valorCampo(e.processo.dados, "vistoriaLevante");
+    if (vistoriaLevante.toLowerCase() === "não" || vistoriaLevante.toLowerCase() === "nao") {
+      avisos.push({
+        id: "cond_fiscal_diverge",
+        titulo: "Fiscal: projeto não confere com a obra",
+        detalhe: "O laudo de vistoria registra que o levantamento não confere integralmente com a obra construída. Conferir antes de prosseguir com a análise.",
+        fonte: "campo do processo",
+        severidade: "alerta",
+        bloqueante: true,
+      });
+    }
+    if (ehRegularizacao) {
+      const veredicto = compararAreas({
+        projeto: parseObjCampo(e.processo.dados, "areaTotal"),
+        laudo: parseObjCampo(e.processo.dados, "areaLaudo"),
+        art: parseObjCampo(e.processo.dados, "areaArt"),
+        vistoria: parseObjCampo(e.processo.dados, "areaVistoria"),
+      });
+      if (veredicto.criticoFiscalizacao) {
+        avisos.push({
+          id: "cond_area_fiscalizacao",
+          titulo: "Área divergente da fiscalização",
+          detalhe: veredicto.mensagem,
+          fonte: "campo do processo",
+          severidade: "alerta",
+          bloqueante: true,
+        });
+      }
+    }
+  }
+
+  if (regra("COND_MARCO_TEMPORAL").ativo && e.marcoTemporalReprovado) {
+    avisos.push({
+      id: "cond_marco_temporal",
+      titulo: "Marco temporal não atendido",
+      detalhe: "Segundo a vistoria fiscal, a estrutura não estava concluída antes do marco temporal da Lei Complementar nº 314/2018. Este processo deve ser indeferido por isso — não há por que seguir analisando o restante.",
+      fonte: "campo do processo",
+      severidade: "alerta",
+      bloqueante: true,
+    });
+  }
+
+  if (regra("COND_USO_SOLO").ativo && ehRegularizacao) {
+    const usoSolo = valorCampo(e.processo.dados, "usoSolo");
+    const usoDefinido = valorCampo(e.processo.dados, "usoDefinido");
+    if (!usoSolo && !usoDefinido) {
+      avisos.push({
+        id: "cond_uso_solo",
+        titulo: "Sem documento de Uso do Solo",
+        detalhe: "O processo não tem o documento de Uso do Solo vinculado — sem ele a análise pode ter que ser refeita depois.",
+        fonte: "campo do processo",
+        severidade: "alerta",
+        bloqueante: true,
+      });
+    }
+  }
+
+  if (regra("COND_BUSCA_ENDERECO").ativo) {
+    const outro = valorCampo(e.processo.dados, "outro");
+    if (!outro) {
+      avisos.push({
+        id: "cond_busca_endereco",
+        titulo: "Sem busca de outros processos no mesmo endereço",
+        detalhe: "Não há registro de que a busca de processos arquivados para este endereço foi feita. Solicitar a busca antes de seguir analisando.",
+        fonte: "campo do processo",
+        severidade: "alerta",
+        bloqueante: true,
+      });
+    }
+  }
+
+  if (regra("COND_ASSUNTO_ERRADO").ativo) {
+    const carimbo = valorCampo(e.processo.dados, "carimboTipoProjeto");
+    const carimboNorm = carimbo.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    if (carimboNorm) {
+      const esperado = ehRegularizacao ? "regulariza" : tipo.startsWith("aceite") ? "aceite" : null;
+      if (esperado && !carimboNorm.includes(esperado)) {
+        avisos.push({
+          id: "cond_assunto_errado",
+          titulo: "Carimbo do projeto não confere com o assunto cadastrado",
+          detalhe: `O processo está cadastrado como "${e.processo.tipo_processo}", mas o carimbo do projeto diz "${carimbo}" — conferir se o assunto está certo antes de seguir analisando.`,
+          fonte: "campo do processo",
+          severidade: "alerta",
+          bloqueante: true,
+        });
+      }
+    }
+  }
+
+  if (regra("COND_CHEADV_APTO").ativo) {
+    const cheadvAprovado = valorCampo(e.processo.dados, "cheadvAprovado");
+    if (cheadvAprovado.toLowerCase() === "não" || cheadvAprovado.toLowerCase() === "nao") {
+      avisos.push({
+        id: "cond_cheadv_apto",
+        titulo: "CHEADV não aprovou a documentação",
+        detalhe: "O despacho CHEADV existe no processo, mas a conclusão dele não aprova a documentação apresentada. Conferir antes de prosseguir com a análise.",
+        fonte: "campo do processo",
+        severidade: "alerta",
+        bloqueante: true,
+      });
+    }
+  }
+
+  const regra180 = regra("COND_180_DIAS");
+  if (regra180.ativo && e.diasSemUltimaEmissao != null) {
+    const diasBloqueio = Number(regra180.parametros?.diasBloqueio ?? 180);
+    const diasAviso = Number(regra180.parametros?.diasAviso ?? 170);
+    if (e.diasSemUltimaEmissao >= diasBloqueio) {
+      avisos.push({
+        id: "cond_180_dias",
+        titulo: `${e.diasSemUltimaEmissao} dias sem retorno`,
+        detalhe: `Já se passaram ${e.diasSemUltimaEmissao} dias corridos desde a última emissão neste processo — nenhum documento novo pode ser emitido até isso ser resolvido.`,
+        fonte: "campo do processo",
+        severidade: "alerta",
+        bloqueante: true,
+      });
+    } else if (e.diasSemUltimaEmissao >= diasAviso) {
+      avisos.push({
+        id: "cond_180_dias_proximo",
+        titulo: `${e.diasSemUltimaEmissao} dias sem retorno — perto do limite`,
+        detalhe: `${e.diasSemUltimaEmissao} dias corridos desde a última emissão. Perto de ${diasBloqueio} dias — conferir manualmente as datas exatas no SEI, pode haver lapso temporal entre URBIS e SEI.`,
+        fonte: "campo do processo",
+        severidade: "atencao",
+      });
+    }
   }
 
   return avisos;

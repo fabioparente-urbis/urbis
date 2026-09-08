@@ -1,6 +1,6 @@
 # Plano — URBI Assessor Ativo (processo aberto + Pilha) · todos os slots ativos
 
-**Data:** 07/09/2026 · **Versão:** v3 · **Estado:** Fases 1, 2, 3, 4 e 6 com código no ar (ver
+**Data:** 08/09/2026 · **Versão:** v4 · **Estado:** Fases 1, 2, 3, 4 e 6 com código no ar (ver
 status de cada uma abaixo) — todas testadas por `tsc`/`build`, nenhuma com o portão humano
 confirmado por escrito ainda. Fase 5 levantada e bloqueada por decisão técnica em aberto (ver
 abaixo). Fase 7 não precisa de código (relatório já existe). Fase 8 não iniciada (decisão de custo
@@ -117,15 +117,23 @@ vale abrir.
 **Portão:** processo com avisos reais mostra a cor e a contagem certas; processo limpo fica sem
 cor (nunca "tudo verde" alarmista à toa). Cores nunca se acumulam — sempre uma só, a mais urgente.
 
-**Status 07/09/2026 — código no ar, testado por você em produção esta noite:** `lib/urbi/
-sinaleiro.ts` (função pura) + `components/urbi/SinaleiroUrbi.tsx` + integração em `UrbiGlobal.tsx`.
-Virou semáforo de verdade (3 luzes empilhadas, só a da cor ativa acesa) a pedido seu, e ganhou
-arraste (posição salva em `sessionStorage`, mesmo padrão do `cornerPos` do chat) — os dois pedidos
-feitos e confirmados funcionando por você ao vivo, incluindo o achado de que não existia nenhum
-ícone persistente do URBI fora da Home (o sinaleiro é o primeiro). Portão formal (conferir cor
-certa em processo com aviso real vs. processo limpo) fechado na prática pelo teste ao vivo —
-mapeamento de cor: vermelho = alerta do Vigia + tier 1 do Motor; amarelo = atenção do Vigia +
-cruzamento (tier 5); verde = documento já no MHD, só falta vincular (tier 2, esforço "rápido").
+**Status 08/09/2026 — revertido para a ideia original, sem widget separado:** o semáforo à parte
+(`components/urbi/SinaleiroUrbi.tsx`, 3 luzes empilhadas, arrastável) foi apagado — na sua palavra,
+"esse sinaleiro nunca deveria existir, o URBI que tem que ser turbinado". A cor não é mais um
+widget adicional: é o próprio avatar do URBI (`components/urbi/UrbiGlobal.tsx`) que ganha o
+filtro de cor (técnica `mix-blend-mode: color` sobre a foto, preservando textura — hue-rotate foi
+descartado por distorcer de forma imprevisível) mais um selo com forma (▲ vermelho, ◆ amarelo,
+● verde) e contagem, mantendo "cor + forma, nunca só cor". O avatar agora aparece em qualquer tela
+(não só na Home) — resolve de vez o achado de 07/09 de que não existia ícone persistente do URBI
+fora da Home. Clicar não abre mais uma lista separada: abre o chat direto, já contextualizado com
+o motivo de cada item (o URBI fala o que encontrou), nunca fala sozinho sem clique. `lib/urbi/
+sinaleiro.ts` (a função pura de cálculo de cor, `calcularSinaleiro` + `combinarComDicaRt`) foi
+mantida — só o widget visual em cima dela mudou de lugar. Mapeamento de cor inalterado: vermelho =
+alerta do Vigia + tier 1 do Motor; amarelo = atenção do Vigia + cruzamento (tier 5) + dica de RT;
+verde = documento já no MHD, só falta vincular (tier 2, esforço "rápido"). Se 3 cores se mostrarem
+poucas, o Fábio já sinalizou que dá pra criar mais — não implementado ainda, é observação para o
+futuro. Portão formal (teste ao vivo em processo com aviso real vs. processo limpo) ainda pendente
+de confirmação sua com o código novo.
 
 ### Fase 2 — Pilha ativa: esforço e alertas do Radar na tela `/processos`
 A tela da Pilha passa a ler `urbi_radar_retratos` (mesma fonte que já alimenta as perguntas do
@@ -303,3 +311,10 @@ sessões estimadas e o prazo em dois ritmos de referência.
   `lib/documentosSei/persistencia.ts`) mas não implementada — decisão de não escrever em campo do
   LIP sem poder testar ao vivo. Fase 7 não precisa de código (painel já existe). Fase 8 não
   iniciada de propósito (custo real, decisão sua). Nenhuma chamada de IA nova em nenhuma fase.
+- v4 — 08/09/2026 — Fase 1 revertida a pedido seu: o semáforo virou widget de mais, não devia
+  existir separado. `components/urbi/SinaleiroUrbi.tsx` apagado; a cor (mesma função pura de
+  `lib/urbi/sinaleiro.ts`) agora tinge o próprio avatar do URBI em `UrbiGlobal.tsx` (filtro
+  `mix-blend-mode`, selo com forma + contagem), presente em qualquer tela, não só na Home. Clicar
+  abre o chat direto e contextualizado — nunca uma lista à parte, nunca fala sem clique. Observação
+  sua registrada: se 3 cores não bastarem, dá pra criar mais. Portão ao vivo desta versão ainda
+  pendente da sua confirmação.

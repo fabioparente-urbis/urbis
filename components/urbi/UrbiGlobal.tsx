@@ -1,8 +1,19 @@
 "use client";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import UrbiChat from "./UrbiChat";
-import SinaleiroUrbi from "./SinaleiroUrbi";
+import { montarRelatorioMotor } from "@/lib/urbi/motorProducao";
+import { calcularSinaleiro, combinarComDicaRt, CORES_SINALEIRO, type EstadoSinaleiro } from "@/lib/urbi/sinaleiro";
+import type { Aviso } from "@/lib/bdi/vigia";
+import { useAuditoria } from "@/hooks/useAuditoria";
+
+/** "Dispensa esconde NAQUELA tela" — mesmo padrão de `urbi:aberto:${pathname}`, mas para o
+ * card grande de condição bloqueante (pedido do Fábio, 08/09/2026). Só vale pra sessão/aba
+ * atual; a próxima vez que o processo for aberto, se a condição continuar valendo, reaparece. */
+function lerOverlayDispensadoSalvo(pathname: string): boolean {
+  if (typeof window === "undefined") return false;
+  try { return sessionStorage.getItem(`urbi:bloqueioDispensado:${pathname}`) === "true"; } catch { return false; }
+}
 
 // Presença persistente por sessão do navegador (sessionStorage, não
 // localStorage — não sobrevive entre sessões distintas nem entre
@@ -61,6 +72,21 @@ export default function UrbiGlobal() {
   const homeButtonRef = useRef<HTMLButtonElement>(null);
   const origemAberturaRef = useRef<"home" | null>(null);
 
+  // ── Sinal de cor do URBI (ex-"sinaleiro") ───────────────────────────
+  // Fase 1 do plano Assessor Ativo revertida: não existe mais um widget separado — a cor do
+  // aviso (vermelho/amarelo/verde, vencendo nessa ordem) vira o próprio avatar do URBI, aqui e
+  // em qualquer tela. Mesma fonte que já existia: /api/bdi/vigia + /api/urbi/dossie, SQL puro,
+  // sem IA nova. "Processo limpo fica sem cor" continua o portão.
+  const [estadoSinal, setEstadoSinal] = useState<EstadoSinaleiro | null>(null);
+  const [dicaRtSinal, setDicaRtSinal] = useState<string | null>(null);
+  const estadoFinal = useMemo(
+    () => (estadoSinal ? combinarComDicaRt(estadoSinal, dicaRtSinal) : null),
+    [estadoSinal, dicaRtSinal]
+  );
+  const { registrar } = useAuditoria();
+  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => lerOverlayDispensadoSalvo(pathname));
+  const overlayLogadoRef = useRef<string | null>(null); // processoCodigo já logado como DETECTADA nesta tela
+
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
 
   useEffect(() => {
@@ -82,9 +108,28 @@ export default function UrbiGlobal() {
   useEffect(() => {
     if (pathnameAnteriorRef.current !== null && pathnameAnteriorRef.current !== pathname) {
       setUrbiAberto(false);
+      setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
     }
     pathnameAnteriorRef.current = pathname;
   }, [pathname]);
+
+  useEffect(() => {
+    try { sessionStorage.setItem(`urbi:bloqueioDispensado:${pathname}`, overlayDispensado ? "true" : "false"); } catch {}
+  }, [overlayDispensado, pathname]);
+
+  // Log "detectada" uma vez por processo/tela — nunca a cada re-render/poll do sinal.
+  useEffect(() => {
+    if (!estadoFinal?.bloqueante || !processoCodigo) return;
+    if (overlayLogadoRef.current === processoCodigo) return;
+    overlayLogadoRef.current = processoCodigo;
+    registrar({
+      modulo: "URBI",
+      acao: "URBI_CONDICAO_BLOQUEANTE_DETECTADA",
+      processo_codigo: processoCodigo,
+      origem: "SISTEMA",
+      detalhe: { itens: estadoFinal.itens.map(i => ({ titulo: i.titulo, fonte: i.fonte })) },
+    });
+  }, [estadoFinal, processoCodigo, registrar]);
 
   useEffect(() => {
     const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
@@ -100,6 +145,7 @@ export default function UrbiGlobal() {
     function onDica(e: Event) {
       const { processoId, mensagem } = (e as CustomEvent).detail || {};
       if (!processoId || !mensagem) return;
+      if (processoId === processoIdRef.current) setDicaRtSinal(mensagem);
       if (urbiAbertoRef.current) {
         window.dispatchEvent(new CustomEvent("urbi:entregar-dica", { detail: { mensagem } }));
         return;
@@ -115,6 +161,36 @@ export default function UrbiGlobal() {
     window.addEventListener("urbi:dica", onDica);
     return () => { window.removeEventListener("urbi:dica", onDica); if (peekTimerRef.current) clearTimeout(peekTimerRef.current); };
   }, []);
+
+  // Clique no avatar do URBI já colorido: abre o chat direto, contextualizado com os motivos da
+  // cor (nunca um painel de lista à parte) — o URBI intervém na análise em vez de só apontar.
+  function abrirUrbiPeloAvatar() {
+    const estado = estadoFinal;
+    if (estado?.cor && estado.itens.length > 0) {
+      const texto = `Olha o que encontrei neste processo:\n\n${estado.itens
+        .map(item => `• ${item.titulo} — ${item.detalhe}`)
+        .join("\n")}`;
+      setMensagemInicial(texto);
+      setDicaRtSinal(null);
+    }
+    origemAberturaRef.current = isHome ? "home" : null;
+    iniciarEscuta();
+    setUrbiAberto(true);
+  }
+
+  // Card grande dispensado sem ter sido chamado (clique fora, não no card) — some só nesta
+  // tela/sessão, o avatar pequeno de canto continua vermelho, e a condição reaparece grande da
+  // próxima vez que o processo for reaberto, se ainda valer.
+  function dispensarOverlayBloqueio() {
+    setOverlayDispensado(true);
+    registrar({
+      modulo: "URBI",
+      acao: "URBI_CONDICAO_BLOQUEANTE_DISPENSADA",
+      processo_codigo: processoCodigo ?? undefined,
+      origem: "MANUAL",
+      detalhe: { itens: estadoFinal?.itens.map(i => ({ titulo: i.titulo })) ?? [] },
+    });
+  }
 
   function ativarComDica() {
     if (peekTimerRef.current) clearTimeout(peekTimerRef.current);
@@ -154,6 +230,26 @@ export default function UrbiGlobal() {
       .then(j => { if (j?.ok) setAssuntoId(j.data?.assunto_id ?? null); })
       .catch(() => {});
   }, [pathname]);
+
+  // Sinal de cor: recalcula ao trocar de processo. Fora de uma tela de processo (Home
+  // inclusive), não há cor — o avatar volta ao azul padrão.
+  useEffect(() => {
+    setDicaRtSinal(null);
+    if (!processoCodigo) { setEstadoSinal(null); return; }
+    let vivo = true;
+    setEstadoSinal(null);
+    const codigo = processoCodigo;
+    Promise.all([
+      fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch(`/api/urbi/dossie?codigo=${encodeURIComponent(codigo)}`).then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([vigiaResp, dossieResp]) => {
+      if (!vivo) return;
+      const avisos: Aviso[] = vigiaResp?.ok ? (vigiaResp.avisos ?? []) : [];
+      const acoes = dossieResp?.ok ? montarRelatorioMotor(dossieResp.data).acoes : [];
+      setEstadoSinal(calcularSinaleiro(avisos, acoes));
+    });
+    return () => { vivo = false; };
+  }, [processoCodigo]);
 
   const buscarUsuario = () => {
     fetch("/api/auth/me")
@@ -380,32 +476,114 @@ export default function UrbiGlobal() {
           outline-offset: 2px;
           border-radius: 6px;
         }
+        @keyframes urbiPulsoBloqueio {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.55); }
+          50% { box-shadow: 0 0 0 18px rgba(220,38,38,0); }
+        }
       `}</style>
-      {!urbiAberto && isHome && (
-        <div style={{
-          position: "fixed", bottom: 80, right: 24, zIndex: 1000,
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-        }}>
-          <button
-            ref={homeButtonRef}
+      {!urbiAberto && !modalAberto && (() => {
+        const tamanho = isHome ? 130 : 84;
+        const cor = estadoFinal?.cor ?? null;
+        const c = cor ? CORES_SINALEIRO[cor] : null;
+        const brilho = c ? `0 4px 26px ${c.borda}aa` : "0 4px 24px #3b82f688";
+        return (
+          <div style={{
+            position: "fixed", bottom: isHome ? 80 : 24, right: 24, zIndex: 1000,
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+          }}>
+            <button
+              ref={homeButtonRef}
+              className="urbi-focavel"
+              onClick={abrirUrbiPeloAvatar}
+              aria-label={
+                c
+                  ? `Abrir o URBI — ${c.rotulo}, ${estadoFinal!.itens.length} ${estadoFinal!.itens.length > 1 ? "itens" : "item"}. Atalho de teclado: Shift + U`
+                  : "Abrir o URBI. Atalho de teclado: Shift + U"
+              }
+              title={c ? `URBI — ${c.rotulo} (Shift + U)` : "Abrir o URBI (Shift + U)"}
+              style={{ position: "relative", background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            >
+              <div style={{ position: "relative", width: tamanho, height: tamanho, borderRadius: "50%", overflow: "hidden", boxShadow: brilho }}>
+                <img src="/urbi/urbi-botao.jpg" alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                {/* Filtro de cor: tinge a própria foto (mix-blend-mode preserva o brilho/textura
+                    em vez de aplicar hue-rotate, que distorce de forma imprevisível). É o URBI
+                    fazendo o papel do antigo sinaleiro — não um widget à parte. */}
+                {c && (
+                  <div aria-hidden="true" style={{
+                    position: "absolute", inset: 0, background: c.borda,
+                    mixBlendMode: "color", opacity: 0.8,
+                  }} />
+                )}
+              </div>
+              {c && (
+                <span aria-hidden="true" style={{
+                  position: "absolute", top: -4, right: -4,
+                  background: c.borda, color: "#fff", fontSize: 12, fontWeight: 700,
+                  borderRadius: 999, minWidth: 22, height: 22, lineHeight: "22px",
+                  textAlign: "center", padding: "0 5px", border: "2px solid #fff",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+                }}>{c.forma} {estadoFinal!.itens.length}</span>
+              )}
+            </button>
+            <span aria-hidden="true" style={{
+              fontSize: 11, fontWeight: 600, color: "#334155", background: "#ffffffdd",
+              padding: "2px 9px", borderRadius: 999, boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
+              letterSpacing: 0.3,
+            }}>Shift + U</span>
+          </div>
+        );
+      })()}
+      {/* Intervenção proativa: aparece sozinha, grande, no meio da tela — exceção deliberada à
+          regra "URBI nunca fala sem ser chamado", só para condição que impede a análise (pedido
+          do Fábio, 08/09/2026). Clicar no card abre o chat contextualizado; clicar FORA (no
+          fundo) dispensa só o card grande — o avatar pequeno de canto continua vermelho. */}
+      {!urbiAberto && !modalAberto && estadoFinal?.bloqueante && !overlayDispensado && (
+        <div
+          onClick={dispensarOverlayBloqueio}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1100,
+            background: "rgba(15,23,42,0.45)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={e => { e.stopPropagation(); abrirUrbiPeloAvatar(); }}
+            role="button"
+            tabIndex={0}
             className="urbi-focavel"
-            onClick={() => { origemAberturaRef.current = "home"; iniciarEscuta(); setUrbiAberto(true); }}
-            aria-label="Abrir o URBI. Atalho de teclado: Shift + U"
-            title="Abrir o URBI (Shift + U)"
-            style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); abrirUrbiPeloAvatar(); }
+            }}
+            aria-label={`URBI precisa te avisar antes de você continuar: ${estadoFinal.itens[0]?.titulo ?? "condição encontrada"}. Clique para abrir a conversa.`}
+            style={{
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 14,
+              cursor: "pointer", maxWidth: 380, padding: "28px 32px",
+              background: "var(--bg-card, #fff)", borderRadius: 20,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+            }}
           >
-            <img src="/urbi/urbi-botao.jpg" alt=""
-              style={{ width: 130, height: 130, borderRadius: "50%", objectFit: "cover", boxShadow: "0 4px 24px #3b82f688" }} />
-          </button>
-          <span aria-hidden="true" style={{
-            fontSize: 11, fontWeight: 600, color: "#334155", background: "#ffffffdd",
-            padding: "2px 9px", borderRadius: 999, boxShadow: "0 1px 4px rgba(0,0,0,0.18)",
-            letterSpacing: 0.3,
-          }}>Shift + U</span>
+            <div style={{
+              position: "relative", width: 130, height: 130, borderRadius: "50%", overflow: "hidden",
+              animation: "urbiPulsoBloqueio 1.6s infinite",
+            }}>
+              <img src="/urbi/urbi-botao.jpg" alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              <div aria-hidden="true" style={{
+                position: "absolute", inset: 0, background: CORES_SINALEIRO.vermelho.borda,
+                mixBlendMode: "color", opacity: 0.8,
+              }} />
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#991b1b", textAlign: "center" }}>
+              Antes de continuar analisando este processo…
+            </div>
+            <div style={{ fontSize: 13, color: "var(--text-primary, #334155)", textAlign: "center", lineHeight: 1.5 }}>
+              {estadoFinal.itens[0]?.titulo}
+              {estadoFinal.itens.length > 1 ? ` (+ ${estadoFinal.itens.length - 1} outro${estadoFinal.itens.length > 2 ? "s" : ""})` : ""}
+            </div>
+            <div style={{ fontSize: 11, color: "#94a3b8" }}>Clique para o URBI explicar · clique fora para dispensar</div>
+          </div>
         </div>
-      )}
-      {!urbiAberto && !modalAberto && processoCodigo && (
-        <SinaleiroUrbi codigo={processoCodigo} />
       )}
       {!urbiAberto && peekAtivo && dicaPeek && (
         <div

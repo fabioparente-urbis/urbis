@@ -17,11 +17,18 @@ export type ItemSinaleiro = {
   titulo: string;
   detalhe: string;
   fonte: string;
+  /** Condição que impede a análise (ver lib/bdi/vigia.ts, Aviso.bloqueante). */
+  bloqueante?: boolean;
 };
 
 export type EstadoSinaleiro = {
   cor: CorSinaleiro | null;
   itens: ItemSinaleiro[];
+  /**
+   * true quando algum item vermelho é bloqueante — dispara a intervenção grande do URBI
+   * (aparece sozinho, no meio da tela), não só a cor do avatar. Pedido do Fábio, 08/09/2026.
+   */
+  bloqueante: boolean;
 };
 
 /**
@@ -44,7 +51,7 @@ export function calcularSinaleiro(avisos: Aviso[], acoes: AcaoPrioritaria[]): Es
 
   for (const a of avisos ?? []) {
     if (a.severidade === "alerta") {
-      vermelho.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}` });
+      vermelho.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}`, bloqueante: a.bloqueante === true });
     } else if (a.severidade === "atencao") {
       amarelo.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}` });
     }
@@ -60,8 +67,35 @@ export function calcularSinaleiro(avisos: Aviso[], acoes: AcaoPrioritaria[]): Es
     }
   }
 
-  if (vermelho.length > 0) return { cor: "vermelho", itens: vermelho };
-  if (amarelo.length > 0) return { cor: "amarelo", itens: amarelo };
-  if (verde.length > 0) return { cor: "verde", itens: verde };
-  return { cor: null, itens: [] };
+  if (vermelho.length > 0) {
+    return { cor: "vermelho", itens: vermelho, bloqueante: vermelho.some(i => i.bloqueante) };
+  }
+  if (amarelo.length > 0) return { cor: "amarelo", itens: amarelo, bloqueante: false };
+  if (verde.length > 0) return { cor: "verde", itens: verde, bloqueante: false };
+  return { cor: null, itens: [], bloqueante: false };
 }
+
+/**
+ * Fase 3 do plano Assessor Ativo: a dica de histórico do Responsável Técnico (evento
+ * "urbi:dica", disparado no onBlur do campo RT em ProcessoClient.tsx) também acende o sinal em
+ * amarelo — nada é removido, só somado. Vermelho continua vencendo sobre a dica de RT (ela some
+ * da tela desta rodada, mas o fato em si não é perdido — dica de RT não é persistida em lugar
+ * nenhum, é sinal do instante em que o campo perdeu o foco).
+ */
+export function combinarComDicaRt(base: EstadoSinaleiro, dicaRt: string | null): EstadoSinaleiro {
+  if (!dicaRt) return base;
+  if (base.cor === "vermelho") return base;
+  const itemRt: ItemSinaleiro = {
+    titulo: "Histórico do Responsável Técnico",
+    detalhe: dicaRt,
+    fonte: "Módulo Profissionais — histórico do RT",
+  };
+  if (base.cor === "amarelo") return { cor: "amarelo", itens: [itemRt, ...base.itens], bloqueante: false };
+  return { cor: "amarelo", itens: [itemRt], bloqueante: false };
+}
+
+export const CORES_SINALEIRO: Record<CorSinaleiro, { borda: string; forma: string; rotulo: string }> = {
+  vermelho: { borda: "#dc2626", forma: "▲", rotulo: "Fiscalizar" },
+  amarelo: { borda: "#d97706", forma: "◆", rotulo: "Corrigir/Revisar" },
+  verde: { borda: "#16a34a", forma: "●", rotulo: "Sugerir" },
+};

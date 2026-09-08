@@ -26,6 +26,10 @@ export default function LoginPage() {
       });
       const json = await res.json();
       if (!json.ok) { setErro(json.erro || "Erro ao fazer login."); return; }
+      // O layout raiz não remonta entre login e Home (App Router só troca {children}), então
+      // UrbiGlobal nunca refaria sozinho o fetch de /api/auth/me — Shift+U ficava travado até
+      // um F5. Mesmo padrão de app/admin/usuarios/page.tsx ao ligar/desligar urbi_ativo.
+      window.dispatchEvent(new CustomEvent("urbi:refresh"));
       router.push("/");
     } catch (e: any) {
       setErro("Erro de conexão.");

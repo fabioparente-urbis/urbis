@@ -1,4 +1,4 @@
-export type ModuloAuditoria = 'LIP' | 'MAC' | 'DESPACHO' | 'LOGRADOURO' | 'SISTEMA';
+export type ModuloAuditoria = 'LIP' | 'MAC' | 'DESPACHO' | 'LOGRADOURO' | 'SISTEMA' | 'URBI';
 export type OrigemAuditoria = 'MANUAL' | 'IA' | 'SISTEMA';
 
 export type AcaoLIP =
@@ -24,8 +24,16 @@ export type AcaoLOGRADOURO = 'LOGRADOURO_SALVO' | 'LOGRADOURO_ALTERADO';
 export type AcaoSISTEMA =
   | 'SESSAO_INICIADA' | 'SESSAO_ENCERRADA' | 'SESSAO_IDLE' | 'PROCESSO_ABERTO';
 
+/**
+ * Condições que impedem a análise de um processo (Slot 1 e Slot 2) — pedido do Fábio em
+ * 08/09/2026, ver ~/.claude/plans/floating-humming-orbit.md. "Tudo com histórico salvo": toda
+ * vez que o card grande aparece OU é dispensado sem ter sido chamado, fica um evento aqui.
+ */
+export type AcaoURBI =
+  | 'URBI_CONDICAO_BLOQUEANTE_DETECTADA' | 'URBI_CONDICAO_BLOQUEANTE_DISPENSADA';
+
 export type AcaoAuditoria =
-  | AcaoLIP | AcaoMAC | AcaoDESPACHO | AcaoLOGRADOURO | AcaoSISTEMA;
+  | AcaoLIP | AcaoMAC | AcaoDESPACHO | AcaoLOGRADOURO | AcaoSISTEMA | AcaoURBI;
 
 export interface RegistrarParams {
   modulo: ModuloAuditoria;

@@ -142,6 +142,9 @@ export default function MacPage() {
   // MRP com a MESMA data — evita o descasamento de dia perto da meia-noite.
   const [dataEmissao, setDataEmissao] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
+  // COND_180_DIAS (URBI, pedido do Fábio 08/09/2026) — cópia isolada do mesmo mecanismo do Slot 1
+  // (app/analise-regularizacao/[codigo]/page.tsx), nunca compartilhada entre os dois arquivos.
+  const [bloqueio180DiasMsg, setBloqueio180DiasMsg] = useState<string | null>(null);
   const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
@@ -678,7 +681,29 @@ export default function MacPage() {
    * processo com pendência de LIP, a reemissão pedia número novo e
    * queimava a numeração, mesmo com o botão dizendo "Reemitir nº X".
    */
+  useEffect(() => {
+    if (!codigo) return;
+    let vivo = true;
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (!vivo || !j?.ok) return;
+        const aviso = (j.avisos ?? []).find((a: any) => a.id === "cond_180_dias");
+        setBloqueio180DiasMsg(aviso ? String(aviso.detalhe) : null);
+      })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [codigo]);
+
   async function prepararNumeracao(tipo: "despacho" | "arquivamento") {
+    if (bloqueio180DiasMsg) {
+      setReemitindo(false);
+      setNumeroDespacho("");
+      setNumeracaoBloqueio(bloqueio180DiasMsg);
+      setNumeracaoCarregando(false);
+      setModalDespacho(true);
+      return;
+    }
     const serie = tipo === "arquivamento" ? "parecer" : "despacho";
     const jaEmitido = serie === "parecer" ? analiseAtual?.numero_parecer : analiseAtual?.numero_despacho;
 
