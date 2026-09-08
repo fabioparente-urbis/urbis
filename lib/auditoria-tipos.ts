@@ -1,4 +1,4 @@
-export type ModuloAuditoria = 'LIP' | 'MAC' | 'DESPACHO' | 'LOGRADOURO' | 'SISTEMA' | 'URBI';
+export type ModuloAuditoria = 'LIP' | 'MAC' | 'DESPACHO' | 'LOGRADOURO' | 'SISTEMA' | 'URBI' | 'ADMIN';
 export type OrigemAuditoria = 'MANUAL' | 'IA' | 'SISTEMA';
 
 export type AcaoLIP =
@@ -32,8 +32,16 @@ export type AcaoSISTEMA =
 export type AcaoURBI =
   | 'URBI_CONDICAO_BLOQUEANTE_DETECTADA' | 'URBI_CONDICAO_BLOQUEANTE_DISPENSADA';
 
+/**
+ * Ações administrativas fora do fluxo normal de análise — hoje só o estorno
+ * de numeração (`/admin/numeracao`), pedido do Fábio em 08/09/2026 depois de
+ * reverter manualmente o Despacho Interno nº 1663 do processo
+ * 24.5.000024350-0.
+ */
+export type AcaoADMIN = 'NUMERACAO_ESTORNADA';
+
 export type AcaoAuditoria =
-  | AcaoLIP | AcaoMAC | AcaoDESPACHO | AcaoLOGRADOURO | AcaoSISTEMA | AcaoURBI;
+  | AcaoLIP | AcaoMAC | AcaoDESPACHO | AcaoLOGRADOURO | AcaoSISTEMA | AcaoURBI | AcaoADMIN;
 
 export interface RegistrarParams {
   modulo: ModuloAuditoria;
