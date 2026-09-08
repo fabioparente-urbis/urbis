@@ -617,15 +617,16 @@ export default function UrbiGlobal() {
             }}
           >
             <div style={{
-              position: "relative", width: 130, height: 130, borderRadius: "50%", overflow: "hidden",
-              animation: "urbiPulsoBloqueio 1.6s infinite",
+              position: "relative", width: 150, height: 190,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              animation: "urbiPulsoBloqueio 1.6s infinite", borderRadius: "50%",
             }}>
-              <img src="/urbi/urbi-botao.jpg" alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-              <div aria-hidden="true" style={{
-                position: "absolute", inset: 0, background: CORES_SINALEIRO.vermelho.borda,
-                mixBlendMode: "color", opacity: 0.8,
-              }} />
+              {/* Boneco de verdade (não a fotinho do botão) — pedido do Fábio, 08/09/2026: "isso
+                  é o botão... o URBI é um boneco", depois de ver a intervenção usando a mesma
+                  imagem redonda do avatar de canto em vez do personagem ilustrado. */}
+              <img src="/urbi/poses/urbi-atencao.png" alt=""
+                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block",
+                  filter: "drop-shadow(0 8px 18px rgba(220,38,38,0.45))" }} />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#991b1b", textAlign: "center" }}>
               Antes de continuar analisando este processo…

@@ -19,7 +19,8 @@ export type FonteAviso =
   | "histórico do MAC"
   | "checklist"
   | "BIP"
-  | "view do BDI";
+  | "view do BDI"
+  | "auditoria";
 
 export type Severidade = "info" | "atencao" | "alerta";
 
@@ -226,6 +227,21 @@ export type EntradaVigia = {
   regras?: Partial<Record<ChaveRegraBloqueio, RegraBloqueio>>;
   /** true quando existe evento LIP_MARCO_TEMPORAL_REPROVADO para este processo (auditoria_eventos). */
   marcoTemporalReprovado?: boolean;
+  /**
+   * A prova por trás de `marcoTemporalReprovado` — o `detalhe` já gravado no evento de auditoria
+   * (`marco`/`leitura`, ver `avaliarMarcoTemporal` em lib/marcoTemporal.ts), com o TRECHO exato do
+   * laudo que embasa o veredito. Pedido do Fábio, 08/09/2026: "e quando eu clico ele deve provar
+   * isso" — sem isso, a intervenção era uma frase pronta repetida, sem o fato por trás dela.
+   * Undefined em eventos antigos gravados antes deste campo existir (evento existe, prova não).
+   */
+  marcoTemporalEvidencia?: {
+    marco?: string | null;
+    parecerFiscal?: string | null;
+    estruturaConcluidaAntesDoMarco?: string | null;
+    dataConclusaoObra?: string | null;
+    trecho?: string | null;
+    fonte?: string | null;
+  } | null;
   /** Dias corridos desde a última emissão em mdp_registros. null = nunca emitiu nada ainda. */
   diasSemUltimaEmissao?: number | null;
 };
@@ -389,11 +405,18 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
   }
 
   if (regra("COND_MARCO_TEMPORAL").ativo && e.marcoTemporalReprovado) {
+    const ev = e.marcoTemporalEvidencia;
+    const trecho = ev?.trecho?.trim();
+    const detalhe = trecho
+      ? `Segundo a vistoria fiscal, a estrutura não estava concluída antes de ${ev?.marco ?? "marco temporal"} ` +
+        `(Lei Complementar nº 314/2018). Trecho do laudo${ev?.fonte ? ` (${ev.fonte})` : ""}: "${trecho}". ` +
+        `Este processo deve ser indeferido por isso — não há por que seguir analisando o restante.`
+      : "Segundo a vistoria fiscal, a estrutura não estava concluída antes do marco temporal da Lei Complementar nº 314/2018. Este processo deve ser indeferido por isso — não há por que seguir analisando o restante. (Evento antigo, sem o trecho do laudo salvo junto — abra o LIP para conferir o laudo original.)";
     avisos.push({
       id: "cond_marco_temporal",
       titulo: "Marco temporal não atendido",
-      detalhe: "Segundo a vistoria fiscal, a estrutura não estava concluída antes do marco temporal da Lei Complementar nº 314/2018. Este processo deve ser indeferido por isso — não há por que seguir analisando o restante.",
-      fonte: "campo do processo",
+      detalhe,
+      fonte: "auditoria",
       severidade: "alerta",
       bloqueante: true,
     });

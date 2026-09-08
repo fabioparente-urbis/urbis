@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { autenticar, verificarOwnership } from "@/lib/auth";
-import { montarAvisos, triar, type EntradaVigia } from "@/lib/bdi/vigia";
+import { montarAvisos, triar, type EntradaVigia, type Aviso } from "@/lib/bdi/vigia";
 import { lerRegrasBloqueio } from "@/lib/urbi/regrasBloqueio";
 
 /** "DD/MM/AAAA" (formato usado em mdp_registros.data_despacho) → Date, ou null se ilegível. */
@@ -107,16 +107,58 @@ export async function GET(req: NextRequest) {
   // --- condições que impedem a análise (Fase A, 08/09/2026) ---------------
   const regras = await lerRegrasBloqueio();
 
+  const avisosExtras: Aviso[] = [];
   let marcoTemporalReprovado = false;
+  let marcoTemporalEvidencia: EntradaVigia["marcoTemporalEvidencia"] = null;
   if (regras.COND_MARCO_TEMPORAL.ativo) {
+    // Pega o evento MAIS RECENTE (não "algum dia já existiu") — achado real em 08/09/2026: o
+    // registro é gravado toda vez que uma leitura reprova, mas NUNCA existe um evento de
+    // correção quando uma leitura seguinte aprova (só `naoApta===true` grava, ver
+    // ProcessoClient.tsx). Sem isso, um laudo antigo reprovado ficava bloqueando pra sempre,
+    // mesmo com laudo novo corrigido depois e o processo seguindo normalmente (despacho
+    // interno emitido — não indeferimento, contradição que o Fábio notou na tela).
     const { data: eventoMarco } = await supabase
       .from("auditoria_eventos")
-      .select("id")
+      .select("id, detalhe, criado_em")
       .eq("processo_codigo", codigo)
       .eq("acao", "LIP_MARCO_TEMPORAL_REPROVADO")
+      .order("criado_em", { ascending: false })
       .limit(1)
       .maybeSingle();
-    marcoTemporalReprovado = !!eventoMarco;
+    if (eventoMarco) {
+      const tagsProc: any[] = Array.isArray((processo as any).tags) ? (processo as any).tags : [];
+      const tempoEvento = Date.parse((eventoMarco as any).criado_em) || 0;
+      // Tag de despacho/despacho interno/laudo GRAVADA DEPOIS do evento = atividade seguiu sem
+      // indeferir. Não prova que o marco foi corrigido, mas derruba a certeza — vira aviso não
+      // bloqueante, pedindo conferência manual, em vez de intervenção afirmando fato que pode
+      // estar superado.
+      const tagPosterior = tagsProc.some((t) => {
+        if (!t || typeof t !== "object") return false;
+        if (!["despacho", "despacho_interno", "laudo"].includes(t.tipo)) return false;
+        const tempoTag = Date.parse(t.criado_em ?? "") || 0;
+        return tempoTag > tempoEvento;
+      });
+      marcoTemporalReprovado = !tagPosterior;
+      const detalheEvento = (eventoMarco as any).detalhe ?? {};
+      marcoTemporalEvidencia = {
+        marco: detalheEvento.marco ?? null,
+        parecerFiscal: detalheEvento.leitura?.parecerFiscal ?? null,
+        estruturaConcluidaAntesDoMarco: detalheEvento.leitura?.estruturaConcluidaAntesDoMarco ?? null,
+        dataConclusaoObra: detalheEvento.leitura?.dataConclusaoObra ?? null,
+        trecho: detalheEvento.leitura?.trecho ?? null,
+        fonte: detalheEvento.leitura?.fonte ?? null,
+      };
+      if (tagPosterior) {
+        avisosExtras.push({
+          id: "cond_marco_temporal_possivelmente_superado",
+          titulo: "Marco temporal reprovado num laudo antigo — conferir",
+          detalhe: `Uma leitura anterior reprovou o marco temporal, mas o processo teve despacho/despacho interno/laudo DEPOIS dessa leitura, sem indeferimento — pode ter sido corrigido por um laudo novo. Confira o laudo mais recente antes de confiar neste alerta.${detalheEvento?.leitura?.trecho ? ` Trecho da leitura antiga: "${detalheEvento.leitura.trecho}".` : ""}`,
+          fonte: "auditoria",
+          severidade: "alerta",
+          bloqueante: false,
+        });
+      }
+    }
   }
 
   let diasSemUltimaEmissao: number | null = null;
@@ -142,12 +184,13 @@ export async function GET(req: NextRequest) {
     numeracao: (numeracao ?? []) as any,
     regras,
     marcoTemporalReprovado,
+    marcoTemporalEvidencia,
     diasSemUltimaEmissao,
   };
 
   return NextResponse.json({
     ok: true,
-    avisos: montarAvisos(entrada),
+    avisos: [...montarAvisos(entrada), ...avisosExtras],
     triagem: triar(entrada),
   });
 }

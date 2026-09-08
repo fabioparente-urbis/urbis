@@ -126,9 +126,15 @@ function corBadgeRetorno(dias: number | null | undefined): string {
   return SITUACAO_MAC_COR["Aguardando retorno do interessado"];
 }
 
+/**
+ * Padronizado em 08/09/2026 (pedido do Fábio: "tem duas tags muito parecidas... o correto é a
+ * primeira") — sem contagem de dias (`dias_aguardando_retorno` não veio, ver
+ * vw_bdi_aguardando_retorno em /api/processos), o rótulo curto continua igual, só sem o número.
+ * Nunca mais a forma longa "Aguardando retorno do interessado" nesta badge.
+ */
 function textoBadgeRetorno(dias: number | null | undefined): string {
   const d = diasInteiros(dias);
-  return d != null ? `Aguardando retorno · ${d} dia${d === 1 ? "" : "s"}` : "Aguardando retorno do interessado";
+  return d != null ? `Aguardando retorno · ${d} dia${d === 1 ? "" : "s"}` : "Aguardando retorno";
 }
 
 function tituloBadgeRetorno(dias: number | null | undefined, motivo?: string): string | undefined {
@@ -678,17 +684,18 @@ function ProcessosConteudo() {
                     MAC: {p.situacao_mac === "Aguardando retorno do interessado" ? textoBadgeRetorno(p.dias_aguardando_retorno) : (p.situacao_mac || "—")}
                   </span>
                 </div>
-                {/* Some no telão (lg+) sempre que o MAC já começou — a partir daí
-                    situacaoGeral() é sempre DERIVADA do MAC (lib/bdi/situacao.ts:
-                    "Em análise" -> "MAC em análise", "Aguardando retorno" e
-                    "Arquivado/indeferido" ficam com o mesmo nome), então o badge MAC
-                    acima já conta o mesmo fato. Só quando MAC ainda é "Não iniciado" a
-                    geral traz informação NOVA (resume o LIP: "LIP pendente"/"Em
-                    cadastro") — aí continua aparecendo. Em telas menores (sem o par
-                    LIP/MAC) ela sempre aparece, é o único resumo ali. */}
+                {/* Sempre escondida no telão (lg+, 08/09/2026 — pedido do Fábio: "tem que
+                    padronizar e diminuir tags"): `situacaoGeral()` é 100% DERIVADA do par
+                    LIP+MAC acima (lib/bdi/situacao.ts) — todo valor que ela pode assumir já está
+                    dito por um dos dois badges ("Em cadastro"/"LIP pendente" = o que o badge LIP
+                    já diz; "MAC em análise"/"Aguardando retorno"/"Arquivado" = o que o badge MAC
+                    já diz). Antes só escondia quando o MAC tinha começado, e sobrava um badge
+                    igual repetindo "LIP: Incompleto" com outras palavras quando o MAC ainda não
+                    começava. Em telas menores (sem o par LIP/MAC, que é `hidden lg:flex`) ela
+                    continua sendo o único resumo — por isso só o lg:hidden, nunca hidden puro. */}
                 <span
                   title={p.situacao_motivo}
-                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_mac && p.situacao_mac !== "Não iniciado" ? "lg:hidden" : ""} ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
+                  className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap lg:hidden ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.situacao_geral || "—"}
                 </span>
 
