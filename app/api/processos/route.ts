@@ -190,6 +190,8 @@ export async function GET(req: NextRequest) {
     const radarPorCodigo = new Map<string, {
       esforco: string | null; pendencias: number | null;
       temAcaoBloqueante: boolean; semPendenciasMotor: boolean;
+      /** Texto e motivo da ação tier 1, quando houver — ver comentário em `acaoTexto` abaixo. */
+      acaoTexto: string | null; acaoMotivo: string | null;
     }>();
     if (codigos.length > 0) {
       const { data: linhasRadar } = await supabase
@@ -209,6 +211,15 @@ export async function GET(req: NextRequest) {
           // lib/urbi/motorProducao.ts, nunca recalculada aqui.
           temAcaoBloqueante: acoes[0]?.tier === 1,
           semPendenciasMotor: acoes.length === 0,
+          /**
+           * O QUE é a ação e POR QUÊ — 08/09/2026, pedido do Fábio: "o certo seria ele explicar
+           * por que tem ação bloqueante, qual ação é essa e por que tá pronto pra despachar".
+           * Número sozinho não ajuda a decidir nada. Os dois campos já existiam dentro do
+           * retrato do Radar (`alertas.acoes[].texto/motivo`, escritos por
+           * lib/urbi/motorProducao.ts) — só não eram devolvidos. Nada recalculado aqui.
+           */
+          acaoTexto: acoes[0]?.tier === 1 ? (acoes[0]?.texto ?? null) : null,
+          acaoMotivo: acoes[0]?.tier === 1 ? (acoes[0]?.motivo ?? null) : null,
         });
       }
     }
@@ -249,6 +260,8 @@ export async function GET(req: NextRequest) {
         pendencias_radar: radarPorCodigo.get(p.codigo)?.pendencias ?? null,
         tem_acao_bloqueante: radarPorCodigo.get(p.codigo)?.temAcaoBloqueante ?? false,
         sem_pendencias_motor: radarPorCodigo.get(p.codigo)?.semPendenciasMotor ?? false,
+        acao_bloqueante_texto: radarPorCodigo.get(p.codigo)?.acaoTexto ?? null,
+        acao_bloqueante_motivo: radarPorCodigo.get(p.codigo)?.acaoMotivo ?? null,
       };
     });
 

@@ -128,10 +128,14 @@ type Msg = {
   /**
    * Botões de ação sob a mensagem — 08/09/2026, pedido do Fábio: "o URBI que tinha que falar
    * essas coisas" (o Briefing do dia da Home, que já existia como texto fixo na tela, sem jeito
-   * de clicar). Cada ação navega pra Pilha já filtrada (lib/urbi/navegacao.ts,
-   * `filtrosParaQuery`) — mesmo mecanismo de filtro que a tela já usa, nada novo sendo calculado.
+   * de clicar). Depois: "o certo seria ele explicar por que tem ação bloqueante, qual ação é
+   * essa... criar ambiente de conversa com o URBI".
+   *
+   * Por isso dois tipos de ação: `href` leva pra Pilha já filtrada (lib/urbi/navegacao.ts) e
+   * `explicar` NÃO sai da tela — faz o URBI detalhar ali mesmo, na conversa, o que está por trás
+   * do número. Sair da tela é o oposto de conversar.
    */
-  acoes?: { rotulo: string; href: string }[];
+  acoes?: { rotulo: string; href?: string; explicar?: "bloqueantes" | "prontos" }[];
 };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
@@ -660,6 +664,79 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
    * jeito de clicar. Só entra pra saudação de fora de processo (Home) — dentro de um processo
    * quem abre é `abrirComRelatorioMotor`.
    */
+  /**
+   * Detalha, DENTRO da conversa, o que está por trás de um número do briefing — 08/09/2026:
+   * "o certo seria ele explicar por que tem ação bloqueante, qual ação é essa e por que tá pronto
+   * pra despachar... criar ambiente de conversa com o URBI".
+   *
+   * Agrupa os processos pelo MOTIVO que o Motor de Produção já escreveu no retrato do Radar
+   * (`acao_bloqueante_texto`/`_motivo`, ver app/api/processos) — texto do sistema, não do modelo:
+   * zero IA, zero custo, e nada que o analista não possa conferir na tela do processo. Termina
+   * oferecendo os primeiros processos pra abrir direto, que é o próximo passo natural da conversa.
+   */
+  function explicarBriefing(tipo: "bloqueantes" | "prontos") {
+    setMsgs((m) => [...m, { role: "user", texto: tipo === "bloqueantes" ? "Por que estão bloqueados?" : "Por que estão prontos?" }]);
+    fetch("/api/processos")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j?.ok || !Array.isArray(j.data)) {
+          setMsgs((m) => [...m, { role: "urbi", texto: "Não consegui ler a lista de processos agora. Tenta de novo em instantes." }]);
+          return;
+        }
+        const lista = j.data.filter((p: any) =>
+          tipo === "bloqueantes" ? p.tem_acao_bloqueante : p.sem_pendencias_motor,
+        );
+        if (lista.length === 0) {
+          setMsgs((m) => [...m, { role: "urbi", texto: "Nenhum processo nessa situação agora." }]);
+          return;
+        }
+
+        let texto: string;
+        if (tipo === "bloqueantes") {
+          // Agrupa pelo texto da ação — normalmente poucos motivos se repetem em muitos processos.
+          const porMotivo = new Map<string, number>();
+          for (const p of lista) {
+            const chave = p.acao_bloqueante_texto || "motivo não registrado no último retrato do Radar";
+            porMotivo.set(chave, (porMotivo.get(chave) ?? 0) + 1);
+          }
+          const linhas = [...porMotivo.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([motivo, n]) => `• ${n}× ${motivo}`);
+          const exemploMotivo = lista.find((p: any) => p.acao_bloqueante_motivo)?.acao_bloqueante_motivo;
+          texto =
+            `"Ação bloqueante" quer dizer que o Motor de Produção achou uma pendência que impede ` +
+            `emitir ou seguir a análise — item não conforme no MAC. São ${lista.length}, por estes motivos:\n\n` +
+            linhas.join("\n") +
+            (exemploMotivo ? `\n\nExemplo do que está por trás: ${exemploMotivo}` : "");
+        } else {
+          texto =
+            `"Pronto pra despachar" quer dizer que o Motor de Produção não achou NENHUMA pendência ` +
+            `no último retrato: LIP sem campo crítico vazio e MAC sem item não conforme. São ${lista.length}.\n\n` +
+            `Isso não é aprovação — é ausência de pendência registrada. A decisão continua sua.`;
+        }
+
+        // Oferece os primeiros processos pra abrir direto: a conversa termina num próximo passo,
+        // não num beco.
+        const acoes = lista.slice(0, 3).map((p: any) => ({
+          rotulo: `Abrir ${p.codigo}`,
+          href: `/processo/${encodeURIComponent(p.codigo)}?tipo=${encodeURIComponent(p.tipo_processo ?? "")}`,
+        }));
+        if (lista.length > 3) {
+          acoes.push({
+            rotulo: `Ver os ${lista.length} na Pilha`,
+            href: `/processos${filtrosParaQuery(tipo === "bloqueantes" ? { acaoBloqueante: true } : { prontoParaDespachar: true })}`,
+          });
+        }
+        setMsgs((m) => [...m, { role: "urbi", texto, acoes }]);
+        anunciar("URBI respondeu.");
+        resetIdleTimer();
+      })
+      .catch(() => {
+        setMsgs((m) => [...m, { role: "urbi", texto: "Não consegui ler a lista de processos agora." }]);
+      });
+  }
+
   function saudacaoOnMount(comVoz?: boolean) {
     if (comVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
     const primeiroNome = (usuario.nome ?? "").split(" ")[0] || "colega";
@@ -681,9 +758,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         const partes: string[] = [];
         if (bloqueantes > 0) partes.push(`${bloqueantes} processo${bloqueantes === 1 ? "" : "s"} com ação bloqueante`);
         if (prontos > 0) partes.push(`${prontos} pronto${prontos === 1 ? "" : "s"} pra despachar`);
-        const acoes: { rotulo: string; href: string }[] = [];
+        // "Por quê" vem PRIMEIRO, de propósito: o pedido do Fábio foi entender antes de navegar
+        // ("criar ambiente de conversa"). Quem já sabe o que quer continua com o atalho pra Pilha.
+        const acoes: { rotulo: string; href?: string; explicar?: "bloqueantes" | "prontos" }[] = [];
+        if (bloqueantes > 0) acoes.push({ rotulo: "Por que estão bloqueados?", explicar: "bloqueantes" });
+        if (prontos > 0) acoes.push({ rotulo: "Por que estão prontos?", explicar: "prontos" });
         if (bloqueantes > 0) {
-          acoes.push({ rotulo: `Ver os ${bloqueantes} bloqueantes`, href: `/processos${filtrosParaQuery({ acaoBloqueante: true })}` });
+          acoes.push({ rotulo: `Ver os ${bloqueantes} na Pilha`, href: `/processos${filtrosParaQuery({ acaoBloqueante: true })}` });
         }
         if (prontos > 0) {
           acoes.push({ rotulo: `Ver os ${prontos} prontos`, href: `/processos${filtrosParaQuery({ prontoParaDespachar: true })}` });
@@ -1111,7 +1192,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
                     key={ai}
                     type="button"
                     className="urbi-focavel"
-                    onClick={() => router.push(acao.href)}
+                    onClick={() => {
+                      if (acao.explicar) { explicarBriefing(acao.explicar); return; }
+                      if (acao.href) router.push(acao.href);
+                    }}
                     style={{
                       background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe",
                       borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 600,
