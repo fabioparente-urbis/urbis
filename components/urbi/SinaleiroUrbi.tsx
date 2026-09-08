@@ -50,14 +50,40 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
         aria-label={`URBI — ${c.rotulo}: ${estado.itens.length} item${estado.itens.length > 1 ? "ns" : ""}. Clique para ver os motivos.`}
         title={`URBI — ${c.rotulo}`}
         style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: c.fundo, border: `2px solid ${c.borda}`, color: c.texto,
-          borderRadius: 999, padding: "6px 11px", cursor: "pointer",
-          fontSize: 13, fontWeight: 700, boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+          position: "relative",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
+          background: "#1e293b", border: "1px solid #0f172a", borderRadius: 8,
+          padding: "7px 6px", cursor: "pointer",
+          boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
         }}
       >
-        <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>{c.forma}</span>
-        <span>{estado.itens.length}</span>
+        {(["vermelho", "amarelo", "verde"] as const).map(cor => {
+          const acesa = cor === estado.cor;
+          const acesoBg = CORES[cor].borda;
+          return (
+            <span
+              key={cor}
+              aria-hidden="true"
+              style={{
+                width: 14, height: 14, borderRadius: "50%",
+                background: acesa ? acesoBg : "#334155",
+                boxShadow: acesa ? `0 0 8px 2px ${acesoBg}` : "inset 0 1px 2px rgba(0,0,0,0.4)",
+                opacity: acesa ? 1 : 0.45,
+              }}
+            />
+          );
+        })}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute", top: -6, right: -6,
+            background: c.borda, color: "#fff", fontSize: 11, fontWeight: 700,
+            borderRadius: 999, minWidth: 17, height: 17, lineHeight: "17px",
+            textAlign: "center", padding: "0 4px", border: "2px solid #1e293b",
+          }}
+        >
+          {estado.itens.length}
+        </span>
       </button>
 
       {aberto && (
