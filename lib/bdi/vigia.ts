@@ -437,7 +437,11 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
-  if (regra("COND_BUSCA_ENDERECO").ativo) {
+  // Regularização SEI e Aceite SEI apenas — pedido original do Fábio era "Regularização SEI...
+  // e Aceite SEI" (ver plano floating-humming-orbit.md). Achado em 08/09/2026: faltava esse
+  // filtro, e a condição disparava também na Aprovação de Projeto (Slot 5), que nunca teve busca
+  // de endereço no fluxo. "Slot 5 não tem busca... não deve haver esse pedido" — Fábio.
+  if (regra("COND_BUSCA_ENDERECO").ativo && (ehRegularizacao || tipo.startsWith("aceite"))) {
     const outro = valorCampo(e.processo.dados, "outro");
     if (!outro) {
       avisos.push({
