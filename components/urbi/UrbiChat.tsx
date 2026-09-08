@@ -295,9 +295,30 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // conversas (comentário acima), mas trocar de processo/slot/Home SEM fechar não zerava nada.
   // Corrigido: qualquer mudança de processoCodigo (inclusive pra/de null — ida à Home/Pilha)
   // limpa as duas conversas (Assistente e BIP) imediatamente, sem exceção.
+  //
+  // A PARTIR DE 08/09/2026 esse mesmo efeito também RESPONDE sobre o processo novo: com o URBI
+  // aberto acompanhando a navegação (ver UrbiGlobal), entrar num processo limpava a conversa e
+  // deixava o URBI mudo — "ele deveria mostrar as pendências... mas ele ficou calado; se eu
+  // fechar e abrir ele fala" (Fábio). O relatório do Motor de Produção era montado só no ABRIR
+  // do chat, e o chat já estava aberto. Agora, ao trocar de processo com o chat aberto, o
+  // relatório do processo NOVO é entregue na conversa recém-limpa — mesma fonte de sempre
+  // (/api/urbi/dossie, SQL puro, zero IA, zero custo).
+  const processoAnteriorRef = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     setMsgsBip([]); setHistoryBip([]);
     setMsgsAssistente([]); setHistoryAssistente([]);
+
+    const houveTroca = processoAnteriorRef.current !== undefined && processoAnteriorRef.current !== processoCodigo;
+    processoAnteriorRef.current = processoCodigo;
+    // Só quando o chat JÁ está aberto: se estiver fechado, quem monta o relatório é `abrir()`,
+    // e adiantar aqui gastaria uma consulta que ninguém pediu.
+    if (!houveTroca || !abertoProp || !processoCodigo) return;
+    // `mensagemInicial` (dica ou condição bloqueante) tem prioridade — quem entrega é `abrir()`/
+    // o evento `urbi:entregar-dica`; não atropelar com o relatório genérico.
+    if (mensagemInicial) return;
+    entregarRelatorioMotor();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reage à troca de PROCESSO, não a
+    // mudança de abertura/mensagem (aberto tem efeito próprio, logo abaixo)
   }, [processoCodigo]);
   const prefsCarregadasRef = useRef(false);
   const [cornerPos, setCornerPos] = useState(lerCornerPosSalvo);
@@ -612,6 +633,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // na saudação de sempre.
   function abrirComRelatorioMotor() {
     if (urbiVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
+    entregarRelatorioMotor();
+  }
+
+  /**
+   * Só o relatório, sem mexer em voz/microfone — usado tanto na abertura quanto quando o analista
+   * ENTRA num processo com o URBI já aberto (ver o efeito de troca de processo acima). Separado de
+   * `abrirComRelatorioMotor` porque ligar o microfone faz sentido ao chamar o URBI, não ao navegar.
+   */
+  function entregarRelatorioMotor() {
     fetch(`/api/urbi/dossie?codigo=${encodeURIComponent(processoCodigo!)}`)
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
