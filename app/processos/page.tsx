@@ -346,6 +346,9 @@ function ProcessosConteudo() {
   if (filtrosAtivos.classificacaoVigia) rotulosFiltro.push(filtrosAtivos.classificacaoVigia);
   if (filtrosAtivos.porte) rotulosFiltro.push(`porte ${filtrosAtivos.porte}`);
   if (filtrosAtivos.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos", analises_desc: "mais análises", analises_asc: "menos análises", esforco: "esforço" }[filtrosAtivos.ordenar]);
+  // Vindos do "Briefing do dia" da Home (08/09/2026, botão pedido pelo Fábio).
+  if (filtrosAtivos.acaoBloqueante) rotulosFiltro.push("com ação bloqueante");
+  if (filtrosAtivos.prontoParaDespachar) rotulosFiltro.push("pronto pra despachar");
 
   function limparTriagem() {
     setFiltrosTriagem({});

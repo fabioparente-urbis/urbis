@@ -125,6 +125,13 @@ type Msg = {
   // nunca expõe o conteúdo do dossiê em si.
   usouDossie?: boolean; dossieCompleto?: boolean;
   fontesDossie?: FonteDossie[];
+  /**
+   * Botões de ação sob a mensagem — 08/09/2026, pedido do Fábio: "o URBI que tinha que falar
+   * essas coisas" (o Briefing do dia da Home, que já existia como texto fixo na tela, sem jeito
+   * de clicar). Cada ação navega pra Pilha já filtrada (lib/urbi/navegacao.ts,
+   * `filtrosParaQuery`) — mesmo mecanismo de filtro que a tela já usa, nada novo sendo calculado.
+   */
+  acoes?: { rotulo: string; href: string }[];
 };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
@@ -644,12 +651,47 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // Agora é local: monta a frase aqui, sem rede. A saudação sempre foi
   // descartável (havia esta mesma frase como fallback quando a API falhava),
   // então não se perde nada além do improviso sobre o tempo em Goiânia.
+  /**
+   * Briefing do dia FALADO PELO URBI, não mais só texto fixo na tela da Home — "o URBI que
+   * tinha que falar essas coisas" (Fábio, 08/09/2026), depois de ele pedir um botão pra acessar
+   * os processos com ação bloqueante e os prontos pra despachar. Mesma fonte e mesmo cálculo
+   * determinístico que `app/page.tsx` já usava pro quadro "Briefing do dia" (zero IA, zero custo
+   * novo) — só passou a ser dito na conversa, com um botão por número, em vez de texto solto sem
+   * jeito de clicar. Só entra pra saudação de fora de processo (Home) — dentro de um processo
+   * quem abre é `abrirComRelatorioMotor`.
+   */
   function saudacaoOnMount(comVoz?: boolean) {
     if (comVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
     const primeiroNome = (usuario.nome ?? "").split(" ")[0] || "colega";
     setMsgs([{ role: "urbi", texto: `Fala, ${primeiroNome}! Diga o que procura ou peça uma tela.` }]);
     anunciar("URBI respondeu.");
     resetIdleTimer();
+
+    fetch("/api/processos")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j?.ok || !Array.isArray(j.data)) return;
+        let bloqueantes = 0, prontos = 0;
+        for (const p of j.data) {
+          if (p.tem_acao_bloqueante) bloqueantes++;
+          if (p.sem_pendencias_motor) prontos++;
+        }
+        if (bloqueantes === 0 && prontos === 0) return;
+
+        const partes: string[] = [];
+        if (bloqueantes > 0) partes.push(`${bloqueantes} processo${bloqueantes === 1 ? "" : "s"} com ação bloqueante`);
+        if (prontos > 0) partes.push(`${prontos} pronto${prontos === 1 ? "" : "s"} pra despachar`);
+        const acoes: { rotulo: string; href: string }[] = [];
+        if (bloqueantes > 0) {
+          acoes.push({ rotulo: `Ver os ${bloqueantes} bloqueantes`, href: `/processos${filtrosParaQuery({ acaoBloqueante: true })}` });
+        }
+        if (prontos > 0) {
+          acoes.push({ rotulo: `Ver os ${prontos} prontos`, href: `/processos${filtrosParaQuery({ prontoParaDespachar: true })}` });
+        }
+        setMsgs((m) => [...m, { role: "urbi", texto: `Hoje: ${partes.join(", ")}.`, acoes }]);
+        anunciar("URBI respondeu.");
+      })
+      .catch(() => {});
   }
   // Fase 4 do plano Assessor Ativo (07/09/2026): ao abrir o chat DENTRO de um processo (sem uma
   // mensagemInicial de dica já pronta), a primeira mensagem passa a ser o relatório do Motor de
@@ -1062,6 +1104,23 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               padding: "7px 11px", fontSize: 12, lineHeight: 1.6,
               fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap",
             }}>{msg.texto}</div>
+            {msg.role === "urbi" && msg.acoes && msg.acoes.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
+                {msg.acoes.map((acao, ai) => (
+                  <button
+                    key={ai}
+                    type="button"
+                    className="urbi-focavel"
+                    onClick={() => router.push(acao.href)}
+                    style={{
+                      background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe",
+                      borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                      cursor: "pointer", fontFamily: "system-ui, sans-serif",
+                    }}
+                  >{acao.rotulo} →</button>
+                ))}
+              </div>
+            )}
             {msg.role === "urbi" && (
               <button
                 type="button"

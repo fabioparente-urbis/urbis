@@ -70,6 +70,11 @@ export type FiltrosPilha = {
   porte?: PortePilha;
   /** Situação real do processo (`/api/processos` já roda `situacaoGeral()` por item — lib/bdi/situacao.ts). */
   situacaoGeral?: SituacaoGeralPilha;
+  /** Mesmo campo `tem_acao_bloqueante` que alimenta o "Briefing do dia" da Home (08/09/2026,
+   *  pedido do Fábio: "queria ter um botão pra acessar os 41 e os 4"). */
+  acaoBloqueante?: boolean;
+  /** Mesmo campo `sem_pendencias_motor` do briefing — "pronto pra despachar". */
+  prontoParaDespachar?: boolean;
 };
 
 /** Ordem fixa do menos pro mais custoso — processo sem retrato do Radar ainda vai pro fim,
@@ -438,6 +443,9 @@ type ProcessoParaFiltro = {
   situacao_geral?: string | null;
   /** Esforço provável do retrato mais recente do Radar (`/api/processos`), quando existir. */
   esforco_provavel?: string | null;
+  /** Mesmos dois campos do "Briefing do dia" da Home (`app/page.tsx`) — já vêm prontos da API. */
+  tem_acao_bloqueante?: boolean | null;
+  sem_pendencias_motor?: boolean | null;
 };
 
 function numeroArea(v: unknown): number | null {
@@ -528,6 +536,14 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
     saida = saida.filter((p) => p.porte === filtros.porte);
   }
 
+  if (filtros.acaoBloqueante) {
+    saida = saida.filter((p) => p.tem_acao_bloqueante === true);
+  }
+
+  if (filtros.prontoParaDespachar) {
+    saida = saida.filter((p) => p.sem_pendencias_motor === true);
+  }
+
   if (filtros.tag || filtros.analise !== undefined) {
     saida = saida.filter((p) => {
       const tags = Array.isArray(p.tags) ? p.tags : [];
@@ -587,6 +603,8 @@ export function filtrosParaQuery(filtros: FiltrosPilha): string {
   if (filtros.classificacaoVigia) p.set("classificacaoVigia", filtros.classificacaoVigia);
   if (filtros.porte) p.set("porte", filtros.porte);
   if (filtros.situacaoGeral) p.set("situacaoGeral", filtros.situacaoGeral);
+  if (filtros.acaoBloqueante) p.set("acaoBloqueante", "1");
+  if (filtros.prontoParaDespachar) p.set("prontoParaDespachar", "1");
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -606,6 +624,8 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   const classificacaoVigia = params.get("classificacaoVigia");
   const porte = params.get("porte");
   const situacaoGeral = params.get("situacaoGeral");
+  const acaoBloqueante = params.get("acaoBloqueante");
+  const prontoParaDespachar = params.get("prontoParaDespachar");
 
   if (busca) f.busca = busca;
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
@@ -635,5 +655,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   ) {
     f.situacaoGeral = situacaoGeral;
   }
+  if (acaoBloqueante === "1") f.acaoBloqueante = true;
+  if (prontoParaDespachar === "1") f.prontoParaDespachar = true;
   return f;
 }
