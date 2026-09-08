@@ -37,6 +37,7 @@ import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/do
 import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
+import { salvarPdfNavegador, carregarPdfNavegador } from "@/lib/documentosSei/cachePdfNavegador";
 import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
@@ -181,18 +182,22 @@ export default function OrganizadorSeiRegularizacao({
   }, []);
 
   /**
-   * Sair do processo e voltar perdia o índice já organizado — o PDF nunca ficou no servidor
-   * (de propósito), mas os DADOS/METADADOS já ficam no MHD desde 06/09/2026 (ver
+   * Sair do processo e voltar perdia o índice já organizado — o PDF nunca ficou no SERVIDOR (de
+   * propósito), mas os DADOS/METADADOS já ficam no MHD desde 06/09/2026 (ver
    * docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §16.3). Recupera a última organização daqui, se houver.
-   * O PDF em si continua não voltando: "Abrir"/"Baixar" ficam desabilitados até o analista soltar
-   * o arquivo de novo (aviso na tela, nunca finge que o arquivo está disponível).
+   *
+   * O PDF em si, a partir de 08/09/2026 (pedido do Fábio), tenta voltar do cache do NAVEGADOR
+   * (IndexedDB, válido por 180 dias — ver lib/documentosSei/cachePdfNavegador.ts): se achar,
+   * "Abrir"/"Baixar" voltam a funcionar sem precisar soltar o PDF de novo. Só quando o cache
+   * também não tem (outro navegador/dispositivo, cache expirado, ou nunca foi salvo) é que o
+   * aviso pedindo pra soltar o PDF de novo aparece.
    */
   useEffect(() => {
     if (ativo !== true) return;
     let cancelado = false;
     fetch(`/api/mhd?processo=${encodeURIComponent(processoCodigo)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
+      .then(async (j) => {
         if (cancelado || !j?.ok || !j.ativo) return;
         const ultimo = (j.eventos ?? []).find((e: any) => e.tipo === "documentos_sei_organizado");
         if (ultimo?.detalhe) {
@@ -200,6 +205,8 @@ export default function OrganizadorSeiRegularizacao({
           setRecuperadoDoHistorico(true);
           // NUNCA abre sozinho — pedido explícito do Fábio (06/09/2026): a aba sempre começa
           // fechada em todo LIP, mesmo quando já existe índice recuperado do MHD.
+          const cache = await carregarPdfNavegador(processoCodigo);
+          if (!cancelado && cache) setArquivo(cache);
         }
       })
       .catch(() => {});
@@ -301,6 +308,7 @@ export default function OrganizadorSeiRegularizacao({
       if (erroFluxo) throw new Error(erroFluxo);
       if (!dados) throw new Error(`a leitura terminou sem resultado (HTTP ${r.status})`);
       setResultado(dados);
+      salvarPdfNavegador(processoCodigo, f);
     } catch (e: any) {
       setErro(e?.message ?? String(e));
     } finally {
@@ -343,6 +351,30 @@ export default function OrganizadorSeiRegularizacao({
     } finally {
       setBaixando(null);
     }
+  }
+
+  /**
+   * Exporta a lista de documentos em .txt (pedido do Fábio, 08/09/2026) — pra ele preencher o
+   * LIP olhando a lista, fora da tela. Respeita o filtro "Só última versão de cada tipo" já
+   * aplicado na tabela. Não depende de `arquivo` (só do índice, `resultado`) — funciona mesmo
+   * num processo recuperado do histórico, sem precisar soltar o PDF de novo.
+   */
+  function exportarListaTxt() {
+    if (!resultado) return;
+    const lista = soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos;
+    const linhas = lista.map((ev) => {
+      const paginas = ev.paginaIni === ev.paginaFim ? `pg. ${ev.paginaIni}` : `pg. ${ev.paginaIni}-${ev.paginaFim}`;
+      const dep = departamento(ev);
+      const partes = [ev.idSei, ev.titulo, paginas];
+      if (dep) partes.push(dep);
+      if (ev.data) partes.push(ev.data);
+      return partes.join(" — ");
+    });
+    const texto = `Processo ${resultado.numeroProcesso} — ${lista.length} documento(s)${
+      soUltimaVersao ? " (só última versão de cada tipo)" : ""
+    }\n\n${linhas.join("\n")}\n`;
+    const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
+    baixarBlob(blob, `${resultado.numeroProcesso} - lista de documentos${soUltimaVersao ? " (ultima versao)" : ""}.txt`);
   }
 
   /**
@@ -526,6 +558,13 @@ export default function OrganizadorSeiRegularizacao({
                     }`}
                   >
                     {soUltimaVersao ? "✓ Só última versão de cada tipo" : "Só última versão de cada tipo"}
+                  </button>
+                  <button
+                    onClick={exportarListaTxt}
+                    title="Exporta a lista de documentos (nº SEI, título, páginas) em .txt — respeita o filtro de versão acima, funciona mesmo sem o PDF solto de novo"
+                    className="text-xs px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+                  >
+                    📄 Exportar lista (.txt)
                   </button>
                   <button
                     onClick={baixarPacoteVigente}

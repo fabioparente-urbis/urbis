@@ -481,14 +481,14 @@ export default function UrbiGlobal() {
           50% { box-shadow: 0 0 0 18px rgba(220,38,38,0); }
         }
       `}</style>
-      {!urbiAberto && !modalAberto && (() => {
-        const tamanho = isHome ? 130 : 84;
+      {!urbiAberto && !modalAberto && isHome && (() => {
+        const tamanho = 130;
         const cor = estadoFinal?.cor ?? null;
         const c = cor ? CORES_SINALEIRO[cor] : null;
         const brilho = c ? `0 4px 26px ${c.borda}aa` : "0 4px 24px #3b82f688";
         return (
           <div style={{
-            position: "fixed", bottom: isHome ? 80 : 24, right: 24, zIndex: 1000,
+            position: "fixed", bottom: 80, right: 24, zIndex: 1000,
             display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
           }}>
             <button
