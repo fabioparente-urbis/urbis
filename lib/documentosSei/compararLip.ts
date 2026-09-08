@@ -54,6 +54,28 @@ const REGRAS: Regra[] = [
  * propósito. Exportado (Fase 6, §21 do plano) pra `lib/urbi/motorProducao.ts` saber quando um
  * campo vazio do LIP já tem documento correspondente no MHD, em vez de só "campo vazio".
  */
+/**
+ * O que o CORPO do documento afirma (`EventoSei.papelPorConteudo`) → chave do campo LIP.
+ *
+ * ACHADO REAL (08/09/2026, processo 24.5.000024350-0): a fiscalização mandou dois documentos
+ * seguidos e o SEI intitulou AMBOS de "Relatório" — pg. 177 é o registro fotográfico, pg. 179 é a
+ * vistoria. Decidindo só pelo título, este módulo não enxergava nenhum dos dois e sugeria para
+ * "vistoria" o "Relatório de Fiscalização" ANTERIOR (agosto/2025) em vez do termo de vistoria de
+ * março/2026 — ou seja, sugeria a vistoria errada, e o analista que aceitasse trocaria um valor
+ * certo por um vencido. O corpo de cada um se identifica na primeira linha ("TERMO DE VISTORIA" /
+ * "REGISTRO FOTOGRÁFICO DO LOCAL"), e é isso que o fatiador agora registra.
+ *
+ * `busca` fica de fora de propósito: ela alimenta `outro`/`qualOutro` no LIP, que não guardam Nº
+ * SEI (são "Sim/Não" + número do processo encontrado) — sugerir SEI ali seria valor de outro tipo.
+ */
+const CAMPO_POR_CONTEUDO: Record<string, string | undefined> = {
+  vistoria: "vistoria",
+  foto: "foto",
+};
+
+/** Ato numerado: o título é a identidade; o corpo de um despacho cita outros documentos. */
+const RE_ATO_TITULO = /^\s*(despacho|parecer|of[ií]cio|notifica[çc][ãa]o)\b/i;
+
 export const CAMPO_POR_PAPEL_PECA: Record<string, string | undefined> = {
   matricula: "certidao",
   certidao: "certidao",
@@ -84,6 +106,12 @@ export function sugerirCamposLip(eventos: EventoComPecas[]): Record<string, Suge
     const tituloNorm = normalizar(ev.titulo);
     for (const regra of REGRAS) {
       if (regra.teste(tituloNorm)) considerar(regra.chave, ev.idSei, ev.titulo, ev.paginaIni);
+    }
+    // Conteúdo entra junto com o título (o mais recente entre os candidatos vence, como sempre),
+    // exceto em ato numerado — ver CAMPO_POR_CONTEUDO.
+    if (ev.papelPorConteudo && !RE_ATO_TITULO.test(ev.titulo)) {
+      const chavePorConteudo = CAMPO_POR_CONTEUDO[ev.papelPorConteudo];
+      if (chavePorConteudo) considerar(chavePorConteudo, ev.idSei, ev.titulo, ev.paginaIni);
     }
     for (const peca of ev.pecas ?? []) {
       const chave = CAMPO_POR_PAPEL_PECA[peca.papel];
