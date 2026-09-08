@@ -48,6 +48,11 @@ type Processo = {
    *  Assessor Ativo, 07/09/2026. Nenhum cálculo novo, mesma fonte do chat do URBI. */
   esforco_provavel?: EsforcoProvavelPilha | null;
   pendencias_radar?: number | null;
+  /** Ação tier 1 do Motor de Produção (a que impede emitir/seguir) e o motivo dela, do mesmo
+   *  retrato do Radar — 08/09/2026, pra tag da Pilha poder pedir explicação ao URBI. */
+  tem_acao_bloqueante?: boolean;
+  acao_bloqueante_texto?: string | null;
+  acao_bloqueante_motivo?: string | null;
 };
 
 type SituacaoGeral =
@@ -676,12 +681,38 @@ function ProcessosConteudo() {
                 {/* Esforço/pendências do Radar (Fase 2, Assessor Ativo) — só aparece quando o
                     processo já foi visitado pelo menos uma vez; nunca inventa esforço. */}
                 {p.esforco_provavel && (
-                  <span
-                    title={`Esforço provável, calculado pelo Motor de Produção do URBI a partir do retrato mais recente do Radar.${typeof p.pendencias_radar === "number" ? ` ${p.pendencias_radar} pendência(s) na última análise do MAC.` : ""}`}
-                    className={`hidden xl:block px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${ESFORCO_COR[p.esforco_provavel]}`}>
+                  /**
+                   * A tag virou BOTÃO (08/09/2026, pedido do Fábio: "eu deveria clicar na tag do
+                   * processo na pilha e ele falar"). Clicar pede ao URBI que explique ESTE
+                   * processo — o número no card diz o quê, o URBI diz por quê, sem tirar o
+                   * analista da lista. Texto montado com o que a API já devolve (ação e motivo
+                   * escritos pelo Motor de Produção no retrato do Radar): zero IA, conferível.
+                   * `stopPropagation` porque o card inteiro já abre o processo no clique.
+                   */
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const linhas = [
+                        `Processo ${p.codigo} — esforço provável: ${ESFORCO_ROTULO[p.esforco_provavel!]}.`,
+                      ];
+                      if (typeof p.pendencias_radar === "number") {
+                        linhas.push(`Pendências na última análise do MAC: ${p.pendencias_radar}.`);
+                      }
+                      if (p.tem_acao_bloqueante && p.acao_bloqueante_texto) {
+                        linhas.push("", `⛔ Ação que impede seguir: ${p.acao_bloqueante_texto}`);
+                        if (p.acao_bloqueante_motivo) linhas.push(`Motivo: ${p.acao_bloqueante_motivo}`);
+                      } else if (!p.tem_acao_bloqueante) {
+                        linhas.push("", "Nenhuma ação bloqueante no último retrato do Radar.");
+                      }
+                      linhas.push("", "Isso vem do Motor de Produção, sobre o último retrato do Radar — dá pra conferir abrindo o processo.");
+                      window.dispatchEvent(new CustomEvent("urbi:explicar", { detail: { mensagem: linhas.join("\n") } }));
+                    }}
+                    title={`Clique para o URBI explicar este processo.\n\nEsforço provável, calculado pelo Motor de Produção do URBI a partir do retrato mais recente do Radar.${typeof p.pendencias_radar === "number" ? ` ${p.pendencias_radar} pendência(s) na última análise do MAC.` : ""}`}
+                    className={`hidden xl:block px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap cursor-pointer hover:ring-2 hover:ring-[var(--accent)] ${ESFORCO_COR[p.esforco_provavel]}`}>
                     {ESFORCO_ROTULO[p.esforco_provavel]}
                     {typeof p.pendencias_radar === "number" && p.pendencias_radar > 0 ? ` · ${p.pendencias_radar}` : ""}
-                  </span>
+                  </button>
                 )}
 
                 {/* Data */}

@@ -127,6 +127,29 @@ export default function UrbiGlobal() {
     try { sessionStorage.setItem(`urbi:bloqueioDispensado:${pathname}`, overlayDispensado ? "true" : "false"); } catch {}
   }, [overlayDispensado, pathname]);
 
+  /**
+   * "urbi:explicar" — qualquer tela pede ao URBI que fale sobre algo, e ele ABRE FALANDO
+   * (08/09/2026, pedido do Fábio: clicar na tag do processo na Pilha e o URBI explicar).
+   *
+   * Diferente de "urbi:dica", que é sinal discreto: dica espera o analista notar uma bolha no
+   * canto; aqui ele CLICOU pedindo explicação, então esperar seria só atraso. Com o chat já
+   * aberto, entrega na conversa em vez de reabrir (mesmo caminho da dica).
+   */
+  useEffect(() => {
+    function onExplicar(e: Event) {
+      const { mensagem } = (e as CustomEvent).detail || {};
+      if (!mensagem) return;
+      if (urbiAbertoRef.current) {
+        window.dispatchEvent(new CustomEvent("urbi:entregar-dica", { detail: { mensagem } }));
+        return;
+      }
+      setMensagemInicial(mensagem);
+      setUrbiAberto(true);
+    }
+    window.addEventListener("urbi:explicar", onExplicar);
+    return () => window.removeEventListener("urbi:explicar", onExplicar);
+  }, []);
+
   // Log "detectada" uma vez por processo/tela — nunca a cada re-render/poll do sinal.
   useEffect(() => {
     if (!estadoFinal?.bloqueante || !processoCodigo) return;
