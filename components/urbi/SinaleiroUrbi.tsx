@@ -1,8 +1,26 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { montarRelatorioMotor } from "@/lib/urbi/motorProducao";
 import { calcularSinaleiro, type EstadoSinaleiro } from "@/lib/urbi/sinaleiro";
 import type { Aviso } from "@/lib/bdi/vigia";
+
+const POS_PADRAO = { top: 16, left: 16 };
+const LIMITE_ARRASTO = 4; // px — abaixo disso, o mouseup ainda conta como clique
+
+// Mesmo padrão de arraste do UrbiChat (cornerPos): posição em sessionStorage, própria
+// (não sobrevive entre sessões/abas), inicializador preguiçoso pra evitar mismatch de
+// hidratação (primeira pintura client-side sempre roda depois do fetch de `usuario`).
+function lerPosSalva(): { top: number; left: number } {
+  if (typeof window === "undefined") return POS_PADRAO;
+  try {
+    const salvo = sessionStorage.getItem("urbi:sinaleiroPos");
+    if (salvo) {
+      const pos = JSON.parse(salvo);
+      if (typeof pos?.top === "number" && typeof pos?.left === "number") return pos;
+    }
+  } catch {}
+  return POS_PADRAO;
+}
 
 /**
  * Sinaleiro do URBI — Fase 1 do plano Assessor Ativo (07/09/2026).
@@ -18,6 +36,39 @@ import type { Aviso } from "@/lib/bdi/vigia";
 export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
   const [estado, setEstado] = useState<EstadoSinaleiro | null>(null);
   const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState(lerPosSalva);
+  const dragStart = useRef<{ mouseX: number; mouseY: number; top: number; left: number } | null>(null);
+  const arrastouRef = useRef(false);
+
+  useEffect(() => {
+    try { sessionStorage.setItem("urbi:sinaleiroPos", JSON.stringify(pos)); } catch {}
+  }, [pos]);
+
+  function onMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    arrastouRef.current = false;
+    dragStart.current = { mouseX: e.clientX, mouseY: e.clientY, top: pos.top, left: pos.left };
+
+    function onMove(ev: MouseEvent) {
+      if (!dragStart.current) return;
+      const dx = ev.clientX - dragStart.current.mouseX;
+      const dy = ev.clientY - dragStart.current.mouseY;
+      if (Math.abs(dx) > LIMITE_ARRASTO || Math.abs(dy) > LIMITE_ARRASTO) arrastouRef.current = true;
+      setPos({
+        top: Math.max(0, dragStart.current.top + dy),
+        left: Math.max(0, dragStart.current.left + dx),
+      });
+    }
+
+    function onUp() {
+      dragStart.current = null;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    }
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -42,18 +93,19 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
   const c = CORES[estado.cor];
 
   return (
-    <div style={{ position: "fixed", top: 16, left: 16, zIndex: 900 }}>
+    <div style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 900 }}>
       <button
         type="button"
-        onClick={() => setAberto(v => !v)}
+        onMouseDown={onMouseDown}
+        onClick={() => { if (arrastouRef.current) { arrastouRef.current = false; return; } setAberto(v => !v); }}
         aria-expanded={aberto}
-        aria-label={`URBI — ${c.rotulo}: ${estado.itens.length} item${estado.itens.length > 1 ? "ns" : ""}. Clique para ver os motivos.`}
-        title={`URBI — ${c.rotulo}`}
+        aria-label={`URBI — ${c.rotulo}: ${estado.itens.length} item${estado.itens.length > 1 ? "ns" : ""}. Clique para ver os motivos, arraste para reposicionar.`}
+        title={`URBI — ${c.rotulo} (arraste para mover)`}
         style={{
           position: "relative",
           display: "flex", flexDirection: "column", alignItems: "center", gap: 5,
           background: "#1e293b", border: "1px solid #0f172a", borderRadius: 8,
-          padding: "7px 6px", cursor: "pointer",
+          padding: "7px 6px", cursor: "grab",
           boxShadow: "0 2px 10px rgba(0,0,0,0.25)",
         }}
       >
