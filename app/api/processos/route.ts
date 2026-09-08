@@ -182,6 +182,28 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Esforço/pendências do Radar (Fase 2 do plano Assessor Ativo, 07/09/2026): lê o retrato MAIS
+    // RECENTE de cada processo em urbi_radar_retratos — nenhum cálculo novo, a mesma fonte que já
+    // alimenta as perguntas da Pilha no chat (lib/urbi/perguntasPilha.ts) e o relatório do Motor
+    // de Produção. O Radar roda de fundo a cada ~1 min; processo nunca visitado ainda não tem
+    // retrato — mostra "ainda não avaliado", nunca um esforço inventado.
+    const radarPorCodigo = new Map<string, { esforco: string | null; pendencias: number | null }>();
+    if (codigos.length > 0) {
+      const { data: linhasRadar } = await supabase
+        .from("urbi_radar_retratos")
+        .select("processo_codigo, versao, alertas, pendencias_mac")
+        .in("processo_codigo", codigos)
+        .order("versao", { ascending: false });
+      for (const linha of linhasRadar ?? []) {
+        const l = linha as any;
+        if (radarPorCodigo.has(l.processo_codigo)) continue; // já viu a versão mais recente (ordenado desc)
+        radarPorCodigo.set(l.processo_codigo, {
+          esforco: l.alertas?.esforco ?? null,
+          pendencias: typeof l.pendencias_mac === "number" ? l.pendencias_mac : null,
+        });
+      }
+    }
+
     resultado = resultado.map((p: any) => {
       const entrada: EntradaVigia = {
         processo: {
@@ -214,6 +236,8 @@ export async function GET(req: NextRequest) {
         dias_aguardando_retorno: sitMac.classe === "Aguardando retorno do interessado"
           ? diasAguardandoPorCodigo.get(p.codigo) ?? null
           : null,
+        esforco_provavel: radarPorCodigo.get(p.codigo)?.esforco ?? null,
+        pendencias_radar: radarPorCodigo.get(p.codigo)?.pendencias ?? null,
       };
     });
 

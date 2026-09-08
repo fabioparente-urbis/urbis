@@ -26,7 +26,10 @@
  * nada.
  */
 
-export type OrdemPilha = "area_desc" | "area_asc" | "data_desc" | "data_asc" | "analises_desc" | "analises_asc";
+export type OrdemPilha = "area_desc" | "area_asc" | "data_desc" | "data_asc" | "analises_desc" | "analises_asc" | "esforco";
+/** As mesmas 4 classificações de `EsforcoProvavel` (lib/urbi/motorProducao.ts) — repetidas aqui
+ *  como literal, mesmo motivo do comentário de ClassificacaoVigiaPilha abaixo. */
+export type EsforcoProvavelPilha = "rapido" | "exige_atencao" | "depende_documento" | "base_insuficiente";
 export type FaixaAreaPilha = "ate_250" | "de_251_a_1000" | "acima_1000";
 export type FiltroUsoSolo = "com" | "sem";
 export type TriagemPilha = "mais_simples";
@@ -68,6 +71,15 @@ export type FiltrosPilha = {
   /** Situação real do processo (`/api/processos` já roda `situacaoGeral()` por item — lib/bdi/situacao.ts). */
   situacaoGeral?: SituacaoGeralPilha;
 };
+
+/** Ordem fixa do menos pro mais custoso — processo sem retrato do Radar ainda vai pro fim,
+ *  nunca fingindo esforço "rápido" por falta de dado (Fase 2, Assessor Ativo, 07/09/2026). */
+const RANK_ESFORCO: Record<string, number> = {
+  rapido: 0, exige_atencao: 1, depende_documento: 2, base_insuficiente: 3,
+};
+function rankEsforco(v: string | null | undefined): number {
+  return v && v in RANK_ESFORCO ? RANK_ESFORCO[v] : 4;
+}
 
 export type ComandoNavegacao =
   | { tipo: "navegar"; rota: string; resposta: string }
@@ -424,6 +436,8 @@ type ProcessoParaFiltro = {
   porte?: string | null;
   /** Situação real calculada por `situacaoGeral()`, quando a API já devolveu. */
   situacao_geral?: string | null;
+  /** Esforço provável do retrato mais recente do Radar (`/api/processos`), quando existir. */
+  esforco_provavel?: string | null;
 };
 
 function numeroArea(v: unknown): number | null {
@@ -549,6 +563,7 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
         case "data_asc": return data(a) - data(b);
         case "analises_desc": return numeroAnalises(b.tags) - numeroAnalises(a.tags);
         case "analises_asc": return numeroAnalises(a.tags) - numeroAnalises(b.tags);
+        case "esforco": return rankEsforco(a.esforco_provavel) - rankEsforco(b.esforco_provavel);
         default: return 0;
       }
     });
@@ -596,7 +611,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
   if (tag && TAGS.some(x => x.valor === tag)) f.tag = tag;
   if (analise && /^[1-5]$/.test(analise)) f.analise = Number(analise);
-  if (ordenar && ["area_desc", "area_asc", "data_desc", "data_asc", "analises_desc", "analises_asc"].includes(ordenar)) {
+  if (ordenar && ["area_desc", "area_asc", "data_desc", "data_asc", "analises_desc", "analises_asc", "esforco"].includes(ordenar)) {
     f.ordenar = ordenar as OrdemPilha;
   }
   if (analisesMinimas === "2") f.analisesMinimas = 2;

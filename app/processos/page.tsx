@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha } from "@/lib/urbi/navegacao";
+import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha, type EsforcoProvavelPilha } from "@/lib/urbi/navegacao";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 
@@ -44,6 +44,10 @@ type Processo = {
   /** Só vem preenchido quando situacao_mac já é "Aguardando retorno do interessado" — dias
    *  corridos desde o documento que abriu o prazo (vw_bdi_aguardando_retorno). */
   dias_aguardando_retorno?: number | null;
+  /** Esforço/pendências do retrato mais recente do Radar (urbi_radar_retratos) — Fase 2 do plano
+   *  Assessor Ativo, 07/09/2026. Nenhum cálculo novo, mesma fonte do chat do URBI. */
+  esforco_provavel?: EsforcoProvavelPilha | null;
+  pendencias_radar?: number | null;
 };
 
 type SituacaoGeral =
@@ -73,6 +77,19 @@ const SITUACAO_LIP_COR: Record<SituacaoLip, string> = {
   "Não iniciado": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
   "Incompleto": "bg-[var(--warning-bg)] text-[var(--warning)]",
   "Completo": "bg-[var(--success-bg)] text-[var(--success)]",
+};
+
+// Mesmos 4 rótulos de lib/urbi/motorProducao.ts (ROTULO_ESFORCO, não exportado — repetido aqui
+// como literal, mesmo padrão já usado neste arquivo pra ClassificacaoVigiaPilha/SituacaoGeralPilha).
+const ESFORCO_ROTULO: Record<EsforcoProvavelPilha, string> = {
+  rapido: "Rápido", exige_atencao: "Exige atenção",
+  depende_documento: "Depende de documento", base_insuficiente: "Base insuficiente",
+};
+const ESFORCO_COR: Record<EsforcoProvavelPilha, string> = {
+  rapido: "bg-[var(--success-bg)] text-[var(--success)]",
+  exige_atencao: "bg-[var(--warning-bg)] text-[var(--warning)]",
+  depende_documento: "bg-[var(--accent)] text-[var(--accent-fg)]",
+  base_insuficiente: "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
 };
 
 const SITUACAO_MAC_COR: Record<SituacaoMac, string> = {
@@ -328,7 +345,7 @@ function ProcessosConteudo() {
   if (filtrosAtivos.usoSolo) rotulosFiltro.push(filtrosAtivos.usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
   if (filtrosAtivos.classificacaoVigia) rotulosFiltro.push(filtrosAtivos.classificacaoVigia);
   if (filtrosAtivos.porte) rotulosFiltro.push(`porte ${filtrosAtivos.porte}`);
-  if (filtrosAtivos.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos", analises_desc: "mais análises", analises_asc: "menos análises" }[filtrosAtivos.ordenar]);
+  if (filtrosAtivos.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos", analises_desc: "mais análises", analises_asc: "menos análises", esforco: "esforço" }[filtrosAtivos.ordenar]);
 
   function limparTriagem() {
     setFiltrosTriagem({});
@@ -549,6 +566,7 @@ function ProcessosConteudo() {
             onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, ordenar: (e.target.value || undefined) as FiltrosPilha["ordenar"] }))}
             className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
             <option value="">Ordenar por padrão</option>
+            <option value="esforco">Esforço (mais rápido primeiro)</option>
             <option value="area_asc">Menor área</option>
             <option value="area_desc">Maior área</option>
             <option value="analises_desc">Mais análises</option>
@@ -651,6 +669,17 @@ function ProcessosConteudo() {
                   className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap ${p.situacao_mac && p.situacao_mac !== "Não iniciado" ? "lg:hidden" : ""} ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.situacao_geral || "—"}
                 </span>
+
+                {/* Esforço/pendências do Radar (Fase 2, Assessor Ativo) — só aparece quando o
+                    processo já foi visitado pelo menos uma vez; nunca inventa esforço. */}
+                {p.esforco_provavel && (
+                  <span
+                    title={`Esforço provável, calculado pelo Motor de Produção do URBI a partir do retrato mais recente do Radar.${typeof p.pendencias_radar === "number" ? ` ${p.pendencias_radar} pendência(s) na última análise do MAC.` : ""}`}
+                    className={`hidden xl:block px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap ${ESFORCO_COR[p.esforco_provavel]}`}>
+                    {ESFORCO_ROTULO[p.esforco_provavel]}
+                    {typeof p.pendencias_radar === "number" && p.pendencias_radar > 0 ? ` · ${p.pendencias_radar}` : ""}
+                  </span>
+                )}
 
                 {/* Data */}
                 <p className="text-[var(--text-muted)] text-xs whitespace-nowrap hidden lg:block">{formatar(p.atualizado_em)}</p>
