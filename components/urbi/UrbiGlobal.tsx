@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import UrbiChat from "./UrbiChat";
+import SinaleiroUrbi from "./SinaleiroUrbi";
 
 // Presença persistente por sessão do navegador (sessionStorage, não
 // localStorage — não sobrevive entre sessões distintas nem entre
@@ -402,6 +403,9 @@ export default function UrbiGlobal() {
             letterSpacing: 0.3,
           }}>Shift + U</span>
         </div>
+      )}
+      {!urbiAberto && !modalAberto && processoCodigo && (
+        <SinaleiroUrbi codigo={processoCodigo} />
       )}
       {!urbiAberto && peekAtivo && dicaPeek && (
         <div
