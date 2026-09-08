@@ -20,12 +20,31 @@ const DB_VERSAO = 1;
 const LOJA = "pdfs";
 const VALIDADE_MS = 180 * 24 * 60 * 60 * 1000; // 180 dias
 
+/**
+ * Teto de processos guardados ao mesmo tempo. Um PDF mesclado do SEI tem ~100MB (medido:
+ * 98MB/186 páginas, quase tudo digitalização), então guardar sem limite encheria o disco do
+ * analista em algumas dezenas de processos. Ao passar do teto, sai o mais ANTIGO por data de
+ * guarda — quem está sendo analisado agora é sempre o que fica.
+ *
+ * O que sai do cache não se perde: o índice continua no MHD e o PDF continua com o analista —
+ * ele só precisa soltar o arquivo de novo se voltar a um processo antigo.
+ */
+const MAX_PROCESSOS = 5;
+
 type RegistroPdf = {
   processoCodigo: string;
   nome: string;
   tipo: string;
   blob: Blob;
   guardadoEm: number;
+  /**
+   * Índice REMAPEADO para o PDF guardado (pedido do Fábio, 08/09/2026: "besteira guardar partes
+   * do PDF substituídas... sempre manter apenas a última versão de cada um"). O que vai pro
+   * navegador é só as páginas dos documentos vigentes, então a numeração de página muda — e o
+   * índice tem que vir junto, senão "Abrir pg. 130" abriria outra página. Sem isso o cache seria
+   * inutilizável; com isso, quem recupera do cache usa ESTE índice, não o do MHD.
+   */
+  indice?: unknown;
 };
 
 function abrirDb(): Promise<IDBDatabase> {
@@ -42,13 +61,16 @@ function abrirDb(): Promise<IDBDatabase> {
   });
 }
 
-/** Guarda o PDF deste processo, substituindo qualquer versão anterior guardada. */
-export async function salvarPdfNavegador(processoCodigo: string, arquivo: File): Promise<void> {
+/**
+ * Guarda o PDF deste processo, substituindo qualquer versão anterior guardada. `indice` é o
+ * índice remapeado que corresponde EXATAMENTE ao PDF guardado (ver `RegistroPdf.indice`).
+ */
+export async function salvarPdfNavegador(processoCodigo: string, arquivo: File, indice?: unknown): Promise<void> {
   try {
     const db = await abrirDb();
     const registro: RegistroPdf = {
       processoCodigo, nome: arquivo.name, tipo: arquivo.type,
-      blob: arquivo, guardadoEm: Date.now(),
+      blob: arquivo, guardadoEm: Date.now(), indice,
     };
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(LOJA, "readwrite");
@@ -57,9 +79,32 @@ export async function salvarPdfNavegador(processoCodigo: string, arquivo: File):
       tx.onerror = () => reject(tx.error);
     });
     db.close();
+    await podarAntigos();
   } catch {
     // Falha ao guardar (quota do navegador, modo privado, etc.) nunca deve quebrar o fluxo
     // normal — o Organizador simplesmente volta a pedir o PDF de novo na próxima abertura.
+  }
+}
+
+/** Mantém no máximo `MAX_PROCESSOS` guardados; o mais antigo sai primeiro. */
+async function podarAntigos(): Promise<void> {
+  try {
+    const db = await abrirDb();
+    const registros = await new Promise<{ processoCodigo: string; guardadoEm: number }[]>((resolve, reject) => {
+      const tx = db.transaction(LOJA, "readonly");
+      const req = tx.objectStore(LOJA).getAll();
+      req.onsuccess = () =>
+        resolve((req.result as RegistroPdf[]).map((r) => ({ processoCodigo: r.processoCodigo, guardadoEm: r.guardadoEm })));
+      req.onerror = () => reject(req.error);
+    });
+    db.close();
+    if (registros.length <= MAX_PROCESSOS) return;
+    const excedentes = registros
+      .sort((a, b) => a.guardadoEm - b.guardadoEm)
+      .slice(0, registros.length - MAX_PROCESSOS);
+    for (const r of excedentes) await removerPdfNavegador(r.processoCodigo);
+  } catch {
+    // poda é higiene, não correção — falhar aqui nunca pode custar a gravação que acabou de dar certo.
   }
 }
 
@@ -67,7 +112,9 @@ export async function salvarPdfNavegador(processoCodigo: string, arquivo: File):
  * Recupera o PDF deste processo, se ainda existir e estiver dentro do prazo de validade.
  * Expirado (>180 dias) é apagado e tratado como ausente — "depois disso fica só no MHD".
  */
-export async function carregarPdfNavegador(processoCodigo: string): Promise<File | null> {
+export async function carregarPdfNavegador(
+  processoCodigo: string,
+): Promise<{ arquivo: File; indice?: unknown } | null> {
   try {
     const db = await abrirDb();
     const registro = await new Promise<RegistroPdf | undefined>((resolve, reject) => {
@@ -84,7 +131,10 @@ export async function carregarPdfNavegador(processoCodigo: string): Promise<File
       return null;
     }
     db.close();
-    return new File([registro.blob], registro.nome, { type: registro.tipo });
+    return {
+      arquivo: new File([registro.blob], registro.nome, { type: registro.tipo }),
+      indice: registro.indice,
+    };
   } catch {
     return null;
   }

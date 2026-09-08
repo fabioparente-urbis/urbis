@@ -33,6 +33,7 @@
  * Zero IA, zero rede, puro — roda igual no servidor ou no navegador (Fase 5 usa isto no cliente).
  */
 import type { EventoSei } from "./fatiar";
+import { ehContainerGenerico } from "./pecas";
 
 export type EstadoVersao =
   | "vigente"
@@ -75,6 +76,20 @@ export function tituloSemNumeros(titulo: string): string {
 }
 
 const RE_ATO = /^(despacho|parecer|of[ií]cio|notifica[çc][ãa]o)\b/;
+
+/**
+ * Título genérico demais pra sustentar parentesco entre documentos (ver `agruparFamilias`).
+ * Dois casos, o mesmo motivo:
+ * (a) contêiner genérico do SEI — "Documentação", "Processo", "Solicitação", "Anexo": rótulo de
+ *     lote, não de documento; dois lotes diferentes não são versões um do outro;
+ * (b) título que, tirando os números, sobra UMA palavra ("Relatório") — não dá pra afirmar que
+ *     dois "Relatório" são o mesmo documento em versões diferentes (no processo medido, um era
+ *     registro fotográfico do fiscal e o outro a vistoria).
+ */
+function ehTituloGenerico(titulo: string): boolean {
+  if (ehContainerGenerico(titulo)) return true;
+  return tituloSemNumeros(titulo).split(/\s+/).filter(Boolean).length < 2;
+}
 const RE_SEM_EFEITO = /\bsem\s+efeito\b/;
 const RE_SUBSTITUI = /\b(substitui|corrigid[oa]|retifica[çc][ãa]o|retifica)\b/;
 const RE_VISTORIA = /\bvistoria\b/;
@@ -156,6 +171,25 @@ export function agruparFamilias(eventosBrutos: EventoSei[]): EventoSei[][] {
   for (const ev of eventos) {
     const norm = normalizar(ev.titulo);
     if (RE_ATO.test(norm)) {
+      avulsos.push([ev]);
+      continue;
+    }
+    /**
+     * BUG REAL corrigido em 08/09/2026 (medido no processo 24.5.000024350-0, contra a lista de
+     * documentos que o analista monta à mão): título GENÉRICO não é família.
+     *
+     * As cinco "Documentação" do processo caíam todas na mesma chave e quatro eram declaradas
+     * `substituido` — só que cada "Documentação" é um LOTE DIFERENTE, entregue em data diferente:
+     * a de pg. 4-37 traz ART/certidão/embargo, a de pg. 110-129 traz o laudo. Nenhuma substitui a
+     * outra. O estrago era triplo: a tela mostrava "⚫ Substituído" em documento válido, o
+     * "pacote vigente" deixava esses documentos de fora, e o cache do navegador (que descarta o
+     * superado) apagaria justamente o que o analista mais precisa.
+     *
+     * Mesmo princípio do módulo ("nunca declarar vigente no escuro") aplicado ao outro lado:
+     * nunca declarar SUBSTITUÍDO no escuro. Sem sinal textual que sustente parentesco, cada
+     * documento é sua própria família de 1 — e família de 1 é sempre vigente.
+     */
+    if (ehTituloGenerico(ev.titulo)) {
       avulsos.push([ev]);
       continue;
     }

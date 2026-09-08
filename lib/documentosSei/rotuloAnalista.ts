@@ -35,7 +35,19 @@ const REGRAS: RegraRotulo[] = [
   { rotulo: "CHEADV", teste: (t) => t.includes("cheadv") },
   { rotulo: "NOTIFICACAO", teste: (t) => t.startsWith("notificacao") },
   { rotulo: "EMBARGO", teste: (t) => t.includes("embargo") },
-  { rotulo: "VISTORIA", teste: (t) => t.includes("relatorio de fiscalizacao") || t.includes("relatorio de vistoria") || t.includes("termo de vistoria") || t.includes("relatorio circunstanciado") },
+  // "Vistoria Simples", "Vistoria Por Nível de Complexidade" e "Relatório de Visita Técnica
+  // fiscal" saíram da medição em 12 outros processos (08/09/2026, 199 documentos) — são os nomes
+  // que a fiscalização usa de verdade, além do "Relatório de Fiscalização" que já era coberto.
+  {
+    rotulo: "VISTORIA",
+    teste: (t) =>
+      t.startsWith("vistoria") ||
+      t.includes("relatorio de fiscalizacao") ||
+      t.includes("relatorio de vistoria") ||
+      t.includes("visita tecnica") ||
+      t.includes("termo de vistoria") ||
+      t.includes("relatorio circunstanciado"),
+  },
   { rotulo: "FOTOS", teste: (t) => t.includes("fotografic") || t.includes("fotografia") },
   { rotulo: "PROJETO", teste: (t) => t.startsWith("projeto") || t.includes("levantamento arquitetonico") },
   { rotulo: "LAUDO", teste: (t) => t.includes("laudo") },
@@ -43,9 +55,26 @@ const REGRAS: RegraRotulo[] = [
   { rotulo: "CERTIDAO", teste: (t) => t.includes("certidao") || t.includes("matricula") },
   { rotulo: "PROCURACAO", teste: (t) => t.includes("procuracao") },
   { rotulo: "MEMORIAL", teste: (t) => t.includes("memorial") },
-  { rotulo: "BUSCA", teste: (t) => t.includes("busca") && (t.includes("processo") || t.includes("arquivad")) },
+  // A busca de processos no mesmo endereço — que o LIP guarda em `outro`/`qualOutro` e que é uma
+  // das condições que impedem a análise — quase nunca se chama "Busca" no SEI. No processo real
+  // 24.5.000024350-0 ela veio como "Encaminhamento 9981052", e o corpo do texto é que diz "após
+  // buscas no endereço do imóvel foi localizado o projeto anteriormente aprovado". Por isso os
+  // dois rótulos: BUSCA quando o título é explícito, ENCAMINHAMENTO quando é o nome burocrático
+  // (o analista abre e confere — o título sozinho não permite afirmar que é a busca).
+  { rotulo: "BUSCA", teste: (t) => t.includes("busca") && (t.includes("processo") || t.includes("endereco") || t.includes("arquivad")) },
+  { rotulo: "ENCAMINHAMENTO", teste: (t) => t.startsWith("encaminhamento") },
   { rotulo: "DUAM", teste: (t) => t.startsWith("duam") },
-  { rotulo: "TAXA", teste: (t) => t.includes("pagamento de taxa") || t.startsWith("comprovante") || t.includes("guia de recolhimento") },
+  // "Pagamento", "Pagamento PAGAMENTO TAXA" e "Boleto" apareceram na medição dos 12 processos.
+  {
+    rotulo: "TAXA",
+    teste: (t) =>
+      t.includes("pagamento") ||
+      t.startsWith("comprovante") ||
+      t.startsWith("boleto") ||
+      t.includes("guia de recolhimento"),
+  },
+  // Documento final do processo — o que o analista emite no fim. Vale ter rótulo próprio.
+  { rotulo: "ALVARA", teste: (t) => t.startsWith("alvara") },
   { rotulo: "DESPACHO", teste: (t) => t.startsWith("despacho") },
   { rotulo: "PARECER", teste: (t) => t.startsWith("parecer") },
   { rotulo: "OFICIO", teste: (t) => t.startsWith("oficio") },
@@ -84,6 +113,24 @@ export function rotuloDoTitulo(titulo: string): string | null {
 /** Rótulo de uma peça já classificada pela Fase 3 (`lib/documentosSei/pecas.ts`). */
 export function rotuloDoPapelPeca(papel: string): string | null {
   return ROTULO_POR_PAPEL[papel] ?? null;
+}
+
+/** O que o CORPO do documento afirma (`EventoSei.papelPorConteudo`) → rótulo. */
+const ROTULO_POR_CONTEUDO: Record<string, string | undefined> = {
+  busca: "BUSCA",
+};
+
+/**
+ * Rótulo de um evento inteiro. O CONTEÚDO vence o título — achado real (08/09/2026): a busca de
+ * processos no mesmo endereço chega intitulada "Encaminhamento", e só o corpo do documento diz o
+ * que ela é ("após buscas no endereço do imóvel..."). Onde o corpo não afirma nada, vale o título.
+ */
+export function rotuloDoEvento(ev: { titulo: string; papelPorConteudo?: string }): string | null {
+  if (ev.papelPorConteudo) {
+    const porConteudo = ROTULO_POR_CONTEUDO[ev.papelPorConteudo];
+    if (porConteudo) return porConteudo;
+  }
+  return rotuloDoTitulo(ev.titulo);
 }
 
 /**

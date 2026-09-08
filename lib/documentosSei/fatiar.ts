@@ -40,7 +40,17 @@ export type EventoSei = {
   data?: string;
   /** melhor esforço — ver cabeçalho do arquivo */
   assinante?: string;
+  /**
+   * O que o documento É, lido no CORPO do texto quando o título do SEI não diz (08/09/2026).
+   * Achado real: a busca de processos no mesmo endereço — uma das condições que impedem a
+   * análise — chega ao processo intitulada "Encaminhamento", e só o corpo revela ("após buscas
+   * no endereço do imóvel em questão foi localizado o projeto anteriormente aprovado").
+   */
+  papelPorConteudo?: PapelPorConteudo;
 };
+
+/** Vocabulário deliberadamente curto: só entra aqui o que a frase do documento afirma sozinha. */
+export type PapelPorConteudo = "busca";
 
 export type MotivoRevisao =
   /** página sem rodapé legível, e os vizinhos não têm o mesmo ID SEI dos dois lados para anexar por continuidade */
@@ -76,6 +86,18 @@ type ItemPosicionado = { t: string; x: number; y: number; h: number };
 export type PaginaTexto = { pagina: number; texto: string; largura: number; altura: number };
 
 const RE_TITULO_ID = /^(.+?)\s*\((\d+)\)\s*$/;
+/**
+ * Variante SEM parênteses do carimbo — ACHADO REAL (08/09/2026, processo 24.5.000024350-0,
+ * pg. 186): "Encaminhamento 9981052" em vez de "Encaminhamento (9981052)". O documento inteiro
+ * sumia da lista (página ia parar em "revisão" por carimbo ilegível) — foi assim que a BUSCA de
+ * processos no mesmo endereço, que o Fábio procurava, ficou invisível no Organizador.
+ *
+ * Exige 6+ dígitos NO FIM do título pra não confundir número de ato com ID SEI: "Despacho 554"
+ * (3 dígitos) nunca casa, "Notificação 92373028 Calçada" (número no meio) nunca casa. Some-se a
+ * isso a exigência, que já existia, de haver o item "SEI {processo} / pg. {N}" na MESMA linha —
+ * as duas juntas tornam falso positivo praticamente impossível.
+ */
+const RE_TITULO_ID_SEM_PARENTESES = /^(.+?)\s+(\d{6,})\s*$/;
 const RE_SEI_PG = /^SEI\s+([\d.\-]+)\s*\/\s*pg\.\s*(\d+)\s*$/i;
 const RE_DATA_LONGA = /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|março|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\s+de\s+((?:19|20)\d{2})\b/i;
 
@@ -105,7 +127,8 @@ function acharCarimbo(itens: ItemPosicionado[]): Carimbo | null {
   for (const linha of linhas) {
     const naoBrancos = linha.filter((i) => i.t.trim());
     for (let i = 0; i < naoBrancos.length; i++) {
-      const mTitulo = RE_TITULO_ID.exec(naoBrancos[i].t.trim());
+      const texto = naoBrancos[i].t.trim();
+      const mTitulo = RE_TITULO_ID.exec(texto) ?? RE_TITULO_ID_SEM_PARENTESES.exec(texto);
       if (!mTitulo) continue;
       for (let j = i + 1; j < naoBrancos.length; j++) {
         const mSei = RE_SEI_PG.exec(naoBrancos[j].t.trim());
@@ -219,12 +242,30 @@ function acharData(textoPagina: string): string | undefined {
   return ultimaNum ? ultimaNum[0] : undefined;
 }
 
+/**
+ * Assinaturas de CONTEÚDO — usadas só quando o título do SEI não diz o que o documento é.
+ * Zero IA: são frases que o próprio documento escreve. Entra pouca coisa aqui de propósito —
+ * cada regra tem que ser afirmação do documento, não pista fraca.
+ */
+const ASSINATURAS_CONTEUDO: { papel: PapelPorConteudo; re: RegExp }[] = [
+  {
+    papel: "busca",
+    re: /busca(s)?\s+no\s+endere[çc]o|busca(s)?\s+de\s+processos?\s+arquivad|processos?\s+arquivad[oa]s?\s+no\s+endere[çc]o|projeto\s+anteriormente\s+aprovado/i,
+  },
+];
+
+function acharPapelPorConteudo(textoPagina: string): PapelPorConteudo | undefined {
+  for (const a of ASSINATURAS_CONTEUDO) if (a.re.test(textoPagina)) return a.papel;
+  return undefined;
+}
+
 type PaginaLida = {
   pagina: number;
   carimbo: Carimbo | null;
   setor?: string;
   data?: string;
   assinante?: string;
+  papelPorConteudo?: PapelPorConteudo;
 };
 
 /**
@@ -263,6 +304,7 @@ async function lerPaginas(doc: any, aoAndar?: AoAndarFatiamento): Promise<Pagina
       setor: acharSetorNaPagina(itens),
       data: acharData(textoPagina),
       assinante: acharAssinante(textoPagina),
+      papelPorConteudo: acharPapelPorConteudo(textoPagina),
     });
   }
   aoAndar?.({ atual: doc.numPages, total: doc.numPages });
@@ -314,12 +356,12 @@ export async function fatiarPdfSei(
   const numeroProcesso = [...contagemProcesso.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
 
   // carimbo válido = tem rodapé, processo bate com o do PDF, e "pg. N" bate com a posição real
-  type Validada = { pagina: number; carimbo: Carimbo; setor?: string; data?: string; assinante?: string };
+  type Validada = { pagina: number; carimbo: Carimbo; setor?: string; data?: string; assinante?: string; papelPorConteudo?: PapelPorConteudo };
   const validas: (Validada | null)[] = paginas.map((p) => {
     if (!p.carimbo) return null;
     if (p.carimbo.numeroProcesso !== numeroProcesso) return null;
     if (p.carimbo.paginaRodape !== p.pagina) return null;
-    return { pagina: p.pagina, carimbo: p.carimbo, setor: p.setor, data: p.data, assinante: p.assinante };
+    return { pagina: p.pagina, carimbo: p.carimbo, setor: p.setor, data: p.data, assinante: p.assinante, papelPorConteudo: p.papelPorConteudo };
   });
 
   const paginasRevisao: PaginaRevisao[] = [];
@@ -395,6 +437,7 @@ export async function fatiarPdfSei(
       if (!atual.setor && validas[idx]?.setor) atual.setor = validas[idx]!.setor;
       if (!atual.data && validas[idx]?.data) atual.data = validas[idx]!.data;
       if (!atual.assinante && validas[idx]?.assinante) atual.assinante = validas[idx]!.assinante;
+      if (!atual.papelPorConteudo && validas[idx]?.papelPorConteudo) atual.papelPorConteudo = validas[idx]!.papelPorConteudo;
       continue;
     }
     const v = validas[idx];
@@ -406,6 +449,7 @@ export async function fatiarPdfSei(
       setor: v?.setor,
       data: v?.data,
       assinante: v?.assinante,
+      papelPorConteudo: v?.papelPorConteudo,
     });
   }
 

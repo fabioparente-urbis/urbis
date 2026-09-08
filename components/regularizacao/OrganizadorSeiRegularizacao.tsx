@@ -38,7 +38,7 @@ import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/docu
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { salvarPdfNavegador, carregarPdfNavegador } from "@/lib/documentosSei/cachePdfNavegador";
-import { rotuloDoTitulo, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
+import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
@@ -61,6 +61,8 @@ type EventoSei = {
   setor?: string;
   data?: string;
   assinante?: string;
+  /** o que o CORPO do documento afirma, quando o título do SEI não diz (ver fatiar.ts) */
+  papelPorConteudo?: "busca";
   /** Fase 3: peças separadas de dentro de um contêiner genérico ("Documentação"), quando houver. */
   pecas?: PecaSei[];
 };
@@ -179,7 +181,7 @@ export default function OrganizadorSeiRegularizacao({
   const [progresso, setProgresso] = useState(0);
   const [resultado, setResultado] = useState<ResultadoFatiamento | null>(null);
   const [erro, setErro] = useState<string | null>(null);
-  const [visualizando, setVisualizando] = useState<{ pagina: number; totalDoPdf: number } | null>(null);
+  const [visualizando, setVisualizando] = useState<{ pagina: number; paginaIni: number; paginaFim: number } | null>(null);
   const [baixando, setBaixando] = useState<string | null>(null);
   const [soUltimaVersao, setSoUltimaVersao] = useState(false);
   const [recuperadoDoHistorico, setRecuperadoDoHistorico] = useState(false);
@@ -232,7 +234,12 @@ export default function OrganizadorSeiRegularizacao({
           // NUNCA abre sozinho — pedido explícito do Fábio (06/09/2026): a aba sempre começa
           // fechada em todo LIP, mesmo quando já existe índice recuperado do MHD.
           const cache = await carregarPdfNavegador(processoCodigo);
-          if (!cancelado && cache) setArquivo(cache);
+          if (!cancelado && cache) {
+            setArquivo(cache.arquivo);
+            // O índice guardado corresponde ao PDF ENXUTO (só o que ainda vale) — usar o do MHD
+            // aqui abriria a página errada, porque a numeração mudou ao descartar o superado.
+            if (cache.indice) setResultado(cache.indice as ResultadoFatiamento);
+          }
         }
       })
       .catch(() => {});
@@ -334,11 +341,69 @@ export default function OrganizadorSeiRegularizacao({
       if (erroFluxo) throw new Error(erroFluxo);
       if (!dados) throw new Error(`a leitura terminou sem resultado (HTTP ${r.status})`);
       setResultado(dados);
-      salvarPdfNavegador(processoCodigo, f);
+      guardarNoCache(f, dados);
     } catch (e: any) {
       setErro(e?.message ?? String(e));
     } finally {
       setProcessando(false);
+    }
+  }
+
+  /**
+   * Guarda no navegador SÓ o que ainda vale (pedido do Fábio, 08/09/2026: "besteira guardar
+   * partes do PDF substituídas... sempre manter apenas a última versão de cada um").
+   *
+   * Monta um PDF novo, enxuto, com as páginas dos documentos que o motor de versões (Fase 4) não
+   * marcou como superados, e guarda junto o índice REMAPEADO — a numeração de página muda quando
+   * se descarta metade do arquivo, e sem o índice novo "Abrir pg. 130" abriria a página errada.
+   *
+   * O que é descartado do cache continua existindo no MHD (o índice completo, com o que foi
+   * substituído) e no PDF original que o analista tem em mãos — o navegador é só um atalho pra
+   * não precisar soltar o arquivo de novo, nunca a fonte da verdade.
+   */
+  async function guardarNoCache(f: File, dados: ResultadoFatiamento) {
+    try {
+      const SUPERADOS = new Set<EstadoVersao>(["substituido", "duplicado", "historico", "sem_efeito"]);
+      const estadoPorId = new Map(resolverEstados(dados.eventos).map((r) => [r.idSei, r.estado]));
+      const manter = dados.eventos.filter((ev) => !SUPERADOS.has(estadoPorId.get(ev.idSei) as EstadoVersao));
+      if (!manter.length) return;
+
+      const origem = await PDFDocument.load(await f.arrayBuffer());
+      const enxuto = await PDFDocument.create();
+      const eventosRemapeados: EventoSei[] = [];
+      let cursor = 0;
+      for (const ev of manter) {
+        const indices: number[] = [];
+        for (let p = ev.paginaIni; p <= ev.paginaFim; p++) indices.push(p - 1);
+        const copiadas = await enxuto.copyPages(origem, indices);
+        copiadas.forEach((p) => enxuto.addPage(p));
+        const novoIni = cursor + 1;
+        cursor += indices.length;
+        const deslocamento = novoIni - ev.paginaIni;
+        eventosRemapeados.push({
+          ...ev,
+          paginaIni: novoIni,
+          paginaFim: cursor,
+          pecas: ev.pecas?.map((pc) => ({
+            ...pc,
+            paginaIni: pc.paginaIni + deslocamento,
+            paginaFim: pc.paginaFim + deslocamento,
+          })),
+        });
+      }
+
+      const bytes = await enxuto.save();
+      const arquivoEnxuto = new File([bytes as BlobPart], f.name, { type: "application/pdf" });
+      await salvarPdfNavegador(processoCodigo, arquivoEnxuto, {
+        ...dados,
+        totalPaginas: cursor,
+        eventos: eventosRemapeados,
+        // páginas em revisão são numeradas pelo PDF ORIGINAL — não sobrevivem ao recorte, e
+        // manter números errados seria pior que não mostrar.
+        paginasRevisao: [],
+      } satisfies ResultadoFatiamento);
+    } catch {
+      // cache é conveniência: falhar aqui (cota, PDF protegido) nunca pode custar a leitura.
     }
   }
 
@@ -394,7 +459,7 @@ export default function OrganizadorSeiRegularizacao({
       const dep = departamento(ev);
       // Rótulo do analista primeiro (TIPO SEI, mesmo padrão que o Fábio usa nos nomes de arquivo);
       // sem rótulo reconhecido, começa pelo Nº SEI — nunca inventa um tipo.
-      const rotulo = rotuloDoTitulo(ev.titulo);
+      const rotulo = rotuloDoEvento(ev);
       const partes = [rotulo ? `${rotulo} ${ev.idSei}` : ev.idSei, ev.titulo, paginas];
       if (dep) partes.push(dep);
       if (ev.data) partes.push(ev.data);
@@ -700,7 +765,7 @@ export default function OrganizadorSeiRegularizacao({
                         </td>
                         <td className="py-1.5 pr-2 text-xs whitespace-nowrap align-top">
                           {(() => {
-                            const rot = rotuloDoTitulo(ev.titulo);
+                            const rot = rotuloDoEvento(ev);
                             if (!rot) return <span className="text-[var(--text-muted)]">—</span>;
                             return (
                               <span className="font-bold text-[var(--accent)]">{rot}</span>
@@ -727,7 +792,7 @@ export default function OrganizadorSeiRegularizacao({
                         <td className="py-1.5 align-top">
                           <span className="flex gap-2 justify-end shrink-0">
                             <button
-                              onClick={() => setVisualizando({ pagina: ev.paginaIni, totalDoPdf: resultado.totalPaginas })}
+                              onClick={() => setVisualizando({ pagina: ev.paginaIni, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim })}
                               disabled={!arquivo}
                               title={arquivo ? undefined : "Solte o PDF de novo pra abrir a página"}
                               className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
@@ -772,7 +837,7 @@ export default function OrganizadorSeiRegularizacao({
                             <td className="py-1 align-top">
                               <span className="flex gap-2 justify-end shrink-0">
                                 <button
-                                  onClick={() => setVisualizando({ pagina: peca.paginaIni, totalDoPdf: resultado.totalPaginas })}
+                                  onClick={() => setVisualizando({ pagina: peca.paginaIni, paginaIni: peca.paginaIni, paginaFim: peca.paginaFim })}
                                   disabled={!arquivo}
                                   title={arquivo ? undefined : "Solte o PDF de novo pra abrir a página"}
                                   className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
@@ -828,7 +893,8 @@ export default function OrganizadorSeiRegularizacao({
         <VisualizadorPdf
           arquivo={arquivo}
           paginaInicial={visualizando.pagina}
-          totalDoPdf={visualizando.totalDoPdf}
+          paginaIni={visualizando.paginaIni}
+          paginaFim={visualizando.paginaFim}
           onFechar={() => setVisualizando(null)}
         />
       )}
@@ -836,10 +902,22 @@ export default function OrganizadorSeiRegularizacao({
   );
 }
 
+/**
+ * Visualizador restrito AO DOCUMENTO (08/09/2026, pedido do Fábio: "pra poder abri-los dentro do
+ * URBIS"). Antes abria o PDF do processo inteiro posicionado na página do documento — dava pra
+ * navegar pra fora dele sem perceber qual documento se estava lendo. Agora a navegação para nos
+ * limites do evento/peça (`paginaIni..paginaFim`) e a contagem é a do documento ("Página 2 de 4"),
+ * com a página real dentro do processo mostrada ao lado, pra conferência com o SEI.
+ *
+ * O recorte continua sendo feito na hora, a partir do PDF original em cache — nada de guardar N
+ * fatias separadas no navegador (multiplicaria o mesmo conteúdo e estouraria a cota).
+ */
 function VisualizadorPdf({
-  arquivo, paginaInicial, totalDoPdf, onFechar,
-}: { arquivo: File; paginaInicial: number; totalDoPdf: number; onFechar: () => void }) {
+  arquivo, paginaInicial, paginaIni, paginaFim, onFechar,
+}: { arquivo: File; paginaInicial: number; paginaIni: number; paginaFim: number; onFechar: () => void }) {
   const [pagina, setPagina] = useState(paginaInicial);
+  const totalDoDocumento = paginaFim - paginaIni + 1;
+  const posicaoNoDocumento = pagina - paginaIni + 1;
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
       <div
@@ -847,12 +925,15 @@ function VisualizadorPdf({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 p-3 border-b border-[var(--border)]">
-          <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1}
+          <button onClick={() => setPagina((p) => Math.max(paginaIni, p - 1))} disabled={pagina <= paginaIni}
             className="px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] disabled:opacity-40">
             ◀
           </button>
-          <span className="text-sm text-[var(--text-primary)]">Página {pagina} de {totalDoPdf}</span>
-          <button onClick={() => setPagina((p) => Math.min(totalDoPdf, p + 1))} disabled={pagina >= totalDoPdf}
+          <span className="text-sm text-[var(--text-primary)]">
+            Página {posicaoNoDocumento} de {totalDoDocumento}
+            <span className="text-xs text-[var(--text-muted)] ml-2">(pg. {pagina} do processo)</span>
+          </span>
+          <button onClick={() => setPagina((p) => Math.min(paginaFim, p + 1))} disabled={pagina >= paginaFim}
             className="px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] disabled:opacity-40">
             ▶
           </button>
