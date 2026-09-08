@@ -30,9 +30,11 @@ type RegraRotulo = { rotulo: string; teste: (tituloNormalizado: string) => boole
  */
 const REGRAS: RegraRotulo[] = [
   { rotulo: "USO", teste: (t) => t.includes("uso do solo") },
-  // CHEADV que aprova é o que interessa, mas o despacho de pendência TAMBÉM é da CHEADV — os dois
-  // levam o rótulo; quem separa "aprovou" de "cobrou documento" é o campo cheadvAprovado do LIP.
-  { rotulo: "CHEADV", teste: (t) => t.includes("cheadv") },
+  // O que o analista precisa da CHEADV é o OK na análise documental ("Documentação conforme") —
+  // despacho de pendência é cobrança de documento, não decisão. Os dois aparecem, com rótulos
+  // diferentes, pra não se passarem um pelo outro na lista.
+  { rotulo: "CHEADV OK", teste: (t) => t.includes("cheadv") && t.includes("conforme") },
+  { rotulo: "CHEADV PENDÊNCIA", teste: (t) => t.includes("cheadv") },
   { rotulo: "NOTIFICACAO", teste: (t) => t.startsWith("notificacao") },
   { rotulo: "EMBARGO", teste: (t) => t.includes("embargo") },
   // "Vistoria Simples", "Vistoria Por Nível de Complexidade" e "Relatório de Visita Técnica
@@ -115,22 +117,143 @@ export function rotuloDoPapelPeca(papel: string): string | null {
   return ROTULO_POR_PAPEL[papel] ?? null;
 }
 
+/**
+ * A LISTA DA ANÁLISE — os documentos que o analista precisa ter em mãos pra analisar um processo,
+ * na ordem em que ele os procura. Definida pelo Fábio em 08/09/2026, olhando a pasta que ele monta
+ * à mão a cada processo ("é só olhar a minha lista"):
+ *
+ *   "CONTEC: o uso do solo · CHEADV: o OK na análise documental · fiscalização: vistoria fiscal, a
+ *    última · físico: geralmente no começo, a primeira página, com a abertura do processo físico ·
+ *    as ART ou RRT · a certidão de matrícula · o último laudo de regularização ou aceite · as
+ *    procurações · os embargos"
+ *
+ * Ficaram DE FORA por decisão dele: fotos, notificação de calçada, DUAM/taxa/comprovante, e-mails,
+ * solicitações e despachos de pendência — existem no processo, aparecem na lista completa, mas não
+ * são o que ele abre pra analisar.
+ */
+export const TIPOS_DA_ANALISE = [
+  "FISICO",
+  "USO",
+  "CHEADV OK",
+  "VISTORIA",
+  "PROJETO",
+  "LAUDO",
+  "ART",
+  "CERTIDAO",
+  "PROCURACAO",
+  "EMBARGO",
+  "BUSCA",
+] as const;
+
+export type TipoDaAnalise = (typeof TIPOS_DA_ANALISE)[number];
+
 /** O que o CORPO do documento afirma (`EventoSei.papelPorConteudo`) → rótulo. */
 const ROTULO_POR_CONTEUDO: Record<string, string | undefined> = {
   busca: "BUSCA",
+  vistoria: "VISTORIA",
+  foto: "FOTOS",
 };
 
 /**
- * Rótulo de um evento inteiro. O CONTEÚDO vence o título — achado real (08/09/2026): a busca de
- * processos no mesmo endereço chega intitulada "Encaminhamento", e só o corpo do documento diz o
- * que ela é ("após buscas no endereço do imóvel..."). Onde o corpo não afirma nada, vale o título.
+ * Ato numerado: o TÍTULO é a identidade do documento, e o corpo dele cita outros documentos o
+ * tempo todo ("em atenção ao Termo de Vistoria..."). Deixar o conteúdo mandar aqui faria um
+ * despacho virar vistoria por citação. Mesma lista de `RE_ATO` em `motorVersoes.ts`.
+ */
+const RE_ATO_TITULO = /^\s*(despacho|parecer|of[ií]cio|notifica[çc][ãa]o)\b/i;
+
+/**
+ * Rótulo de um evento inteiro. O CONTEÚDO vence o título — achados reais (08/09/2026):
+ * a busca de processos no mesmo endereço chega intitulada "Encaminhamento", e a vistoria e o
+ * registro fotográfico chegam AMBOS intitulados "Relatório"; em todos, só o corpo diz o que é.
+ * Exceção: ato numerado (despacho/parecer/ofício/notificação), onde o título é a identidade e o
+ * corpo só faz citação. Onde o corpo não afirma nada, vale o título.
  */
 export function rotuloDoEvento(ev: { titulo: string; papelPorConteudo?: string }): string | null {
+  const porTitulo = rotuloDoTitulo(ev.titulo);
+  if (RE_ATO_TITULO.test(ev.titulo)) return porTitulo;
   if (ev.papelPorConteudo) {
     const porConteudo = ROTULO_POR_CONTEUDO[ev.papelPorConteudo];
     if (porConteudo) return porConteudo;
   }
-  return rotuloDoTitulo(ev.titulo);
+  return porTitulo;
+}
+
+export type ItemDaAnalise = {
+  tipo: TipoDaAnalise;
+  /** ausente = não encontrado no processo (a linha aparece assim mesmo — ver comentário abaixo) */
+  idSei?: string;
+  titulo?: string;
+  paginaIni?: number;
+  paginaFim?: number;
+  setor?: string;
+  data?: string;
+  /** true quando o documento foi achado DENTRO de um contêiner ("Documentação"), não como evento */
+  dePeca?: boolean;
+};
+
+type EventoParaLista = {
+  idSei: string;
+  titulo: string;
+  paginaIni: number;
+  paginaFim: number;
+  setor?: string;
+  data?: string;
+  papelPorConteudo?: string;
+  pecas?: { papel: string; paginaIni: number; paginaFim: number }[];
+};
+
+/**
+ * Monta A LISTA DA ANÁLISE: um documento de cada tipo de `TIPOS_DA_ANALISE`, o mais recente de
+ * cada (maior página = mais tarde no processo), procurando tanto nos eventos quanto nas peças de
+ * dentro dos contêineres — é lá que moram ART, certidão, laudo, embargo e procuração.
+ *
+ * Tipo não encontrado ENTRA NA LISTA mesmo assim, sem documento: "não achei a ART" é informação
+ * que o analista precisa ver, e uma linha que simplesmente não existe não informa nada. Mesmo
+ * princípio de "nenhuma página some em silêncio" (§5.2 do plano), aplicado à lista de trabalho.
+ */
+export function montarListaDaAnalise(eventos: EventoParaLista[]): ItemDaAnalise[] {
+  const melhor = new Map<TipoDaAnalise, ItemDaAnalise>();
+  const tipos = new Set<string>(TIPOS_DA_ANALISE);
+
+  function considerar(tipo: TipoDaAnalise, item: ItemDaAnalise) {
+    const atual = melhor.get(tipo);
+    // mais recente vence: no SEI, página maior = anexado depois
+    if (!atual || (item.paginaIni ?? 0) > (atual.paginaIni ?? 0)) melhor.set(tipo, item);
+  }
+
+  eventos.forEach((ev, indice) => {
+    /**
+     * FISICO — "geralmente no começo, a primeira página, com a abertura do processo físico"
+     * (Fábio). O SEI intitula isso só de "Processo", que é contêiner genérico e não diz nada
+     * sozinho; o que identifica é a POSIÇÃO: primeiro evento do PDF, começando na página 1.
+     */
+    if (indice === 0 && ev.paginaIni === 1 && /^processo\b/i.test(ev.titulo.trim())) {
+      considerar("FISICO", {
+        tipo: "FISICO", idSei: ev.idSei, titulo: ev.titulo,
+        paginaIni: ev.paginaIni, paginaFim: ev.paginaFim, setor: ev.setor, data: ev.data,
+      });
+    }
+
+    const rotulo = rotuloDoEvento(ev);
+    if (rotulo && tipos.has(rotulo)) {
+      considerar(rotulo as TipoDaAnalise, {
+        tipo: rotulo as TipoDaAnalise, idSei: ev.idSei, titulo: ev.titulo,
+        paginaIni: ev.paginaIni, paginaFim: ev.paginaFim, setor: ev.setor, data: ev.data,
+      });
+    }
+
+    for (const peca of ev.pecas ?? []) {
+      const rotuloPeca = rotuloDoPapelPeca(peca.papel);
+      if (!rotuloPeca || !tipos.has(rotuloPeca)) continue;
+      considerar(rotuloPeca as TipoDaAnalise, {
+        tipo: rotuloPeca as TipoDaAnalise, idSei: ev.idSei, titulo: ev.titulo,
+        paginaIni: peca.paginaIni, paginaFim: peca.paginaFim, setor: ev.setor, data: ev.data,
+        dePeca: true,
+      });
+    }
+  });
+
+  return TIPOS_DA_ANALISE.map((tipo) => melhor.get(tipo) ?? { tipo });
 }
 
 /**

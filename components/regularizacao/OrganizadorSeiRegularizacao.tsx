@@ -38,7 +38,7 @@ import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/docu
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { salvarPdfNavegador, carregarPdfNavegador } from "@/lib/documentosSei/cachePdfNavegador";
-import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
+import { rotuloDoEvento, rotuloDoPapelPeca, montarListaDaAnalise } from "@/lib/documentosSei/rotuloAnalista";
 import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
@@ -62,7 +62,7 @@ type EventoSei = {
   data?: string;
   assinante?: string;
   /** o que o CORPO do documento afirma, quando o título do SEI não diz (ver fatiar.ts) */
-  papelPorConteudo?: "busca";
+  papelPorConteudo?: "busca" | "vistoria" | "foto";
   /** Fase 3: peças separadas de dentro de um contêiner genérico ("Documentação"), quando houver. */
   pecas?: PecaSei[];
 };
@@ -452,32 +452,53 @@ export default function OrganizadorSeiRegularizacao({
    */
   function exportarListaTxt() {
     if (!resultado) return;
-    const lista = soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos;
     const linhas: string[] = [];
-    for (const ev of lista) {
-      const paginas = ev.paginaIni === ev.paginaFim ? `pg. ${ev.paginaIni}` : `pg. ${ev.paginaIni}-${ev.paginaFim}`;
-      const dep = departamento(ev);
-      // Rótulo do analista primeiro (TIPO SEI, mesmo padrão que o Fábio usa nos nomes de arquivo);
-      // sem rótulo reconhecido, começa pelo Nº SEI — nunca inventa um tipo.
-      const rotulo = rotuloDoEvento(ev);
-      const partes = [rotulo ? `${rotulo} ${ev.idSei}` : ev.idSei, ev.titulo, paginas];
-      if (dep) partes.push(dep);
-      if (ev.data) partes.push(ev.data);
-      linhas.push(partes.join(" — "));
-      // Peça reconhecida DENTRO de um contêiner ("Documentação") entra como linha própria — é
-      // onde moram laudo, memorial, ART e certidão, que no nível do evento ficariam invisíveis.
-      for (const peca of ev.pecas ?? []) {
-        const rotuloPeca = rotuloDoPapelPeca(peca.papel);
-        if (!rotuloPeca) continue;
-        const pgPeca = peca.paginaIni === peca.paginaFim ? `pg. ${peca.paginaIni}` : `pg. ${peca.paginaIni}-${peca.paginaFim}`;
-        linhas.push(`  ${rotuloPeca} ${ev.idSei} — dentro de "${ev.titulo}" — ${pgPeca}`);
+    let titulo: string;
+    let sufixoArquivo: string;
+
+    if (soUltimaVersao) {
+      // Modo "documentos da análise": sai exatamente a lista que o analista monta à mão, no
+      // padrão `TIPO SEI`, e o que faltou sai marcado — a ausência é parte da informação.
+      const itens = montarListaDaAnalise(resultado.eventos);
+      for (const item of itens) {
+        if (!item.idSei) {
+          linhas.push(`${item.tipo} — NÃO ENCONTRADO neste processo`);
+          continue;
+        }
+        const paginas = item.paginaIni === item.paginaFim
+          ? `pg. ${item.paginaIni}`
+          : `pg. ${item.paginaIni}-${item.paginaFim}`;
+        const partes = [`${item.tipo} ${item.idSei}`, item.titulo ?? "", paginas];
+        if (item.setor) partes.push(item.setor);
+        if (item.data) partes.push(item.data);
+        linhas.push(partes.filter(Boolean).join(" — "));
       }
+      const achados = itens.filter((i) => i.idSei).length;
+      titulo = `Processo ${resultado.numeroProcesso} — documentos da análise: ${achados} de ${itens.length} encontrados`;
+      sufixoArquivo = " (documentos da analise)";
+    } else {
+      for (const ev of resultado.eventos) {
+        const paginas = ev.paginaIni === ev.paginaFim ? `pg. ${ev.paginaIni}` : `pg. ${ev.paginaIni}-${ev.paginaFim}`;
+        const dep = departamento(ev);
+        const rotulo = rotuloDoEvento(ev);
+        const partes = [rotulo ? `${rotulo} ${ev.idSei}` : ev.idSei, ev.titulo, paginas];
+        if (dep) partes.push(dep);
+        if (ev.data) partes.push(ev.data);
+        linhas.push(partes.join(" — "));
+        for (const peca of ev.pecas ?? []) {
+          const rotuloPeca = rotuloDoPapelPeca(peca.papel);
+          if (!rotuloPeca) continue;
+          const pgPeca = peca.paginaIni === peca.paginaFim ? `pg. ${peca.paginaIni}` : `pg. ${peca.paginaIni}-${peca.paginaFim}`;
+          linhas.push(`  ${rotuloPeca} ${ev.idSei} — dentro de "${ev.titulo}" — ${pgPeca}`);
+        }
+      }
+      titulo = `Processo ${resultado.numeroProcesso} — ${resultado.eventos.length} documento(s)`;
+      sufixoArquivo = " (lista completa)";
     }
-    const texto = `Processo ${resultado.numeroProcesso} — ${lista.length} documento(s)${
-      soUltimaVersao ? " (só última versão de cada tipo)" : ""
-    }\n\n${linhas.join("\n")}\n`;
+
+    const texto = `${titulo}\n\n${linhas.join("\n")}\n`;
     const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
-    baixarBlob(blob, `${resultado.numeroProcesso} - lista de documentos${soUltimaVersao ? " (ultima versao)" : ""}.txt`);
+    baixarBlob(blob, `${resultado.numeroProcesso} - documentos${sufixoArquivo}.txt`);
   }
 
   /**
@@ -653,14 +674,14 @@ export default function OrganizadorSeiRegularizacao({
                 <span className="flex gap-2">
                   <button
                     onClick={() => setSoUltimaVersao((v) => !v)}
-                    title="Agrupa por tipo de documento e mostra só a última página de cada um — despacho e parecer nunca são agrupados, cada um continua aparecendo"
+                    title="Mostra só os documentos que a análise precisa (uso do solo, CHEADV conforme, vistoria, físico, projeto, laudo, ART/RRT, certidão, procuração, embargo, busca), o mais recente de cada — inclusive os que estão dentro de 'Documentação'. Tipo que não existir no processo aparece marcado como não encontrado."
                     className={`text-xs px-3 py-1 rounded border ${
                       soUltimaVersao
                         ? "bg-[var(--accent)] text-[var(--accent-fg)] border-[var(--accent)]"
                         : "bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border-[var(--border-strong)]"
                     }`}
                   >
-                    {soUltimaVersao ? "✓ Só última versão de cada tipo" : "Só última versão de cada tipo"}
+                    {soUltimaVersao ? "✓ Só os documentos da análise" : "Só os documentos da análise"}
                   </button>
                   <button
                     onClick={exportarListaTxt}
@@ -741,7 +762,72 @@ export default function OrganizadorSeiRegularizacao({
                     </tr>
                   </thead>
                   <tbody>
-                    {(soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos).map((ev) => {
+                    {/* Modo "lista da análise": em vez da linha do tempo do SEI inteira, só os
+                        documentos que o analista abre pra analisar, um de cada tipo, o mais
+                        recente de cada — inclusive os que estão DENTRO dos contêineres. Tipo não
+                        encontrado aparece assim mesmo: saber que falta a ART é informação. */}
+                    {soUltimaVersao && montarListaDaAnalise(resultado.eventos).map((item) => (
+                      <tr key={item.tipo} className="border-b border-[var(--border)]">
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          {item.idSei ?? "—"}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          {item.paginaIni
+                            ? `pg. ${item.paginaIni}${item.paginaFim !== item.paginaIni ? `–${item.paginaFim}` : ""}`
+                            : ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs whitespace-nowrap align-top">
+                          <span className={item.idSei ? "font-bold text-[var(--accent)]" : "font-bold text-[var(--text-muted)]"}>
+                            {item.tipo}
+                          </span>
+                        </td>
+                        <td className="py-1.5 pr-2 align-top text-[var(--text-primary)]">
+                          {item.idSei ? (
+                            <>
+                              {item.titulo}
+                              {item.dePeca && (
+                                <span className="text-xs text-[var(--text-muted)] ml-1">
+                                  (dentro deste documento)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs text-[var(--warning)]">
+                              não encontrado neste processo
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] align-top">{item.setor ?? ""}</td>
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] align-top" />
+                        <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
+                          {item.data ?? ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs whitespace-nowrap align-top" />
+                        <td className="py-1.5 align-top">
+                          {item.idSei && item.paginaIni && item.paginaFim && (
+                            <span className="flex gap-2 justify-end shrink-0">
+                              <button
+                                onClick={() => setVisualizando({ pagina: item.paginaIni!, paginaIni: item.paginaIni!, paginaFim: item.paginaFim! })}
+                                disabled={!arquivo}
+                                title={arquivo ? undefined : "Solte o PDF de novo pra abrir a página"}
+                                className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
+                              >
+                                👁 Abrir
+                              </button>
+                              <button
+                                onClick={() => baixarRecorte({ chave: `analise-${item.tipo}`, paginaIni: item.paginaIni!, paginaFim: item.paginaFim!, titulo: `${item.tipo} ${item.idSei}` })}
+                                disabled={!arquivo || baixando === `analise-${item.tipo}`}
+                                title={arquivo ? undefined : "Solte o PDF de novo pra baixar o recorte"}
+                                className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)] disabled:opacity-40 whitespace-nowrap"
+                              >
+                                {baixando === `analise-${item.tipo}` ? "⏳" : "⬇ Baixar"}
+                              </button>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {!soUltimaVersao && resultado.eventos.map((ev) => {
                       const temPecas = !!ev.pecas?.length;
                       const aberto2 = !!expandido[ev.idSei];
                       return (

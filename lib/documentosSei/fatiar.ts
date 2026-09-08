@@ -50,7 +50,7 @@ export type EventoSei = {
 };
 
 /** Vocabulário deliberadamente curto: só entra aqui o que a frase do documento afirma sozinha. */
-export type PapelPorConteudo = "busca";
+export type PapelPorConteudo = "busca" | "vistoria" | "foto";
 
 export type MotivoRevisao =
   /** página sem rodapé legível, e os vizinhos não têm o mesmo ID SEI dos dois lados para anexar por continuidade */
@@ -252,6 +252,15 @@ const ASSINATURAS_CONTEUDO: { papel: PapelPorConteudo; re: RegExp }[] = [
     papel: "busca",
     re: /busca(s)?\s+no\s+endere[çc]o|busca(s)?\s+de\s+processos?\s+arquivad|processos?\s+arquivad[oa]s?\s+no\s+endere[çc]o|projeto\s+anteriormente\s+aprovado/i,
   },
+  /**
+   * ACHADO REAL (08/09/2026, processo 24.5.000024350-0): a fiscalização manda dois documentos
+   * seguidos, e o SEI intitula OS DOIS de "Relatório" — pg. 177 é o registro fotográfico, pg. 179
+   * é a vistoria. Pelo título é impossível separar; no corpo, cada um se identifica na primeira
+   * linha ("REGISTRO FOTOGRÁFICO DO LOCAL" / "TERMO DE VISTORIA"). Como a vistoria é uma das
+   * condições que impedem a análise, confundir as duas custa caro.
+   */
+  { papel: "vistoria", re: /termo\s+de\s+vistoria|relat[óo]rio\s+de\s+fiscaliza[çc][ãa]o|relat[óo]rio\s+de\s+vistoria|relat[óo]rio\s+circunstanciado/i },
+  { papel: "foto", re: /registro\s+fotogr[áa]fico/i },
 ];
 
 function acharPapelPorConteudo(textoPagina: string): PapelPorConteudo | undefined {
