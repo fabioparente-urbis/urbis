@@ -125,7 +125,15 @@ function acharCarimbo(itens: ItemPosicionado[]): Carimbo | null {
   return melhor?.carimbo ?? null;
 }
 
-const RE_ORGAO = /^(prefeitura|secretaria|chefia|diretoria|ger[êe]ncia|superintend[êe]ncia|coordenadoria|comiss[ãa]o)\b/i;
+/**
+ * Ampliado em 08/09/2026 (pedido do Fábio: "criar um modo pra identificar data e departamento de
+ * cada documento"). Medido no processo real 24.5.000024350-0: os eventos que ficavam sem
+ * departamento eram os do interessado (sem letreiro nenhum — esses continuam em branco, e é o
+ * certo) e os de órgãos cujo letreiro não começa por nenhuma das 8 palavras originais. As novas
+ * entradas cobrem a nomenclatura do restante da Prefeitura sem afrouxar a regra: continua sendo
+ * INÍCIO de linha, dentro do cabeçalho, com os mesmos filtros de ruído.
+ */
+const RE_ORGAO = /^(prefeitura|secretaria|subsecretaria|chefia|diretoria|departamento|divis[ãa]o|ger[êe]ncia|superintend[êe]ncia|coordenadoria|comiss[ãa]o|procuradoria|assessoria|n[úu]cleo|ag[êe]ncia|junta|conselho|instituto|companhia|fundo|autarquia)\b/i;
 /** abaixo desta altura (pontos) já é corpo do documento — acima é letreiro/cabeçalho */
 const ALTURA_CABECALHO = 260;
 
@@ -179,20 +187,36 @@ function acharAssinante(textoPagina: string): string | undefined {
   return sifis ? sifis[1].trim() : undefined;
 }
 
+/** dd/mm/aaaa (ou dd-mm-aaaa) — formato de DUAM, comprovante, guia de taxa e formulários. */
+const RE_DATA_NUMERICA = /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-]((?:19|20)\d{2})\b/;
+
 /**
  * Melhor esforço: última data por extenso encontrada no texto da página (assinatura costuma vir
  * perto do fim). Quando a assinatura eletrônica do SEI traz horário logo depois ("..., às
  * 14:32,...") ele entra junto — senão fica só a data.
+ *
+ * Ampliado em 08/09/2026 (pedido do Fábio): quando a página NÃO traz data por extenso, cai na
+ * última data numérica (dd/mm/aaaa). Medido no processo real 24.5.000024350-0: era exatamente
+ * isso que deixava DUAM, Comprovante e Anexo de Pagamento de Taxa sem data nenhuma na tela — são
+ * formulários/guias, que nunca escrevem "13 de maio de 2024". A data por extenso continua tendo
+ * PRIORIDADE (é a da assinatura); a numérica é só o que sobra quando não existe assinatura por
+ * extenso na página.
  */
 function acharData(textoPagina: string): string | undefined {
   let ultima: RegExpExecArray | null = null;
   const re = new RegExp(RE_DATA_LONGA, "gi");
   let m: RegExpExecArray | null;
   while ((m = re.exec(textoPagina))) ultima = m;
-  if (!ultima) return undefined;
-  const depoisDaData = textoPagina.slice(ultima.index + ultima[0].length, ultima.index + ultima[0].length + 30);
-  const hora = RE_HORA.exec(depoisDaData);
-  return hora ? `${ultima[0]}, às ${hora[1].padStart(2, "0")}:${hora[2]}` : ultima[0];
+  if (ultima) {
+    const depoisDaData = textoPagina.slice(ultima.index + ultima[0].length, ultima.index + ultima[0].length + 30);
+    const hora = RE_HORA.exec(depoisDaData);
+    return hora ? `${ultima[0]}, às ${hora[1].padStart(2, "0")}:${hora[2]}` : ultima[0];
+  }
+
+  let ultimaNum: RegExpExecArray | null = null;
+  const reNum = new RegExp(RE_DATA_NUMERICA, "g");
+  while ((m = reNum.exec(textoPagina))) ultimaNum = m;
+  return ultimaNum ? ultimaNum[0] : undefined;
 }
 
 type PaginaLida = {

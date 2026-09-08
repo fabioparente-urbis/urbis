@@ -33,10 +33,11 @@ import { PDFDocument } from "pdf-lib";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
-import { ROTULO_PAPEL_PECA, type PecaSei } from "@/lib/documentosSei/pecas";
+import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { salvarPdfNavegador, carregarPdfNavegador } from "@/lib/documentosSei/cachePdfNavegador";
+import { rotuloDoTitulo, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
@@ -120,16 +121,35 @@ function normalizarTitulo(titulo: string): string {
 function ehEmail(titulo: string): boolean {
   return /^e-?mail\b/i.test(titulo.trim());
 }
+/**
+ * Título que NÃO carrega informação suficiente pra afirmar que dois documentos são versões um do
+ * outro — nesse caso o filtro nunca agrupa, mantém todos. Cópia isolada da mesma regra do Slot 1
+ * (`components/regularizacao/OrganizadorSeiRegularizacao.tsx`), nunca compartilhada entre os dois.
+ *
+ * ACHADO REAL (08/09/2026, medido em processo real do Slot 1): o filtro colapsava todas as
+ * "Documentação" do processo numa só — e cada uma é um LOTE DIFERENTE de documentos, entregue em
+ * data diferente, com conteúdo diferente (uma traz ART/certidão/embargo, outra traz o laudo).
+ * Mesmo problema com "Processo" e "Relatório". Dois casos, o mesmo motivo (título genérico demais
+ * pra sustentar "é a mesma coisa"): contêiner genérico, ou título que sobra 1 palavra só depois de
+ * tirar os números. O caso que motivou o agrupamento (despachos CHEADV de pendência com texto
+ * residual idêntico) continua agrupando normalmente.
+ */
+function tituloGenericoDemaisParaAgrupar(titulo: string): boolean {
+  if (ehContainerGenerico(titulo)) return true;
+  return normalizarTitulo(titulo).split(/\s+/).filter(Boolean).length < 2;
+}
+
 function filtrarUltimaVersao(eventos: EventoSei[]): EventoSei[] {
   const semEmail = eventos.filter((ev) => !ehEmail(ev.titulo));
   const ultimoPorGrupo = new Map<string, EventoSei>();
   for (const ev of semEmail) {
+    if (tituloGenericoDemaisParaAgrupar(ev.titulo)) continue; // nunca agrupa — todos ficam
     const chave = normalizarTitulo(ev.titulo);
     const atual = ultimoPorGrupo.get(chave);
     if (!atual || ev.paginaFim > atual.paginaFim) ultimoPorGrupo.set(chave, ev);
   }
   const mantidos = new Set([...ultimoPorGrupo.values()]);
-  return semEmail.filter((ev) => mantidos.has(ev));
+  return semEmail.filter((ev) => tituloGenericoDemaisParaAgrupar(ev.titulo) || mantidos.has(ev));
 }
 
 type CampoLip = { valor: string; fonte?: string };
@@ -359,14 +379,26 @@ export default function OrganizadorSeiAceite({
   function exportarListaTxt() {
     if (!resultado) return;
     const lista = soUltimaVersao ? filtrarUltimaVersao(resultado.eventos) : resultado.eventos;
-    const linhas = lista.map((ev) => {
+    const linhas: string[] = [];
+    for (const ev of lista) {
       const paginas = ev.paginaIni === ev.paginaFim ? `pg. ${ev.paginaIni}` : `pg. ${ev.paginaIni}-${ev.paginaFim}`;
       const dep = departamento(ev);
-      const partes = [ev.idSei, ev.titulo, paginas];
+      // Rótulo do analista primeiro (TIPO SEI, mesmo padrão que o Fábio usa nos nomes de arquivo);
+      // sem rótulo reconhecido, começa pelo Nº SEI — nunca inventa um tipo.
+      const rotulo = rotuloDoTitulo(ev.titulo);
+      const partes = [rotulo ? `${rotulo} ${ev.idSei}` : ev.idSei, ev.titulo, paginas];
       if (dep) partes.push(dep);
       if (ev.data) partes.push(ev.data);
-      return partes.join(" — ");
-    });
+      linhas.push(partes.join(" — "));
+      // Peça reconhecida DENTRO de um contêiner ("Documentação") entra como linha própria — é
+      // onde moram laudo, memorial, ART e certidão, que no nível do evento ficariam invisíveis.
+      for (const peca of ev.pecas ?? []) {
+        const rotuloPeca = rotuloDoPapelPeca(peca.papel);
+        if (!rotuloPeca) continue;
+        const pgPeca = peca.paginaIni === peca.paginaFim ? `pg. ${peca.paginaIni}` : `pg. ${peca.paginaIni}-${peca.paginaFim}`;
+        linhas.push(`  ${rotuloPeca} ${ev.idSei} — dentro de "${ev.titulo}" — ${pgPeca}`);
+      }
+    }
     const texto = `Processo ${resultado.numeroProcesso} — ${lista.length} documento(s)${
       soUltimaVersao ? " (só última versão de cada tipo)" : ""
     }\n\n${linhas.join("\n")}\n`;
@@ -625,6 +657,7 @@ export default function OrganizadorSeiAceite({
                     <tr className="text-left text-xs text-[var(--text-muted)] border-b border-[var(--border-strong)] sticky top-0 bg-[var(--bg-card)]">
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Nº SEI</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Páginas</th>
+                      <th className="py-1.5 pr-2 font-normal whitespace-nowrap" title="Tipo no vocabulário da análise, deduzido do título do SEI. Em branco quando o título não permite afirmar (ex.: dois documentos chamados só 'Relatório')">Tipo</th>
                       <th className="py-1.5 pr-2 font-normal">Documento</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Departamento</th>
                       <th className="py-1.5 pr-2 font-normal whitespace-nowrap">Assinado por</th>
@@ -655,6 +688,15 @@ export default function OrganizadorSeiAceite({
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                           pg. {ev.paginaIni}
                           {ev.paginaFim !== ev.paginaIni ? `–${ev.paginaFim}` : ""}
+                        </td>
+                        <td className="py-1.5 pr-2 text-xs whitespace-nowrap align-top">
+                          {(() => {
+                            const rot = rotuloDoTitulo(ev.titulo);
+                            if (!rot) return <span className="text-[var(--text-muted)]">—</span>;
+                            return (
+                              <span className="font-bold text-[var(--accent)]">{rot}</span>
+                            );
+                          })()}
                         </td>
                         <td className="py-1.5 pr-2 text-[var(--text-primary)] align-top">{ev.titulo}</td>
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] align-top">
@@ -701,6 +743,14 @@ export default function OrganizadorSeiAceite({
                             <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top pl-5">↳</td>
                             <td className="py-1 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                               pg. {peca.paginaIni}{peca.paginaFim !== peca.paginaIni ? `–${peca.paginaFim}` : ""}
+                            </td>
+                            <td className="py-1 pr-2 text-xs whitespace-nowrap align-top">
+                              {(() => {
+                                const rotPeca = rotuloDoPapelPeca(peca.papel);
+                                return rotPeca
+                                  ? <span className="font-bold text-[var(--accent)]">{rotPeca}</span>
+                                  : <span className="text-[var(--text-muted)]">—</span>;
+                              })()}
                             </td>
                             <td className="py-1 pr-2 text-[var(--text-primary)] align-top" colSpan={3}>
                               {ROTULO_PAPEL_PECA[peca.papel]}
