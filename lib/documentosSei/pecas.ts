@@ -139,6 +139,50 @@ export function abrirContainer(paginasDoEvento: PaginaTexto[]): PecaSei[] {
   return pecas;
 }
 
+/** Papéis que a classificação por visão (Fase 8) pode devolver — qualquer outro valor é ignorado. */
+const PAPEIS_VALIDOS = new Set<string>([
+  "projeto", "levantamento", "art", "art_levantamento", "art_caixa", "matricula", "certidao",
+  "laudo", "vistoria", "foto", "memorial", "procuracao", "embargo", "despacho", "parecer",
+  "oficio", "requerimento", "email",
+]);
+
+/**
+ * Aplica ao índice o que a classificação por visão (Fase 8, `visaoAmbiguas.ts`) disse sobre cada
+ * página ambígua. Existe porque a maior parte do que o analista procura — ART, certidão de
+ * matrícula, embargo, procuração — chega ao processo DIGITALIZADA: medido no processo real
+ * 24.5.000024350-0, as páginas dentro do contêiner têm 52 caracteres de texto (só o carimbo do
+ * SEI), então nenhuma regra determinística tem o que ler ali. A visão é o único caminho, e só
+ * roda sob clique explícito do analista, com o custo mostrado antes.
+ *
+ * Só mexe em peça `classificacao_pendente`: o que a Fase 3 já classificou por conteúdo real
+ * NUNCA é sobrescrito por palpite de visão — regra determinística vence adivinhação.
+ */
+export function aplicarClassificacaoVisao(
+  pecas: PecaSei[],
+  porPagina: Record<number, string | null>,
+): PecaSei[] {
+  const saida: PecaSei[] = [];
+  for (const peca of pecas) {
+    if (peca.papel !== "classificacao_pendente") { saida.push({ ...peca }); continue; }
+    for (let pagina = peca.paginaIni; pagina <= peca.paginaFim; pagina++) {
+      const sugerido = porPagina[pagina];
+      const papel: PapelPeca = sugerido && PAPEIS_VALIDOS.has(sugerido)
+        ? (sugerido as PapelPeca)
+        : "classificacao_pendente";
+      const ultimo = saida[saida.length - 1];
+      if (ultimo && ultimo.papel === papel && ultimo.paginaFim === pagina - 1) {
+        ultimo.paginaFim = pagina;
+      } else {
+        saida.push({
+          papel, paginaIni: pagina, paginaFim: pagina,
+          confianca: papel === "classificacao_pendente" ? "baixa" : "media",
+        });
+      }
+    }
+  }
+  return saida;
+}
+
 /** Rótulo humano de cada papel, para a tela. */
 export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   projeto: "Projeto",

@@ -147,6 +147,19 @@ export const TIPOS_DA_ANALISE = [
 
 export type TipoDaAnalise = (typeof TIPOS_DA_ANALISE)[number];
 
+/**
+ * A lista NÃO é a mesma nos dois slots — quem decide é o componente de cada um, porque é regra de
+ * negócio de slot (CLAUDE.md), não do mecanismo:
+ *
+ * - Regularização SEI (Slot 1): a lista inteira.
+ * - Aceite SEI (Slot 2): SEM "USO" — "no slot 2 não tem uso do solo" (Fábio, 08/09/2026). Pedir
+ *   um documento que não existe naquele rito faria a tela mostrar "não encontrado" pra sempre,
+ *   treinando o analista a ignorar o aviso de faltante — que é justamente o que ele precisa ver.
+ */
+export const TIPOS_DA_ANALISE_REGULARIZACAO: readonly TipoDaAnalise[] = TIPOS_DA_ANALISE;
+export const TIPOS_DA_ANALISE_ACEITE: readonly TipoDaAnalise[] =
+  TIPOS_DA_ANALISE.filter((t) => t !== "USO");
+
 /** O que o CORPO do documento afirma (`EventoSei.papelPorConteudo`) → rótulo. */
 const ROTULO_POR_CONTEUDO: Record<string, string | undefined> = {
   busca: "BUSCA",
@@ -211,9 +224,12 @@ type EventoParaLista = {
  * que o analista precisa ver, e uma linha que simplesmente não existe não informa nada. Mesmo
  * princípio de "nenhuma página some em silêncio" (§5.2 do plano), aplicado à lista de trabalho.
  */
-export function montarListaDaAnalise(eventos: EventoParaLista[]): ItemDaAnalise[] {
+export function montarListaDaAnalise(
+  eventos: EventoParaLista[],
+  tiposDoSlot: readonly TipoDaAnalise[] = TIPOS_DA_ANALISE,
+): ItemDaAnalise[] {
   const melhor = new Map<TipoDaAnalise, ItemDaAnalise>();
-  const tipos = new Set<string>(TIPOS_DA_ANALISE);
+  const tipos = new Set<string>(tiposDoSlot);
 
   function considerar(tipo: TipoDaAnalise, item: ItemDaAnalise) {
     const atual = melhor.get(tipo);
@@ -227,7 +243,7 @@ export function montarListaDaAnalise(eventos: EventoParaLista[]): ItemDaAnalise[
      * (Fábio). O SEI intitula isso só de "Processo", que é contêiner genérico e não diz nada
      * sozinho; o que identifica é a POSIÇÃO: primeiro evento do PDF, começando na página 1.
      */
-    if (indice === 0 && ev.paginaIni === 1 && /^processo\b/i.test(ev.titulo.trim())) {
+    if (tipos.has("FISICO") && indice === 0 && ev.paginaIni === 1 && /^processo\b/i.test(ev.titulo.trim())) {
       considerar("FISICO", {
         tipo: "FISICO", idSei: ev.idSei, titulo: ev.titulo,
         paginaIni: ev.paginaIni, paginaFim: ev.paginaFim, setor: ev.setor, data: ev.data,
@@ -253,7 +269,7 @@ export function montarListaDaAnalise(eventos: EventoParaLista[]): ItemDaAnalise[
     }
   });
 
-  return TIPOS_DA_ANALISE.map((tipo) => melhor.get(tipo) ?? { tipo });
+  return tiposDoSlot.map((tipo) => melhor.get(tipo) ?? { tipo });
 }
 
 /**

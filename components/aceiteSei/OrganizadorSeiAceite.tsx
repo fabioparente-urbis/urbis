@@ -33,11 +33,11 @@ import { PDFDocument } from "pdf-lib";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import "react-pdf/dist/Page/TextLayer.css";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
-import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/documentosSei/pecas";
+import { ROTULO_PAPEL_PECA, ehContainerGenerico, aplicarClassificacaoVisao, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
 import { gerarPacoteVigente, baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { salvarPdfNavegador, carregarPdfNavegador } from "@/lib/documentosSei/cachePdfNavegador";
-import { rotuloDoEvento, rotuloDoPapelPeca, montarListaDaAnalise } from "@/lib/documentosSei/rotuloAnalista";
+import { rotuloDoEvento, rotuloDoPapelPeca, montarListaDaAnalise, TIPOS_DA_ANALISE_ACEITE } from "@/lib/documentosSei/rotuloAnalista";
 import { hashCurtoOrigem, dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 
 const ROTULO_ESTADO: Record<EstadoVersao, string> = {
@@ -450,7 +450,7 @@ export default function OrganizadorSeiAceite({
     if (soUltimaVersao) {
       // Modo "documentos da análise": sai exatamente a lista que o analista monta à mão, no
       // padrão `TIPO SEI`, e o que faltou sai marcado — a ausência é parte da informação.
-      const itens = montarListaDaAnalise(resultado.eventos);
+      const itens = montarListaDaAnalise(resultado.eventos, TIPOS_DA_ANALISE_ACEITE);
       for (const item of itens) {
         if (!item.idSei) {
           linhas.push(`${item.tipo} — NÃO ENCONTRADO neste processo`);
@@ -560,6 +560,23 @@ export default function OrganizadorSeiAceite({
       const mapa: Record<number, string | null> = {};
       for (const item of j.resultados) mapa[item.pagina] = item.papel;
       setSugestoesGemini(mapa);
+      /**
+       * Aplica a classificação da visão ao índice — sem isso o resultado ficava só num aviso
+       * solto na tela, e a lista da análise continuava dizendo "ART não encontrada" mesmo depois
+       * de o analista ter pagado pra descobrir onde ela está. Só mexe em página que estava
+       * `classificacao_pendente` (ver aplicarClassificacaoVisao): regra determinística nunca é
+       * sobrescrita por palpite de visão.
+       */
+      setResultado((prev) =>
+        prev
+          ? {
+              ...prev,
+              eventos: prev.eventos.map((ev) =>
+                ev.pecas?.length ? { ...ev, pecas: aplicarClassificacaoVisao(ev.pecas, mapa) } : ev,
+              ),
+            }
+          : prev,
+      );
     } catch (e: any) {
       setErro(`Falha ao analisar páginas ambíguas: ${e?.message ?? e}`);
     } finally {
@@ -757,7 +774,7 @@ export default function OrganizadorSeiAceite({
                         documentos que o analista abre pra analisar, um de cada tipo, o mais
                         recente de cada — inclusive os que estão DENTRO dos contêineres. Tipo não
                         encontrado aparece assim mesmo: saber que falta a ART é informação. */}
-                    {soUltimaVersao && montarListaDaAnalise(resultado.eventos).map((item) => (
+                    {soUltimaVersao && montarListaDaAnalise(resultado.eventos, TIPOS_DA_ANALISE_ACEITE).map((item) => (
                       <tr key={item.tipo} className="border-b border-[var(--border)]">
                         <td className="py-1.5 pr-2 text-xs text-[var(--text-muted)] whitespace-nowrap align-top">
                           {item.idSei ?? "—"}
