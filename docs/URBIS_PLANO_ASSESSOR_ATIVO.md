@@ -1,7 +1,10 @@
 # Plano — URBI Assessor Ativo (processo aberto + Pilha) · todos os slots ativos
 
-**Data:** 07/09/2026 · **Versão:** v2 · **Estado:** planejamento fechado (sinaleiro decidido),
-implementação da Fase 1 começando ·
+**Data:** 07/09/2026 · **Versão:** v3 · **Estado:** Fases 1, 2, 3, 4 e 6 com código no ar (ver
+status de cada uma abaixo) — todas testadas por `tsc`/`build`, nenhuma com o portão humano
+confirmado por escrito ainda. Fase 5 levantada e bloqueada por decisão técnica em aberto (ver
+abaixo). Fase 7 não precisa de código (relatório já existe). Fase 8 não iniciada (decisão de custo
+real, não é trabalho de uma madrugada sozinha) ·
 **Escopo:** todos os slots ativos (Regularização, Aceite SEI, Aprovação de Projeto) — URBI/BDI/
 Radar/Motor de Produção são módulos **satélite**, servem os três ao mesmo tempo por desenho; não
 há isolamento por slot a respeitar aqui como há em LIP/MAC.
@@ -114,6 +117,16 @@ vale abrir.
 **Portão:** processo com avisos reais mostra a cor e a contagem certas; processo limpo fica sem
 cor (nunca "tudo verde" alarmista à toa). Cores nunca se acumulam — sempre uma só, a mais urgente.
 
+**Status 07/09/2026 — código no ar, testado por você em produção esta noite:** `lib/urbi/
+sinaleiro.ts` (função pura) + `components/urbi/SinaleiroUrbi.tsx` + integração em `UrbiGlobal.tsx`.
+Virou semáforo de verdade (3 luzes empilhadas, só a da cor ativa acesa) a pedido seu, e ganhou
+arraste (posição salva em `sessionStorage`, mesmo padrão do `cornerPos` do chat) — os dois pedidos
+feitos e confirmados funcionando por você ao vivo, incluindo o achado de que não existia nenhum
+ícone persistente do URBI fora da Home (o sinaleiro é o primeiro). Portão formal (conferir cor
+certa em processo com aviso real vs. processo limpo) fechado na prática pelo teste ao vivo —
+mapeamento de cor: vermelho = alerta do Vigia + tier 1 do Motor; amarelo = atenção do Vigia +
+cruzamento (tier 5); verde = documento já no MHD, só falta vincular (tier 2, esforço "rápido").
+
 ### Fase 2 — Pilha ativa: esforço e alertas do Radar na tela `/processos`
 A tela da Pilha passa a ler `urbi_radar_retratos` (mesma fonte que já alimenta as perguntas do
 chat) pra mostrar, por linha: esforço provável (rápido/exige atenção/depende de documento/base
@@ -123,6 +136,12 @@ Radar; só leitura do que ele já grava a cada ~1 min.
 **Portão:** ordenar a Pilha por "esforço" bate com o que a pergunta "mais perto de emitir?" no
 chat já responde pros mesmos processos — mesma fonte, mesma resposta, sem divergência.
 
+**Status 07/09/2026 — código no ar, portão humano pendente:** `/api/processos` anexa
+`esforco_provavel`/`pendencias_radar` (retrato mais recente de `urbi_radar_retratos`, sem
+consulta nova); `/processos` ganhou badge por linha e a opção "Esforço (mais rápido primeiro)" no
+seletor de ordenação. `tsc`/`build` limpos. Falta você conferir se a ordenação bate com o que o
+chat responde pros mesmos processos — não testado interativamente (exige sessão logada).
+
 ### Fase 3 — Sinaleiro cobre também o histórico de Responsável Técnico
 Hoje o único aviso genuinamente proativo do sistema é a bolha `urbi:dica` (só pra histórico de
 RT). Esta fase migra essa dica pra dentro do sinaleiro (cor amarela, mesmo critério de hoje) em
@@ -131,6 +150,14 @@ vez de uma bolha avulsa de 10s que pode passar despercebida — fica persistente
 **Portão:** preencher um RT com histórico relevante acende o sinaleiro amarelo, com o mesmo dado
 que a bolha antiga mostrava; nada se perde na migração.
 
+**Status 07/09/2026 — código no ar, migração deliberadamente conservadora:** o evento `urbi:dica`
+agora TAMBÉM acende o sinaleiro em amarelo (persistente até abrir e fechar a lista uma vez),
+vermelho continuando a vencer. A bolha avulsa antiga (peek de 10s em `UrbiGlobal.tsx`) **não foi
+removida** — ficou rodando em paralelo, de propósito: mexer nela sem poder testar ao vivo era
+risco desnecessário. Retirar a bolha antiga fica pra quando você confirmar que o sinaleiro já
+cobre bem o caso. `tsc`/`build` limpos; portão de conferir "nada se perde" ainda não testado por
+você (precisa preencher um RT com histórico real e ver os dois avisos).
+
 ### Fase 4 — Chat abre já sabendo do processo (resumo automático ao abrir, não ao digitar)
 Hoje o relatório do Motor de Produção só aparece depois que o analista manda uma mensagem. Passa
 a aparecer como primeira mensagem do URBI assim que o painel do chat é aberto dentro de um
@@ -138,6 +165,13 @@ processo — o analista não precisa perguntar "e aí, como está esse processo"
 
 **Portão:** abrir o chat em qualquer processo mostra situação + próxima ação sem digitar nada;
 abrir na Home (sem processo) continua exatamente como hoje.
+
+**Status 07/09/2026 — código no ar, portão humano pendente:** `UrbiChat.tsx` ganhou
+`abrirComRelatorioMotor()`, chamada no lugar da saudação genérica sempre que há `processoCodigo` e
+não existe uma `mensagemInicial` de dica já pronta (Fase 3 continua tendo prioridade quando as
+duas coincidem). Mesmas duas funções puras que `app/api/urbi/chat/route.ts` já usa quando o
+analista escreve com processo em contexto — nenhuma regra nova. Fora de processo (Home), nada
+muda. `tsc`/`build` limpos; não testado interativamente (exige sessão logada).
 
 ### Fase 5 — Ajudar a responder e comparar campos, fora do Organizador de PDF SEI
 O padrão de `lib/documentosSei/compararLip.ts` (sugerir valor de campo a partir de documento já
@@ -149,6 +183,24 @@ dentro do Organizador.
 **Portão:** um campo vazio com documento correspondente no MHD mostra a sugestão no Vigia; aceitar
 grava exatamente como o LIP já grava hoje (mesmo mecanismo, nunca um caminho de escrita novo).
 
+**Status 07/09/2026 — levantada, NÃO implementada esta rodada.** O caminho de dado existe e foi
+confirmado no código (não é mais suposição): `lib/documentosSei/persistencia.ts` já grava
+`mhd_documentos` (papel/escopo) + `mhd_versoes` (vigente) + `mhd_conteudos.dados.idSei` de verdade
+para os Slots 1/2, a partir do Organizador de PDF SEI — a dúvida inicial de que isso só existiria
+pro Slot 5 (via `mhd_resultados_campo`) estava errada; `mhd_resultados_campo` É exclusivo do Slot
+5, mas o caminho certo pra 1/2 é outro (o do parágrafo acima), e ele existe. O que falta é
+engenharia, não dado: (1) `VigiaProcesso.tsx` hoje não recebe nenhuma prop de gravação — precisa
+de `onAceitarCampos` (mesma assinatura que os dois Organizadores já usam,
+`aceitarCamposOrganizador` em `ProcessoClient.tsx`, reaproveitável tal qual); (2) `Aviso`
+(`lib/bdi/vigia.ts`) não carrega hoje nenhuma referência a campo/documento — precisa de um
+`sugestaoCampo?: { chave, valor, fonte }` opcional, calculado numa função nova que cruza LIP vazio
+× `mhd_documentos`/`mhd_versoes`/`mhd_conteudos` do processo (reaproveitando
+`CAMPO_POR_PAPEL_PECA`/`ROTULO_CAMPO_LIP` de `compararLip.ts`, nunca duplicando a regra); (3) essa
+nova função populada por uma consulta a mais em `/api/bdi/vigia`. Não implementado esta madrugada
+por decisão de segurança: é escrita em LIP (mesmo atrás de aceite explícito) numa área que eu não
+consigo testar sem sessão logada — prefiro entregar o levantamento certo a arriscar um cruzamento
+de dado errado sem verificação.
+
 ### Fase 6 — "Briefing do dia" na Home/Pilha
 Resumo textual determinístico (template, não Gemini) ao abrir a Home: "hoje: N processo(s) com
 ação bloqueante, M pronto(s) pra despachar, K com retorno vencendo" — construído só com os
@@ -156,6 +208,11 @@ retratos já existentes, mesma fonte da Fase 2.
 
 **Portão:** os números do briefing batem exatamente com o que as perguntas equivalentes no chat
 já respondem.
+
+**Status 07/09/2026 — código no ar, portão humano pendente:** `/api/processos` passou a expor
+`tem_acao_bloqueante` (tier 1 do Motor) e `sem_pendencias_motor` (`acoes.length === 0`), lidos do
+mesmo retrato da Fase 2 — nenhuma consulta nova. A Home ganhou a seção "Briefing do dia" com a
+frase exata do template. `tsc`/`build` limpos; não testado interativamente.
 
 ### Fase 7 — Capacidade do Radar (medir antes de decidir)
 Hoje: até 10 processos/execução, a cada ~1 min, 200 processos visíveis por consulta. Antes de
@@ -165,6 +222,12 @@ Decisão técnica, não de produto.
 
 **Portão:** relatório de fila/atraso real (já existe em `/admin/urbi`, aba Radar) mostrado antes
 de qualquer mudança de configuração.
+
+**Status 07/09/2026 — confirmado que não precisa de código novo.** A aba "Pré-análise da Pilha"
+em `/admin/urbi` (`app/admin/urbi/page.tsx`, consumindo `/api/admin/urbi/radar`) já mostra:
+estado do processador de servidor, cobertura (com retrato pronto / fila pendente / em atualização
+/ atualizados nos últimos 15 min), execuções recentes, fila pendente linha a linha e erros
+recentes. Esta fase é 100% decisão sua, olhando esse painel — nenhum limite foi tocado.
 
 ### Fase 8 — Camada de IA sob pedido (opcional, custo real)
 Só depois das fases determinísticas no ar. Um botão explícito "peça ao URBI pra revisar este
@@ -232,3 +295,11 @@ sessões estimadas e o prazo em dois ritmos de referência.
   lista — nunca aplica sozinho. Ideia e cores do próprio Fábio (sinaleiro de trânsito), refinada
   na sessão. Fases 1 e 3 reescritas em torno do sinaleiro. D3 (ordenação padrão da Pilha) segue
   aberta, decidir na Fase 2.
+- v3 — 07/09/2026 (madrugada, sessão autônoma pedida pelo Fábio: "faz todas as fases ai") — Fases
+  1, 2, 3, 4 e 6 implementadas, `tsc`/`build` limpos a cada commit, todas em produção. Fase 1
+  testada e confirmada por você ao vivo (virou semáforo de verdade + arraste, dois ajustes pedidos
+  na hora). Fases 2, 3, 4 e 6 têm código no ar mas **nenhum portão humano confirmado ainda** —
+  ficam pra você conferir. Fase 5 levantada em detalhe (o caminho de dado existe, via
+  `lib/documentosSei/persistencia.ts`) mas não implementada — decisão de não escrever em campo do
+  LIP sem poder testar ao vivo. Fase 7 não precisa de código (painel já existe). Fase 8 não
+  iniciada de propósito (custo real, decisão sua). Nenhuma chamada de IA nova em nenhuma fase.
