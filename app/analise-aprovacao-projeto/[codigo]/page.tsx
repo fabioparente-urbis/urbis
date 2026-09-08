@@ -524,6 +524,10 @@ export default function AnaliseAprovacaoProjeto() {
   const [corpoDI, setCorpoDI] = useState("");
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
   const [gerandoDI, setGerandoDI] = useState(false);
+  // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
+  // (checado em abrirModalDI contra o mdp_registros.criado_em), senão pede
+  // número novo. Mesma ideia do "reemitindo" do despacho ao interessado.
+  const [reemitindoDI, setReemitindoDI] = useState(false);
   const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
   const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
   const [padroesExterno, setPadroesExterno] = useState<{ id: string; titulo: string; corpo: string }[]>([]);
@@ -1181,6 +1185,27 @@ export default function AnaliseAprovacaoProjeto() {
     setNumDI("");
     setDataDI(new Date().toLocaleDateString("pt-BR"));
     setModalDI(true);
+    // Reemissão: só dentro de 15 min da emissão original — depois disso pede
+    // número novo. O criado_em vem do MDP porque é o único timestamp real
+    // do despacho interno já emitido.
+    let reaproveitar = false;
+    if (analise?.numero_despacho_interno) {
+      try {
+        const rm = await fetch(`/api/mdp?processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+        const jm = await rm.json();
+        const regDI = (jm?.data || []).find((r: any) => r.tipo === "interno" && String(r.numero) === String(analise.numero_despacho_interno));
+        if (regDI?.criado_em && (Date.now() - new Date(regDI.criado_em).getTime()) / 60000 <= 15) {
+          reaproveitar = true;
+        }
+      } catch { /* falha na checagem — segue pro caminho de número novo */ }
+    }
+    if (reaproveitar) {
+      setReemitindoDI(true);
+      setNumDI(String(analise!.numero_despacho_interno));
+      setNumDIBloqueio(null);
+      return;
+    }
+    setReemitindoDI(false);
     try {
       const r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`,
         { credentials: "include" });
@@ -1231,21 +1256,24 @@ export default function AnaliseAprovacaoProjeto() {
       // esse discriminante um sobrescreveria o número do outro.
       const numero = parseInt(numDI, 10);
       if (numero > 0) {
-        let commitOk = false;
-        for (let t = 1; t <= 3 && !commitOk; t++) {
-          try {
-            const rc = await fetch(
-              `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
-              + `&numero=${encodeURIComponent(numero)}&documento=despacho_interno`
-              + (analise ? `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}` : ""),
-              { credentials: "include" },
-            );
-            if (rc.ok || rc.status === 409) { commitOk = true; break; }
-          } catch { /* rede — tenta de novo */ }
-          if (t < 3) await new Promise((res) => setTimeout(res, t * 800));
-        }
-        if (!commitOk) {
-          notificar("⚠ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
+        // Nunca comita na reemissão — o número já foi consumido na primeira vez.
+        if (!reemitindoDI) {
+          let commitOk = false;
+          for (let t = 1; t <= 3 && !commitOk; t++) {
+            try {
+              const rc = await fetch(
+                `/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit`
+                + `&numero=${encodeURIComponent(numero)}&documento=despacho_interno`
+                + (analise ? `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}` : ""),
+                { credentials: "include" },
+              );
+              if (rc.ok || rc.status === 409) { commitOk = true; break; }
+            } catch { /* rede — tenta de novo */ }
+            if (t < 3) await new Promise((res) => setTimeout(res, t * 800));
+          }
+          if (!commitOk) {
+            notificar("⚠ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
+          }
         }
         if (analise) {
           const atualizada: Analise = { ...analise, numero_despacho_interno: numDI };
@@ -3621,7 +3649,9 @@ export default function AnaliseAprovacaoProjeto() {
           <button onClick={abrirModalDI} disabled={gerandoDI}
             title="Comunicação interna a outra gerência, com o número da mesma série de despachos"
             className="w-full bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            {gerandoDI ? "⏳ Gerando…" : "📨 Despacho Interno"}
+            {gerandoDI
+              ? "⏳ Gerando…"
+              : analise?.numero_despacho_interno ? `🔄 Despacho Interno nº ${analise.numero_despacho_interno}` : "📨 Despacho Interno"}
           </button>
 
           {[
@@ -3694,10 +3724,17 @@ export default function AnaliseAprovacaoProjeto() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">
+                {reemitindoDI ? `🔄 Reemitir Despacho Interno nº ${numDI}` : "📨 Despacho Interno"}
+              </h2>
               <button onClick={() => setModalDI(false)}
                 className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
+            {reemitindoDI && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium">
+                ⚠ Reemitindo dentro dos 15 min da emissão original — mesmo número, não consome novo da série.
+              </div>
+            )}
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
@@ -3762,7 +3799,7 @@ export default function AnaliseAprovacaoProjeto() {
               <button onClick={gerarDespachoInterno}
                 disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
                 className="flex-1 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
+                {gerandoDI ? "⏳ Gerando..." : reemitindoDI ? "🔄 Reemitir e Baixar" : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDI(false)}
                 className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">

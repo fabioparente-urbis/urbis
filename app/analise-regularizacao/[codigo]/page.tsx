@@ -120,6 +120,11 @@ export default function MacPage() {
   const [modalDespachoInterno, setModalDespachoInterno] = useState(false);
   const [numDI, setNumDI] = useState("");
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
+  // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
+  // (checado no clique do botão contra o mdp_registros.criado_em), senão
+  // pede número novo. Mesma ideia do "reemitindo" do despacho ao interessado,
+  // que já reaproveita número sem consultar a série (ver prepararNumeracao).
+  const [reemitindoDI, setReemitindoDI] = useState(false);
   const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [destinoDI, setDestinoDI] = useState("");
   const [destinoCustomDI, setDestinoCustomDI] = useState("");
@@ -143,6 +148,11 @@ export default function MacPage() {
   // MRP com a MESMA data — evita o descasamento de dia perto da meia-noite.
   const [dataEmissao, setDataEmissao] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
+  // COND_180_DIAS (URBI, pedido do Fábio 08/09/2026): regra determinística e sem ambiguidade
+  // ("se tiver 180 dias já não pode emitir nenhum documento") — trava de verdade, reaproveitando
+  // o mesmo mecanismo de numeracaoBloqueio (ver prepararNumeracao). Desligada por padrão em
+  // urbi_regras_bloqueio; null enquanto a regra não acender ou ainda não tiver sido lida.
+  const [bloqueio180DiasMsg, setBloqueio180DiasMsg] = useState<string | null>(null);
   const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
@@ -1364,18 +1374,21 @@ export default function MacPage() {
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
 
-      // Consome o número SOMENTE após o download bem-sucedido (peek não commita).
+      // Consome o número SOMENTE após o download bem-sucedido (peek não commita)
+      // — e nunca na reemissão, onde o número já foi consumido na primeira vez.
       const _numCommitDI = parseInt(numDI, 10);
       if (_numCommitDI > 0) {
-        let _commitOkDI = false;
-        for (let _t = 1; _t <= 3 && !_commitOkDI; _t++) {
-          try {
-            const _rc = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitDI)}&documento=despacho_interno${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
-            if (_rc.ok || _rc.status === 409) { _commitOkDI = true; break; }
-          } catch { /* rede — tenta de novo */ }
-          if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));
+        if (!reemitindoDI) {
+          let _commitOkDI = false;
+          for (let _t = 1; _t <= 3 && !_commitOkDI; _t++) {
+            try {
+              const _rc = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=commit&numero=${encodeURIComponent(_numCommitDI)}&documento=despacho_interno${analiseAtual?.id ? `&analise_id=${encodeURIComponent(analiseAtual.id)}&analise_numero=${analiseAtual.numero_analise}` : ""}`, { credentials: "include" });
+              if (_rc.ok || _rc.status === 409) { _commitOkDI = true; break; }
+            } catch { /* rede — tenta de novo */ }
+            if (_t < 3) await new Promise((r) => setTimeout(r, _t * 800));
+          }
+          if (!_commitOkDI) mostrarToast("⚠️ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
         }
-        if (!_commitOkDI) mostrarToast("⚠️ Despacho interno gerado, mas a numeração não foi confirmada. Confira antes de gerar o próximo.");
         setAnaliseAtual((prev: any) => prev ? { ...prev, numero_despacho_interno: numDI } : prev);
       }
       const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
@@ -1769,15 +1782,36 @@ export default function MacPage() {
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors"
               onClick={async () => {
                 setNumDIBloqueio(null);
-                try {
-                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
-                  const _j = await _r.json();
-                  if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
-                  else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa de despachos esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração."); }
-                } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
+                // Reemissão: só dentro de 15 min da emissão original — depois
+                // disso pede número novo. O criado_em vem do MDP porque é o
+                // único timestamp real do despacho interno já emitido.
+                let _reaproveitarDI = false;
+                if (analiseAtual?.numero_despacho_interno) {
+                  try {
+                    const _rm = await fetch(`/api/mdp?processo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+                    const _jm = await _rm.json();
+                    const _regDI = (_jm?.data || []).find((r: any) => r.tipo === "interno" && String(r.numero) === String(analiseAtual.numero_despacho_interno));
+                    if (_regDI?.criado_em && (Date.now() - new Date(_regDI.criado_em).getTime()) / 60000 <= 15) {
+                      _reaproveitarDI = true;
+                    }
+                  } catch { /* falha na checagem — segue pro caminho de número novo */ }
+                }
+                if (_reaproveitarDI) {
+                  setReemitindoDI(true);
+                  setNumDI(String(analiseAtual.numero_despacho_interno));
+                  setNumDIBloqueio(null);
+                } else {
+                  setReemitindoDI(false);
+                  try {
+                    const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+                    const _j = await _r.json();
+                    if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
+                    else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa de despachos esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa de despacho cadastrada. Acesse Configurações → Numeração."); }
+                  } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
+                }
                 setModalDespachoInterno(true);
               }}>
-              📨 Despacho Interno
+              {analiseAtual?.numero_despacho_interno ? `🔄 Despacho Interno nº ${analiseAtual.numero_despacho_interno}` : "📨 Despacho Interno"}
             </button>
             {isAdmin && (
               <button onClick={() => router.push("/admin/checklists")}
@@ -2662,9 +2696,16 @@ export default function MacPage() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">
+                {reemitindoDI ? `🔄 Reemitir Despacho Interno nº ${numDI}` : "📨 Despacho Interno"}
+              </h2>
               <button onClick={() => setModalDespachoInterno(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
+            {reemitindoDI && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium">
+                ⚠ Reemitindo dentro dos 15 min da emissão original — mesmo número, não consome novo da série.
+              </div>
+            )}
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
@@ -2722,7 +2763,7 @@ export default function MacPage() {
             <div className="flex gap-3 mt-6">
               <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
                 className="flex-1 bg-[#EFF6FF] hover:bg-[#2563EB] hover:text-white disabled:opacity-50 border border-[#2563EB] text-[#2563EB] font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
+                {gerandoDI ? "⏳ Gerando..." : reemitindoDI ? "🔄 Reemitir e Baixar" : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDespachoInterno(false)}
                 className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">

@@ -252,6 +252,10 @@ export default function ProcessoClient() {
   const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
   const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
   const [numDICarregando, setNumDICarregando] = useState(false);
+  // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
+  // (checado no clique do botão contra o mdp_registros.criado_em mais
+  // recente deste processo), senão pede número novo.
+  const [reemitindoDI, setReemitindoDI] = useState(false);
   const [bairroBusca, setBairroBusca] = useState("");
   const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
   const [logradouroBusca, setLogradouroBusca] = useState("");
@@ -1697,9 +1701,10 @@ export default function ProcessoClient() {
       const a = document.createElement("a"); a.href = url;
       a.download = `DespachoInterno_${idUrl}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url);
-      // Confirma o número apenas após download bem-sucedido
+      // Confirma o número apenas após download bem-sucedido — e nunca na
+      // reemissão, onde o número já foi consumido na primeira vez.
       const _num = parseInt(numDI, 10);
-      if (!isNaN(_num)) {
+      if (!isNaN(_num) && !reemitindoDI) {
         for (let i = 0; i < 3; i++) {
           try {
             const _c = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=commit&numero=${_num}`, { credentials: "include" });
@@ -2713,9 +2718,16 @@ export default function ProcessoClient() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[var(--text-primary)] font-bold text-lg">📨 Despacho Interno</h2>
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">
+                {reemitindoDI ? `🔄 Reemitir Despacho Interno nº ${numDI}` : "📨 Despacho Interno"}
+              </h2>
               <button onClick={() => setModalDI(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
             </div>
+            {reemitindoDI && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium">
+                ⚠ Reemitindo dentro dos 15 min da emissão original — mesmo número, não consome novo da série.
+              </div>
+            )}
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1">
@@ -2770,7 +2782,7 @@ export default function ProcessoClient() {
             <div className="flex gap-3 mt-6">
               <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
                 className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
-                {gerandoDI ? "⏳ Gerando..." : "📨 Gerar e Baixar"}
+                {gerandoDI ? "⏳ Gerando..." : reemitindoDI ? "🔄 Reemitir e Baixar" : "📨 Gerar e Baixar"}
               </button>
               <button onClick={() => setModalDI(false)}
                 className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
@@ -2828,10 +2840,32 @@ export default function ProcessoClient() {
               setNumDIBloqueio(null);
               setNumDICarregando(true);
               try {
-                const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=peek`, { credentials: "include" });
-                const _j = await _r.json();
-                if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
-                else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); }
+                // Reemissão: só dentro de 15 min do último despacho interno
+                // deste processo — depois disso pede número novo. O
+                // criado_em vem do MDP porque é o único timestamp real.
+                let _reaproveitarDI = false;
+                let _ultimoNumeroDI: string | null = null;
+                try {
+                  const _rm = await fetch(`/api/mdp?processo=${encodeURIComponent(idUrl)}`, { credentials: "include" });
+                  const _jm = await _rm.json();
+                  const _regsDI = (_jm?.data || []).filter((r: any) => r.tipo === "interno");
+                  const _regDI = _regsDI[0]; // já vem ordenado por criado_em desc
+                  if (_regDI?.criado_em && (Date.now() - new Date(_regDI.criado_em).getTime()) / 60000 <= 15) {
+                    _reaproveitarDI = true;
+                    _ultimoNumeroDI = String(_regDI.numero);
+                  }
+                } catch { /* falha na checagem — segue pro caminho de número novo */ }
+                if (_reaproveitarDI && _ultimoNumeroDI) {
+                  setReemitindoDI(true);
+                  setNumDI(_ultimoNumeroDI);
+                  setNumDIBloqueio(null);
+                } else {
+                  setReemitindoDI(false);
+                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=peek`, { credentials: "include" });
+                  const _j = await _r.json();
+                  if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
+                  else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); }
+                }
               } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
               finally { setNumDICarregando(false); }
               setModalDI(true);

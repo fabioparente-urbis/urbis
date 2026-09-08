@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.24
-**Data:** 2026-09-06
+**Versão:** 1.25
+**Data:** 2026-09-08
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -686,6 +686,18 @@ isso um sobrescreveria o número do outro). Chamado tanto pela tela própria do 
 `ProcessoClient.tsx`, `handleDespachoInterno` desvia por `tipoUrl === "slot_05"` para esta rota; os
 demais slots usam `/api/despacho-interno` (agnóstica).
 
+**Reemissão dentro de 15 min (08/09/2026)**: o botão "📨 Despacho Interno" agora reemite — mesma
+regra do Despacho ao Interessado (seção 8.1), mas com janela de tempo em vez de "sempre que já
+existir número". Ao clicar, a tela consulta `GET /api/mdp?processo=<codigo>` (única fonte com
+timestamp real — `mdp_registros.criado_em`) e compara com `analise.numero_despacho_interno`: se o
+último despacho interno gravado para esse número foi há **até 15 minutos**, reaproveita o mesmo
+número (`reemitindoDI=true`, botão e modal viram "🔄 Reemitir Despacho Interno nº X") e **não**
+comita a série em `gerarDespachoInterno` — igual à reemissão do despacho ao interessado, nunca
+consome um número novo. Passados os 15 minutos, o botão volta a fazer `peek` normal e pede número
+novo. `POST /api/mac/slot-05/despacho-interno` também passou a fazer *upsert* no MDP por
+`(processo_codigo, tipo='interno', numero)` em vez de `insert` cego — antes, reemitir duplicava a
+linha na listagem do MDP.
+
 **Padrões de Despacho (27/08/2026, revisado no mesmo dia)**: mesmo seletor "Usar um padrão" da seção
 8.1 (só seleção — CRUD é sempre em `/admin/despacho-padroes`, ver seção 8.1), só que aqui é puro
 preenchimento de formulário — a rota de emissão não mudou de lógica, continua aceitando texto livre
@@ -1294,6 +1306,7 @@ Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este a
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.25 | 2026-09-08 | Seção 8.2: reemissão do Despacho Interno dentro de 15 min da emissão original — mesmo botão, mesma tela (`analise-aprovacao-projeto/[codigo]/page.tsx`, `abrirModalDI`/`gerarDespachoInterno`), checando `mdp_registros.criado_em` via `GET /api/mdp` antes de decidir entre reaproveitar o número ou pedir um novo. Não comita numeração na reemissão. `POST /api/mac/slot-05/despacho-interno` passou a fazer upsert no MDP por `(processo_codigo, tipo, numero)` em vez de insert cego, evitando linha duplicada. Mesma mudança feita em paralelo nos Slots 1 e 2 (rota compartilhada `/api/despacho-interno`) e na tela do LIP (`ProcessoClient.tsx`) — pedido explícito do Fábio, urgente, para reemitir o processo 24.5.000024350-0 (Slot 1) dentro da janela |
 | 1.24 | 2026-09-06 | Nenhuma mudança no motor/checklist do MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.23): painel novo **Organizador de Documentos** (lado LIP, `components/aprovacaoProjeto/OrganizadorSlot5.tsx`), só leitura sobre o MHD, sem fatiamento. A única peça que mora sob `/api/mac/slot-05/` é a rota nova `organizador-evento` — só grava 1 evento de auditoria (`mhd_eventos`) por abertura do painel, não toca `analises_mac`, checklist, nem a tela `app/analise-aprovacao-projeto/[codigo]/page.tsx` (o "LER PASTA (IA)" do MAC continua igual) |
 | 1.23 | 2026-09-05 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.22): `lib/visao/quadroAreas.ts` (lado LIP) ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, ligando a receita ao catálogo semântico novo `lib/urbi/catalogoSemantico.ts` (Fase AA, transversal aos 3 slots). `comparadorQuadroCarimbo.ts` (motor MAC) intocado |
 | 1.22 | 2026-09-04 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.21): a receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lado LIP, `lib/visao/receitas.ts`), ainda com `ativa: false`. `comparadorQuadroCarimbo.ts` (motor MAC, seção 4) continua separado de `lib/visao/quadroAreasComparacao.ts` (lado LIP) — esta rodada não uniu os dois |

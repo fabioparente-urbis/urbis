@@ -116,10 +116,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── MDP: registra o despacho interno (falha silenciosa) ──
+    // Reemissão: mesmo (processo, tipo=interno, número) é o MESMO documento —
+    // atualiza a linha existente em vez de inserir uma segunda (mesma trava
+    // de dedupe do POST /api/mdp). Sem isso, reemitir dentro dos 15 min
+    // duplicava o despacho interno na listagem do MDP.
     try {
       const usuarioId = await resolverUsuarioIdPorCookie(req.headers.get("cookie") ?? "");
       if (usuarioId) {
-        await supabase.from("mdp_registros").insert({
+        const payloadMdp = {
           processo_codigo: codigo,
           // Fallback para o assunto do próprio processo: a tela do LIP não
           // envia assunto_id, e sem isso o MDP não sabe de qual slot é o
@@ -138,7 +142,19 @@ export async function POST(req: NextRequest) {
             padrao_titulo: (body.padrao_titulo as string | null) || null,
           },
           usuario_id: usuarioId,
-        });
+        };
+        const { data: existenteMdp } = await supabase
+          .from("mdp_registros")
+          .select("id")
+          .eq("processo_codigo", codigo)
+          .eq("tipo", "interno")
+          .eq("numero", payloadMdp.numero)
+          .maybeSingle();
+        if (existenteMdp?.id) {
+          await supabase.from("mdp_registros").update(payloadMdp).eq("id", existenteMdp.id);
+        } else {
+          await supabase.from("mdp_registros").insert(payloadMdp);
+        }
       }
     } catch (_) {}
 

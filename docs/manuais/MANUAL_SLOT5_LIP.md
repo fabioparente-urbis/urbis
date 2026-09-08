@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.23
-**Data:** 2026-09-06
+**Versão:** 1.24
+**Data:** 2026-09-08
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1194,10 +1194,37 @@ tenho como logar como ele.
 
 ---
 
+## 24. Reemissão do Despacho Interno dentro de 15 min (08/09/2026)
+
+O botão "📨 Despacho Interno" de `ProcessoClient.tsx` (compartilhado pelos três slots, seção 21)
+ganhou reemissão — pedido explícito e urgente do Fábio, para reemitir o Despacho Interno nº 1663
+do processo 24.5.000024350-0 (Slot 1) dentro da janela.
+
+Ao clicar, a tela consulta `GET /api/mdp?processo=<codigo>` e olha o registro mais recente com
+`tipo: "interno"`: se `criado_em` for de até **15 minutos atrás**, reaproveita o mesmo número
+(`reemitindoDI=true`, modal e botão viram "🔄 Reemitir Despacho Interno nº X") e **não** comita a
+numeração em `handleDespachoInterno` — o número já foi consumido na primeira emissão. Passados os
+15 minutos, volta ao `peek` normal e pede número novo.
+
+**Sem lógica exclusiva do Slot 5** — mesmo desvio por `tipoUrl === "slot_05"` que já existia (seção
+21) decide qual rota chamar; a checagem de reemissão é igual para os três slots, olhando só o MDP.
+Esta tela não tem conceito de "análise" (isso é do MAC) — por isso a checagem usa o último registro
+do MDP para o processo, e não um campo salvo em memória local como as telas de MAC fazem contra
+`analiseAtual.numero_despacho_interno` (ver `MANUAL_SLOT5_MAC.md` v1.25).
+
+**Achado durante esta mudança, não corrigido aqui**: o commit de numeração deste botão
+(`/api/numeracao/proximo?...&modo=commit&numero=...`) não passa `documento=despacho_interno` nem
+`analise_id`/`analise_numero`, diferente das três telas de MAC. Pode estar gravando o número no
+lugar errado ou sem vínculo a nenhuma análise — investigação e correção ficaram para tarefa
+separada (fora do escopo desta mudança, que era só habilitar a reemissão).
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.24 | 2026-09-08 | Seção 24: reemissão do Despacho Interno dentro de 15 min no botão de `ProcessoClient.tsx` (compartilhado pelos três slots) — checa `mdp_registros.criado_em` via `GET /api/mdp`, reaproveita o número sem comitar a série se dentro da janela. Achado registrado, não corrigido: o commit deste botão não passa `documento=despacho_interno` nem `analise_id` — ver `MANUAL_SLOT5_MAC.md` v1.25 para a mesma mudança nas telas de MAC dos três slots |
 | 1.23 | 2026-09-06 | Seção 23: **Organizador de Documentos** novo, exclusivo do Slot 5 — `components/aprovacaoProjeto/OrganizadorSlot5.tsx`, painel só-leitura sobre o MHD (`GET /api/mhd?processo=`), sem fatiamento (o Slot 5 já recebe arquivos separados, ao contrário dos Slots 1/2). "Abrir na íntegra" reaproveita o visualizador `react-pdf` dos outros slots; imagem via `<img>`; outros tipos (DWG/RAR) só "Baixar" — arquivo nunca sai do navegador do analista. Grava 1 evento de auditoria no MHD por abertura (`POST /api/mac/slot-05/organizador-evento`, `tipo: documentos_organizados_slot5`), mesmo procedimento do Organizador de PDF SEI dos Slots 1/2. Nenhum fluxo existente (LER PASTA do LIP ou do MAC) foi tocado. tsc/build limpos; portão real (testar com processo real) pendente do Fábio. Ver `MANUAL_SLOT5_MAC.md` v1.24 |
 | 1.22 | 2026-09-05 | Seção "Infra reaproveitável": `lib/visao/quadroAreas.ts` ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, mapeando as 5 chaves escalares de área da receita pro catálogo semântico novo (`lib/urbi/catalogoSemantico.ts`, Fase AA) — só tipo/mapeamento, receita continua `ativa: false`, nenhum PDF processado. Achado real da mesma fase, fora do Slot 5 mas testado contra processo real do Slot 5 (48533, 118 cruzamentos): `cruzamento.ts` (lib/urbi/) parou de vazar UUID de item MAC no campo exibido ao analista/Gemini — ganhou campo `rotulo` (nome do item) separado da `chave` interna (id, só dedupe). tsc + build limpos, scripts/testar_catalogo_semantico.mts novo (22 asserções) e scripts/testar_visao.mts/testar_quadro_areas.mts re-rodados sem regressão. Ver `MANUAL_SLOT5_MAC.md` v1.23 |
 | 1.21 | 2026-09-04 | Seção "Infra reaproveitável": receita `prancha.quadro_areas_completo` entrou em `RECEITAS` (lib/visao/receitas.ts) — 3ª receita do catálogo — mas com `Receita.ativa = false` (campo novo no tipo), e `executarVisao` (lib/visao/index.ts) passou a checar esse campo antes de orçamento/recorte, pulando a receita sempre que desativada. Nenhuma leitura de pasta chama Gemini por causa dela hoje; checklist de ativação em `CHECKLIST_ATIVACAO_VISAO` (lib/visao/quadroAreas.ts). Testado sem regressão: scripts/testar_visao.mts continua com as mesmas 11 falhas pré-existentes (nenhuma nova), scripts/testar_quadro_areas.mts com todas as asserções passando. Ver `MANUAL_SLOT5_MAC.md` v1.22 |

@@ -116,8 +116,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ── MDP: registro do que SAIU (best-effort) ─────────────────────────────
+    // Reemissão: mesmo (processo, tipo=interno, número) é o MESMO documento —
+    // atualiza a linha existente em vez de inserir uma segunda (mesma trava
+    // de dedupe do POST /api/mdp e da rota compartilhada de Slots 1/2).
     try {
-      await supabaseAdmin.from("mdp_registros").insert({
+      const payloadMdp = {
         processo_codigo: codigo,
         assunto_id: ASSUNTO_ID_SLOT5,
         interessado: interessadoMdp,
@@ -128,7 +131,19 @@ export async function POST(req: NextRequest) {
         data_despacho: dataFinal,
         conteudo: { corpo: String(corpo), numero_analise: numero_analise ?? null, padrao_id: padrao_id ?? null, padrao_titulo: padrao_titulo ?? null },
         usuario_id: usuario.id,
-      });
+      };
+      const { data: existenteMdp } = await supabaseAdmin
+        .from("mdp_registros")
+        .select("id")
+        .eq("processo_codigo", codigo)
+        .eq("tipo", "interno")
+        .eq("numero", payloadMdp.numero)
+        .maybeSingle();
+      if (existenteMdp?.id) {
+        await supabaseAdmin.from("mdp_registros").update(payloadMdp).eq("id", existenteMdp.id);
+      } else {
+        await supabaseAdmin.from("mdp_registros").insert(payloadMdp);
+      }
     } catch (e) {
       console.warn("[MAC/slot-05/despacho-interno] MDP falhou (best-effort):", e);
     }
