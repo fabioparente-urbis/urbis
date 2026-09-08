@@ -56,6 +56,20 @@ type Card = {
 
 const SLUG_REGULARIZACAO = "regularizacao";
 
+// Mesmo limiar de app/processos/page.tsx (LIMIAR_ALERTA_DIAS) — repetido aqui como literal,
+// mesmo padrão já usado em lib/urbi/navegacao.ts pra não criar dependência de módulo com regra
+// própria de tela. Mudar o limiar da Pilha precisa ser espelhado aqui à mão.
+const LIMIAR_RETORNO_VENCENDO_DIAS = 175;
+
+type ProcessoBriefing = {
+  situacao_mac?: string | null;
+  dias_aguardando_retorno?: number | null;
+  tem_acao_bloqueante?: boolean;
+  sem_pendencias_motor?: boolean;
+};
+
+type Briefing = { bloqueantes: number; prontos: number; retornoVencendo: number };
+
 export default function Home() {
   const router = useRouter();
   const [perfis, setPerfis] = useState<string[]>([]);
@@ -71,6 +85,32 @@ export default function Home() {
 
   // ── Assuntos ativos (dropdown dinamico) ───────────────────
   const [assuntosAtivos, setAssuntosAtivos] = useState<AssuntoAtivo[]>([]);
+
+  // ── Briefing do dia (Fase 6 do plano Assessor Ativo, 07/09/2026) ──────────
+  // Resumo determinístico (template, nunca Gemini) sobre a mesma lista que /api/processos já
+  // devolve (mesma fonte da Pilha/Fase 2: retrato mais recente do Radar) — nenhum cálculo novo,
+  // nenhuma consulta própria. Some sem erro quando a busca falha; nunca atrapalha a Home.
+  const [briefing, setBriefing] = useState<Briefing | null>(null);
+  useEffect(() => {
+    fetch("/api/processos")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!j?.ok || !Array.isArray(j.data)) return;
+        const lista: ProcessoBriefing[] = j.data;
+        let bloqueantes = 0, prontos = 0, retornoVencendo = 0;
+        for (const p of lista) {
+          if (p.tem_acao_bloqueante) bloqueantes++;
+          if (p.sem_pendencias_motor) prontos++;
+          if (
+            p.situacao_mac === "Aguardando retorno do interessado" &&
+            typeof p.dias_aguardando_retorno === "number" &&
+            p.dias_aguardando_retorno >= LIMIAR_RETORNO_VENCENDO_DIAS
+          ) retornoVencendo++;
+        }
+        setBriefing({ bloqueantes, prontos, retornoVencendo });
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -231,6 +271,20 @@ export default function Home() {
               {erro && <p className="text-xs text-red-600 font-medium">{erro}</p>}
             </div>
           </section>
+
+          {/* Briefing do dia — Fase 6, Assessor Ativo (07/09/2026) */}
+          {briefing && (
+            <section className="bg-[var(--surface)] border border-[var(--border)] rounded-lg shadow-sm p-4">
+              <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] font-semibold mb-1">
+                Briefing do dia
+              </p>
+              <p className="text-sm text-[var(--text-primary)]">
+                Hoje: {briefing.bloqueantes} processo{briefing.bloqueantes === 1 ? "" : "s"} com ação bloqueante,{" "}
+                {briefing.prontos} pronto{briefing.prontos === 1 ? "" : "s"} pra despachar,{" "}
+                {briefing.retornoVencendo} com retorno vencendo.
+              </p>
+            </section>
+          )}
 
           {/* Grid de cards de módulos */}
           {carregandoAuth ? (

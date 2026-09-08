@@ -187,7 +187,10 @@ export async function GET(req: NextRequest) {
     // alimenta as perguntas da Pilha no chat (lib/urbi/perguntasPilha.ts) e o relatório do Motor
     // de Produção. O Radar roda de fundo a cada ~1 min; processo nunca visitado ainda não tem
     // retrato — mostra "ainda não avaliado", nunca um esforço inventado.
-    const radarPorCodigo = new Map<string, { esforco: string | null; pendencias: number | null }>();
+    const radarPorCodigo = new Map<string, {
+      esforco: string | null; pendencias: number | null;
+      temAcaoBloqueante: boolean; semPendenciasMotor: boolean;
+    }>();
     if (codigos.length > 0) {
       const { data: linhasRadar } = await supabase
         .from("urbi_radar_retratos")
@@ -197,9 +200,15 @@ export async function GET(req: NextRequest) {
       for (const linha of linhasRadar ?? []) {
         const l = linha as any;
         if (radarPorCodigo.has(l.processo_codigo)) continue; // já viu a versão mais recente (ordenado desc)
+        const acoes = Array.isArray(l.alertas?.acoes) ? l.alertas.acoes : [];
         radarPorCodigo.set(l.processo_codigo, {
           esforco: l.alertas?.esforco ?? null,
           pendencias: typeof l.pendencias_mac === "number" ? l.pendencias_mac : null,
+          // Fase 6 (Briefing do dia): tier 1 do Motor de Produção = pendência que impede
+          // emissão/continuidade (item não conforme do MAC) — mesma prioridade fixa de
+          // lib/urbi/motorProducao.ts, nunca recalculada aqui.
+          temAcaoBloqueante: acoes[0]?.tier === 1,
+          semPendenciasMotor: acoes.length === 0,
         });
       }
     }
@@ -238,6 +247,8 @@ export async function GET(req: NextRequest) {
           : null,
         esforco_provavel: radarPorCodigo.get(p.codigo)?.esforco ?? null,
         pendencias_radar: radarPorCodigo.get(p.codigo)?.pendencias ?? null,
+        tem_acao_bloqueante: radarPorCodigo.get(p.codigo)?.temAcaoBloqueante ?? false,
+        sem_pendencias_motor: radarPorCodigo.get(p.codigo)?.semPendenciasMotor ?? false,
       };
     });
 
