@@ -8,12 +8,23 @@ como feito; (2) plano Assessor Ativo, consistência do desenho contra o que o c�
 puros contra dados sintéticos construídos para reproduzir os casos do plano. Onde há "provado
 executando" abaixo, existe saída de terminal real, não inferência de leitura.
 
+**ENCERRADA em 07/09/2026** (`docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md` §23.10). Todo achado deste
+relatório foi corrigido ou recusado por escrito com motivo — nenhum ficou esquecido. Incluído no
+fechamento: o incidente descoberto no meio do caminho (interruptor `documentos_vivos_gemini_ativo`
+ligado em produção contra o que o §22 do plano afirmava), corrigido e com plano próprio aberto
+para o resto (`docs/URBIS_PLANO_GOVERNANCA_IA.md`). E o portão da Fase 1 fechou de verdade: o
+Fábio conferiu, contra o SEI, o índice dos 4 processos reais depois do código corrigido.
+
 **Estado deste documento:** ele registra a auditoria *como ela foi feita* — os achados abaixo
 descrevem o código no momento em que foram encontrados, não o de agora. Na mesma sessão, depois de
 relatados, **A1, A2, M1, M3 e M4 foram corrigidos e testados**; o que ficou de fora está em §23.6
 do plano. O registro do que mudou, e por quê, está em `docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md` §23.
 Este arquivo fica como está de propósito: é o retrato do que existia, e é o que dá para comparar
 se algum desses defeitos voltar.
+
+**O que "encerrada" não significa:** os portões humanos das Fases 2, 4, 5, 6, 7 e 8 do plano
+Documentos Vivos continuam abertos. Auditoria fechada é sobre os achados deste relatório — o
+projeto em si segue exigindo conferência pela tela, que é trabalho à parte.
 
 ---
 

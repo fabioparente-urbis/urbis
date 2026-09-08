@@ -1,13 +1,14 @@
 # Plano — Documentos Vivos (Organizador do PDF do SEI) · Slots 1 e 2
 
-**Data:** 07/09/2026 · **Versão:** v21 · **Estado:** Fases 0-8 + Passo 0 executados no código
-(ver §15-§22) — ≈76% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
-padrão, nenhuma mudança no fluxo existente. **Auditoria independente de 07/09/2026 ZERADA (§23):
-todo achado ou foi corrigido, ou recusado por escrito com motivo. Saldo: 2 defeitos graves, 4
-divergências documentação × código, 2 bugs de interação revelados pelas correções, 1 achado da
-própria auditoria retirado por estar errado, e 1 achado que só o Fábio fecha (um `SELECT`).
-Nenhum portão humano foi fechado — eles seguem sendo o que de fato falta**, e agora têm ferramenta
-própria de conferência (§23.7). Restam as conferências
+**Data:** 07/09/2026 · **Versão:** v22 · **Estado:** Fases 0-8 + Passo 0 executados no código
+(ver §15-§22) — ≈77% do projeto (§12), todas as fases atrás de interruptor próprio desligado por
+padrão, nenhuma mudança no fluxo existente. **Auditoria independente de 07/09/2026 ENCERRADA
+(§23.10):** todo achado corrigido ou recusado por escrito com motivo — 2 defeitos graves, 4
+divergências documentação × código, 2 bugs de interação revelados pelas correções, 1 achado
+retirado por estar errado, e o incidente do interruptor do Gemini ligado em produção, achado e
+corrigido no meio do caminho. **O portão da Fase 1 fechou de verdade**, conferido pelo Fábio contra
+o SEI (§23.10) — a primeira fase do projeto com portão humano cumprido de ponta a ponta. Os
+portões das Fases 2, 4, 5, 6, 7 e 8 seguem abertos: são trabalho do projeto, não da auditoria. Restam as conferências
 humanas pela tela (portões finais de cada fase) e, opcionalmente, a persistência real equivalente
 pro Slot 5 (fora do escopo deste plano — conversa própria) ·
 **Escopo:** Regularização (Slot 1) e Aceite SEI (Slot 2).
@@ -386,7 +387,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | Fase | Sessões | % da fase | Estado |
 |---|---|---|---|
 | 0 — prova de viabilidade | — | ✅ 100% | **feita em 05/09/2026** |
-| 1 — fatiador determinístico | 1 | 🟡 90% | módulo escrito e rodado contra 4 processos reais, soma fechada nos 4 — falta só a conferência humana do índice (ver §15). Os 10% que faltam são exatamente essa conferência. |
+| 1 — fatiador determinístico | 1 | ✅ 100% | **portão fechado em 07/09/2026** — Fábio conferiu o índice dos 4 processos reais contra o SEI (ver §15, §23.8). Primeira fase do projeto com o portão humano cumprido de ponta a ponta. |
 | 2 — tela "Organizar processo" | 2–3 | 🟢 95% | **portão fechado na prática** — você organizou processos reais de ponta a ponta pela tela várias vezes na madrugada de 06/09, com bugs reais achados e corrigidos ao vivo (setor por cabeçalho, filtro que não colapsava despacho, MHD que sumia sem `mhd_documentos`, aba abrindo sozinha). Os 5% que faltam: portão formal ainda não declarado fechado por você por escrito. Ver §16.1–16.9. |
 | **← corte mínimo com retorno real: 3–4 sessões** | | | |
 | 3 — abrir contêineres (nível 2) | 2–3 | 🟡 70% | **código escrito e no ar** (`lib/documentosSei/pecas.ts`, rotas e telas dos dois slots atualizadas, ver §17): classifica por página dentro de contêineres genéricos, agrupa em peças, publica cobertura (`coberturaPecas`). `compararLip.ts` já sugere os 7 campos que antes ficavam vazios (`certidao`, `levantamento`, `artLev`, `artCx`, `laudo`, `seiProcuracao`, `seiEmbargo`) a partir das peças. Faltam os 30%: rodar contra os 4 processos reais e você conferir a taxa de classificação (portão da fase ainda não fechado por você). |
@@ -396,7 +397,7 @@ sessões você abre por semana. **% concluído é medido em sessões batidas con
 | 6 — integração LIP/MAC/MDP/Radar/URBI | 2 | 🟢 75% | **executada (§21)**: Radar de graça (vigia `mhd_documentos.atualizado_em`, real desde o Passo 0); URBI ganhou pergunta nova da Pilha ("documento pendente de classificação"); Motor de Produção diferencia "documento já no MHD" (esforço `rapido`) de "ninguém trouxe" (`depende_documento`), testado. Falta só MDP: enriquecer `linhaEvidencia.ts` com sinal do MHD foi cortado nesta rodada por risco de tocar uma live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro, não FK nova de qualquer forma (decisão de schema maior, fora do escopo original). |
 | 7 — retorno incremental | 1 | 🟢 90% | **Passo 0 (§20) entrega o portão da fase**: reimportar o mesmo conteúdo processa zero versões novas (dedup por hash do texto); alerta de integridade quando o mesmo idSei reaparece com conteúdo diferente; resumo "X novos, Y versões, Z inalterados" nas duas telas. Faltam os 10%: você conferir isso reimportando um PDF real duas vezes pela tela (portão humano). |
 | 8 — Gemini sob pedido (opcional) | 1 | 🟢 85% | **executada (§22)**: `visaoAmbiguas.ts` + interruptor próprio (default desligado, confirmado) + 2 rotas + botão nas duas telas, com estimativa de custo antes do clique e teto/hora. `tsc`/`build` limpos, gate confirmado (zero chamada possível hoje). Faltam os 15%: testar a chamada real ao Gemini (não dá pra testar sem gastar — fica pra quando o Fábio ligar o interruptor). |
-| **Total do projeto** | **12–16** | **≈ 76% concluído · 24% restante** | ≈10,7 sessões-equivalente batidas (Fase 1 a 90% de 1 + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 75% de 2 + Fase 7 a 90% de 1 + Fase 8 a 85% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
+| **Total do projeto** | **12–16** | **≈ 77% concluído · 23% restante** | ≈10,8 sessões-equivalente batidas (Fase 1 a **100%** de 1 — portão fechado em 07/09/2026 — + Fase 2 a 95% de 2,5 + Fase 3 a 70% de 2,5 + Fase 4 a 60% de 2 + Fase 5 a 75% de 1,5 + Fase 6 a 75% de 2 + Fase 7 a 90% de 1 + Fase 8 a 85% de 1) de 14 estimadas; Fase 0 não conta sessão própria. Fora das fases: ferramental de suporte também construído (`/admin/mhd` — pilha, filtros por assunto/proprietário, exportar CSV, excluir), que não estava no plano original mas apoia todas as fases seguintes. |
 
 A Fase 3 é a única com risco real de estourar: classificar peça dentro de contêiner digitalizado
 é o único ponto em que o texto pode faltar. Por isso ela vem **depois** da Fase 2 — se estourar,
@@ -473,11 +474,14 @@ livre perto do rodapé/corpo, sem regra tão forte quanto o carimbo — e ficam 
 documento não trouxer o padrão esperado. Isso é aceitável nesta fase: a única garantia dura do
 fatiador é `id_sei` + `titulo` + intervalo de páginas, com contagem fechada.
 
-**Portão da Fase 1 (§6): parcialmente cumprido.** A soma fechou nos 4 processos — a parte que o
-código pode provar sozinho. Falta a outra metade do portão, que só você faz: **conferir o índice
-de eventos contra a árvore real do SEI** de pelo menos um dos processos, e dizer se os 8 a 10
-itens de "revisão" por processo (páginas sem rodapé legível — normalmente miolo de imagem/desenho
-técnico ou digitalização) são mesmo os únicos casos difíceis, ou se algum evento saiu errado.
+**Portão da Fase 1 (§6): FECHADO em 07/09/2026.** A soma fechou nos 4 processos desde o início —
+a parte que o código prova sozinho. A outra metade — conferir o índice de eventos contra a árvore
+real do SEI — foi feita pelo Fábio depois da auditoria (§23.8), usando
+`scripts/conferir_documentos_sei.mts` contra os 4 PDFs reais originais da Fase 0
+(`25.28.000000868-8`, `25.5.000061039-8`, `24.5.000024350-0`, `25.5.000012012-9`). Confirmado por
+ele contra o SEI de verdade. Os dois achados que justificavam o projeto (§3) se confirmaram em
+dado real: a família `Processo digital - 42135097`/`-1` reconhecida como a mesma (substituído →
+vigente), e `Despacho 1648 SEM EFEITO` marcado `sem_efeito` sem sumir da lista.
 
 **Nada foi gravado em nenhum slot.** É função pura, sem rota, sem tela, sem tocar em Regularização
 nem Aceite SEI — a Fase 2 (a tela) é a próxima decisão, e é aí que "Slot 2 primeiro" (D4) vira
@@ -1166,12 +1170,37 @@ e 3) são conferência de índice e de taxa — trabalho que fica muito mais bar
 que clicando pela tela. **Não substitui** os portões das Fases 2, 5 e 7, que são de uso real pela
 tela e continuam abertos.
 
-### 23.9 — Efeito no `%` do §12
-**Nenhum portão humano foi fechado, então nenhum `%` subiu.** O que mudou é a qualidade do que já
-estava contado: o portão da Fase 4 e o da Fase 7 agora se apoiam em código que faz o que diz —
-antes, os 60% e os 90% descansavam sobre um motor que podia eleger o documento errado e sobre uma
-dedup que colidia justamente nos documentos mais comuns dos processos reais. O total segue
-**≈76%**, e continua medindo código escrito, não comportamento conferido por você na tela.
+### 23.9 — Efeito no `%` do §12, até aqui
+Da §23.1 até a §23.7, **nenhum portão humano foi fechado, então o `%` não subiu por conferência —
+só por qualidade do que já estava contado**: o portão da Fase 4 e o da Fase 7 passaram a se apoiar
+em código que faz o que diz, em vez de um motor que podia eleger o documento errado e uma dedup que
+colidia justamente nos documentos mais comuns dos processos reais.
+
+### 23.10 — Auditoria ENCERRADA · Fase 1 fechada por conferência humana (07/09/2026)
+Depois da correção do código (§23.1-§23.7), o Fábio rodou `scripts/conferir_documentos_sei.mts`
+(§23.8) contra os 4 PDFs reais originais da Fase 0/1 — os mesmos que fundamentam este plano desde
+o início — e confirmou o índice contra o SEI de verdade. Os dois achados que justificam o projeto
+(§3) se confirmaram fora do ambiente de teste: a família `Processo digital - 42135097`/`-1`
+corretamente reconhecida (substituído → vigente) e o `Despacho 1648 SEM EFEITO` marcado sem sumir
+da lista, nos dois casos com o CÓDIGO JÁ CORRIGIDO por esta auditoria — não com o defeito das
+datas comparadas como texto (§23.1) nem com o hash que colidia (§23.2), que estariam ativos se a
+auditoria não tivesse acontecido antes deste teste.
+
+**Isso fecha o portão da Fase 1** (ver §15, atualizado) — a primeira fase do projeto com o portão
+humano cumprido de ponta a ponta desde que o plano existe. §12 atualizado: Fase 1 sai de 90% para
+**100%**, total do projeto de ≈76% para **≈77%**.
+
+**Com isso, a auditoria pedida em 07/09/2026 (docs/AUDITORIA_2026_09_07.md) está formalmente
+ENCERRADA**: os três itens do pedido original (Documentos Vivos Fases 0-8, revisão do plano
+Assessor Ativo, mapa de `lib/urbi`/`lib/bdi`) foram verificados executando código, não só lendo;
+todo achado está corrigido ou recusado por escrito com motivo (nenhum ficou esquecido); e o
+incidente descoberto no meio do caminho (interruptor do Gemini ligado em produção) também foi
+corrigido, com plano próprio aberto para governar o resto (`docs/URBIS_PLANO_GOVERNANCA_IA.md`).
+
+**O que a auditoria encerrada NÃO significa:** os portões das Fases 2, 4, 5, 6, 7 e 8 continuam
+abertos — são trabalho do projeto, não achado de auditoria, e só o Fábio os fecha usando a tela com
+processo real. A taxa de classificação da Fase 3, medida em 1,3% / 0% / 6% / 24,7% nos 4 processos
+reais (variação esperada, mas ainda não conferida peça a peça), também segue aberta.
 
 ---
 
@@ -1259,6 +1288,14 @@ dedup que colidia justamente nos documentos mais comuns dos processos reais. O t
   código. Corte revisto na hora: reforço em `linhaEvidencia.ts` (MDP) cortado por risco de tocar
   live-scoring engine compartilhada sem teste dedicado — registrado como trabalho futuro.
   `tsc`/`build` limpos.
+- v22 — 07/09/2026 — **auditoria ENCERRADA + portão da Fase 1 fechado** (§23.10): depois das
+  correções de código (§23.1-§23.7), o Fábio rodou o script de conferência contra os 4 PDFs reais
+  originais e confirmou o índice contra o SEI — os dois achados que justificam o projeto (família
+  42135097/-1, despacho SEM EFEITO) se confirmaram fora do ambiente de teste, já com o código
+  corrigido. §12: Fase 1 de 90% para 100%, total de ≈76% para ≈77%. Auditoria formalmente
+  encerrada: os 3 itens pedidos foram verificados, todo achado corrigido ou recusado por escrito.
+  Portões das Fases 2/4/5/6/7/8 seguem abertos — são trabalho do projeto, não pendência de
+  auditoria.
 - v21 — 07/09/2026 — **arquivos derivados ganharam identidade no nome** (§23.7), achado numa
   conversa com o Fábio: pacote vigente e recorte avulso sempre baixavam com o mesmo nome, e como os
   arquivos ficam guardados no dispositivo do analista (decisão dele, não do código), dois pacotes
