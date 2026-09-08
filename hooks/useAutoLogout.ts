@@ -1,49 +1,26 @@
 "use client";
-import { useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
 
-// 30 min sem clicar/digitar/rolar a tela → desloga e manda pra /login.
-//
-// Usa localStorage em vez de só contar eventos locais: assim, ficar ativo
-// numa aba conta como atividade pras outras abas da mesma sessão. Sem
-// isso, uma aba parada em segundo plano (ex.: um despacho aberto em nova
-// aba) deslogaria sozinha mesmo com o analista mexendo em outra — e como
-// o logout apaga o cookie (compartilhado entre abas), derrubaria a sessão
-// inteira.
-const LIMITE_MS = 30 * 60 * 1000;
-const CHAVE_LS = "urbis_ultima_atividade";
-const INTERVALO_CHECAGEM_MS = 15_000;
-
+/**
+ * DESLIGADO em 08/09/2026, a pedido do Fábio: "deixa esse trem logado de vez... passo o dia
+ * trabalhando e toda hora tenho que parar pra resolver algo e voltar".
+ *
+ * O que existia aqui: 30 min sem clicar/digitar/rolar → chamava /api/auth/logout e mandava pra
+ * /login. Somado ao `access_token` do Supabase que vencia em 1h sem renovação (corrigido no
+ * mesmo dia — ver `middleware.ts`), era o motivo de o analista ser jogado pra fora várias vezes
+ * ao longo do expediente.
+ *
+ * POR QUE ISSO NÃO CUSTA A MEDIÇÃO DO TEMPO DE TRABALHO — que era a preocupação declarada dele
+ * ao pedir: a medição NUNCA dependeu deste logout. Quem mede é `hooks/useSessionHeartbeat.ts`,
+ * que já funciona por interação real: o batimento PAUSA após 5 min sem mouse/teclado/rolagem e o
+ * tempo parado é descontado da sessão (`/api/sessao/pausar` → coluna `tempo_pausado`, que a view
+ * `vw_bdi_tempo_analista` subtrai pra calcular `minutos_liquidos`). Aba esquecida aberta não
+ * vira tempo trabalhado nem antes nem depois desta mudança; sessão abandonada é encerrada do
+ * lado do servidor (pg_cron), não pelo logout do navegador.
+ *
+ * O arquivo continua existindo, e `components/AutoLogout.tsx` continua chamando, pra não espalhar
+ * a mudança por vários pontos: aqui é o lugar único onde a decisão está escrita e explicada.
+ * Religar é reescrever esta função — a decisão é de política de segurança, não de código.
+ */
 export function useAutoLogout() {
-  const pathname = usePathname();
-  const router = useRouter();
-
-  useEffect(() => {
-    // Telas públicas não têm sessão pra derrubar.
-    if (pathname?.startsWith("/login") || pathname?.startsWith("/redefinir-senha")) return;
-
-    function registrarAtividade() {
-      try { localStorage.setItem(CHAVE_LS, String(Date.now())); } catch { /* storage indisponível — segue sem o multi-aba */ }
-    }
-
-    async function deslogar() {
-      try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* cookie expira sozinho de qualquer forma */ }
-      router.replace("/login");
-    }
-
-    function checar() {
-      const ultima = Number(localStorage.getItem(CHAVE_LS) ?? Date.now());
-      if (Date.now() - ultima >= LIMITE_MS) deslogar();
-    }
-
-    registrarAtividade();
-    const eventos = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"] as const;
-    eventos.forEach((e) => window.addEventListener(e, registrarAtividade, { passive: true }));
-    const intervalo = setInterval(checar, INTERVALO_CHECAGEM_MS);
-
-    return () => {
-      clearInterval(intervalo);
-      eventos.forEach((e) => window.removeEventListener(e, registrarAtividade));
-    };
-  }, [pathname, router]);
+  // Sem efeito de propósito.
 }

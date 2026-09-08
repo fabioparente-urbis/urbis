@@ -35,14 +35,24 @@ export async function POST(req: NextRequest) {
       ok: true,
       usuario: { id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, email },
     });
+    /**
+     * 30 dias, e não mais 8 horas (08/09/2026, pedido do Fábio: "deixa esse trem logado de vez").
+     *
+     * O problema que isso resolve não era o prazo do cookie: o `access_token` do Supabase vence
+     * em ~1 HORA, e o `refresh_token` vinha sendo JOGADO FORA aqui. Passada essa hora, toda
+     * chamada voltava 401 e a tela ficava no limbo — sem nome, sem módulos, mas sem mandar pro
+     * login ("nem tá logado e nem deslogado"). Guardar o refresh_token é o que permite o
+     * `middleware.ts` renovar a sessão sozinho, sem o analista parar o que está fazendo.
+     */
     const opcoesCookie = {
       httpOnly: true,
       secure: true,
       sameSite: "lax" as const,
-      maxAge: 60 * 60 * 8,
+      maxAge: 60 * 60 * 24 * 30,
       path: "/",
     };
     res.cookies.set("urbis_token", authData.session.access_token, opcoesCookie);
+    res.cookies.set("urbis_refresh", authData.session.refresh_token, opcoesCookie);
     res.cookies.set("urbis_perfil", usuario.perfil, { ...opcoesCookie, httpOnly: false });
     res.cookies.set("urbis_nome", usuario.nome, { ...opcoesCookie, httpOnly: false });
     res.cookies.set("urbis_id", usuario.id, { ...opcoesCookie, httpOnly: false });
