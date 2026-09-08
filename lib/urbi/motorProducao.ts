@@ -41,6 +41,13 @@ export type AcaoPrioritaria = {
    * pedido do Fábio: "falar menos e dizer mais".
    */
   grupo?: string | null;
+  /**
+   * `item_id` do item do checklist, quando a ação vem de pendência do MAC — é o que permite o
+   * URBI levar o analista ATÉ o item e deixá-lo destacado na tela, em vez de largar ele na
+   * tela do MAC pra procurar (08/09/2026, Fábio: "pelo menos ele poderia me levar até o lugar
+   * pra proceder a correção e deixar o local selecionado chamando atenção").
+   */
+  itemId?: string | null;
 };
 
 export type RelatorioMotor = {
@@ -126,6 +133,7 @@ function candidatosPendencias(mac: any): AcaoPrioritaria[] {
       tier: 1,
       texto: compor(`Corrigir/confirmar "`, textoItem, `"${grupo ? ` (${grupo})` : ""}.`),
       grupo,
+      itemId: item?.item_id ? String(item.item_id) : null,
       // BIP só entra quando há vínculo REAL e aprovado (mac_bip_vinculos) — nunca por inferência.
       motivo: vinculos.length > 0
         ? `MAC: não conforme, com vínculo BIP aprovado (${vinculos[0].referencia}).`

@@ -881,6 +881,20 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         const temAcao = relatorio.acoes.length > 0;
         const chave = `motor:${processoCodigo}`;
         if (temAcao && intervencaoRecusada(chave)) { saudacaoOnMount(); return; }
+        /**
+         * Concordar tem que TER CONSEQUÊNCIA — 08/09/2026, Fábio: "então o que adianta eu
+         * concordar? pelo menos ele poderia me levar até o lugar pra proceder a correção e deixar
+         * o local selecionado chamando atenção". Por isso o link não é a tela do MAC solta: leva
+         * ao ITEM (`?item=<id>`), que a tela do MAC rola até ele e destaca.
+         */
+        const primeira = relatorio.acoes[0];
+        const tipo = j.data?.processo?.tipo_processo ?? "";
+        const rotaMac = tipo === "slot_05" ? "/analise-aprovacao-projeto"
+          : tipo === "aceite_sei" ? "/analise-aceite-sei"
+          : "/analise-regularizacao";
+        const href = `${rotaMac}/${encodeURIComponent(processoCodigo!)}${
+          primeira?.itemId ? `?item=${encodeURIComponent(primeira.itemId)}` : ""
+        }`;
         setMsgs([{
           role: "urbi",
           texto,
@@ -888,8 +902,10 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
             intervencao: {
               chave,
               processoCodigo,
-              comoResolver: "Isso é item do MAC — quem decide conformidade é você, eu marcar por conta própria seria falsificar a análise. Te levo direto no checklist pra resolver.",
-              href: `/processo/${encodeURIComponent(processoCodigo!)}`,
+              comoResolver: primeira?.itemId
+                ? "Quem decide conformidade é você — eu marcar por conta própria seria falsificar a análise. Te levo no item, já destacado na tela, pra você resolver."
+                : "Quem decide conformidade é você — eu marcar por conta própria seria falsificar a análise. Te levo no checklist pra resolver.",
+              href,
             },
           } : {}),
         }]);

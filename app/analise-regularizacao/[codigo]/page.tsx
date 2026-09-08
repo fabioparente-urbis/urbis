@@ -153,6 +153,31 @@ export default function MacPage() {
   // o mesmo mecanismo de numeracaoBloqueio (ver prepararNumeracao). Desligada por padrão em
   // urbi_regras_bloqueio; null enquanto a regra não acender ou ainda não tiver sido lida.
   const [bloqueio180DiasMsg, setBloqueio180DiasMsg] = useState<string | null>(null);
+
+  /**
+   * Item apontado pelo URBI (`?item=<id>`) — 08/09/2026, Fábio: "pelo menos ele poderia me levar
+   * até o lugar pra proceder a correção e deixar o local selecionado chamando atenção".
+   * Concordar com a intervenção passa a ter consequência: a tela abre já rolada no item, com ele
+   * destacado. O destaque some no primeiro clique — cumpriu o papel de apontar, não fica piscando
+   * no caminho de quem já achou.
+   *
+   * Lê de `window.location.search` de propósito, e não de `useSearchParams`: aquele hook obriga
+   * fronteira de Suspense no build (ver o comentário em app/processos/page.tsx), e não vale
+   * reestruturar esta tela por um parâmetro opcional.
+   */
+  const [itemDestacado, setItemDestacado] = useState<string | null>(null);
+  useEffect(() => {
+    if (checklistItens.length === 0) return;
+    const id = new URLSearchParams(window.location.search).get("item");
+    if (!id) return;
+    setItemDestacado(id);
+    const rolar = setTimeout(() => {
+      document.getElementById(`mac-item-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    const limpar = () => setItemDestacado(null);
+    window.addEventListener("click", limpar, { once: true });
+    return () => { clearTimeout(rolar); window.removeEventListener("click", limpar); };
+  }, [checklistItens.length]);
   const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
@@ -2263,7 +2288,13 @@ export default function MacPage() {
                 const aceito = !!aceites[item.id];
                 return (
                   <div key={item.id}
+                    id={`mac-item-${item.id}`}
+                    /* Destaque do item apontado pelo URBI (?item=<id>) — 08/09/2026: concordar
+                     * com a intervenção tem que levar AO LUGAR e chamar atenção, não largar o
+                     * analista procurando na lista. O anel some ao primeiro clique na tela. */
                     className={`rounded-xl border p-4 transition-all ${
+                      itemDestacado === item.id ? "ring-4 ring-[var(--accent)] ring-offset-2 animate-pulse" : ""
+                    } ${
                       status === "conforme" ? "bg-[#ECFDF5] border-[#059669]" :
                       status === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626]" :
                       status === "nao_aplica" ? "bg-[#EFF6FF] border-[#2563EB]" :

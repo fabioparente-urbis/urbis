@@ -145,6 +145,26 @@ export default function MacPage() {
   // COND_180_DIAS (URBI, pedido do Fábio 08/09/2026) — cópia isolada do mesmo mecanismo do Slot 1
   // (app/analise-regularizacao/[codigo]/page.tsx), nunca compartilhada entre os dois arquivos.
   const [bloqueio180DiasMsg, setBloqueio180DiasMsg] = useState<string | null>(null);
+
+  /**
+   * Item apontado pelo URBI (`?item=<id>`) — cópia isolada da mesma regra do Slot 1
+   * (app/analise-regularizacao/[codigo]/page.tsx), 08/09/2026: concordar com a intervenção leva
+   * ao item já rolado e destacado, em vez de largar o analista procurando na lista. O destaque
+   * some no primeiro clique. Lê de `window.location.search` pra não obrigar Suspense no build.
+   */
+  const [itemDestacado, setItemDestacado] = useState<string | null>(null);
+  useEffect(() => {
+    if (checklistItens.length === 0) return;
+    const id = new URLSearchParams(window.location.search).get("item");
+    if (!id) return;
+    setItemDestacado(id);
+    const rolar = setTimeout(() => {
+      document.getElementById(`mac-item-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    const limpar = () => setItemDestacado(null);
+    window.addEventListener("click", limpar, { once: true });
+    return () => { clearTimeout(rolar); window.removeEventListener("click", limpar); };
+  }, [checklistItens.length]);
   const [numeracaoCarregando, setNumeracaoCarregando] = useState(false);
   const [numeroRevisao, setNumeroRevisao] = useState<number>(1);
   const [historicoAnalises, setHistoricoAnalises] = useState("");
@@ -1993,7 +2013,10 @@ export default function MacPage() {
                 const aceito = !!aceites[item.id];
                 return (
                   <div key={item.id}
+                    id={`mac-item-${item.id}`}
                     className={`rounded-xl border p-4 transition-all ${
+                      itemDestacado === item.id ? "ring-4 ring-[var(--accent)] ring-offset-2 animate-pulse" : ""
+                    } ${
                       status === "conforme" ? "bg-[#ECFDF5] border-[#059669]" :
                       status === "nao_conforme" ? "bg-[#FEF2F2] border-[#DC2626]" :
                       status === "nao_aplica" ? "bg-[#EFF6FF] border-[#2563EB]" :
