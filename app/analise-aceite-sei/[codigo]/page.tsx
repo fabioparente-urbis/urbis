@@ -250,24 +250,23 @@ export default function MacPage() {
     }
   }
 
+  /**
+   * EXCLUI a análise — cópia isolada da mesma regra do Slot 1 (08/09/2026): antes só zerava os
+   * campos e a linha continuava no banco, deixando o botão aceso como "já iniciada". Agora some
+   * da lista. Análise que já emitiu documento é recusada pelo servidor (409), porque o número
+   * saiu de uma faixa finita e apagar deixaria MDP/MRP sem a análise que originou a emissão.
+   */
   async function limparAnalise(numeroAnalise: number) {
     const alvo = analises.find((a: any) => a.numero_analise === numeroAnalise);
     if (!alvo) return;
-    await fetch("/api/analise-aceite-sei", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: alvo.id,
-        itens: {},
-        fontes: {},
-        aceites: {},
-        observacoes: "",
-        observacoes_por_aba: {},
-        status: "em_andamento",
-        numero_revisao: Number(alvo.numero_revisao) || 1,
-        historico_analises: alvo.historico_analises || "",
-      }),
-    });
+    const res = await fetch(`/api/analise-aceite-sei?id=${encodeURIComponent(alvo.id)}`, { method: "DELETE" });
+    const json = await res.json().catch(() => null);
+    if (!res.ok || !json?.ok) {
+      mostrarToast(json?.erro || `Não foi possível excluir a Análise ${numeroAnalise}.`);
+      setModalLimparAnalise(null);
+      return;
+    }
+    registrar({ modulo: "MAC", acao: "MAC_ANALISE_EXCLUIDA", processo_codigo: codigo, detalhe: { numero_analise: numeroAnalise } });
     const resLista = await fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`);
     const jsonLista = await resLista.json();
     if (jsonLista.ok) setAnalises(jsonLista.data);
@@ -279,16 +278,17 @@ export default function MacPage() {
       if (anterior) {
         selecionarAnalise(anterior);
       } else {
+        // Era a única análise: a tela fica sem análise nenhuma, como um processo que nunca teve
+        // MAC iniciado — que é exatamente o pedido ("como se nunca tivesse sido clicada").
         setItens({}); setFontes({}); setAceites({});
         setObservacoes(""); setObservacoesPorAba({});
-        const alvoPut = jsonLista.ok ? jsonLista.data.find((a: any) => a.id === alvo.id) : null;
-        if (alvoPut) setAnaliseAtual(alvoPut);
+        setAnaliseAtual(null);
       }
     } else if (jsonLista.ok && analiseAtual?.id) {
       const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
       if (restaurada) setAnaliseAtual(restaurada);
     }
-    mostrarToast(`🗑️ Análise ${numeroAnalise} zerada.`);
+    mostrarToast(`🗑️ Análise ${numeroAnalise} excluída.`);
     setModalLimparAnalise(null);
   }
 
@@ -2674,12 +2674,15 @@ export default function MacPage() {
       {modalLimparAnalise !== null && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ Zerar Análise {modalLimparAnalise}</h2>
+            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ Excluir Análise {modalLimparAnalise}</h2>
             <p className="text-sm text-[var(--text-primary)] mb-4">
-              Todos os itens, observações, fontes e aceites da <strong>Análise {modalLimparAnalise}</strong> serão apagados
-              e você precisará selecionar o checklist novamente. Esta ação não pode ser desfeita.
+              A <strong>Análise {modalLimparAnalise}</strong> sai da lista por completo — itens, observações, fontes,
+              aceites e revisão. Ela volta a aparecer como nunca iniciada. Esta ação não pode ser desfeita.
             </p>
-            <p className="text-xs text-[var(--text-muted)] mb-4">As outras análises não serão afetadas.</p>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              As outras análises não são afetadas. Se esta análise já emitiu despacho ou parecer, a exclusão é
+              recusada — o número já saiu da faixa e o registro da emissão ficaria sem origem.
+            </p>
             <div className="flex gap-3">
               <button onClick={() => setModalLimparAnalise(null)}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
@@ -2687,7 +2690,7 @@ export default function MacPage() {
               </button>
               <button onClick={() => limparAnalise(modalLimparAnalise)}
                 className="flex-1 bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
-                Zerar Análise {modalLimparAnalise}
+                Excluir Análise {modalLimparAnalise}
               </button>
             </div>
           </div>

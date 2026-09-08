@@ -255,3 +255,66 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
 }
+
+
+/**
+ * Exclui uma análise por completo — 08/09/2026, pedido do Fábio: "ao clicar na lixeira de uma
+ * análise, ela conste como se nunca tivesse sido clicada, nunca iniciada, excluísse tudo dela".
+ *
+ * Até aqui a lixeira só ZERAVA os campos (PUT com itens/observações vazios): a linha continuava
+ * existindo, então o botão da análise seguia aceso como "já iniciada" e o número de revisão e o
+ * histórico da análise sobreviviam. Agora a linha sai da lista de verdade.
+ *
+ * DUAS TRAVAS, decididas com ele antes de implementar:
+ *
+ * 1. ANÁLISE QUE JÁ EMITIU DOCUMENTO NÃO É EXCLUÍDA. O despacho/parecer já saiu, foi para o SEI e
+ *    consumiu um número de uma faixa finita que não volta (regra do CLAUDE.md). Apagar a análise
+ *    deixaria MDP e MRP com o registro da emissão e sem a análise que a originou — rastro
+ *    quebrado, e a numeração sem explicação. Devolve 409 pra tela avisar em vez de apagar.
+ *
+ * 2. EXCLUSÃO É LÓGICA, não física (`excluido_em/por/motivo`, colunas que a tabela já tinha e o
+ *    GET desta rota já respeita). Some da tela — que é o que ele pediu — sem apagar o rastro de
+ *    auditoria de quem marcou o quê e quando (`mac_historico` fica intacto, decisão dele).
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
+
+    const analistaId = await resolverUsuarioIdPorCookie(req.headers.get("cookie") || "");
+    if (!analistaId) return NextResponse.json({ ok: false, erro: "SESSAO_EXPIRADA" }, { status: 401 });
+
+    const { data: analise } = await supabase
+      .from("analises_mac")
+      .select("id, numero_analise, numero_despacho, numero_parecer, numero_despacho_interno, excluido_em")
+      .eq("id", id)
+      .eq("tipo_processo", TIPO)
+      .maybeSingle();
+    if (!analise) return NextResponse.json({ ok: false, erro: "Análise não encontrada" }, { status: 404 });
+    if ((analise as any).excluido_em) return NextResponse.json({ ok: true, jaExcluida: true });
+
+    const emitido = (analise as any).numero_despacho || (analise as any).numero_parecer || (analise as any).numero_despacho_interno;
+    if (emitido) {
+      return NextResponse.json({
+        ok: false,
+        motivo: "JA_EMITIU",
+        erro: `Esta análise já emitiu documento (nº ${emitido}). Excluir deixaria o MDP e o MRP com a emissão registrada e sem a análise que a originou — e o número consumido na faixa não volta.`,
+      }, { status: 409 });
+    }
+
+    const { error } = await supabase
+      .from("analises_mac")
+      .update({
+        excluido_em: new Date().toISOString(),
+        excluido_por: analistaId,
+        excluido_motivo: "Excluída pelo analista na tela do MAC",
+      })
+      .eq("id", id);
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  }
+}
