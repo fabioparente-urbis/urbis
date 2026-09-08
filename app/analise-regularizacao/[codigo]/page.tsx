@@ -1961,9 +1961,24 @@ export default function MacPage() {
     analiseAtual?.numero_despacho_interno ? `Despacho Interno nº ${analiseAtual.numero_despacho_interno}` : null,
     analiseAtual?.numero_parecer ? `Parecer nº ${analiseAtual.numero_parecer}` : null,
   ].filter(Boolean);
+  /**
+   * Data da conclusão — 08/09/2026, pedido do Fábio: "tem que aparecer a data ali verdinho que
+   * foi concluída a análise 1". Vem da TAG do processo (a mesma data que a Pilha mostra ao lado
+   * do documento), não de `atualizado_em`: `atualizado_em` muda a cada mexida posterior na
+   * análise, e "quando foi concluída" tem que ser a data em que o documento saiu.
+   */
+  const tagDestaAnalise = (tagsProcesso ?? []).find(
+    (t: any) => t && typeof t === "object" && Number(t.numero_analise) === Number(numeroAnaliseEmAndamento),
+  );
+  const dataConclusao = tagDestaAnalise?.data || tagDestaAnalise?.criado_em || null;
+  const dataFormatada = dataConclusao
+    ? (/^\d{2}\/\d{2}\/\d{4}$/.test(String(dataConclusao))
+        ? String(dataConclusao)
+        : new Date(dataConclusao).toLocaleDateString("pt-BR"))
+    : null;
   return emitidos.length > 0 ? (
     <p className="text-[var(--success)] text-xs font-bold mt-0.5">
-      Análise {numeroAnaliseEmAndamento} concluída — {emitidos.join(" e ")}
+      Análise {numeroAnaliseEmAndamento} concluída{dataFormatada ? ` em ${dataFormatada}` : ""} — {emitidos.join(" e ")}
     </p>
   ) : (
     <p className="text-[var(--accent)] text-xs font-bold mt-0.5">

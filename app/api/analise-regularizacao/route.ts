@@ -287,7 +287,7 @@ export async function DELETE(req: NextRequest) {
 
     const { data: analise } = await supabase
       .from("analises_mac")
-      .select("id, numero_analise, numero_despacho, numero_parecer, numero_despacho_interno, excluido_em")
+      .select("id, processo_codigo, numero_analise, numero_despacho, numero_parecer, numero_despacho_interno, excluido_em")
       .eq("id", id)
       .eq("tipo_processo", TIPO)
       .maybeSingle();
@@ -300,6 +300,31 @@ export async function DELETE(req: NextRequest) {
         ok: false,
         motivo: "JA_EMITIU",
         erro: `Esta análise já emitiu documento (nº ${emitido}). Excluir deixaria o MDP e o MRP com a emissão registrada e sem a análise que a originou — e o número consumido na faixa não volta.`,
+      }, { status: 409 });
+    }
+
+    /**
+     * SEGUNDA TRAVA, achada medindo o banco em 08/09/2026 (não por revisão de código): LAUDO não
+     * grava número em `analises_mac` — "laudo não consome numeração própria... só a tag do
+     * processo prova que ele saiu" (lib/bdi/situacao.ts). Existem análises com laudo emitido e as
+     * três colunas `numero_*` vazias; a trava acima deixaria passar e apagaria análise concluída.
+     * Por isso a prova de emissão também é procurada nas tags do processo, pelo número da análise.
+     */
+    const { data: proc } = await supabase
+      .from("processos")
+      .select("tags")
+      .eq("codigo", (analise as any).processo_codigo)
+      .maybeSingle();
+    const tags: any[] = Array.isArray((proc as any)?.tags) ? (proc as any).tags : [];
+    const tagDaAnalise = tags.find((t) =>
+      t && typeof t === "object" &&
+      Number(t.numero_analise) === Number((analise as any).numero_analise),
+    );
+    if (tagDaAnalise) {
+      return NextResponse.json({
+        ok: false,
+        motivo: "JA_EMITIU",
+        erro: `Esta análise já emitiu ${String(tagDaAnalise.tipo ?? "documento").replace("_", " ")} (tag do processo). Excluir apagaria uma análise concluída cujo documento já saiu.`,
       }, { status: 409 });
     }
 
