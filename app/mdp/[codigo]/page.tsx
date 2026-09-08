@@ -79,6 +79,11 @@ function MdpProcessoConteudo() {
           </button>
           <button onClick={() => router.push("/")}
             className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+          {/* 08/09/2026, pedido do Fábio: "quando o URBI me mandar pro MDP, ele tem que deixar o
+              link pra voltar pra Pilha" — router.back() nem sempre volta pra Pilha (pode ter
+              vindo de outro lugar), então um link explícito garante o caminho de volta. */}
+          <button onClick={() => router.push("/processos")}
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold px-3 py-1.5 rounded text-sm transition-colors">📋 Pilha</button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
           <div>
