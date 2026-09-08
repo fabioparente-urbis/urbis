@@ -175,6 +175,26 @@ export default function MacPage() {
   const [modelos, setModelos] = useState<Modelo[]>([]);
   const [modeloSelecionado, setModeloSelecionado] = useState<Modelo | null>(null);
   const [tipoProcesso, setTipoProcesso] = useState<string>("");
+
+  /**
+   * Execução do que o URBI propôs — cópia isolada da mesma regra do Slot 1
+   * (app/analise-regularizacao/[codigo]/page.tsx). Baixa o backup completo em dois Excel: o LIP
+   * inteiro e TODAS as análises do MAC, pelas MESMAS rotas dos botões da tela. Um respiro entre
+   * os dois porque navegador costuma engolir o segundo download disparado no mesmo instante.
+   */
+  useEffect(() => {
+    function onAcao(e: Event) {
+      const { acao } = (e as CustomEvent).detail || {};
+      if (acao !== "exportar_backup") return;
+      window.open(`/api/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "aceite_sei"}`, "_blank");
+      setTimeout(() => {
+        window.open(`/api/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
+      }, 800);
+    }
+    window.addEventListener("urbi:executar", onAcao);
+    return () => window.removeEventListener("urbi:executar", onAcao);
+  }, [codigo, tipoProcesso]);
+
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const [assuntoNome, setAssuntoNome] = useState<string>("");
   // Numeração do assunto: define se o número mostrado é Processo SEI
@@ -896,6 +916,29 @@ export default function MacPage() {
       a.click();
       URL.revokeObjectURL(url);
       mostrarToast("✅ Despacho gerado!");
+
+      /**
+       * Backup ao concluir a análise — 08/09/2026, ideia do Fábio: "o URBI poderia recomendar
+       * exportar o LIP e o MAC ao concluir uma análise pra ter backup de reserva".
+       *
+       * Momento escolhido: DEPOIS do documento sair, que é quando a análise de fato virou ato.
+       * Antes disso o analista ainda está mexendo, e recomendar backup no meio do trabalho seria
+       * interromper à toa.
+       *
+       * Este é um dos poucos casos em que "Faz sentido" faz o URBI EXECUTAR de verdade em vez de
+       * só levar até o lugar: exportar é leitura, não muda análise nenhuma — não há juízo do
+       * analista sendo substituído. `acaoLocal` é o canal pra tela executar o que o URBI propôs.
+       */
+      window.dispatchEvent(new CustomEvent("urbi:intervir", {
+        detail: {
+          chave: `backup:${codigo}:${numeroDespacho}`,
+          processoCodigo: codigo,
+          mensagem: `Despacho ${numeroDespacho} emitido. Quer que eu baixe o backup? São dois Excel: o LIP inteiro e TODAS as análises do MAC.`,
+          comoResolver: "Baixando os dois: o LIP inteiro e todas as análises do MAC. Confere na pasta de downloads.",
+          acaoLocal: "exportar_backup",
+        },
+      }));
+
 
       // Consome o número SOMENTE após o download bem-sucedido — e nunca na
       // reemissão, onde o número já foi consumido na primeira vez.

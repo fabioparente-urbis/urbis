@@ -147,7 +147,14 @@ type Msg = {
    * discordar, nem fazer parar. `chave` identifica a intervenção pra o "não é o caso" valer
    * daquele assunto (e não calar o URBI inteiro) e pra o veredito ir pra auditoria.
    */
-  intervencao?: { chave: string; processoCodigo?: string | null; comoResolver?: string; href?: string };
+  intervencao?: {
+    chave: string;
+    processoCodigo?: string | null;
+    comoResolver?: string;
+    href?: string;
+    /** Ação que a TELA executa quando o analista concorda (ver "urbi:executar" nas telas do MAC). */
+    acaoLocal?: string;
+  };
   /** Veredito já dado (evita perguntar de novo na mesma conversa). */
   veredito?: "aceita" | "recusada";
 };
@@ -643,6 +650,33 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     return () => window.removeEventListener("urbi:entregar-dica", handler);
   }, [fase, poseId, speech.mudo]);
 
+  /**
+   * Intervenção vinda de uma tela (ex.: acabou de emitir despacho → recomendar backup). Entra na
+   * conversa já com o par concordar/discordar, como toda intervenção. Assunto já recusado nesta
+   * sessão não volta — o analista discordar e o URBI insistir seria o pior dos dois mundos.
+   */
+  useEffect(() => {
+    function handler(e: Event) {
+      const d = (e as CustomEvent).detail || {};
+      if (!d?.mensagem || !d?.chave) return;
+      try { if (sessionStorage.getItem(`urbi:recusada:${d.chave}`) === "true") return; } catch {}
+      setMsgs((m) => [...m, {
+        role: "urbi",
+        texto: d.mensagem,
+        intervencao: {
+          chave: d.chave,
+          processoCodigo: d.processoCodigo ?? null,
+          comoResolver: d.comoResolver,
+          href: d.href,
+          acaoLocal: d.acaoLocal,
+        },
+      }]);
+      anunciar("URBI respondeu.");
+    }
+    window.addEventListener("urbi:entregar-intervencao", handler);
+    return () => window.removeEventListener("urbi:entregar-intervencao", handler);
+  }, []);
+
   useEffect(() => {
     if (abertoProp && fase === "fora") abrir();
     if (!abertoProp && (fase === "idle" || fase === "entrando")) fechar();
@@ -726,6 +760,12 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       try { sessionStorage.setItem(`urbi:recusada:${intervencao.chave}`, "true"); } catch {}
       setMsgs((m) => [...m, { role: "urbi", texto: "Beleza, tirei isso da frente. Não falo mais nesse ponto por aqui." }]);
       return;
+    }
+
+    // Quando a intervenção traz uma ação que a TELA sabe executar (hoje: exportar), o URBI faz —
+    // é o "se eu concordasse ele poderia consertar" nos casos em que fazer é seguro.
+    if (intervencao.acaoLocal) {
+      window.dispatchEvent(new CustomEvent("urbi:executar", { detail: { acao: intervencao.acaoLocal } }));
     }
 
     const texto = intervencao.comoResolver

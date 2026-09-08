@@ -153,6 +153,23 @@ export default function UrbiGlobal() {
     return () => window.removeEventListener("urbi:explicar", onExplicar);
   }, []);
 
+  /**
+   * "urbi:intervir" — qualquer tela pede que o URBI INTERVENHA (fale por conta própria sobre algo
+   * que acabou de acontecer), e a intervenção nasce com o par concordar/discordar, como toda
+   * intervenção desde 08/09/2026. Diferente de "urbi:explicar", que é resposta a um clique do
+   * analista e por isso não pede veredito.
+   */
+  useEffect(() => {
+    function onIntervir(e: Event) {
+      const detalhe = (e as CustomEvent).detail || {};
+      if (!detalhe?.mensagem || !detalhe?.chave) return;
+      window.dispatchEvent(new CustomEvent("urbi:entregar-intervencao", { detail: detalhe }));
+      if (!urbiAbertoRef.current) setUrbiAberto(true);
+    }
+    window.addEventListener("urbi:intervir", onIntervir);
+    return () => window.removeEventListener("urbi:intervir", onIntervir);
+  }, []);
+
   // Log "detectada" uma vez por processo/tela — nunca a cada re-render/poll do sinal.
   useEffect(() => {
     if (!estadoFinal?.bloqueante || !processoCodigo) return;
