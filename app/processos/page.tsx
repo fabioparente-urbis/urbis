@@ -700,8 +700,17 @@ function ProcessosConteudo() {
                 </span>
 
                 {/* Esforço/pendências do Radar (Fase 2, Assessor Ativo) — só aparece quando o
-                    processo já foi visitado pelo menos uma vez; nunca inventa esforço. */}
-                {p.esforco_provavel && (
+                    processo já foi visitado pelo menos uma vez; nunca inventa esforço.
+
+                    "Depende de documento" NÃO aparece mais aqui (08/09/2026, pedido do Fábio:
+                    "tá meio ridículo isso... claro que tá, por isso não foi emitido o laudo. O
+                    projeto é documento. Tudo é documento"). Num processo de regularização
+                    praticamente toda pendência é documental, então o rótulo casava com quase
+                    tudo e não separava nada — badge que não distingue é ruído na lista. A
+                    classificação continua sendo calculada e usada onde ela de fato decide algo
+                    (Briefing do dia, ordenação por esforço, Motor de Produção); o que sai é só a
+                    exibição dela nesta linha. */}
+                {p.esforco_provavel && p.esforco_provavel !== "depende_documento" && (
                   /**
                    * A tag virou BOTÃO (08/09/2026, pedido do Fábio: "eu deveria clicar na tag do
                    * processo na pilha e ele falar"). Clicar pede ao URBI que explique ESTE
