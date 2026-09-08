@@ -43,6 +43,14 @@ export function useWebSpeech(opcoes?: {
   const [ouvindo, setOuvindo] = useState(false);
   const [falando, setFalando] = useState(false);
   const [mudo, setMudo] = useState(false);
+  // BUG REAL corrigido em 08/09/2026 ("mesmo com o alto-falante cortado tá lendo", Fábio): `falar`
+  // fechava sobre `mudo` do RENDER em que foi criada. Uma resposta assíncrona (fetch do dossiê,
+  // resposta do chat) que ainda estivesse voando quando o analista clicou em Mudo chamava uma
+  // `falar` antiga, que só conhecia o `mudo=false` de antes do clique — e falava mesmo assim.
+  // `mudoRef` é a MESMA referência sempre; `falar` lê `mudoRef.current`, nunca fica desatualizada,
+  // não importa há quanto tempo a função que a chama foi criada.
+  const mudoRef = useRef(mudo);
+  useEffect(() => { mudoRef.current = mudo; }, [mudo]);
   const [ultimoErroStt, setUltimoErroStt] = useState<string | null>(null);
   const [suportaSTT, setSuportaSTT] = useState(false);
   const [motorSTT, setMotorSTT] = useState<MotorSTT>(null);
@@ -132,7 +140,7 @@ export function useWebSpeech(opcoes?: {
   }, []);
 
   const falar = useCallback((texto: string) => {
-    if (mudo || !texto?.trim()) return;
+    if (mudoRef.current || !texto?.trim()) return;
     if (typeof window === "undefined") return;
 
     const arquivo = FALAS.get(chaveDe(texto));
@@ -160,7 +168,7 @@ export function useWebSpeech(opcoes?: {
       audioRef.current = null;
       falarNavegador(texto);
     }
-  }, [mudo, pararFala, falarNavegador]);
+  }, [pararFala, falarNavegador]); // `mudo` fora de propósito — lido via mudoRef.current, ver comentário acima
 
   const alternarMudo = useCallback(() => {
     setMudo(prev => { if (!prev) pararFala(); return !prev; });

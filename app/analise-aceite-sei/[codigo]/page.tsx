@@ -1909,7 +1909,11 @@ export default function MacPage() {
                     const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
-                      throw new Error(json?.erro || res.statusText || "Falha na leitura P3");
+                      /* Railway serve por HTTP/2 — `res.statusText` vem SEMPRE vazio nesse
+                       * protocolo (achado real, 08/09/2026, cópia isolada da mesma correção do
+                       * Slot 1). `res.status` é o único número confiável que sobra quando o
+                       * servidor não manda um `erro` no corpo. */
+                      throw new Error(json?.erro || `Falha na leitura P3 (HTTP ${res.status})`);
                     }
                     // Só preenche itens que ainda são null (analista não tocou)
                     setItens((prev) => {
