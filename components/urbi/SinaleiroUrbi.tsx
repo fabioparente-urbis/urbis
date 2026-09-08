@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { montarRelatorioMotor } from "@/lib/urbi/motorProducao";
-import { calcularSinaleiro, type EstadoSinaleiro } from "@/lib/urbi/sinaleiro";
+import { calcularSinaleiro, type EstadoSinaleiro, type ItemSinaleiro } from "@/lib/urbi/sinaleiro";
 import type { Aviso } from "@/lib/bdi/vigia";
 
 const POS_PADRAO = { top: 16, left: 16 };
@@ -23,6 +23,26 @@ function lerPosSalva(): { top: number; left: number } {
 }
 
 /**
+ * Fase 3 do plano Assessor Ativo (07/09/2026): a dica de histórico do Responsável Técnico
+ * (evento "urbi:dica", hoje só disparado no onBlur do campo RT em ProcessoClient.tsx) passa a
+ * também acender o sinaleiro em amarelo, além da bolha avulsa que já existia — nada é removido,
+ * só somado, pra migração ser sem risco. Vermelho continua vencendo sobre a dica de RT (ela
+ * some da tela desta rodada, mas o fato em si não é perdido — dica de RT não é persistida em
+ * lugar nenhum, é sinal do instante em que o campo perdeu o foco).
+ */
+function combinarComDicaRt(base: EstadoSinaleiro, dicaRt: string | null): EstadoSinaleiro {
+  if (!dicaRt) return base;
+  if (base.cor === "vermelho") return base;
+  const itemRt: ItemSinaleiro = {
+    titulo: "Histórico do Responsável Técnico",
+    detalhe: dicaRt,
+    fonte: "Módulo Profissionais — histórico do RT",
+  };
+  if (base.cor === "amarelo") return { cor: "amarelo", itens: [itemRt, ...base.itens] };
+  return { cor: "amarelo", itens: [itemRt] };
+}
+
+/**
  * Sinaleiro do URBI — Fase 1 do plano Assessor Ativo (07/09/2026).
  *
  * Ícone fixo, cor + forma (nunca só cor), que resume os avisos reais de um processo aberto sem
@@ -39,10 +59,34 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
   const [pos, setPos] = useState(lerPosSalva);
   const dragStart = useRef<{ mouseX: number; mouseY: number; top: number; left: number } | null>(null);
   const arrastouRef = useRef(false);
+  const [dicaRt, setDicaRt] = useState<string | null>(null);
+  const jaViuDicaRtRef = useRef(false);
 
   useEffect(() => {
     try { sessionStorage.setItem("urbi:sinaleiroPos", JSON.stringify(pos)); } catch {}
   }, [pos]);
+
+  // Fase 3 — mesmo evento que já alimenta a bolha "urbi:dica" (ver ProcessoClient.tsx, onBlur do
+  // RT). Só reage ao processo atual; fica até o analista abrir e fechar a lista uma vez (nunca
+  // volta sozinha depois disso, mesmo evento não sendo mandado de novo).
+  useEffect(() => {
+    function onDica(e: Event) {
+      const { processoId, mensagem } = (e as CustomEvent).detail || {};
+      if (processoId !== codigo || !mensagem) return;
+      setDicaRt(mensagem);
+      jaViuDicaRtRef.current = false;
+    }
+    window.addEventListener("urbi:dica", onDica);
+    return () => window.removeEventListener("urbi:dica", onDica);
+  }, [codigo]);
+
+  useEffect(() => {
+    if (aberto && dicaRt) jaViuDicaRtRef.current = true;
+    if (!aberto && jaViuDicaRtRef.current) {
+      setDicaRt(null);
+      jaViuDicaRtRef.current = false;
+    }
+  }, [aberto, dicaRt]);
 
   function onMouseDown(e: React.MouseEvent) {
     e.preventDefault();
@@ -74,6 +118,8 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
     let vivo = true;
     setEstado(null);
     setAberto(false);
+    setDicaRt(null);
+    jaViuDicaRtRef.current = false;
     Promise.all([
       fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`)
         .then(r => (r.ok ? r.json() : null)).catch(() => null),
@@ -88,9 +134,10 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
     return () => { vivo = false; };
   }, [codigo]);
 
-  if (!estado || !estado.cor) return null;
+  const estadoFinal = estado ? combinarComDicaRt(estado, dicaRt) : null;
+  if (!estadoFinal || !estadoFinal.cor) return null;
 
-  const c = CORES[estado.cor];
+  const c = CORES[estadoFinal.cor];
 
   return (
     <div style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 900 }}>
@@ -99,7 +146,7 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
         onMouseDown={onMouseDown}
         onClick={() => { if (arrastouRef.current) { arrastouRef.current = false; return; } setAberto(v => !v); }}
         aria-expanded={aberto}
-        aria-label={`URBI — ${c.rotulo}: ${estado.itens.length} item${estado.itens.length > 1 ? "ns" : ""}. Clique para ver os motivos, arraste para reposicionar.`}
+        aria-label={`URBI — ${c.rotulo}: ${estadoFinal.itens.length} item${estadoFinal.itens.length > 1 ? "ns" : ""}. Clique para ver os motivos, arraste para reposicionar.`}
         title={`URBI — ${c.rotulo} (arraste para mover)`}
         style={{
           position: "relative",
@@ -110,7 +157,7 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
         }}
       >
         {(["vermelho", "amarelo", "verde"] as const).map(cor => {
-          const acesa = cor === estado.cor;
+          const acesa = cor === estadoFinal.cor;
           const acesoBg = CORES[cor].borda;
           return (
             <span
@@ -134,7 +181,7 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
             textAlign: "center", padding: "0 4px", border: "2px solid #1e293b",
           }}
         >
-          {estado.itens.length}
+          {estadoFinal.itens.length}
         </span>
       </button>
 
@@ -149,9 +196,9 @@ export default function SinaleiroUrbi({ codigo }: { codigo: string }) {
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 700, color: c.texto, marginBottom: 6 }}>
-            URBI — {c.rotulo} ({estado.itens.length})
+            URBI — {c.rotulo} ({estadoFinal.itens.length})
           </div>
-          {estado.itens.map((item, i) => (
+          {estadoFinal.itens.map((item, i) => (
             <div key={i} style={{ padding: "6px 0", borderTop: i > 0 ? "1px solid var(--border, #e2e8f0)" : "none" }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary, #334155)" }}>{item.titulo}</div>
               <div style={{ fontSize: 11.5, color: "var(--text-muted, #64748b)", marginTop: 2, whiteSpace: "pre-wrap" }}>
