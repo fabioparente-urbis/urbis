@@ -136,6 +136,20 @@ type Msg = {
    * do número. Sair da tela é o oposto de conversar.
    */
   acoes?: { rotulo: string; href?: string; explicar?: "bloqueantes" | "prontos" }[];
+  /**
+   * Marca a mensagem como INTERVENÇÃO — 08/09/2026, Fábio: "não entendi qual era a intenção
+   * dele... não tem botão pra eu concordar ou discordar... se eu concordasse ele poderia
+   * consertar se algo estivesse errado", e logo depois: "tem que ser assim em TODAS as
+   * intervenções".
+   *
+   * Toda vez que o URBI se mete na análise por conta própria, ele tem que dizer o que quer e
+   * aceitar resposta. Sem isso ele é um mural: fala e o analista não tem como concordar,
+   * discordar, nem fazer parar. `chave` identifica a intervenção pra o "não é o caso" valer
+   * daquele assunto (e não calar o URBI inteiro) e pra o veredito ir pra auditoria.
+   */
+  intervencao?: { chave: string; processoCodigo?: string | null; comoResolver?: string; href?: string };
+  /** Veredito já dado (evita perguntar de novo na mesma conversa). */
+  veredito?: "aceita" | "recusada";
 };
 type GeminiMsg = { role: string; parts: { text: string }[] };
 type Props = {
@@ -674,6 +688,65 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
    * zero IA, zero custo, e nada que o analista não possa conferir na tela do processo. Termina
    * oferecendo os primeiros processos pra abrir direto, que é o próximo passo natural da conversa.
    */
+  /**
+   * Veredito de uma intervenção — o par concordar/discordar que o Fábio pediu pra TODA
+   * intervenção do URBI (08/09/2026).
+   *
+   * "Faz sentido" NÃO conserta a análise sozinho, e isso é dito na cara: item não conforme do
+   * MAC é juízo do analista, e um assistente que marca conformidade por conta própria estaria
+   * falsificando análise. O que ele faz é levar direto ao lugar onde se resolve — que é o que
+   * custa tempo no dia a dia. Onde existir conserto seguro de verdade (valor de campo com
+   * documento já localizado), ele entra por aqui depois, com o mesmo aceite explícito.
+   *
+   * "Não é o caso" cala AQUELE assunto (não o URBI) pelo resto da sessão naquela tela — o
+   * analista discordou uma vez, repetir vira ruído. Os dois vereditos vão pra auditoria: é
+   * assim que se descobre se o URBI está acertando ou incomodando.
+   */
+  function responderIntervencao(indice: number, aceita: boolean) {
+    const msg = msgs[indice];
+    const intervencao = msg?.intervencao;
+    if (!intervencao) return;
+
+    setMsgs((m) => m.map((x, i) => (i === indice ? { ...x, veredito: aceita ? "aceita" : "recusada" } : x)));
+
+    fetch("/api/auditoria/registrar", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        modulo: "URBI",
+        acao: aceita ? "URBI_INTERVENCAO_ACEITA" : "URBI_INTERVENCAO_RECUSADA",
+        processo_codigo: intervencao.processoCodigo ?? processoCodigo ?? undefined,
+        origem: "MANUAL",
+        detalhe: { chave: intervencao.chave, texto: msg.texto.slice(0, 500) },
+      }),
+    }).catch(() => {});
+
+    if (!aceita) {
+      try { sessionStorage.setItem(`urbi:recusada:${intervencao.chave}`, "true"); } catch {}
+      setMsgs((m) => [...m, { role: "urbi", texto: "Beleza, tirei isso da frente. Não falo mais nesse ponto por aqui." }]);
+      return;
+    }
+
+    const texto = intervencao.comoResolver
+      ? intervencao.comoResolver
+      : "Não consigo corrigir isso por você — é decisão sua, e eu marcar conformidade seria falsificar a análise. O que dá pra fazer é te levar direto ao lugar onde se resolve.";
+    setMsgs((m) => [
+      ...m,
+      {
+        role: "urbi",
+        texto,
+        acoes: intervencao.href ? [{ rotulo: "Ir lá resolver", href: intervencao.href }] : undefined,
+      },
+    ]);
+    resetIdleTimer();
+  }
+
+  /** Assunto que o analista já recusou nesta sessão — o URBI não repete. */
+  function intervencaoRecusada(chave: string): boolean {
+    try { return sessionStorage.getItem(`urbi:recusada:${chave}`) === "true"; } catch { return false; }
+  }
+
   function explicarBriefing(tipo: "bloqueantes" | "prontos") {
     setMsgs((m) => [...m, { role: "user", texto: tipo === "bloqueantes" ? "Por que estão bloqueados?" : "Por que estão prontos?" }]);
     fetch("/api/processos")
@@ -796,8 +869,30 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!j?.ok) { saudacaoOnMount(); return; }
-        const texto = formatarRelatorioMotor(montarRelatorioMotor(j.data));
-        setMsgs([{ role: "urbi", texto }]);
+        const relatorio = montarRelatorioMotor(j.data);
+        const texto = formatarRelatorioMotor(relatorio);
+        /**
+         * O relatório do Motor é a intervenção mais frequente do URBI — ele se mete sozinho toda
+         * vez que um processo é aberto. Por isso nasce com veredito (08/09/2026, "tem que ser
+         * assim em todas as intervenções"). Só quando há ação de verdade: sem pendência não há o
+         * que concordar ou discordar. `chave` inclui o processo, pra o "não é o caso" valer
+         * daquele processo e não silenciar o relatório em todos os outros.
+         */
+        const temAcao = relatorio.acoes.length > 0;
+        const chave = `motor:${processoCodigo}`;
+        if (temAcao && intervencaoRecusada(chave)) { saudacaoOnMount(); return; }
+        setMsgs([{
+          role: "urbi",
+          texto,
+          ...(temAcao ? {
+            intervencao: {
+              chave,
+              processoCodigo,
+              comoResolver: "Isso é item do MAC — quem decide conformidade é você, eu marcar por conta própria seria falsificar a análise. Te levo direto no checklist pra resolver.",
+              href: `/processo/${encodeURIComponent(processoCodigo!)}`,
+            },
+          } : {}),
+        }]);
         setHistory([{ role: "model", parts: [{ text: texto }] }]);
         anunciar("URBI respondeu.");
         resetIdleTimer();
@@ -1185,6 +1280,37 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
               padding: "7px 11px", fontSize: 12, lineHeight: 1.6,
               fontFamily: "system-ui, sans-serif", whiteSpace: "pre-wrap",
             }}>{msg.texto}</div>
+            {/* Veredito da intervenção — pergunta feita UMA vez; respondida, vira registro. */}
+            {msg.role === "urbi" && msg.intervencao && !msg.veredito && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2, alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "system-ui, sans-serif" }}>Faz sentido?</span>
+                <button
+                  type="button"
+                  className="urbi-focavel"
+                  onClick={() => responderIntervencao(i, true)}
+                  style={{
+                    background: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0",
+                    borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "system-ui, sans-serif",
+                  }}
+                >✓ Faz sentido</button>
+                <button
+                  type="button"
+                  className="urbi-focavel"
+                  onClick={() => responderIntervencao(i, false)}
+                  style={{
+                    background: "#fef2f2", color: "#b91c1c", border: "1px solid #fecaca",
+                    borderRadius: 999, padding: "4px 10px", fontSize: 11, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "system-ui, sans-serif",
+                  }}
+                >✕ Não é o caso</button>
+              </div>
+            )}
+            {msg.role === "urbi" && msg.veredito && (
+              <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "system-ui, sans-serif" }}>
+                {msg.veredito === "aceita" ? "✓ você concordou" : "✕ você discordou — não repito"}
+              </span>
+            )}
             {msg.role === "urbi" && msg.acoes && msg.acoes.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 2 }}>
                 {msg.acoes.map((acao, ai) => (

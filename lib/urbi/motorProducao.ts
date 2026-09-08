@@ -34,6 +34,13 @@ export type AcaoPrioritaria = {
   texto: string;
   motivo: string;
   esforco: EsforcoProvavel;
+  /**
+   * Grupo do item no checklist ("Calçada", "Documentação"...), quando a ação vem de pendência do
+   * MAC. Guardado à parte, e não só embutido no `texto`, pra `formatarRelatorioMotor` poder
+   * agrupar e dizer "Calçada: X; Y" em vez de repetir "(Calçada)" em cada linha — 08/09/2026,
+   * pedido do Fábio: "falar menos e dizer mais".
+   */
+  grupo?: string | null;
 };
 
 export type RelatorioMotor = {
@@ -118,6 +125,7 @@ function candidatosPendencias(mac: any): AcaoPrioritaria[] {
     return {
       tier: 1,
       texto: compor(`Corrigir/confirmar "`, textoItem, `"${grupo ? ` (${grupo})` : ""}.`),
+      grupo,
       // BIP só entra quando há vínculo REAL e aprovado (mac_bip_vinculos) — nunca por inferência.
       motivo: vinculos.length > 0
         ? `MAC: não conforme, com vínculo BIP aprovado (${vinculos[0].referencia}).`
@@ -327,18 +335,86 @@ const ROTULO_ESFORCO: Record<EsforcoProvavel, string> = {
 };
 
 /** Formata no template exato pedido — nunca prosa livre, nunca prazo/data inventados. */
+/**
+ * Corta no fim de uma frase/oração, não no meio da palavra — o corte duro em 90 caracteres
+ * produzia coisas como `ART/RRT de levantamento da …`, que não diz nada. Prefere o primeiro
+ * ponto/ponto-e-vírgula; se não houver, corta no último espaço antes do limite.
+ */
+function primeiraOracao(texto: string, limite: number): string {
+  const t = limparEspacos(texto).replace(/^["“]|["”]$/g, "");
+  const corteFrase = t.search(/[;.]\s/);
+  const base = corteFrase > 20 && corteFrase < limite ? t.slice(0, corteFrase) : t;
+  if (base.length <= limite) return base;
+  const cortado = base.slice(0, limite);
+  const ultimoEspaco = cortado.lastIndexOf(" ");
+  return `${(ultimoEspaco > 20 ? cortado.slice(0, ultimoEspaco) : cortado).trim()}…`;
+}
+
+/** Tira o embrulho burocrático que `candidatosPendencias` monta, pra sobrar só o que interessa. */
+function semEmbrulho(texto: string): string {
+  return texto
+    .replace(/^(Corrigir\/confirmar|Preencher\/confirmar campo|Reconferir|Resolver|Conferir)\s+/i, "")
+    .replace(/\s*\([^)]*\)\.?$/, "")
+    .replace(/^["“]|["”]$/g, "")
+    .replace(/^[•\-–]\s*/, "")
+    .trim();
+}
+
+/**
+ * Itens do mesmo grupo do checklist costumam começar igual ("Em Calçadas atender e informar: •"),
+ * e repetir isso em cada item é justamente o "falar muito e dizer pouco". Tira o começo comum
+ * quando ele é longo o bastante pra ser mesmo um cabeçalho repetido, e não coincidência.
+ */
+function tirarPrefixoComum(itens: string[]): string[] {
+  if (itens.length < 2) return itens;
+  let tamanho = 0;
+  const primeiro = itens[0];
+  while (tamanho < primeiro.length && itens.every((i) => i[tamanho] === primeiro[tamanho])) tamanho++;
+  if (tamanho < 15) return itens; // curto demais pra ser cabeçalho — provavelmente coincidência
+  const corte = primeiro.slice(0, tamanho).lastIndexOf(" ") + 1;
+  if (corte < 15) return itens;
+  return itens.map((i) => i.slice(corte).replace(/^[•\-–:]\s*/, "").trim()).filter(Boolean);
+}
+
+/**
+ * Reescrito em 08/09/2026 — "o URBI tem que ser mais claro, mais direto e informal, falar menos
+ * e dizer mais" (Fábio), olhando uma resposta que repetia "Corrigir/confirmar ... (Calçada)" em
+ * três linhas e terminava frases no meio ("de levantamento da …").
+ *
+ * O que mudou é só COMO se fala — os fatos (`r.acoes`, `r.situacao`, `r.motivo`) continuam vindo
+ * inteiros do mesmo cálculo determinístico. Agrupa por grupo do checklist em vez de repetir o
+ * parêntese em cada linha, corta no fim da oração em vez de no meio da palavra, e junta
+ * situação/esforço numa linha só em vez de três seções com rótulo.
+ */
 export function formatarRelatorioMotor(r: RelatorioMotor): string {
-  const linhasAcoes = r.acoes.length > 0
-    ? r.acoes.map((a, i) => `${i + 1}. ${a.texto}`).join("\n")
-    : "1. Nenhuma ação prioritária identificada agora.";
-  return `Situação: ${r.situacao || "sem situação disponível"}
+  const cabecalho = [
+    (r.situacao || "sem situação disponível").replace(/\s*\|\s*/g, ", "),
+    ROTULO_ESFORCO[r.esforco].toLowerCase(),
+  ].filter(Boolean).join(" · ");
 
-Agora:
-${linhasAcoes}
+  if (r.acoes.length === 0) {
+    return `${cabecalho}\n\nNão achei nada travando aqui. ${r.motivo}`;
+  }
 
-Esforço provável:
-• ${ROTULO_ESFORCO[r.esforco]}
+  // Agrupa pelo grupo do checklist: "Calçada: largura...; superfície..." em vez de três linhas
+  // repetindo "(Calçada)".
+  const porGrupo = new Map<string, string[]>();
+  for (const a of r.acoes) {
+    const chave = a.grupo?.trim() || "";
+    const lista = porGrupo.get(chave) ?? [];
+    lista.push(primeiraOracao(semEmbrulho(a.texto), 90));
+    porGrupo.set(chave, lista);
+  }
+  const linhas = [...porGrupo.entries()].map(([grupo, itens]) => {
+    const limpos = tirarPrefixoComum(itens);
+    return grupo ? `• ${grupo}: ${limpos.join("; ")}` : `• ${limpos.join("; ")}`;
+  });
 
-Motivo:
-• ${r.motivo}`;
+  const quantas = r.acoes.length;
+  return `${cabecalho}
+
+${quantas === 1 ? "Falta isto" : `Faltam estas ${quantas}`} pra destravar:
+${linhas.join("\n")}
+
+${r.motivo}`;
 }

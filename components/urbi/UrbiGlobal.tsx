@@ -139,6 +139,9 @@ export default function UrbiGlobal() {
     function onExplicar(e: Event) {
       const { mensagem } = (e as CustomEvent).detail || {};
       if (!mensagem) return;
+      // Aqui o analista PEDIU (clicou na tag), então não é intervenção espontânea — não abre
+      // pedindo veredito. Veredito é pra quando o URBI se mete sozinho; perguntar "faz sentido?"
+      // pra quem acabou de perguntar seria devolver a pergunta.
       if (urbiAbertoRef.current) {
         window.dispatchEvent(new CustomEvent("urbi:entregar-dica", { detail: { mensagem } }));
         return;

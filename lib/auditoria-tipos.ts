@@ -30,7 +30,13 @@ export type AcaoSISTEMA =
  * vez que o card grande aparece OU é dispensado sem ter sido chamado, fica um evento aqui.
  */
 export type AcaoURBI =
-  | 'URBI_CONDICAO_BLOQUEANTE_DETECTADA' | 'URBI_CONDICAO_BLOQUEANTE_DISPENSADA';
+  | 'URBI_CONDICAO_BLOQUEANTE_DETECTADA' | 'URBI_CONDICAO_BLOQUEANTE_DISPENSADA'
+  /**
+   * Veredito do analista sobre uma intervenção do URBI (08/09/2026, pedido do Fábio: toda
+   * intervenção tem que aceitar concordar/discordar). É o que permite medir se o URBI está
+   * ajudando ou incomodando — sem isso, "o URBI é útil?" seria opinião.
+   */
+  | 'URBI_INTERVENCAO_ACEITA' | 'URBI_INTERVENCAO_RECUSADA';
 
 /**
  * Ações administrativas fora do fluxo normal de análise — hoje só o estorno
