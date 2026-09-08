@@ -12,6 +12,7 @@ import {
   type ComandoNavegacao,
   type FiltrosPilha,
 } from "@/lib/urbi/navegacao";
+import { montarRelatorioMotor, formatarRelatorioMotor } from "@/lib/urbi/motorProducao";
 
 type IntencaoAcao =
   | { tipo: "navegar"; rota: string }
@@ -602,6 +603,28 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
     anunciar("URBI respondeu.");
     resetIdleTimer();
   }
+  // Fase 4 do plano Assessor Ativo (07/09/2026): ao abrir o chat DENTRO de um processo (sem uma
+  // mensagemInicial de dica já pronta), a primeira mensagem passa a ser o relatório do Motor de
+  // Produção — situação + próxima ação — em vez de esperar o analista perguntar "e aí, como está
+  // esse processo". Mesma fonte e as mesmas duas funções puras que app/api/urbi/chat/route.ts já
+  // usa quando o analista escreve com processo em contexto (nunca uma regra nova; /api/urbi/
+  // dossie é SQL puro, zero IA, zero custo novo). Fora de um processo isto nunca é chamado — cai
+  // na saudação de sempre.
+  function abrirComRelatorioMotor() {
+    if (urbiVoz) { if (permiteAudio) setMudo(false); if (!speech.ouvindo) alternarEscuta(); }
+    fetch(`/api/urbi/dossie?codigo=${encodeURIComponent(processoCodigo!)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        if (!j?.ok) { saudacaoOnMount(); return; }
+        const texto = formatarRelatorioMotor(montarRelatorioMotor(j.data));
+        setMsgs([{ role: "urbi", texto }]);
+        setHistory([{ role: "model", parts: [{ text: texto }] }]);
+        anunciar("URBI respondeu.");
+        resetIdleTimer();
+        if (permiteAudio && !speech.mudo) falar(texto);
+      })
+      .catch(() => saudacaoOnMount());
+  }
   function abrir() {
     anunciar("URBI aberto.");
     if (modo === "corner") {
@@ -619,7 +642,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       }
       setPoseId("tudo-ok");
       setMsgs([{ role: "urbi", texto: "..." }]);
-      saudacaoOnMount(urbiVoz);
+      if (processoCodigo) { abrirComRelatorioMotor(); } else { saudacaoOnMount(urbiVoz); }
       return;
     }
     setOverlayVisivel(true);
