@@ -1325,11 +1325,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
       ) : (
       <>
       <div style={{
-        // "amplo" tem altura FIXA no painel (min(88vh,900px)) — aqui o flex:1 já enche o espaço
-        // que sobra ao redor do cabeçalho/rodapé, então a rolagem não pode ter um teto em pixels
-        // (senão sobraria vazio embaixo dele, o oposto de "ampliar o view").
-        flex: 1, overflowY: "auto",
-        maxHeight: amplo ? "none" : (small ? 220 : 300) * (expandido ? 2 : 1),
+        // 08/09/2026: painel "amplo" deixou de ter altura fixa (ver o estilo do painel, acima) —
+        // `flex: 1` aqui forçaria esta área a esticar até preencher a caixa toda mesmo com só 2
+        // mensagens, sobrando vazio embaixo delas (achado ao vivo: "não tá em harmonia com a
+        // pilha"). Cresce com o conteúdo (flex "0 1 auto") até um teto que cabe na tela — daí sim
+        // rola, sem nunca estourar o viewport.
+        flex: amplo ? "0 1 auto" : 1, overflowY: "auto",
+        maxHeight: amplo ? "calc(100vh - 280px)" : (small ? 220 : 300) * (expandido ? 2 : 1),
         display: "flex", flexDirection: "column", gap: 8, paddingBottom: 8,
         userSelect: "text",
       }}>
@@ -1642,7 +1644,14 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
                * que nunca some ("o boneco não pode sumir... o analista tem que senti-lo como um
                * assessor").
                */
-              position: "fixed", top: 16, bottom: 150, right: 16,
+              /**
+               * Ancorado no rodapé, crescendo pra cima com o conteúdo — não mais `top:16` fixo
+               * (08/09/2026, achado ao vivo: "olha o tamanho do chat... não tá em harmonia com a
+               * pilha" — com poucas mensagens, a altura fixa até o topo da tela sobrava um vazio
+               * enorme entre a conversa e a caixa de digitar). `maxHeight` é o mesmo teto de
+               * antes (topo a 16px, rodapé a 150px) — só deixou de ser altura OBRIGATÓRIA.
+               */
+              position: "fixed", bottom: 150, right: 16, maxHeight: "calc(100vh - 166px)",
               background: "#ffffff", borderRadius: 16,
               padding: "16px 20px", width: "min(760px, 46vw)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.35)",

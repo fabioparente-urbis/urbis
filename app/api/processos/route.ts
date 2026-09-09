@@ -290,7 +290,15 @@ export async function GET(req: NextRequest) {
         esforco_provavel: radarPorCodigo.get(p.codigo)?.esforco ?? null,
         pendencias_radar: radarPorCodigo.get(p.codigo)?.pendencias ?? null,
         tem_acao_bloqueante: radarPorCodigo.get(p.codigo)?.temAcaoBloqueante ?? false,
-        sem_pendencias_motor: radarPorCodigo.get(p.codigo)?.semPendenciasMotor ?? false,
+        /**
+         * "Pronto pra despachar" só faz sentido pra análise ABERTA — achado ao vivo em
+         * 08/09/2026 (Fábio): processos já indeferidos ou com laudo emitido apareciam nesse
+         * filtro, porque o retrato do Radar só olha se sobrou pendência no checklist, não se já
+         * saiu documento. "Zero pendência" num processo já concluído não é "pronto pra
+         * despachar" — é "já despachado". Só conta quando `situacaoMac` ainda está "Em análise"
+         * (nenhum despacho/parecer/laudo commitado pra passada atual).
+         */
+        sem_pendencias_motor: sitMac.classe === "Em análise" && (radarPorCodigo.get(p.codigo)?.semPendenciasMotor ?? false),
         acao_bloqueante_texto: radarPorCodigo.get(p.codigo)?.acaoTexto ?? null,
         acao_bloqueante_motivo: radarPorCodigo.get(p.codigo)?.acaoMotivo ?? null,
         /** Números de documento deste processo que existem no MDP — a tag da Pilha só vira link
