@@ -63,6 +63,30 @@ demais. Os prompts do LIP, esses sim, são isolados por slot.
   simplesmente não aparecer no documento — conte e reporte (ver o cabeçalho
   `X-Exigencias-Perdidas` em `app/api/mac/slot-05/despacho/route.ts`).
 
+### 📓 OBS COD — registro obrigatório de sessão (regra declarada em 2026-09-08)
+
+**Toda sessão de IA que fizer uma mudança real no código, banco ou comportamento do sistema
+termina registrando uma entrada no OBS COD** — não é opcional e não depende do Fábio pedir.
+"Real" exclui só resposta a pergunta e leitura/exploração sem mudança; qualquer commit,
+correção, decisão de arquitetura ou risco identificado entra.
+
+Registrar assim, sem sessão logada no navegador nem inventar data/hora manualmente:
+
+```bash
+node scripts/registrar_obs_cod.mjs \
+  --titulo "Resumo curto do que mudou" \
+  --texto "O que foi feito, por quê, e o que ficou pendente." \
+  --categoria decisao \
+  --onde "arquivo(s)/rota(s) principais tocados"
+```
+
+`--categoria`: `arquitetura` | `bug` | `decisao` | `pendencia` | `risco`. Data e hora são do
+próprio banco (`criado_em`), nunca escritas à mão. Uma sessão com várias mudanças não
+relacionadas registra uma entrada por mudança, não um resumo genérico no fim.
+
+O item fica **aberto** por padrão — resolver é ação do Fábio pela tela (`/admin/configuracoes`,
+aba OBS COD), depois de conferir que funcionou. Não marcar como resolvido no registro.
+
 ### ⛔ Slot 5 — manuais versionados (regra suprema, declarada em 2026-08-25)
 
 **Toda modificação, ampliação, alteração ou expansão do Slot 5 obriga a atualizar, versionar e
