@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
           .in("codigo", codigos),
         supabase
           .from("analises_mac")
-          .select("processo_codigo, numero_analise, status, numero_despacho, numero_parecer")
+          .select("processo_codigo, numero_analise, status, numero_despacho, numero_parecer, mac_carregado")
           .in("processo_codigo", codigos)
           .is("excluido_em", null),
       ]);
@@ -147,8 +147,16 @@ export async function GET(req: NextRequest) {
       }
       // A view não agrega por processo — reduz aqui pra achar a passada de
       // maior numero_analise de cada um (a "atual").
+      //
+      // 08/09/2026, pedido do Fábio: "MAC só inicia importando PDF ou copiando a análise
+      // anterior — sem isso, MAC não iniciado". Uma análise sem `mac_carregado` E sem
+      // despacho/parecer é uma casca vazia (linha criada por autosave, nunca alimentada de
+      // verdade) — não conta como "a passada atual" pra classificação. Se ela tiver número
+      // maior que uma análise real anterior, a real anterior é que continua valendo.
       for (const linha of linhasAnalises ?? []) {
         const l = linha as any;
+        const carregada = l.mac_carregado === true || !!l.numero_despacho || !!l.numero_parecer;
+        if (!carregada) continue;
         const atual = ultimaPassadaPorCodigo.get(l.processo_codigo);
         if (!atual || Number(l.numero_analise) > atual.numero_analise) {
           ultimaPassadaPorCodigo.set(l.processo_codigo, {

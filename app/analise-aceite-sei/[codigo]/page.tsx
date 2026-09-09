@@ -103,6 +103,9 @@ export default function MacPage() {
   // (corrida do autosave). Ver salvarSilencioso() e iniciarNovaAnalise().
   const criandoAnaliseRef = useRef(false);
   const [novaAnalise, setNovaAnalise] = useState(false);
+  /** "MAC só inicia importando PDF ou copiando análise anterior" — 08/09/2026, pedido do Fábio.
+   *  Cópia isolada da mesma lógica do Slot 1 (regra do projeto: nunca compartilhar entre slots). */
+  const macCarregadoRef = useRef(false);
   // Número da análise iniciada mas ainda não gravada. Enquanto ela não
   // existe no banco, analiseAtual é null — sem isso nenhum botão 1..5
   // acende e o analista não vê em qual análise está.
@@ -604,6 +607,7 @@ export default function MacPage() {
               modelo_id: modeloSelecionado?.id || "00000000-0000-0000-0000-000000000001",
               numero_revisao: numeroRevisao,
               historico_analises: historicoAnalises,
+              ...(macCarregadoRef.current ? { mac_carregado: true } : {}),
             }),
           });
           const json = await res.json().catch(() => null);
@@ -636,6 +640,7 @@ export default function MacPage() {
             status,
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
+            ...(macCarregadoRef.current ? { mac_carregado: true } : {}),
           }),
         });
       }
@@ -1077,6 +1082,7 @@ export default function MacPage() {
     criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
     setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
+    macCarregadoRef.current = false;
     // Análise nova nasce EM BRANCO, herdando apenas os "não se aplica".
     //
     // O "não se aplica" descreve o lote e o tipo de edificação, que não mudam
@@ -1133,6 +1139,7 @@ export default function MacPage() {
     setNumeroRevisao(Number(alvo.numero_revisao) || 1);
     setHistoricoAnalises(alvo.historico_analises || "");
     setNovaAnalise(false);
+    macCarregadoRef.current = alvo.mac_carregado === true;
     if (alvo.modelo_id) carregarItensModelo(alvo.modelo_id);
   }
 
@@ -1161,8 +1168,10 @@ export default function MacPage() {
         status: alvo.status || "em_andamento",
         numero_revisao: Number(alvo.numero_revisao) || 1,
         historico_analises: alvo.historico_analises || "",
+        mac_carregado: true,
       }),
     });
+    macCarregadoRef.current = true;
 
     const resLista = await fetch(`/api/analise-aceite-sei?codigo=${encodeURIComponent(codigo)}`);
     const jsonLista = await resLista.json();
@@ -1453,6 +1462,7 @@ export default function MacPage() {
           ? `\n⚖️ Itens com resposta divergente entre documentos (ficou a 1ª, confira):\n${conflitos.map((c) => `  • ${c}`).join("\n")}`
           : "");
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
+      macCarregadoRef.current = true;
       registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
       mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s) — revise e aceite.`);
     } catch (err: any) {
@@ -2033,6 +2043,7 @@ export default function MacPage() {
                       `📄 Documentos analisados (${_docs.length}):\n${_linhasDoc}\n` +
                       `🔎 Incompatibilidades:\n${_linhasInc}`;
                     setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
+                    macCarregadoRef.current = true;
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
@@ -2751,8 +2762,17 @@ export default function MacPage() {
             <div className="flex flex-col gap-2">
               <button
                 onClick={() => {
-                  if (analiseAtual?.id)
-                    window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank");
+                  if (!analiseAtual?.id) return;
+                  // "MAC só finaliza com a exportação de documento — primeiro exporta o
+                  // documento, depois o Excel" (08/09/2026). Aviso, não trava — cópia isolada da
+                  // mesma lógica do Slot 1 (regra do projeto: nunca compartilhar entre slots).
+                  const tagDesta = (tagsProcesso ?? []).find((t: any) =>
+                    t && typeof t === "object" && Number(t.numero_analise) === Number(analiseAtual.numero_analise));
+                  const jaEmitiuDocumento = !!analiseAtual.numero_despacho || !!analiseAtual.numero_parecer || !!tagDesta;
+                  if (!jaEmitiuDocumento && !window.confirm(
+                    "Esta análise ainda não emitiu documento (despacho/parecer/laudo). O Excel do MAC costuma vir DEPOIS do documento — exportar mesmo assim?"
+                  )) return;
+                  window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank");
                   setModalExportar(false);
                 }}
                 disabled={!analiseAtual?.id}

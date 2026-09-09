@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
       processo_codigo, itens, observacoes, observacoes_por_aba, status, numero_revisao, historico_analises, fontes, aceites,
       // Sessão 5A: opcional, grava se vier.
       assunto_id,
+      mac_carregado,
     } = body;
     if (!processo_codigo) return NextResponse.json({ ok: false, erro: "codigo obrigatorio" }, { status: 400 });
 
@@ -130,6 +131,7 @@ export async function POST(req: NextRequest) {
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
+        ...(mac_carregado === true ? { mac_carregado: true } : {}),
       })
       .select()
       .maybeSingle();
@@ -159,6 +161,9 @@ export async function PUT(req: NextRequest) {
       id, itens, observacoes, observacoes_por_aba, status, modelo_id, numero_revisao, historico_analises, fontes, aceites,
       // Sessão 5A: opcional, atualiza se vier.
       assunto_id,
+      // 08/09/2026: só a tela manda `true`, nunca `false` — monotônico, uma vez carregada
+      // permanece carregada (ver comentário da coluna na migration).
+      mac_carregado,
     } = body;
     if (!id) return NextResponse.json({ ok: false, erro: "id obrigatorio" }, { status: 400 });
 
@@ -245,6 +250,7 @@ export async function PUT(req: NextRequest) {
         ...(Number.isInteger(Number(numero_revisao)) ? { numero_revisao: Number(numero_revisao) } : {}),
         ...(historico_analises !== undefined ? { historico_analises: historico_analises ?? "" } : {}),
         ...(assunto_id !== undefined ? { assunto_id: assunto_id ?? null } : {}),
+        ...(mac_carregado === true ? { mac_carregado: true } : {}),
         atualizado_em: new Date().toISOString(),
       })
       .eq("id", id);

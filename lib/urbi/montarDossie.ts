@@ -59,7 +59,7 @@ export async function montarDossieFactual(
   const consultas = await Promise.all([
     supabaseAdmin.from("assuntos").select("nome, slug").eq("id", processo.assunto_id).maybeSingle(),
     supabaseAdmin.from("vw_bdi_campos_criticos").select("campos_vazios, campos_em_x, campos_totais").eq("codigo", codigo).maybeSingle(),
-    supabaseAdmin.from("analises_mac").select("id, numero_analise, status, itens, criado_em, atualizado_em, numero_despacho, numero_parecer, numero_despacho_interno, modelo_id, observacoes_por_item, observacoes_por_aba").eq("processo_codigo", codigo).is("excluido_em", null),
+    supabaseAdmin.from("analises_mac").select("id, numero_analise, status, itens, criado_em, atualizado_em, numero_despacho, numero_parecer, numero_despacho_interno, modelo_id, observacoes_por_item, observacoes_por_aba, mac_carregado").eq("processo_codigo", codigo).is("excluido_em", null),
     // Colunas corrigidas em 05/09/2026 (piloto humano controlado): a view real expõe
     // status_na_passada_anterior/status_antes_da_volta/status_depois_da_volta — a consulta
     // pedia status_anterior/status_novo, que nunca existiram nela (achado: essa fonte estava
@@ -100,7 +100,11 @@ export async function montarDossieFactual(
   const resultadosDocumento = (consultas[10].data ?? []) as any[];
   const camposCatalogoLip = (consultas[11].data ?? []) as any[];
   const rotuloPorChaveLip = new Map(camposCatalogoLip.map((c: any) => [c.chave, c.label]));
-  const ultima = analises.length ? analises[analises.length - 1] : null;
+  // "MAC só inicia importando PDF ou copiando análise anterior" (08/09/2026) — a "última
+  // passada" pra situação ignora casca vazia (sem mac_carregado e sem despacho/parecer), mesma
+  // regra de /api/processos e /api/bdi/prioridades.
+  const analisesCarregadas = analises.filter((a: any) => a.mac_carregado === true || !!a.numero_despacho || !!a.numero_parecer);
+  const ultima = analisesCarregadas.length ? analisesCarregadas[analisesCarregadas.length - 1] : null;
 
   const idsMhdDocs = mhdDocumentos.map((d) => d.id);
   const { data: mhdVersoesRaw, error: erroMhdVersoes } = idsMhdDocs.length

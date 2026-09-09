@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from("vw_bdi_retrabalho").select("processo_codigo, trocas_totais, virou_nao_conforme, foi_resolvido").in("processo_codigo", codigos),
     supabaseAdmin.from("vw_bdi_retrabalho_por_passada").select("*").in("processo_codigo", codigos),
     supabaseAdmin.from("vw_bdi_campos_criticos").select("codigo, campos_vazios, campos_em_x, campos_totais").in("codigo", codigos),
-    supabaseAdmin.from("analises_mac").select("processo_codigo, numero_analise, status, numero_despacho, numero_parecer, numero_despacho_interno").in("processo_codigo", codigos).is("excluido_em", null),
+    supabaseAdmin.from("analises_mac").select("processo_codigo, numero_analise, status, numero_despacho, numero_parecer, numero_despacho_interno, mac_carregado").in("processo_codigo", codigos).is("excluido_em", null),
     supabaseAdmin.from("mdp_registros").select("processo_codigo, numero").in("processo_codigo", codigos),
     supabaseAdmin.from("mrp_registros").select("processo_codigo, numero_despacho").in("processo_codigo", codigos),
     supabaseAdmin.from("mac_historico").select("processo_codigo, checklist_item_id").in("processo_codigo", codigos).not("checklist_item_id", "is", null).limit(4000),
@@ -189,8 +189,12 @@ export async function GET(req: NextRequest) {
   const todasPassadasPorCodigo = new Map<string, { numero_analise: number; numero_despacho: string | null; numero_parecer: string | null; numero_despacho_interno: string | null }[]>();
   for (const l of linhasAnalises ?? []) {
     const ll = l as any;
+    // "MAC só inicia importando PDF ou copiando análise anterior" (08/09/2026) — só afeta QUAL
+    // passada conta como "a atual" pra situação; `todasPassadasPorCodigo` abaixo continua vendo
+    // toda passada, carregada ou não, porque MDP/MRP têm que ver todo documento já commitado.
+    const carregada = ll.mac_carregado === true || !!ll.numero_despacho || !!ll.numero_parecer;
     const atual = ultimaPassadaPorCodigo.get(ll.processo_codigo);
-    if (!atual || Number(ll.numero_analise) > atual.numero_analise) {
+    if (carregada && (!atual || Number(ll.numero_analise) > atual.numero_analise)) {
       ultimaPassadaPorCodigo.set(ll.processo_codigo, {
         numero_analise: Number(ll.numero_analise) || 0, status: ll.status,
         numero_despacho: ll.numero_despacho ?? null, numero_parecer: ll.numero_parecer ?? null,
