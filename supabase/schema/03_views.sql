@@ -1233,57 +1233,56 @@ CREATE OR REPLACE VIEW public.vw_bdi_analistas_desempenho AS
 -- opcoes: (nenhuma — roda com privilegio do dono)
 -- ======================================================================
 CREATE OR REPLACE VIEW public.vw_bdi_autores AS
- WITH rts AS (
-         SELECT p.codigo AS processo_codigo,
-            p.status AS status_processo,
-            a.nome AS assunto,
-            p.dados ->> 'nome_responsavel_arq'::text AS autor,
-            p.dados ->> 'cau'::text AS registro,
-            'CAU'::text AS tipo_registro
-           FROM processos p
-             LEFT JOIN assuntos a ON a.id = p.assunto_id
-          WHERE (p.dados ->> 'cau'::text) IS NOT NULL AND (p.dados ->> 'cau'::text) <> ''::text
-        UNION ALL
-         SELECT p.codigo,
-            p.status,
-            a.nome,
-            p.dados ->> 'nome_responsavel_eng'::text,
-            p.dados ->> 'crea'::text,
-            'CREA'::text AS text
-           FROM processos p
-             LEFT JOIN assuntos a ON a.id = p.assunto_id
-          WHERE (p.dados ->> 'crea'::text) IS NOT NULL AND (p.dados ->> 'crea'::text) <> ''::text
-        ), nao_conf AS (
-         SELECT am_1.processo_codigo,
-            count(*) FILTER (WHERE v.status = 'nao_conforme'::text) AS total_nao_conformidades
-           FROM analises_mac am_1,
-            LATERAL jsonb_each_text(COALESCE(am_1.itens, '{}'::jsonb)) v(chave, status)
-          GROUP BY am_1.processo_codigo
+ WITH nao_conf AS (
+         SELECT am.processo_codigo,
+            count(*) FILTER (WHERE v_1.status = 'nao_conforme'::text) AS total_nao_conformidades
+           FROM analises_mac am,
+            LATERAL jsonb_each_text(COALESCE(am.itens, '{}'::jsonb)) v_1(chave, status)
+          GROUP BY am.processo_codigo
         ), analises_count AS (
          SELECT analises_mac.processo_codigo,
             count(*) AS total_analises
            FROM analises_mac
           GROUP BY analises_mac.processo_codigo
+        ), vinculos AS (
+         SELECT prof.id AS profissional_id,
+            prof.nome_normalizado AS autor,
+            COALESCE(prof.cau, prof.crea) AS registro,
+                CASE pp.papel
+                    WHEN 'autor_arquiteto'::text THEN 'CAU'::text
+                    WHEN 'responsavel_engenheiro'::text THEN 'CREA'::text
+                    ELSE upper(pp.papel)
+                END AS tipo_registro,
+            prof.validado,
+            p.codigo AS processo_codigo,
+            p.status AS status_processo,
+            a.nome AS assunto
+           FROM processo_profissionais pp
+             JOIN profissionais prof ON prof.id = pp.profissional_id AND prof.merged_into_id IS NULL
+             JOIN processos p ON p.id = pp.processo_id AND p.excluido_em IS NULL
+             LEFT JOIN assuntos a ON a.id = p.assunto_id
+          WHERE pp.ativo
         )
- SELECT r.autor,
-    r.registro,
-    r.tipo_registro,
-    r.assunto,
-    r.status_processo,
-    count(DISTINCT r.processo_codigo) AS total_processos,
+ SELECT v.autor,
+    v.registro,
+    v.tipo_registro,
+    v.assunto,
+    v.status_processo,
+    count(DISTINCT v.processo_codigo) AS total_processos,
     COALESCE(sum(ac.total_analises), 0::numeric)::bigint AS total_analises,
     COALESCE(sum(nc.total_nao_conformidades), 0::numeric) AS total_nao_conformidades,
         CASE
-            WHEN count(DISTINCT r.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT r.processo_codigo)::numeric, 2)
+            WHEN count(DISTINCT v.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT v.processo_codigo)::numeric, 2)
             ELSE 0::numeric
-        END AS erros_por_processo
-   FROM rts r
-     LEFT JOIN analises_count ac ON ac.processo_codigo = r.processo_codigo
-     LEFT JOIN nao_conf nc ON nc.processo_codigo = r.processo_codigo
-  GROUP BY r.autor, r.registro, r.tipo_registro, r.assunto, r.status_processo
+        END AS erros_por_processo,
+    v.validado
+   FROM vinculos v
+     LEFT JOIN analises_count ac ON ac.processo_codigo = v.processo_codigo
+     LEFT JOIN nao_conf nc ON nc.processo_codigo = v.processo_codigo
+  GROUP BY v.profissional_id, v.autor, v.registro, v.tipo_registro, v.assunto, v.status_processo, v.validado
   ORDER BY (
         CASE
-            WHEN count(DISTINCT r.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT r.processo_codigo)::numeric, 2)
+            WHEN count(DISTINCT v.processo_codigo) > 0 THEN round(COALESCE(sum(nc.total_nao_conformidades), 0::numeric) / count(DISTINCT v.processo_codigo)::numeric, 2)
             ELSE 0::numeric
         END) DESC;
 

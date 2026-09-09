@@ -16,7 +16,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `analises_mac` | tabela | 124 | ✅ |
 | `assinaturas` | tabela | 0 | ✅ |
 | `assuntos` | tabela | 15 | ✅ |
-| `auditoria_eventos` | tabela | 6657 | ✅ |
+| `auditoria_eventos` | tabela | 6660 | ✅ |
 | `auditoria_eventos_backup` | tabela | 0 | ✅ |
 | `auditoria_log` | tabela | 5564 | ✅ |
 | `auditoria_log_backup` | tabela | 0 | ✅ |
@@ -93,7 +93,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `mrp_registros` | tabela | 135 | ✅ |
 | `mrp_registros_backup` | tabela | 33 | ✅ |
 | `notificacoes` | tabela | 0 | ✅ |
-| `obs_cod` | tabela | 51 | ✅ |
+| `obs_cod` | tabela | 52 | ✅ |
 | `papeis_ativos` | tabela | 3 | ✅ |
 | `porte_config` | tabela | 1 | ✅ |
 | `processo_checklist_itens` | tabela | 0 | ✅ |
@@ -118,7 +118,7 @@ PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 13.2.0, 64-b
 | `urbi_historico` | tabela | 131 | ✅ |
 | `urbi_legislacao` | tabela | 0 | ✅ |
 | `urbi_presenca_eventos` | tabela | 12 | ✅ |
-| `urbi_radar_execucoes` | tabela | 5437 | ✅ |
+| `urbi_radar_execucoes` | tabela | 5447 | ✅ |
 | `urbi_radar_retratos` | tabela | 1008 | ✅ |
 | `urbi_regras_bloqueio` | tabela | 7 | ❌ |
 | `urbi_sugestoes` | tabela | 12 | ❌ |
