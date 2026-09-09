@@ -89,18 +89,25 @@ export async function GET(req: NextRequest) {
   let qCodigosDoAssunto = supabaseAdmin.from("processos").select("codigo").is("excluido_em", null);
   if (assuntoAtivo) qCodigosDoAssunto = qCodigosDoAssunto.eq("assunto_id", assuntoAtivo.id);
 
-  let qProcessosParaContagem = supabaseAdmin.from("processos").select("assunto_id, porte, area_construida, eh_retorno").is("excluido_em", null);
+  let qProcessosParaContagem = supabaseAdmin.from("processos").select("codigo, assunto_id, porte, area_construida").is("excluido_em", null);
   if (assuntoAtivo) qProcessosParaContagem = qProcessosParaContagem.eq("assunto_id", assuntoAtivo.id);
 
-  const [resCodigos, resAssuntos, resProcessosContagem] = await Promise.all([
+  // ACHADO 02/09/2026 (urbis_bdi_fundacao_dados): `processos.eh_retorno` nunca
+  // foi preenchido (sempre false) — "Retornos" no painel sempre deu zero. O
+  // sinal real de retorno é `analises_mac.numero_analise > 1`, mesmo critério
+  // já usado (corretamente) em `vw_bdi_retorno_por_slot`.
+  const qCodigosComRetorno = supabaseAdmin.from("analises_mac").select("processo_codigo").is("excluido_em", null).gt("numero_analise", 1);
+
+  const [resCodigos, resAssuntos, resProcessosContagem, resCodigosComRetorno] = await Promise.all([
     qCodigosDoAssunto,
     // Mesmo corte da view antiga (`a.nome !~~ 'Slot%'`): só esconde os
     // slots-placeholder inativos (Slot 03, Slot 06...); Regularização,
     // Aceite SEI e Aprovação de Projeto não batem nesse padrão.
     supabaseAdmin.from("assuntos").select("id, nome").not("nome", "ilike", "Slot%"),
     qProcessosParaContagem,
+    qCodigosComRetorno,
   ]);
-  const falhaBase = [resCodigos, resAssuntos, resProcessosContagem].find((r) => r.error)?.error;
+  const falhaBase = [resCodigos, resAssuntos, resProcessosContagem, resCodigosComRetorno].find((r) => r.error)?.error;
   if (falhaBase) {
     console.error("[bdi/stats] falha ao consultar base de contagem:", falhaBase.message);
     return NextResponse.json(
@@ -111,6 +118,7 @@ export async function GET(req: NextRequest) {
   const codigosDoAssunto: string[] = (resCodigos.data ?? []).map((p: any) => p.codigo).filter(Boolean);
   const assuntosTabela = resAssuntos.data;
   const processosParaContagem = resProcessosContagem.data;
+  const codigosComRetorno = new Set((resCodigosComRetorno.data ?? []).map((r: any) => r.processo_codigo));
 
   const nomePorAssuntoId = new Map((assuntosTabela ?? []).map((a: any) => [a.id, a.nome as string]));
   const gruposPorAssunto = new Map<string, { assunto: string; total_processos: number; area_total: number; total_retornos: number; porte: string | null }>();
@@ -121,7 +129,7 @@ export async function GET(req: NextRequest) {
     const atual = gruposPorAssunto.get(chave) ?? { assunto: nome, total_processos: 0, area_total: 0, total_retornos: 0, porte: p.porte ?? null };
     atual.total_processos += 1;
     atual.area_total += Number(p.area_construida ?? 0);
-    if (p.eh_retorno) atual.total_retornos += 1;
+    if (codigosComRetorno.has(p.codigo)) atual.total_retornos += 1;
     gruposPorAssunto.set(chave, atual);
   }
   const porAssuntoData = [...gruposPorAssunto.values()].map((g) => ({

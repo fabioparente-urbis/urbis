@@ -1,5 +1,5 @@
 -- TABELAS — colunas, defaults e constraints
--- Gerado por scripts/extrair_schema.mts em 2026-09-05.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-09.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================
@@ -93,7 +93,8 @@ CREATE TABLE public.analises_mac (
     excluido_motivo text,
     data_despacho text,
     data_parecer text,
-    observacoes_por_item jsonb DEFAULT '{}'::jsonb NOT NULL
+    observacoes_por_item jsonb DEFAULT '{}'::jsonb NOT NULL,
+    mac_carregado boolean DEFAULT false NOT NULL
 );
 ALTER TABLE public.analises_mac ADD CONSTRAINT analises_mac_analista_id_fkey FOREIGN KEY (analista_id) REFERENCES usuarios(id) ON DELETE SET NULL;
 ALTER TABLE public.analises_mac ADD CONSTRAINT analises_mac_assunto_id_fkey FOREIGN KEY (assunto_id) REFERENCES assuntos(id);
@@ -101,6 +102,7 @@ ALTER TABLE public.analises_mac ADD CONSTRAINT analises_mac_modelo_id_fkey FOREI
 ALTER TABLE public.analises_mac ADD CONSTRAINT analises_mac_pkey PRIMARY KEY (id);
 COMMENT ON COLUMN public.analises_mac.cau_responsavel IS "Número do CAU do responsável técnico do projeto (arquiteto).";
 COMMENT ON COLUMN public.analises_mac.crea_responsavel IS "Número do CREA do responsável técnico do projeto (engenheiro).";
+COMMENT ON COLUMN public.analises_mac.mac_carregado IS "true quando a análise recebeu conteúdo via leitura de PDF (LER PROCESSO/LER ARQUIVOS INDIVIDUAIS) ou cópia da análise anterior. Usado só pra classificação de situação (lib/bdi/situacao.ts), nunca bloqueia salvamento.";
 
 -- ======================================================================
 -- assinaturas
@@ -1385,12 +1387,18 @@ CREATE TABLE public.mhd_versoes (
     rodada integer DEFAULT 1 NOT NULL,
     lido_em timestamp with time zone DEFAULT now() NOT NULL,
     usuario_id uuid,
-    conteudo_id uuid
+    conteudo_id uuid,
+    estado text,
+    motivo_estado text,
+    confianca_estado text
 );
 ALTER TABLE public.mhd_versoes ADD CONSTRAINT mhd_versoes_conteudo_id_fkey FOREIGN KEY (conteudo_id) REFERENCES mhd_conteudos(id);
 ALTER TABLE public.mhd_versoes ADD CONSTRAINT mhd_versoes_documento_id_fkey FOREIGN KEY (documento_id) REFERENCES mhd_documentos(id) ON DELETE CASCADE;
 ALTER TABLE public.mhd_versoes ADD CONSTRAINT mhd_versoes_pkey PRIMARY KEY (id);
 ALTER TABLE public.mhd_versoes ADD CONSTRAINT mhd_versoes_documento_id_versao_key UNIQUE (documento_id, versao);
+COMMENT ON COLUMN public.mhd_versoes.estado IS "vigente | substituido | complementar | sem_efeito | historico | duplicado | pendente — só\n   preenchido pelo Organizador de PDF SEI (Slots 1/2, lib/documentosSei/persistencia.ts). NULL\n   para versões do Slot 5 (lerPastaSlot5/registrarLeitura), que continuam decidindo por `vigente`.";
+COMMENT ON COLUMN public.mhd_versoes.motivo_estado IS "Motivo textual da resolução de estado (lib/documentosSei/motorVersoes.ts) — auditável, nunca\n   \"confia e esquece\".";
+COMMENT ON COLUMN public.mhd_versoes.confianca_estado IS "alta | media | baixa — confiança da resolução de estado. \"baixa\" sinaliza a tela pra pedir\n   conferência do analista (nunca declarar vigente no escuro).";
 
 -- ======================================================================
 -- mrp_calendario
@@ -1864,7 +1872,9 @@ CREATE TABLE public.processos (
     excluido_motivo text,
     lip_incompleto boolean DEFAULT false NOT NULL,
     laudo_campos_ocultos text[] DEFAULT '{}'::text[] NOT NULL,
-    mac_incompleto boolean DEFAULT false NOT NULL
+    mac_incompleto boolean DEFAULT false NOT NULL,
+    lip_finalizado boolean DEFAULT false NOT NULL,
+    lip_finalizado_em timestamp with time zone
 );
 ALTER TABLE public.processos ADD CONSTRAINT processos_area_construida_check CHECK ((area_construida > (0)::numeric));
 ALTER TABLE public.processos ADD CONSTRAINT processos_analista_id_fkey FOREIGN KEY (analista_id) REFERENCES usuarios(id) ON DELETE SET NULL;
@@ -1877,6 +1887,8 @@ COMMENT ON COLUMN public.processos.analise_concluida_em IS "Data/hora da conclus
 COMMENT ON COLUMN public.processos.data_protocolo IS "Data oficial de protocolo do processo (SEI ou físico). NULL até o analista preencher no LIP — nunca inferida automaticamente de criado_em.";
 COMMENT ON COLUMN public.processos.data_protocolo_origem IS "Origem do valor de data_protocolo. Hoje só existe \"analista_lip\" (preenchimento manual). Reservado para futuras origens (ex: extração automática do SEI) que deverão vir com confiança mais baixa marcada explicitamente.";
 COMMENT ON COLUMN public.processos.mac_incompleto IS "MAC marcado como não concluído pelo analista (espelha lip_incompleto, que é do LIP).";
+COMMENT ON COLUMN public.processos.lip_finalizado IS "Analista clicou \"Finalizar LIP\" — decidiu parar de preencher e seguir pro MAC, mesmo que incompleto. Não é o mesmo que lip_incompleto (que é \"sei que falta algo\").";
+COMMENT ON COLUMN public.processos.lip_finalizado_em IS "Quando \"Finalizar LIP\" foi clicado pela última vez.";
 
 -- ======================================================================
 -- profissionais
@@ -2155,6 +2167,19 @@ COMMENT ON COLUMN public.urbi_radar_retratos.previsao_tempo IS "Previsão determ
 COMMENT ON COLUMN public.urbi_radar_retratos.pendencias_sem_bip IS "Contagem de pendências da última análise MAC sem nenhum vínculo BIP aprovado (d.mac.\n   pendencias_ultima_analise[].vinculos_bip vazio) — reaproveitado de lib/urbi/montarDossie.ts,\n   nunca recalculado. Cobertura de BIP em si (Fase 8) é um trabalho maior, separado.";
 
 -- ======================================================================
+-- urbi_regras_bloqueio
+-- ======================================================================
+CREATE TABLE public.urbi_regras_bloqueio (
+    chave text NOT NULL,
+    ativo boolean DEFAULT false NOT NULL,
+    parametros jsonb DEFAULT '{}'::jsonb NOT NULL,
+    criado_em timestamp with time zone DEFAULT now() NOT NULL,
+    atualizado_em timestamp with time zone DEFAULT now() NOT NULL
+);
+ALTER TABLE public.urbi_regras_bloqueio ADD CONSTRAINT urbi_regras_bloqueio_pkey PRIMARY KEY (chave);
+COMMENT ON COLUMN public.urbi_regras_bloqueio.parametros IS "Limiares específicos da regra, ex.: {\"diasBloqueio\":180,\"diasAviso\":170} para\n   COND_180_DIAS. Vazio ({}) para regras sem parâmetro.";
+
+-- ======================================================================
 -- urbi_sugestoes
 -- ======================================================================
 CREATE TABLE public.urbi_sugestoes (
@@ -2181,23 +2206,6 @@ ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_decidido_por_fke
 ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_pkey PRIMARY KEY (id);
 ALTER TABLE public.urbi_sugestoes ADD CONSTRAINT urbi_sugestoes_processo_codigo_tipo_chave_key UNIQUE (processo_codigo, tipo, chave);
 COMMENT ON COLUMN public.urbi_sugestoes.slot IS "tipo_processo do processo no momento em que a sugestão foi gravada (lib/urbi/sugestoes.ts,\n   registrarSugestoesAutomaticas) — self-contido, não depende de JOIN com processos pra\n   auditoria. NULL só em linha gravada antes desta coluna existir (nenhuma hoje).";
-
--- ======================================================================
--- urbi_regras_bloqueio
--- ======================================================================
-CREATE TABLE public.urbi_regras_bloqueio (
-    chave text NOT NULL,
-    ativo boolean DEFAULT false NOT NULL,
-    parametros jsonb DEFAULT '{}'::jsonb NOT NULL,
-    criado_em timestamp with time zone DEFAULT now() NOT NULL,
-    atualizado_em timestamp with time zone DEFAULT now() NOT NULL
-);
-ALTER TABLE public.urbi_regras_bloqueio ADD CONSTRAINT urbi_regras_bloqueio_pkey PRIMARY KEY (chave);
-COMMENT ON TABLE public.urbi_regras_bloqueio IS "Liga/desliga por regra das condições que fazem o URBI avisar/bloquear a análise de um\n   processo (Slot 1 e Slot 2). Fail-safe DESLIGADO em erro de leitura, mesmo padrão de\n   lib/documentosSei/config.ts. Editada por SQL direto até valer a pena UI de admin.";
-COMMENT ON COLUMN public.urbi_regras_bloqueio.parametros IS "Limiares específicos da regra, ex.: {\"diasBloqueio\":180,\"diasAviso\":170} para\n   COND_180_DIAS. Vazio ({}) para regras sem parâmetro.";
--- Chaves seedadas (ver migrations 2026_09_08_urbi_regras_bloqueio.sql e
--- 2026_09_08_urbi_regras_bloqueio_fase_b.sql): COND_180_DIAS, COND_FISCAL_DIVERGE,
--- COND_MARCO_TEMPORAL, COND_USO_SOLO, COND_BUSCA_ENDERECO, COND_ASSUNTO_ERRADO, COND_CHEADV_APTO.
 
 -- ======================================================================
 -- urbis_api_calls
@@ -2244,10 +2252,16 @@ CREATE TABLE public.urbis_config (
     id integer NOT NULL,
     inatividade_horas integer DEFAULT 72 NOT NULL,
     meta_processos_mensal integer DEFAULT 100 NOT NULL,
-    visao_ligada boolean DEFAULT true NOT NULL
+    visao_ligada boolean DEFAULT true NOT NULL,
+    documentos_vivos_regularizacao_ativo boolean DEFAULT false NOT NULL,
+    documentos_vivos_aceite_sei_ativo boolean DEFAULT false NOT NULL,
+    documentos_vivos_gemini_ativo boolean DEFAULT false NOT NULL
 );
 ALTER TABLE public.urbis_config ADD CONSTRAINT urbis_config_pkey PRIMARY KEY (id);
 COMMENT ON COLUMN public.urbis_config.visao_ligada IS "Interruptor operacional da visão localizada. false desliga a leitura por modelo; os campos caem para NAO_IMPLEMENTADO. Nunca altera regra — receitas vivem em lib/visao/receitas.ts.";
+COMMENT ON COLUMN public.urbis_config.documentos_vivos_regularizacao_ativo IS "Interruptor da aba \"Documentos\" (fatiador determinístico do PDF do SEI, Fase 2 de docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) na Regularização (Slot 1). false por padrão. Liga-se por SQL direto até haver UI de admin.";
+COMMENT ON COLUMN public.urbis_config.documentos_vivos_aceite_sei_ativo IS "Interruptor da aba Documentos (Organizador de PDF SEI) no Aceite SEI (Slot 2). false por padrão.";
+COMMENT ON COLUMN public.urbis_config.documentos_vivos_gemini_ativo IS "Interruptor do botão \"Analisar páginas ambíguas (Gemini)\" (Fase 8 de\n   docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md), Slots 1/2. false por padrão — gasta dinheiro real por\n   clique. Liga-se por SQL direto até haver UI de admin, mesma trilha das outras colunas deste\n   módulo.";
 
 -- ======================================================================
 -- urbis_lip_cores

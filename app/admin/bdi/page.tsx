@@ -16,10 +16,10 @@ type Stats = {
   aguardando_retorno_pendente: boolean;
   resumo: { total_processos: number; total_analistas: number; area_total_construida: number; area_media: number; total_retornos: number; total_bairros: number };
   por_assunto: { assunto: string; total_processos: number; area_total: number; area_media: number; total_retornos: number; porte: string; count_porte: number }[];
-  por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number }[];
+  por_analista: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number | null }[];
   por_bairro: { bairro: string; total_processos: number; area_total: number; assunto: string }[];
   produtividade: { analista: string; gerencia: string; mes: number; ano: number; tipo_processo: string; total_despachos: number; total_pontos: number }[];
-  analistas: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number; total_retornos: number; pontos_totais_mrp: number; despachos_mrp: number; assunto: string }[];
+  analistas: { analista: string; gerencia: string; total_processos: number; area_total: number; tempo_medio_horas: number | null; total_retornos: number; pontos_totais_mrp: number; despachos_mrp: number; assunto: string }[];
   retrabalho: { processo_codigo: string; virou_nao_conforme: number; foi_resolvido: number; trocas_totais: number }[];
   exigencias_contexto: { tipo_processo: string; faixa_area: string; bairro: string | null; exigencia: string; vezes: number; processos: number }[];
   desempenho_referencia: { referencia: string; reprovou: number; passou: number; processos: number; pct_reprova: number }[];
@@ -389,7 +389,7 @@ export default function BDIPage() {
                             <td className={TD}><Badge tom="info">{row.gerencia ?? "—"}</Badge></td>
                             <td className={TD}>{row.total_processos}</td>
                             <td className={TD}>{Number(row.area_total).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
-                            <td className={TD}>{Number(row.tempo_medio_horas).toFixed(1)}</td>
+                            <td className={TD}>{row.tempo_medio_horas == null ? "—" : Number(row.tempo_medio_horas).toFixed(1)}</td>
                           </tr>
                         ))}
                         {stats.por_analista.length === 0 && <Vazio cols={5}>Sem dados</Vazio>}
@@ -731,7 +731,7 @@ export default function BDIPage() {
                             <td className={TD}><Badge tom="accent">{r.assunto||"—"}</Badge></td>
                             <td className={TD}>{r.total_processos}</td>
                             <td className={TD}>{Number(r.area_total).toLocaleString("pt-BR",{maximumFractionDigits:0})}</td>
-                            <td className={TD}>{Number(r.tempo_medio_horas).toFixed(1)}</td>
+                            <td className={TD}>{r.tempo_medio_horas == null ? "—" : Number(r.tempo_medio_horas).toFixed(1)}</td>
                             <td className={TD}>{r.total_retornos}</td>
                             <td className={TD}>{Number(r.pontos_totais_mrp).toFixed(1)}</td>
                             <td className={TD}>{r.despachos_mrp}</td>

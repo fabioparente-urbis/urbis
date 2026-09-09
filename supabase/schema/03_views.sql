@@ -1,5 +1,5 @@
 -- VIEWS — definicao real (o repo nao tem o SQL de nenhuma delas)
--- Gerado por scripts/extrair_schema.mts em 2026-09-05.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-09.
 -- NAO EDITE A MAO: regenere.
 
 -- ======================================================================
@@ -1202,14 +1202,19 @@ CREATE OR REPLACE VIEW public.vw_bdi_analises_em_andamento AS
 -- opcoes: security_invoker=true
 -- ======================================================================
 CREATE OR REPLACE VIEW public.vw_bdi_analistas_desempenho AS
+ WITH retornos AS (
+         SELECT DISTINCT analises_mac.processo_codigo
+           FROM analises_mac
+          WHERE analises_mac.excluido_em IS NULL AND analises_mac.numero_analise > 1
+        )
  SELECT u.nome AS analista,
     u.gerencia,
     count(DISTINCT p.id) AS total_processos,
     COALESCE(sum(p.area_construida), 0::numeric) AS area_total,
-    COALESCE(avg(EXTRACT(epoch FROM p.tempo_total_analise) / 3600::numeric), 0::numeric) AS tempo_medio_horas,
+    avg(EXTRACT(epoch FROM p.tempo_total_analise) / 3600::numeric) AS tempo_medio_horas,
     count(DISTINCT
         CASE
-            WHEN p.eh_retorno THEN p.id
+            WHEN r.processo_codigo IS NOT NULL THEN p.id
             ELSE NULL::uuid
         END) AS total_retornos,
     COALESCE(sum(m.pontos), 0::numeric) AS pontos_totais_mrp,
@@ -1219,6 +1224,7 @@ CREATE OR REPLACE VIEW public.vw_bdi_analistas_desempenho AS
      LEFT JOIN usuarios u ON p.analista_id = u.id
      LEFT JOIN assuntos a ON p.assunto_id = a.id
      LEFT JOIN mrp_registros m ON m.usuario_id = u.id AND m.processo_codigo = p.codigo
+     LEFT JOIN retornos r ON r.processo_codigo = p.codigo
   WHERE a.nome !~~ 'Slot%'::text OR a.nome IS NULL
   GROUP BY u.id, u.nome, u.gerencia, a.id, a.nome;
 
@@ -1424,7 +1430,7 @@ CREATE OR REPLACE VIEW public.vw_bdi_por_analista AS
     u.gerencia,
     count(p.id) AS total_processos,
     COALESCE(sum(p.area_construida), 0::numeric) AS area_total,
-    COALESCE(avg(EXTRACT(epoch FROM p.tempo_total_analise) / 3600::numeric), 0::numeric) AS tempo_medio_horas
+    avg(EXTRACT(epoch FROM p.tempo_total_analise) / 3600::numeric) AS tempo_medio_horas
    FROM processos p
      JOIN usuarios u ON p.analista_id = u.id
      JOIN assuntos a ON p.assunto_id = a.id
@@ -1436,19 +1442,25 @@ CREATE OR REPLACE VIEW public.vw_bdi_por_analista AS
 -- opcoes: security_invoker=true
 -- ======================================================================
 CREATE OR REPLACE VIEW public.vw_bdi_por_assunto AS
+ WITH retornos AS (
+         SELECT DISTINCT analises_mac.processo_codigo
+           FROM analises_mac
+          WHERE analises_mac.excluido_em IS NULL AND analises_mac.numero_analise > 1
+        )
  SELECT a.nome AS assunto,
     count(p.id) AS total_processos,
     COALESCE(sum(p.area_construida), 0::numeric) AS area_total,
     COALESCE(avg(p.area_construida), 0::numeric) AS area_media,
     count(
         CASE
-            WHEN p.eh_retorno THEN 1
+            WHEN r.processo_codigo IS NOT NULL THEN 1
             ELSE NULL::integer
         END) AS total_retornos,
     p.porte,
     count(p.id) AS count_porte
    FROM processos p
      JOIN assuntos a ON p.assunto_id = a.id
+     LEFT JOIN retornos r ON r.processo_codigo = p.codigo
   WHERE a.nome !~~ 'Slot%'::text
   GROUP BY a.id, a.nome, p.porte;
 
@@ -1487,18 +1499,24 @@ CREATE OR REPLACE VIEW public.vw_bdi_produtividade_mensal AS
 -- opcoes: security_invoker=true
 -- ======================================================================
 CREATE OR REPLACE VIEW public.vw_bdi_resumo_geral AS
+ WITH retornos AS (
+         SELECT DISTINCT analises_mac.processo_codigo
+           FROM analises_mac
+          WHERE analises_mac.excluido_em IS NULL AND analises_mac.numero_analise > 1
+        )
  SELECT count(DISTINCT p.id) AS total_processos,
     count(DISTINCT p.analista_id) AS total_analistas,
     COALESCE(sum(p.area_construida), 0::numeric) AS area_total_construida,
     COALESCE(avg(p.area_construida), 0::numeric) AS area_media,
     count(
         CASE
-            WHEN p.eh_retorno THEN 1
+            WHEN r.processo_codigo IS NOT NULL THEN 1
             ELSE NULL::integer
         END) AS total_retornos,
     count(DISTINCT (p.dados -> 'bairro'::text) ->> 'valor'::text) AS total_bairros
    FROM processos p
      JOIN assuntos a ON p.assunto_id = a.id
+     LEFT JOIN retornos r ON r.processo_codigo = p.codigo
   WHERE a.nome !~~ 'Slot%'::text;
 
 -- ======================================================================

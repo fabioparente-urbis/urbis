@@ -1,5 +1,5 @@
 -- FUNCOES E PROCEDURES
--- Gerado por scripts/extrair_schema.mts em 2026-09-05.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-09.
 -- NAO EDITE A MAO: regenere.
 
 CREATE OR REPLACE FUNCTION public._get_checklist_itens_modelo_table()

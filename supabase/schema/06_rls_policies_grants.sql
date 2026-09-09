@@ -1,10 +1,11 @@
 -- RLS, POLICIES E GRANTS — estado real apos a trava de 01/09/2026
--- Gerado por scripts/extrair_schema.mts em 2026-09-05.
+-- Gerado por scripts/extrair_schema.mts em 2026-09-09.
 -- NAO EDITE A MAO: regenere.
 
--- Tabelas sem RLS ativo (3 de 128):
+-- Tabelas sem RLS ativo (4 de 129):
 --   mac_checklist_itens_historico
 --   mac_vinculos_propostas
+--   urbi_regras_bloqueio
 --   urbi_sugestoes
 
 -- RLS ativo:
@@ -214,7 +215,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
   USING (is_admin_user())
   WITH CHECK (is_admin_user());
 
--- Grants para anon/authenticated/service_role/PUBLIC (197 linhas):
+-- Grants para anon/authenticated/service_role/PUBLIC (198 linhas):
 -- admin_users                                service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- alertas                                    service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- analise_itens                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
@@ -327,6 +328,7 @@ CREATE POLICY processos_update_admin_only ON public.processos AS PERMISSIVE FOR 
 -- urbi_presenca_eventos                      service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_radar_execucoes                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_radar_retratos                        service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+-- urbi_regras_bloqueio                       service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbi_sugestoes                             service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_api_calls                            service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
 -- urbis_aportes                              service_role    DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
