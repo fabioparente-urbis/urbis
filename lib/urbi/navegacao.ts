@@ -566,7 +566,14 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
   }
 
   if (filtros.lipInacabado) {
-    saida = saida.filter((p) => p.situacao_lip === "Incompleto");
+    // 08/09/2026, pedido do Fábio: processo já indeferido/arquivado ou já encerrado (laudo
+    // emitido) está CONCLUÍDO — não entra em "LIP inacabado" mesmo com campo vazio, porque não
+    // sobrou nada pra "inacabar": ninguém vai voltar a preencher o LIP de um processo fechado.
+    saida = saida.filter((p) =>
+      p.situacao_lip === "Incompleto" &&
+      p.situacao_mac !== "Arquivado/indeferido" &&
+      p.situacao_mac !== "Encerrado",
+    );
   }
 
   if (filtros.macInacabado) {
