@@ -82,8 +82,11 @@ function MdpProcessoConteudo() {
           {/* 08/09/2026, pedido do Fábio: "quando o URBI me mandar pro MDP, ele tem que deixar o
               link pra voltar pra Pilha" — router.back() nem sempre volta pra Pilha (pode ter
               vindo de outro lugar), então um link explícito garante o caminho de volta. */}
-          <button onClick={() => router.push("/processos")}
-            className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold px-3 py-1.5 rounded text-sm transition-colors">📋 Pilha</button>
+          {/* Filtrado pelo próprio código — 08/09/2026, pedido do Fábio: "quando o URBI me leva
+              pro MDP ele tem que me oferecer um link pra voltar pro MESMO LUGAR na pilha", não a
+              lista inteira do zero. Reaproveita a busca que a Pilha já lê da URL (?busca=). */}
+          <button onClick={() => router.push(`/processos?busca=${encodeURIComponent(String(codigo ?? ""))}`)}
+            className="bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-secondary)] font-bold px-3 py-1.5 rounded text-sm transition-colors">📋 Voltar pra Pilha</button>
           <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
           <div>
