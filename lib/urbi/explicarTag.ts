@@ -177,18 +177,22 @@ function explicarMac(e: Extract<EntradaExplicacao, { familia: "mac" }>): string 
       ? "MAC em análise — tem uma análise aberta que ainda não gerou documento."
       : e.valor === "Não iniciado"
         ? "MAC não iniciado — nenhuma análise foi aberta pra esse processo ainda."
-        : e.valor === "Arquivado/indeferido"
-          ? "Processo indeferido ou arquivado — resultado definitivo, não se reabre sozinho."
-          : `MAC: ${e.valor}.`;
+        : e.valor === "Encerrado"
+          ? "Encerrado — o laudo já saiu pra essa análise. Não é \"aguardando retorno\": laudo é o veredito técnico final, não uma exigência esperando resposta."
+          : e.valor === "Arquivado/indeferido"
+            ? "Processo indeferido ou arquivado — resultado definitivo, não se reabre sozinho."
+            : `MAC: ${e.valor}.`;
 
   const oQueFazer =
     e.valor === "Em análise"
       ? "É esse que está na sua mão agora."
       : e.valor === "Não iniciado"
         ? "Se o LIP já estiver preenchido, dá pra abrir a primeira análise."
-        : e.valor === "Arquivado/indeferido"
-          ? "Não tem análise nova a fazer aqui."
-          : "";
+        : e.valor === "Encerrado"
+          ? "Não tem análise nova a fazer aqui, a menos que o processo volte por outro motivo."
+          : e.valor === "Arquivado/indeferido"
+            ? "Não tem análise nova a fazer aqui."
+            : "";
 
   return montar([
     cabeca,

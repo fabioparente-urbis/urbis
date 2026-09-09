@@ -62,17 +62,18 @@ type Processo = {
 
 type SituacaoGeral =
   | "Arquivado/indeferido"
+  | "Encerrado"
   | "Aguardando retorno do interessado"
   | "MAC em análise"
   | "LIP pendente"
   | "Em cadastro";
 
 type SituacaoLip = "Não iniciado" | "Incompleto" | "Completo";
-type SituacaoMac = "Não iniciado" | "Em análise" | "Aguardando retorno do interessado" | "Arquivado/indeferido";
+type SituacaoMac = "Não iniciado" | "Em análise" | "Aguardando retorno do interessado" | "Encerrado" | "Arquivado/indeferido";
 
 const SITUACAO_OPCOES: SituacaoGeral[] = [
   "Em cadastro", "LIP pendente", "MAC em análise",
-  "Aguardando retorno do interessado", "Arquivado/indeferido",
+  "Aguardando retorno do interessado", "Encerrado", "Arquivado/indeferido",
 ];
 
 const SITUACAO_COR: Record<SituacaoGeral, string> = {
@@ -80,6 +81,7 @@ const SITUACAO_COR: Record<SituacaoGeral, string> = {
   "LIP pendente": "bg-[var(--warning-bg)] text-[var(--warning)]",
   "MAC em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
   "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
+  "Encerrado": "bg-[var(--success-bg)] text-[var(--success)]",
   "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
 };
 
@@ -106,6 +108,7 @@ const SITUACAO_MAC_COR: Record<SituacaoMac, string> = {
   "Não iniciado": "bg-[var(--bg-secondary)] text-[var(--text-secondary)]",
   "Em análise": "bg-[var(--accent)] text-[var(--accent-fg)]",
   "Aguardando retorno do interessado": "bg-[var(--ia-bg)] text-[var(--ia)]",
+  "Encerrado": "bg-[var(--success-bg)] text-[var(--success)]",
   "Arquivado/indeferido": "bg-[var(--error-bg)] text-[var(--error)]",
 };
 

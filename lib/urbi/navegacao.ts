@@ -39,7 +39,7 @@ export type TriagemPilha = "mais_simples";
  *  literais do vigia precisa ser espelhada aqui à mão. */
 export type ClassificacaoVigiaPilha = "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
 export type PortePilha = "PP" | "MP" | "GP";
-/** As mesmas 5 classes de `situacaoGeral()` (lib/bdi/situacao.ts) — repetidas
+/** As mesmas 6 classes de `situacaoGeral()` (lib/bdi/situacao.ts) — repetidas
  *  aqui como literal, mesmo motivo do comentário de ClassificacaoVigiaPilha
  *  acima: este arquivo não importa módulo com regra própria. Mudar os
  *  literais de lib/bdi/situacao.ts precisa ser espelhado aqui à mão. */
@@ -48,6 +48,7 @@ export type SituacaoGeralPilha =
   | "LIP pendente"
   | "MAC em análise"
   | "Aguardando retorno do interessado"
+  | "Encerrado"
   | "Arquivado/indeferido";
 
 export type FiltrosPilha = {
@@ -202,6 +203,7 @@ function acharOrdem(t: string): OrdemPilha | null {
  * direto, sem precisar de frase de situação.
  */
 function acharSituacaoGeral(t: string): SituacaoGeralPilha | null {
+  if (/\bencerrad[oa]s?\b/.test(t)) return "Encerrado";
   if (/\baguardando\s+(o\s+)?retorno(\s+do\s+interessado)?\b/.test(t)) return "Aguardando retorno do interessado";
   if (/\b(situacao\s+)?arquivad[oa]s?\s+(ou|e)\s+indeferid[oa]s?\b/.test(t)
     || /\bindeferid[oa]s?\s+(ou|e)\s+arquivad[oa]s?\b/.test(t)
@@ -682,6 +684,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
     situacaoGeral === "LIP pendente" ||
     situacaoGeral === "MAC em análise" ||
     situacaoGeral === "Aguardando retorno do interessado" ||
+    situacaoGeral === "Encerrado" ||
     situacaoGeral === "Arquivado/indeferido"
   ) {
     f.situacaoGeral = situacaoGeral;

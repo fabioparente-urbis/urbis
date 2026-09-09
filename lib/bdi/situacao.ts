@@ -29,6 +29,7 @@
 /** As 5 situações possíveis — a ordem é a ordem de checagem (a de cima vence). */
 export type SituacaoGeral =
   | "Arquivado/indeferido"
+  | "Encerrado"
   | "Aguardando retorno do interessado"
   | "MAC em análise"
   | "LIP pendente"
@@ -40,6 +41,7 @@ export type SituacaoMac =
   | "Não iniciado"
   | "Em análise"
   | "Aguardando retorno do interessado"
+  | "Encerrado"
   | "Arquivado/indeferido";
 
 export type ClassificacaoComMotivo<T extends string> = {
@@ -181,6 +183,30 @@ export function situacaoMac(
     };
   }
 
+  /**
+   * Laudo é o veredito técnico final — checado ANTES de despacho/parecer e ANTES mesmo de
+   * `ultimaPassada` existir. Achado ao vivo em 08/09/2026 (Fábio): dois bugs na mesma tela —
+   * (1) um processo com laudo emitido mas SEM nenhuma análise ativa em `analises_mac` (excluídas
+   * depois de emitir) caía direto em "Não iniciado", ignorando o laudo, que é fato permanente na
+   * tag do processo, independente de a análise que o gerou ainda existir na tabela; (2) um
+   * processo com despacho E laudo (laudo depois, mesma análise) caía em "Aguardando retorno do
+   * interessado" — errado: laudo emitido encerra a análise, não é "esperando resposta de
+   * ninguém". "Se o laudo foi emitido... os processos estão encerrados" — Fábio.
+   *
+   * Só NÃO conta como encerrado quando uma análise mais nova que o laudo já foi carregada de
+   * verdade (importou PDF ou copiou a anterior) — aí o ciclo seguinte já começou.
+   */
+  const ultimaTagLaudo = tagMaisRecente(tags.filter((t) => t.tipo === "laudo"));
+  if (ultimaTagLaudo) {
+    const passadaDaTag = ultimaTagLaudo.numero_analise ?? 0;
+    if (!ultimaPassada || ultimaPassada.numero_analise <= passadaDaTag) {
+      return {
+        classe: "Encerrado",
+        motivo: `Laudo emitido para a análise nº ${passadaDaTag || "?"}, sem análise nova aberta depois (processos.tags).`,
+      };
+    }
+  }
+
   if (!ultimaPassada) {
     return { classe: "Não iniciado", motivo: "Nenhuma análise (analises_mac) registrada para este processo ainda." };
   }
@@ -196,19 +222,6 @@ export function situacaoMac(
       classe: "Aguardando retorno do interessado",
       motivo: `Análise nº ${ultimaPassada.numero_analise} já tem parecer nº ${ultimaPassada.numero_parecer} commitado (analises_mac.numero_parecer).`,
     };
-  }
-
-  // Laudo não consome numeração própria (não tem coluna numero_* dedicada em
-  // analises_mac) — só a tag do processo prova que ele saiu.
-  const ultimaTagLaudo = tagMaisRecente(tags.filter((t) => t.tipo === "laudo"));
-  if (ultimaTagLaudo) {
-    const passadaDaTag = ultimaTagLaudo.numero_analise ?? 0;
-    if (ultimaPassada.numero_analise <= passadaDaTag) {
-      return {
-        classe: "Aguardando retorno do interessado",
-        motivo: `Laudo emitido para a análise nº ${passadaDaTag || "?"}, sem análise nova aberta depois (processos.tags).`,
-      };
-    }
   }
 
   if (ultimaPassada.status === "em_andamento") {
@@ -244,6 +257,7 @@ export function situacaoGeral(
 ): ClassificacaoComMotivo<SituacaoGeral> {
   const mac = situacaoMac(ultimaPassada, tags);
   if (mac.classe === "Arquivado/indeferido") return { classe: "Arquivado/indeferido", motivo: mac.motivo };
+  if (mac.classe === "Encerrado") return { classe: "Encerrado", motivo: mac.motivo };
   if (mac.classe === "Em análise") return { classe: "MAC em análise", motivo: mac.motivo };
   if (mac.classe === "Aguardando retorno do interessado") {
     return { classe: "Aguardando retorno do interessado", motivo: mac.motivo };
