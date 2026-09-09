@@ -33,7 +33,7 @@ export type EntradaExplicacao =
       noMdp?: boolean;
     }
   | { familia: "tipo"; valor: string }
-  | { familia: "lip"; valor: string; motivo?: string | null; marcadoManualmente?: boolean }
+  | { familia: "lip"; valor: string; motivo?: string | null; marcadoManualmente?: boolean; finalizado?: boolean }
   | { familia: "mac"; valor: string; motivo?: string | null; diasAguardando?: number | null }
   | {
       familia: "esforco";
@@ -140,6 +140,9 @@ function explicarLip(e: Extract<EntradaExplicacao, { familia: "lip" }>): string 
     cabeca,
     e.marcadoManualmente
       ? "Você marcou esse LIP como \"não concluído\" na mão — por isso ele conta como incompleto mesmo com os campos cheios."
+      : null,
+    e.finalizado
+      ? "Você clicou em \"Finalizar LIP\" — decidiu parar de preencher e seguir pro MAC com o que já tem, mesmo que falte campo."
       : null,
     oQueFazer ? "" : null,
     oQueFazer,

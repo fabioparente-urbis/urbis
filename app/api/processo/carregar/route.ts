@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   // Sem tipo: mantém comportamento legado — primeira ocorrência (mais antiga).
   let query = supabaseAdmin
     .from('processos')
-    .select('id, dados, analista_id, tipo_processo, assunto_id, tags, lip_incompleto, laudo_campos_ocultos')
+    .select('id, dados, analista_id, tipo_processo, assunto_id, tags, lip_incompleto, lip_finalizado, laudo_campos_ocultos')
     .eq('codigo', codigo)
 
   if (tipo) query = query.eq('tipo_processo', tipo)

@@ -56,6 +56,8 @@ type Processo = {
   acao_bloqueante_motivo?: string | null;
   /** Números de documento deste processo que existem no MDP (`/api/processos`, 08/09/2026). */
   documentos_mdp?: string[];
+  /** "Finalizar LIP" (08/09/2026) — analista decidiu parar por aqui e seguir pro MAC. */
+  lip_finalizado?: boolean;
 };
 
 type SituacaoGeral =
@@ -713,11 +715,12 @@ function ProcessosConteudo() {
                     onClick={(e) => {
                       e.stopPropagation();
                       window.dispatchEvent(new CustomEvent("urbi:explicar", { detail: { mensagem: explicarTag({
-                        familia: "lip", valor: p.situacao_lip || "—", motivo: p.situacao_lip_motivo, marcadoManualmente: !!p.lip_incompleto,
+                        familia: "lip", valor: p.situacao_lip || "—", motivo: p.situacao_lip_motivo,
+                        marcadoManualmente: !!p.lip_incompleto, finalizado: !!p.lip_finalizado,
                       }) } }));
                     }}
                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold whitespace-nowrap hover:ring-2 hover:ring-[var(--accent)] ${p.situacao_lip ? SITUACAO_LIP_COR[p.situacao_lip] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
-                    LIP: {p.situacao_lip || "—"}
+                    LIP: {p.situacao_lip || "—"}{p.lip_finalizado ? " ✓" : ""}
                   </button>
                   <button type="button"
                     title={

@@ -321,6 +321,8 @@ export default function ProcessoClient() {
   const [processoDbId, setProcessoDbId] = useState<string | null>(null);
   const [lipIncompleto, setLipIncompleto] = useState(false);
   const [salvandoLipIncompleto, setSalvandoLipIncompleto] = useState(false);
+  const [lipFinalizado, setLipFinalizado] = useState(false);
+  const [finalizandoLip, setFinalizandoLip] = useState(false);
   const [laudoOcultos, setLaudoOcultos] = useState<string[]>([]);
   // Busca de coordenada no Mapa Fácil pelo IPTU (ver `buscarCoordenadas`).
   const [buscandoCoord, setBuscandoCoord] = useState(false);
@@ -455,6 +457,7 @@ export default function ProcessoClient() {
       }
       setProcessoDbId(json.data.id ?? null);
       setLipIncompleto(json.data.lip_incompleto === true);
+      setLipFinalizado(json.data.lip_finalizado === true);
       setLaudoOcultos(Array.isArray(json.data.laudo_campos_ocultos) ? json.data.laudo_campos_ocultos : []);
       const dadosSalvos = json.data.dados;
       setD((prev) => {
@@ -495,6 +498,39 @@ export default function ProcessoClient() {
       mostrarToast("Erro ao marcar LIP não concluído.", "erro");
     } finally {
       setSalvandoLipIncompleto(false);
+    }
+  }
+
+  /**
+   * "Finalizar LIP" — 08/09/2026, pedido do Fábio, Slot 1 e 2: "ao clicar nele o URBI/tags
+   * entende que o LIP tá finalizado por enquanto e já exporta o Excel do LIP". Diferente de
+   * `lipIncompleto` (que é "sei que falta algo, me lembra"): isso é "decidi parar por aqui e
+   * seguir pro MAC com o que tem" — os dois podem estar marcados ao mesmo tempo. Exporta puxando
+   * o mesmo link que o botão "Exportar Excel" já usa, sem duplicar lógica de geração.
+   */
+  async function finalizarLip() {
+    if (!processoDbId || finalizandoLip) return;
+    setFinalizandoLip(true);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, lip_finalizado: true }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) { mostrarToast("Erro ao finalizar o LIP.", "erro"); return; }
+      setLipFinalizado(true);
+      const a = document.createElement("a");
+      a.href = `/api/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl || "regularizacao"}`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      mostrarToast("LIP finalizado — Excel exportado.", "sucesso");
+    } catch {
+      mostrarToast("Erro ao finalizar o LIP.", "erro");
+    } finally {
+      setFinalizandoLip(false);
     }
   }
 
@@ -2922,6 +2958,23 @@ export default function ProcessoClient() {
             }`}>
             {lipIncompleto ? "🔴 LIP não concluído" : "⚪ Marcar LIP não concluído"}
           </button>
+          {/* Só Slot 1 (regularizacao) e Slot 2 (aceite_sei) — pedido explícito do Fábio,
+              08/09/2026. Desvio por tipo_processo dentro do arquivo compartilhado do LIP, sem
+              alterar o caminho dos demais slots (regra do CLAUDE.md). */}
+          {(tipoUrl === "regularizacao" || tipoUrl === "aceite_sei") && (
+            <button
+              type="button"
+              onClick={finalizarLip}
+              disabled={!processoDbId || finalizandoLip}
+              title="Marca o LIP como finalizado por enquanto (mesmo incompleto) e já exporta o Excel"
+              className={`mt-1 px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 ${
+                lipFinalizado
+                  ? "bg-[var(--success-bg)] border border-[var(--success)] text-[var(--success)]"
+                  : "bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--success)]"
+              }`}>
+              {finalizandoLip ? "⏳ Finalizando..." : lipFinalizado ? "✅ LIP finalizado" : "🏁 Finalizar LIP"}
+            </button>
+          )}
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
