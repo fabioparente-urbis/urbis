@@ -300,8 +300,17 @@ export function montarRelatorioMotor(d: Record<string, any>): RelatorioMotor {
   const situacoes = d.situacoes ?? {};
 
   const { documento: acoesDocumento, critico: acoesCritico } = candidatosCamposVazios(lip, d.mhd);
+  /**
+   * Pendência de checklist ("não conforme") só é AÇÃO BLOQUEANTE de verdade quando a análise que
+   * a gerou ainda está aberta — achado ao vivo em 08/09/2026 (Fábio): "quero resolver esses 42
+   * processos com ação bloqueante... isso tá errado". Um item "não conforme" que já resultou em
+   * despacho, laudo ou indeferimento não é mais "coisa pra resolver hoje": ou o interessado já
+   * foi cobrado por ele (despacho), ou o processo já fechou (laudo/indeferido/encerrado) — nesses
+   * casos o item conta pra história, não pro Briefing do dia.
+   */
+  const macAindaAberto = situacoes.mac?.classe === "Em análise";
   const todasAsAcoes: AcaoPrioritaria[] = [
-    ...candidatosPendencias(mac),
+    ...(macAindaAberto ? candidatosPendencias(mac) : []),
     ...acoesDocumento,
     ...acoesCritico,
     ...candidatosReincidenciaERetorno(mac, fluxo, tecnico),
