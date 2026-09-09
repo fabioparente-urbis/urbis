@@ -7,7 +7,18 @@ import { useRouter } from "next/navigation";
 // Tela de Backup & Restauração — somente Administrador
 // ===========================================================================
 
-type Tipo = "processos" | "usuarios" | "prompts" | "config" | "mrp" | "map" | "bdi" | "tudo";
+type Tipo =
+  | "processos"
+  | "usuarios"
+  | "prompts"
+  | "config"
+  | "mrp"
+  | "map"
+  | "bdi"
+  | "mdp"
+  | "mhd"
+  | "urbi"
+  | "tudo";
 
 type Secao = {
   tipo: Tipo;
@@ -24,15 +35,27 @@ const SECOES: Secao[] = [
     titulo: "Processos",
     emoji: "📂",
     descricao:
-      "Processos abertos, análises MAC, histórico MAC, resultados LIP e documentos vinculados.",
+      "Processos abertos, análises MAC (todos os slots), histórico, resultados LIP, execuções, vínculos MAC↔BIP/LIP e documentos.",
     tabelas: [
       "processos",
       "analises_mac",
       "mac_historico",
+      "mac_checklist_itens_historico",
+      "mac_execucoes",
+      "mac_resultados_item",
+      "mac_resultados_revisoes",
+      "mac_slot5_filtros",
+      "mac_vinculos_propostas",
+      "mac_bip_vinculos",
+      "mac_lip_vinculos",
       "lip_resultados",
+      "lip_jobs",
       "documentos",
       "documentos_processo",
       "processo_historico",
+      "processo_profissionais",
+      "bip_anotacoes_usuario",
+      "bip_historico_anotacoes",
     ],
     prefixoArquivo: "processos",
   },
@@ -40,8 +63,8 @@ const SECOES: Secao[] = [
     tipo: "usuarios",
     titulo: "Usuários",
     emoji: "👥",
-    descricao: "Cadastro de usuários, perfis e gerências.",
-    tabelas: ["usuarios"],
+    descricao: "Cadastro de usuários, perfis, gerências e profissionais.",
+    tabelas: ["usuarios", "profissionais"],
     prefixoArquivo: "usuarios",
   },
   {
@@ -57,15 +80,16 @@ const SECOES: Secao[] = [
     titulo: "Configurações e Estrutura",
     emoji: "⚙️",
     descricao:
-      "Abas/campos LIP, modelos e itens de checklist MAC, configurações URBI, legislação e logradouros.",
+      "Abas/campos LIP, modelos e itens de checklist MAC, logradouros, assuntos, padrões de despacho e observações-código.",
     tabelas: [
       "lip_abas",
       "lip_campos",
       "mac_checklist_modelos",
       "mac_checklist_itens",
-      "urbi_config",
-      "urbi_legislacao",
       "logradouros",
+      "assuntos",
+      "despacho_padroes",
+      "obs_cod",
     ],
     prefixoArquivo: "config",
   },
@@ -73,8 +97,14 @@ const SECOES: Secao[] = [
     tipo: "mrp",
     titulo: "MRP — Minha Produtividade",
     emoji: "📊",
-    descricao: "Registros de produtividade, calendário, pontuação e painel diário.",
-    tabelas: ["mrp_registros", "mrp_calendario", "mrp_pontuacao", "mrp_painel_diario"],
+    descricao: "Registros de produtividade, calendário, pontuação (atual e histórica) e metas.",
+    tabelas: [
+      "mrp_registros",
+      "mrp_calendario",
+      "mrp_pontuacao",
+      "mrp_pontuacao_historico",
+      "mrp_meta_historico",
+    ],
     prefixoArquivo: "mrp",
   },
   {
@@ -94,11 +124,60 @@ const SECOES: Secao[] = [
     prefixoArquivo: "bdi",
   },
   {
+    tipo: "mdp",
+    titulo: "MDP — Despachos e Pareceres",
+    emoji: "📤",
+    descricao: "Registro do que SAIU: despachos, pareceres, indeferimentos, arquivamentos e laudos emitidos.",
+    tabelas: ["mdp_registros"],
+    prefixoArquivo: "mdp",
+  },
+  {
+    tipo: "mhd",
+    titulo: "MHD — Histórico e Documentos",
+    emoji: "🗃️",
+    descricao: "Memória do que ENTROU, por hash: documentos, versões, conteúdos, eventos e leituras por visão.",
+    tabelas: [
+      "mhd_documentos",
+      "mhd_versoes",
+      "mhd_conteudos",
+      "mhd_eventos",
+      "mhd_interpretacoes_visao",
+      "mhd_resultados_campo",
+    ],
+    prefixoArquivo: "mhd",
+  },
+  {
+    tipo: "urbi",
+    titulo: "URBI e satélites",
+    emoji: "🤖",
+    descricao:
+      "Config e legislação do URBI, histórico de conversa, sugestões, regras de bloqueio, radar, sessões e a numeração única de despachos/pareceres (todos os slots).",
+    tabelas: [
+      "urbi_config",
+      "urbi_legislacao",
+      "urbi_historico",
+      "urbi_sugestoes",
+      "urbi_regras_bloqueio",
+      "urbi_radar_retratos",
+      "urbi_radar_execucoes",
+      "urbi_atendimento_ativo",
+      "urbi_comandos_voz",
+      "urbi_presenca_eventos",
+      "urbis_config",
+      "urbis_sessoes",
+      "urbis_api_calls",
+      "urbis_aportes",
+      "urbis_numeracao_faixas",
+      "urbis_numeracao_uso",
+    ],
+    prefixoArquivo: "urbi",
+  },
+  {
     tipo: "tudo",
     titulo: "Backup Geral (tudo)",
     emoji: "🗄",
     descricao:
-      "Exporta todas as tabelas acima em um único arquivo, com chaves separadas por tabela.",
+      "Exporta TODAS as tabelas reais do URBIS num único arquivo — todos os slots, todos os módulos (LIP, MAC, MDP, MHD, URBI, MAP, MRP, BDI), processos, configurações e usuários — com chaves separadas por tabela.",
     tabelas: [],
     prefixoArquivo: "COMPLETO",
   },
@@ -140,6 +219,9 @@ export default function BackupPage() {
     mrp: {},
     map: {},
     bdi: {},
+    mdp: {},
+    mhd: {},
+    urbi: {},
     tudo: {},
   });
   const inputsRef = useRef<Record<Tipo, HTMLInputElement | null>>({
@@ -150,6 +232,9 @@ export default function BackupPage() {
     mrp: null,
     map: null,
     bdi: null,
+    mdp: null,
+    mhd: null,
+    urbi: null,
     tudo: null,
   });
 
