@@ -1091,6 +1091,19 @@ export default function MacPage() {
       mostrarToast("✅ Despacho gerado!");
 
       /**
+       * "MAC só finaliza com a exportação de documento — o mesmo botão, depois de exportar o
+       * documento, exporta o Excel" (08/09/2026, pedido do Fábio, corrigindo o entendimento
+       * anterior: não é aviso pra confirmar, é automático). Respiro de 800ms — mesmo padrão já
+       * usado no backup LIP+MAC (comentário logo abaixo), porque o navegador costuma engolir um
+       * segundo download disparado no mesmo instante do primeiro.
+       */
+      if (capturedAnaliseId) {
+        setTimeout(() => {
+          window.open(`/api/mac/exportar-mac?analiseId=${capturedAnaliseId}&codigo=${encodeURIComponent(codigo)}`, "_blank");
+        }, 800);
+      }
+
+      /**
        * Backup ao concluir a análise — 08/09/2026, ideia do Fábio: "o URBI poderia recomendar
        * exportar o LIP e o MAC ao concluir uma análise pra ter backup de reserva".
        *
