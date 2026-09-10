@@ -56,9 +56,35 @@ export async function POST(req: NextRequest) {
     const uploadData = await uploadRes.json();
     const fileUri = uploadData.file?.uri;
     const filName = uploadData.file?.name;
-    const state = uploadData.file?.state;
+    let state = uploadData.file?.state;
+
+    // Arquivo grande pode voltar do upload ainda em PROCESSING — se o S2/S3
+    // usar o fileUri nesse estado, o Gemini responde 400 INVALID_ARGUMENT.
+    // PDFs pequenos processavam rápido o bastante pra isso nunca aparecer;
+    // a partir de ~50MB o processamento passa a durar mais que o upload.
+    let tentativasEspera = 0;
+    while (state === "PROCESSING" && tentativasEspera < 20) {
+      await new Promise((r) => setTimeout(r, 2000));
+      const statusRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/${filName}?key=${apiKey}`
+      );
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        state = statusData.state;
+      }
+      tentativasEspera++;
+    }
 
     console.log(`[S1] Concluído: ${filName} | state: ${state} | URI: ${fileUri}`);
+
+    if (state !== "ACTIVE") {
+      await registrarChamadaIA({
+        modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
+        tamanhoBytes: fileSizeBytes, duracaoMs: Date.now() - t0,
+        status: "erro", motivoErro: `Arquivo não ficou ACTIVE a tempo (state: ${state})`,
+      });
+      return NextResponse.json({ ok: false, erro: `ARQUIVO_NAO_PRONTO: O Gemini ainda estava processando o arquivo (state: ${state}). Tente novamente em instantes.` }, { status: 503 });
+    }
 
     await registrarChamadaIA({
       modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
