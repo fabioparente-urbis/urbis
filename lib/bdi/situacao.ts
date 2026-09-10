@@ -117,7 +117,21 @@ function temTagDeArquivamento(tags: TagProcesso[]): boolean {
 export function situacaoLip(
   campos: ResumoCamposLip | null,
   marcadoIncompleto?: boolean,
+  /**
+   * Pedido do Fábio, 10/09/2026 (processo 25.28.000000868-8: LIP finalizado e indeferido no MAC,
+   * mas a Pilha continuava cobrando campo vazio de LIP como se o processo ainda fosse ser
+   * analisado). Passe `true` quando `situacaoMac(...).classe === "Arquivado/indeferido"` — uma
+   * vez indeferido, campo de LIP vazio para de ser pendência. Não cobre "Encerrado" (laudo
+   * emitido): só o que o Fábio decidiu.
+   */
+  macArquivadoOuIndeferido?: boolean,
 ): ClassificacaoComMotivo<SituacaoLip> {
+  if (macArquivadoOuIndeferido) {
+    return {
+      classe: "Completo",
+      motivo: "Processo arquivado/indeferido no MAC — LIP pendente deixa de contar como pendência, mesmo com campo vazio (processos.tags).",
+    };
+  }
   if (!campos || campos.campos_totais === 0) {
     return { classe: "Não iniciado", motivo: "Nenhum campo do LIP tem dado gravado ainda." };
   }

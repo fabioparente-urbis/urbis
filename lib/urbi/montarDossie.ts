@@ -271,10 +271,11 @@ export async function montarDossieFactual(
     eventosCatalogo: eventosCatalogoBrutos ?? [],
   });
 
+  const sitMacDossie = situacaoMac(ultimaPassada, tags as any);
   const situacoes = {
     geral: situacaoGeral(resumoCampos, ultimaPassada, tags as any, (processo as any).lip_incompleto === true),
-    lip: situacaoLip(resumoCampos, (processo as any).lip_incompleto === true),
-    mac: situacaoMac(ultimaPassada, tags as any),
+    lip: situacaoLip(resumoCampos, (processo as any).lip_incompleto === true, sitMacDossie.classe === "Arquivado/indeferido"),
+    mac: sitMacDossie,
   };
 
   return {

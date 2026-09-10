@@ -229,8 +229,8 @@ export async function GET(req: NextRequest) {
 
     // --- as 3 situações (lib/bdi/situacao.ts), idênticas às da Pilha
     const sitGeral = situacaoGeral(campos, ultimaPassada, tags, (p as any).lip_incompleto === true);
-    const sitLip = situacaoLip(campos, (p as any).lip_incompleto === true);
     const sitMac = situacaoMac(ultimaPassada, tags);
+    const sitLip = situacaoLip(campos, (p as any).lip_incompleto === true, sitMac.classe === "Arquivado/indeferido");
 
     // --- o que falta preencher: nomes de campo, nunca o valor
     const resumoCampos = resumirCampos(dados);
