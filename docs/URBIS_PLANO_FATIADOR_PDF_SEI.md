@@ -1,6 +1,6 @@
 # PLANO — Fatiador de PDF do SEI + Módulo de Análise de Fluxo
 
-**Versão:** 2 · **Data:** 10/09/2026 · **Estado:** proposto, nada implementado
+**Versão:** 3 · **Data:** 10/09/2026 · **Estado:** proposto, nada implementado
 **Autoria:** ideia e direção do Fábio Parente · expansão para Análise de Fluxo discutida com o
 Gemini · levantamento técnico, verificação e redação na sessão Claude de 10/09/2026
 
@@ -188,6 +188,7 @@ do Fatiador.
 | **F7** | **Assinante, setor e data do documento persistidos.** Extraídos e descartados (§4.1). | colunas de `mhd_documentos` |
 | **F8** | **Qualquer métrica por departamento ou por signatário.** Nenhuma view, nenhuma coluna. | 21 views inspecionadas |
 | **F9** | **Medição de tempo entre etapas da prefeitura.** `vw_bdi_tempo_etapas` mede minutos dentro do URBIS, não a jornada do processo. | amostra real da view |
+| **F10** | **O classificador é cego para 3 dos 4 sinais.** `abrirContainer(paginasDoEvento: PaginaTexto[])` recebe só texto e dimensões da página — **não recebe departamento, assinante nem posição no fluxo**, que o fatiador já extrai. Classifica por regex no corpo da página, ignorando a moldura que de fato identifica um documento administrativo. | assinatura da função + varredura sem resultado por `setor`/`assinante`/`contexto` em `pecas.ts` |
 
 ---
 
@@ -250,18 +251,64 @@ padrões e **propor melhorias** — não só diagnosticar.
 
 Duas coisas na proposta original precisam de ajuste, porque contrariam dados medidos do projeto.
 
-### 8.1 "Processar só texto, eliminando leitura de imagem" — meio certo
+### 8.1 "Processar só texto, eliminando leitura de imagem" — **o Gemini está certo, e eu estava errado**
 
-É preciso separar duas tarefas diferentes:
+Na v2 deste documento eu havia escrito que classificar exigiria ler imagem, porque num processo
+real só 12,5% das páginas têm texto nativo. **Análise errada**, corrigida pelo Fábio:
 
-| tarefa | texto puro basta? |
-|---|---|
-| **Fatiar** (achar onde cada documento começa e termina, pelo carimbo do SEI) | ✅ **Sim, 100%** — medido em 4 processos reais |
-| **Classificar** (saber *o que é* o documento pelo conteúdo) | ❌ **Não** — depende de camada de texto, e num processo real medido só **12,5%** das páginas tinham texto nativo; ~48% do volume é histórico digitalizado |
+> *"Pra fatiar não precisa ler essas imagens. Lá tem 90% de imagem, mas os 10% são suficientes
+> para identificar a documentação: rodapé, cabeçalho, assinaturas, departamentos, local no fluxo
+> do processo."*
 
-**Por isso** o `visaoAmbiguas.ts` (IA sobre imagem) existe: é o recurso para a página digitalizada
-que nenhuma regra alcança. Não dá para prometer "zero imagem" na classificação — dá para prometer
-**zero imagem no fatiamento** e **imagem só na exceção**, sob clique e com custo à vista.
+Ele tem razão, e o erro foi meu no enquadramento. **Documento administrativo não é identificado
+pelo miolo — é identificado pela moldura.** Uma matrícula escaneada é reconhecida pelo carimbo do
+SEI, pelo cabeçalho do cartório, pela assinatura e por onde ela aparece no fluxo — não por ler o
+texto do imóvel dentro dela. O que está em imagem é justamente a parte que **não** serve para
+classificar.
+
+#### O buraco real — VERIFICADO
+
+Fui checar por que a classificação erra hoje. Não é falta de pixel. É que o classificador
+**enxerga um sinal só de quatro disponíveis**:
+
+```
+lib/documentosSei/pecas.ts
+  export function abrirContainer(paginasDoEvento: PaginaTexto[]): PecaSei[]
+
+lib/documentosSei/fatiar.ts:86
+  type PaginaTexto = { pagina, texto, largura, altura }
+```
+
+Ele recebe **apenas o texto e as dimensões da página**. Uma varredura por `setor`, `assinante`,
+`anterior`, `contexto` e `EventoSei` dentro de `pecas.ts` retorna **nada**.
+
+| sinal | o fatiador extrai? | o classificador usa? |
+|---|---|---|
+| Texto do corpo da página | sim | ✅ **é o único que usa** |
+| **Departamento / cabeçalho** | sim (`fatiar.ts:173`) | ❌ **não recebe** |
+| **Assinante** | sim (`fatiar.ts:206`) | ❌ **não recebe** |
+| **Data do documento** | sim (`fatiar.ts:228`) | ❌ **não recebe** |
+| **Posição no fluxo** (o que veio antes e depois) | disponível na lista de eventos | ❌ **não existe** |
+
+> O fatiador **calcula** departamento, assinante e data, mostra na tela, **descarta na gravação**
+> (§4.1) — **e não passa nada disso para quem precisa classificar**. O classificador está
+> adivinhando por regex no corpo da página com uma venda nos olhos.
+
+#### Consequência para o plano
+
+1. A prioridade **não** é ligar IA sobre imagem. É **alimentar o classificador com os sinais que
+   já existem**. Isso é determinístico, de graça, e provavelmente derruba muito do que hoje cai em
+   `classificacao_pendente`.
+2. O `visaoAmbiguas.ts` (IA sobre imagem) passa de "recurso necessário" para "último recurso de
+   exceção" — talvez quase nunca acionado. Isso serve diretamente ao princípio do projeto de usar
+   o mínimo de IA possível.
+3. Abre uma frente nova de classificação que ninguém tinha considerado: **inferir o documento pela
+   posição no fluxo**. Um documento assinado pela GEFEP depois de uma notificação é um laudo; uma
+   página com formatação de cartório logo após um requerimento é uma matrícula. **O fluxo é
+   evidência** — e é justamente o conhecimento que o Fábio domina e o sistema ignora.
+
+**Resumo honesto:** o Gemini disse "não precisa de imagem" e estava certo. Eu disse "precisa" e
+estava errado, por ter confundido *ler o conteúdo do documento* com *identificar o documento*.
 
 ### 8.2 "Construir o Módulo de Análise de Fluxo" — parcialmente já existe
 
@@ -359,6 +406,18 @@ descartado** (§4.1).
 
 **Por que primeiro:** é a menor tarefa do plano inteiro e destrava o Módulo B por completo. E
 estatística precisa de tempo — **cada semana sem isso é dado perdido para sempre.**
+
+### Fase 1B — Alimentar o classificador com os sinais que já existem *(1 sessão)* ⚡ **SEGUNDA MAIOR ALAVANCAGEM**
+Gêmea da Fase 1, mesma matéria-prima, outro consumidor. Passar a `abrirContainer` o que hoje ele
+não recebe (F10): **departamento, assinante, data e posição no fluxo**. Acrescentar regras que
+combinem sinais — *"assinado pela GEFEP + vem depois de notificação = laudo de fiscalização"* —
+em vez de só regex no corpo da página.
+
+**Por que cedo:** é determinístico, custo zero de IA, e ataca a causa real do
+`classificacao_pendente` (não é falta de pixel, é venda nos olhos — §8.1). Provavelmente torna o
+`visaoAmbiguas.ts` quase desnecessário, o que serve ao princípio de usar o mínimo de IA.
+
+**Saída:** taxa de acerto remedida contra a linha de base da Fase 0, mostrando o ganho.
 
 ### Fase 2 — Modelo vira escolha *(1 sessão)* — resolve dor de hoje
 `GEMINI_MODEL` deixa de ser constante. `2.5-flash` continua padrão; `3.6-flash` entra
@@ -499,3 +558,4 @@ O ciclo da Fase 13, capturando o que a entrevista não previu.
 |---|---|---|
 | 1 | 10/09/2026 | Criação. Levantamento do código, medições de custo e limite dos modelos 2.5/3.6, decisão de extrair o Organizador para módulo próprio, fases e workstream de extração de conhecimento. |
 | 2 | 10/09/2026 | Acrescentado o **Módulo B — Análise de Fluxo** (proposta discutida com o Gemini). Achado central novo (§4): o BDI é cego para fora do URBIS e o Fatiador é a única porta de entrada do fluxo real da prefeitura; setor/assinante/data são calculados e descartados (F7) — virou a Fase 1 por alavancagem. Duas premissas do Gemini corrigidas (§8). Acrescentada governança de métrica nominal de servidores (§9). Acrescentada integração com URBI/BDI e a resposta painel×alerta (§10). Fases reordenadas de 10 para 14. |
+| 3 | 10/09/2026 | **Correção do Fábio, aceita: classificar não precisa de imagem.** A v2 dizia que sim; estava errado, por confundir *ler o conteúdo* com *identificar o documento*. Documento administrativo é identificado pela moldura (rodapé, cabeçalho, assinatura, departamento, posição no fluxo), não pelo miolo. Verificação disso achou **F10**: `abrirContainer` recebe só `PaginaTexto[]` — o classificador não recebe departamento, assinante nem posição no fluxo, embora o fatiador já extraia os três. §8.1 reescrita. Nova **Fase 1B** (alimentar o classificador com os sinais existentes), que provavelmente torna o `visaoAmbiguas.ts` quase desnecessário. Nova frente: **inferir documento pela posição no fluxo**. |
