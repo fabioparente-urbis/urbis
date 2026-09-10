@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha, type EsforcoProvavelPilha } from "@/lib/urbi/navegacao";
+import CaixaFiltros, { type OpcaoFiltro, type ChipAtivo } from "@/components/pilha/CaixaFiltros";
 import { useRouter } from "next/navigation";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 import { explicarTag } from "@/lib/urbi/explicarTag";
@@ -58,6 +59,10 @@ type Processo = {
   documentos_mdp?: string[];
   /** "Finalizar LIP" (08/09/2026) — analista decidiu parar por aqui e seguir pro MAC. */
   lip_finalizado?: boolean;
+  /** Carimbo "Finalizado" (10/09/2026, lib/bdi/situacao.ts) — laudo emitido ou indeferido/
+   *  arquivado há mais de 15 dias. Some dos filtros padrão; só aparece com "Mostrar finalizados". */
+  finalizado?: boolean;
+  dias_desde_finalizacao?: number | null;
 };
 
 type SituacaoGeral =
@@ -355,27 +360,125 @@ function ProcessosConteudo() {
   const filtrosAtivos: FiltrosPilha = { ...filtrosUrl, ...filtrosTriagem };
   const processosVisiveis = aplicarFiltrosLocais(processos as any[], filtrosAtivos) as typeof processos;
 
-  const rotulosFiltro: string[] = [];
-  if (filtrosAtivos.tag) rotulosFiltro.push({ despacho: "despacho", despacho_interno: "despacho interno", indeferimento: "indeferimento", laudo: "laudo" }[filtrosAtivos.tag] ?? filtrosAtivos.tag);
-  if (filtrosAtivos.analise !== undefined) rotulosFiltro.push(`análise ${filtrosAtivos.analise}`);
-  if (filtrosAtivos.analisesMinimas) rotulosFiltro.push("2 ou mais análises");
-  if (filtrosAtivos.triagem === "mais_simples") rotulosFiltro.push("mais simples por critérios");
-  if (filtrosAtivos.faixaArea) rotulosFiltro.push({ ate_250: "até 250 m²", de_251_a_1000: "251 a 1.000 m²", acima_1000: "acima de 1.000 m²" }[filtrosAtivos.faixaArea]);
-  if (filtrosAtivos.usoSolo) rotulosFiltro.push(filtrosAtivos.usoSolo === "com" ? "com Uso do Solo" : "sem Uso do Solo");
-  if (filtrosAtivos.classificacaoVigia) rotulosFiltro.push(filtrosAtivos.classificacaoVigia);
-  if (filtrosAtivos.porte) rotulosFiltro.push(`porte ${filtrosAtivos.porte}`);
-  if (filtrosAtivos.ordenar) rotulosFiltro.push({ area_desc: "maior área", area_asc: "menor área", data_desc: "mais novos", data_asc: "mais antigos", analises_desc: "mais análises", analises_asc: "menos análises", esforco: "esforço" }[filtrosAtivos.ordenar]);
-  // Vindos do "Briefing do dia" da Home (08/09/2026, botão pedido pelo Fábio).
-  if (filtrosAtivos.acaoBloqueante) rotulosFiltro.push("com ação bloqueante");
-  if (filtrosAtivos.prontoParaDespachar) rotulosFiltro.push("pronto pra despachar");
-  if (filtrosAtivos.lipInacabado) rotulosFiltro.push("LIP inacabado");
-  if (filtrosAtivos.macInacabado) rotulosFiltro.push("MAC inacabado");
-
   function limparTriagem() {
     setFiltrosTriagem({});
-    if (filtrosUrl.tag || filtrosUrl.analise !== undefined || filtrosUrl.ordenar || filtrosUrl.triagem || filtrosUrl.faixaArea || filtrosUrl.usoSolo || filtrosUrl.analisesMinimas || filtrosUrl.classificacaoVigia || filtrosUrl.porte || filtrosUrl.lipInacabado || filtrosUrl.macInacabado) {
-      router.push("/processos");
+    setFiltrosUrl({});
+    setBusca(""); setTipo(""); setSituacao(""); setAnalista("");
+    // Qualquer parâmetro na URL (veio do URBI ou do Briefing da Home) sai junto.
+    // Antes isto era uma lista de chaves escrita à mão, que já ficou pra trás
+    // duas vezes quando um filtro novo apareceu.
+    if (searchParams && searchParams.toString()) router.push("/processos");
+  }
+
+  /**
+   * Catálogo da caixa única de filtros (10/09/2026) — cada opção escreve
+   * EXATAMENTE a mesma chave que o `<select>` que existia antes escrevia.
+   * Nenhuma regra de filtragem mudou; só o jeito de chegar nela.
+   */
+  const catalogoFiltros: OpcaoFiltro[] = useMemo(() => {
+    const t = (chave: string, valor: unknown, grupo: string, rotulo: string): OpcaoFiltro =>
+      ({ id: `triagem:${chave}:${String(valor)}`, grupo, rotulo, alvo: "triagem", chave, valor });
+
+    return [
+      ...SITUACAO_OPCOES.map((s): OpcaoFiltro =>
+        ({ id: `situacao::${s}`, grupo: "Situação", rotulo: s, alvo: "situacao", valor: s })),
+
+      t("lipInacabado", true, "Andamento", "Só LIP inacabado"),
+      t("macInacabado", true, "Andamento", "Só MAC inacabado"),
+      t("mostrarFinalizados", true, "Andamento", "Mostrar finalizados"),
+      // Os dois do "Briefing do dia" da Home (08/09/2026): antes só chegavam
+      // pela URL e apareciam como texto que não dava pra tirar. Agora são
+      // etiqueta removível como qualquer outro filtro.
+      t("acaoBloqueante", true, "Andamento", "Com ação bloqueante"),
+      t("prontoParaDespachar", true, "Andamento", "Pronto pra despachar"),
+
+      t("tag", "laudo", "Documento", "Com laudo"),
+      t("tag", "despacho", "Documento", "Com despacho"),
+      t("tag", "despacho_interno", "Documento", "Com despacho interno"),
+      t("tag", "indeferimento", "Documento", "Com indeferimento"),
+
+      t("faixaArea", "ate_250", "Área no LIP", "Até 250 m²"),
+      t("faixaArea", "de_251_a_1000", "Área no LIP", "De 251 a 1.000 m²"),
+      t("faixaArea", "acima_1000", "Área no LIP", "Acima de 1.000 m²"),
+
+      t("porte", "PP", "Porte", "PP — até 540 m²"),
+      t("porte", "MP", "Porte", "MP — até 2.000 m²"),
+      t("porte", "GP", "Porte", "GP — acima de 2.000 m²"),
+
+      ...assuntos.filter((a) => a.ativo).map((a): OpcaoFiltro =>
+        ({ id: `tipo::${a.slug}`, grupo: "Tipo de processo", rotulo: a.nome, alvo: "tipo", valor: a.slug })),
+
+      t("usoSolo", "com", "Uso do Solo", "Com documento de Uso do Solo"),
+      t("usoSolo", "sem", "Uso do Solo", "Sem documento de Uso do Solo"),
+
+      t("classificacaoVigia", "mais simples para análise", "Classificação", "🧭 Mais simples para análise"),
+      t("classificacaoVigia", "exige atenção", "Classificação", "🧭 Exige atenção"),
+      t("classificacaoVigia", "maior risco de retrabalho", "Classificação", "🧭 Maior risco de retrabalho"),
+
+      ...[1, 2, 3, 4, 5].map((n) => t("analise", n, "Análise", `${n}ª análise`)),
+      t("analisesMinimas", 2, "Análise", "2 ou mais análises"),
+
+      t("triagem", "mais_simples", "Triagem", "Mais simples para começar"),
+
+      ...(podeFiltrarAnalista
+        ? usuarios.map((u): OpcaoFiltro =>
+            ({ id: `analista::${u.id}`, grupo: "Analista", rotulo: u.nome, alvo: "analista", valor: u.id }))
+        : []),
+
+      t("ordenar", "esforco", "Ordenar", "Esforço (mais rápido primeiro)"),
+      t("ordenar", "area_asc", "Ordenar", "Menor área"),
+      t("ordenar", "area_desc", "Ordenar", "Maior área"),
+      t("ordenar", "analises_desc", "Ordenar", "Mais análises"),
+      t("ordenar", "analises_asc", "Ordenar", "Menos análises"),
+      t("ordenar", "data_desc", "Ordenar", "Mais novos"),
+      t("ordenar", "data_asc", "Ordenar", "Mais antigos"),
+    ];
+  }, [assuntos, usuarios, podeFiltrarAnalista]);
+
+  /** Etiquetas do que está ativo — montadas do estado real, não de um espelho. */
+  const chipsAtivos: ChipAtivo[] = useMemo(() => {
+    const chips: ChipAtivo[] = [];
+    if (busca) chips.push({ id: "busca", rotulo: `“${busca}”` });
+    for (const opcao of catalogoFiltros) {
+      if (opcao.alvo === "tipo" && tipo === opcao.valor) chips.push({ id: opcao.id, rotulo: opcao.rotulo });
+      if (opcao.alvo === "situacao" && situacao === opcao.valor) chips.push({ id: opcao.id, rotulo: opcao.rotulo });
+      if (opcao.alvo === "analista" && analista === opcao.valor) chips.push({ id: opcao.id, rotulo: opcao.rotulo });
+      if (opcao.alvo === "triagem" && opcao.chave) {
+        const chave = opcao.chave as keyof FiltrosPilha;
+        // `busca`/`tipo` também viajam em FiltrosPilha (vindos da URL), mas já
+        // viraram etiqueta pelo estado acima — não duplicar.
+        if (chave === "busca" || chave === "tipo") continue;
+        if (filtrosAtivos[chave] === opcao.valor) {
+          chips.push({
+            id: opcao.id,
+            rotulo: opcao.rotulo,
+            doUrbi: filtrosUrl[chave] !== undefined && filtrosTriagem[chave] === undefined,
+          });
+        }
+      }
     }
+    return chips;
+  }, [catalogoFiltros, busca, tipo, situacao, analista, filtrosAtivos, filtrosUrl, filtrosTriagem]);
+
+  function aplicarOpcao(opcao: OpcaoFiltro) {
+    if (opcao.alvo === "tipo") return setTipo(String(opcao.valor));
+    if (opcao.alvo === "situacao") return setSituacao(String(opcao.valor));
+    if (opcao.alvo === "analista") return setAnalista(String(opcao.valor));
+    setFiltrosTriagem((atual) => ({ ...atual, [opcao.chave!]: opcao.valor }));
+  }
+
+  function removerChip(chip: ChipAtivo) {
+    if (chip.id === "busca") return setBusca("");
+    const opcao = catalogoFiltros.find((o) => o.id === chip.id);
+    if (!opcao) return;
+    if (opcao.alvo === "tipo") return setTipo("");
+    if (opcao.alvo === "situacao") return setSituacao("");
+    if (opcao.alvo === "analista") return setAnalista("");
+    // Filtro que veio da URL (URBI) mora em `filtrosUrl`; o escolhido na tela,
+    // em `filtrosTriagem`. Limpar os dois é o que faz a etiqueta sumir de fato.
+    const chave = opcao.chave!;
+    setFiltrosTriagem((atual) => ({ ...atual, [chave]: undefined }));
+    setFiltrosUrl((atual) => ({ ...atual, [chave]: undefined }));
   }
 
   async function deletar(p: Processo) {
@@ -472,146 +575,21 @@ function ProcessosConteudo() {
         <span className="text-[var(--text-muted)] text-sm">{processosVisiveis.length} processo(s)</span>
       </div>
 
-      {rotulosFiltro.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2 rounded-lg border border-[var(--accent)] bg-[var(--bg-secondary)]">
-          <span className="text-xs font-bold text-[var(--accent)]">FILTRO DO URBI</span>
-          {rotulosFiltro.map((r) => (
-            <span key={r} className="text-xs px-2 py-0.5 rounded bg-[var(--bg-card)] border border-[var(--border)] text-[var(--text-secondary)]">{r}</span>
-          ))}
-          <button onClick={limparTriagem}
-            className="ml-auto text-xs px-2 py-1 rounded bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)]">
-            Limpar filtros
-          </button>
-        </div>
-      )}
+      {/* FILTROS — caixa única (10/09/2026). Substituiu 16 caixinhas: as 4 do
+          topo (busca/tipo/situação/analista) e as 12 da Triagem. Mesmas opções,
+          mesma semântica de filtro; só a interface mudou. */}
+      <CaixaFiltros
+        catalogo={catalogoFiltros}
+        ativos={chipsAtivos}
+        buscaAtual={busca}
+        onAplicar={aplicarOpcao}
+        onRemover={removerChip}
+        onBuscar={setBusca}
+        onLimpar={limparTriagem} />
 
-      {/* FILTROS */}
-      <div className="flex flex-wrap gap-3 mb-6">
-        <input value={busca} onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar por SEI, interessado ou nº de despacho..."
-          className="flex-1 min-w-[200px] bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
-        <select value={tipo} onChange={(e) => setTipo(e.target.value)}
-          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="">Todos os tipos</option>
-          {assuntos.filter((a) => a.ativo).map((a) => (
-            <option key={a.id} value={a.slug}>{a.nome}</option>
-          ))}
-        </select>
-        <select value={situacao} onChange={(e) => setSituacao(e.target.value)}
-          title="Situação calculada a partir de fato real — LIP preenchido, análise em andamento, despacho emitido. Não é o antigo campo de status."
-          className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-          <option value="">Todas as situações</option>
-          {SITUACAO_OPCOES.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {podeFiltrarAnalista && (
-          <select value={analista} onChange={(e) => setAnalista(e.target.value)}
-            className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
-            <option value="">Todos os analistas</option>
-            {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
-          </select>
-        )}
-      </div>
-
-      {/* TRIAGEM — leitura apenas. Não atribui nota, não altera status e não
-          decide resultado: deixa explícitos os critérios usados para ordenar. */}
-      <section className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <div>
-            <h2 className="text-sm font-bold text-[var(--text-primary)]">Triagem da Pilha</h2>
-            <p className="text-xs text-[var(--text-muted)]">Filtros por fatos registrados. “Mais simples” não é previsão de aprovação.</p>
-          </div>
-          {(Object.keys(filtrosTriagem).length > 0 || rotulosFiltro.length > 0) && (
-            <button onClick={limparTriagem}
-              className="text-xs px-2.5 py-1.5 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]">
-              Limpar critérios
-            </button>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-3">
-          <select value={filtrosTriagem.triagem ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, triagem: e.target.value === "mais_simples" ? "mais_simples" : undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Triagem: todas</option>
-            <option value="mais_simples">Mais simples para começar</option>
-          </select>
-          <select value={filtrosTriagem.faixaArea ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, faixaArea: (e.target.value || undefined) as FiltrosPilha["faixaArea"] }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Área no LIP: todas</option>
-            <option value="ate_250">Até 250 m²</option>
-            <option value="de_251_a_1000">De 251 a 1.000 m²</option>
-            <option value="acima_1000">Acima de 1.000 m²</option>
-          </select>
-          <select value={filtrosTriagem.classificacaoVigia ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, classificacaoVigia: (e.target.value || undefined) as FiltrosPilha["classificacaoVigia"] }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">🧭 Classificação: todas</option>
-            <option value="mais simples para análise">Mais simples para análise</option>
-            <option value="exige atenção">Exige atenção</option>
-            <option value="maior risco de retrabalho">Maior risco de retrabalho</option>
-          </select>
-          <select value={filtrosTriagem.porte ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, porte: (e.target.value || undefined) as FiltrosPilha["porte"] }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Porte: todos</option>
-            <option value="PP">PP — até 540 m²</option>
-            <option value="MP">MP — até 2.000 m²</option>
-            <option value="GP">GP — acima de 2.000 m²</option>
-          </select>
-          <select value={filtrosTriagem.usoSolo ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, usoSolo: (e.target.value || undefined) as FiltrosPilha["usoSolo"] }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Uso do Solo: todos</option>
-            <option value="com">Com documento de Uso do Solo</option>
-            <option value="sem">Sem documento de Uso do Solo</option>
-          </select>
-          <select value={filtrosTriagem.tag ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, tag: e.target.value || undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Documento/resultado: todos</option>
-            <option value="laudo">Com laudo</option>
-            <option value="despacho">Com despacho</option>
-            <option value="despacho_interno">Com despacho interno</option>
-            <option value="indeferimento">Com indeferimento</option>
-          </select>
-          <select value={filtrosTriagem.lipInacabado ? "1" : ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, lipInacabado: e.target.value === "1" ? true : undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">LIP inacabado: todos</option>
-            <option value="1">Só LIP inacabado</option>
-          </select>
-          <select value={filtrosTriagem.macInacabado ? "1" : ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, macInacabado: e.target.value === "1" ? true : undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">MAC inacabado: todos</option>
-            <option value="1">Só MAC inacabado</option>
-          </select>
-          <select value={filtrosTriagem.analise?.toString() ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, analise: e.target.value ? Number(e.target.value) : undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Análise: todas</option>
-            {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}ª análise</option>)}
-          </select>
-          <select value={filtrosTriagem.analisesMinimas?.toString() ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, analisesMinimas: e.target.value ? 2 : undefined }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Histórico: todos</option>
-            <option value="2">2 ou mais análises</option>
-          </select>
-          <select value={filtrosTriagem.ordenar ?? ""}
-            onChange={(e) => setFiltrosTriagem((atual) => ({ ...atual, ordenar: (e.target.value || undefined) as FiltrosPilha["ordenar"] }))}
-            className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)]">
-            <option value="">Ordenar por padrão</option>
-            <option value="esforco">Esforço (mais rápido primeiro)</option>
-            <option value="area_asc">Menor área</option>
-            <option value="area_desc">Maior área</option>
-            <option value="analises_desc">Mais análises</option>
-            <option value="analises_asc">Menos análises</option>
-            <option value="data_desc">Mais novos</option>
-            <option value="data_asc">Mais antigos</option>
-          </select>
-        </div>
-      </section>
+      <p className="text-xs text-[var(--text-muted)] -mt-4 mb-6 px-1">
+        Filtros por fatos registrados. “Mais simples” não é previsão de aprovação.
+      </p>
 
       {/* LISTA */}
       {carregando ? (
@@ -759,6 +737,17 @@ function ProcessosConteudo() {
                   className={`px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap lg:hidden ${p.situacao_geral ? SITUACAO_COR[p.situacao_geral] : "bg-[var(--bg-secondary)] text-[var(--text-secondary)]"}`}>
                   {p.situacao_geral || "—"}
                 </span>
+
+                {/* Carimbo "Finalizado" (10/09/2026, lib/bdi/situacao.ts) — só aparece quando o
+                    filtro "Mostrar finalizados" está ligado, porque por padrão esses processos nem
+                    chegam nesta lista (aplicarFiltrosLocais já os esconde antes daqui). */}
+                {p.finalizado && (
+                  <span
+                    title={`Laudo emitido ou indeferido/arquivado há ${p.dias_desde_finalizacao ?? "15+"} dias — some dos filtros padrão da Pilha.`}
+                    className="px-2 py-0.5 rounded text-xs font-bold whitespace-nowrap bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border)]">
+                    🏁 FINALIZADO
+                  </span>
+                )}
 
                 {/* Esforço/pendências do Radar (Fase 2, Assessor Ativo) — só aparece quando o
                     processo já foi visitado pelo menos uma vez; nunca inventa esforço.

@@ -83,6 +83,11 @@ export type FiltrosPilha = {
   /** `situacao_mac === "Em análise"` (mesma fonte) — MAC já foi aberto e não fechou com despacho,
    *  parecer ou laudo ainda. */
   macInacabado?: boolean;
+  /** Pedido do Fábio em 10/09/2026: processo `finalizado` (laudo emitido ou indeferido/arquivado
+   *  há mais de 15 dias — `lib/bdi/situacao.ts`, `estaFinalizado()`) some de TODO filtro padrão da
+   *  Pilha por padrão. Este é o único jeito de trazê-lo de volta — filtro específico, nunca ligado
+   *  junto com outro critério por engano. */
+  mostrarFinalizados?: boolean;
 };
 
 /** Ordem fixa do menos pro mais custoso — processo sem retrato do Radar ainda vai pro fim,
@@ -341,9 +346,12 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
   // reconhece (essa vira o rótulo composto "LIP pendente") — checados antes, valem sozinhos.
   const lipInacabado = /\blip\s+inacabad[oa]\b/.test(t) || /\blip\s+n[ãa]o\s+conclu[íi]d[oa]\b/.test(t);
   const macInacabado = /\bmac\s+inacabad[oa]\b/.test(t) || /\bmac\s+n[ãa]o\s+conclu[íi]d[oa]\b/.test(t);
+  // Pedido do Fábio, 10/09/2026: "mostra os finalizados"/"processos finalizados" traz de volta o
+  // que `estaFinalizado()` (lib/bdi/situacao.ts) tira dos filtros padrão por padrão.
+  const mostrarFinalizados = /\bfinalizad[oa]s?\b/.test(t);
   const mencionaPilha = /\b(pilha|processos|lista)\b/.test(t);
 
-  if (tag || analise !== null || ordem || classificacaoVigia || usoSolo || faixaArea || analisesMinimas || situacaoGeral || lipInacabado || macInacabado || (tipo && mencionaPilha)) {
+  if (tag || analise !== null || ordem || classificacaoVigia || usoSolo || faixaArea || analisesMinimas || situacaoGeral || lipInacabado || macInacabado || mostrarFinalizados || (tipo && mencionaPilha)) {
     const filtros: FiltrosPilha = {};
     if (tipo) filtros.tipo = tipo.valor;
     if (tag) filtros.tag = tag.valor;
@@ -356,6 +364,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (situacaoGeral) filtros.situacaoGeral = situacaoGeral;
     if (lipInacabado) filtros.lipInacabado = true;
     if (macInacabado) filtros.macInacabado = true;
+    if (mostrarFinalizados) filtros.mostrarFinalizados = true;
 
     const partes: string[] = [];
     if (tipo) partes.push(tipo.rotulo);
@@ -368,6 +377,7 @@ export function interpretar(textoOriginal: string): ComandoNavegacao | null {
     if (situacaoGeral) partes.push(`com situação "${situacaoGeral}"`);
     if (lipInacabado) partes.push("com LIP inacabado");
     if (macInacabado) partes.push("com MAC inacabado");
+    if (mostrarFinalizados) partes.push("incluindo os finalizados (ocultos por padrão)");
     if (ordem) {
       partes.push(
         ordem === "area_desc" ? "da maior para a menor área"
@@ -467,6 +477,9 @@ type ProcessoParaFiltro = {
   /** `situacao_lip`/`situacao_mac` — já vêm prontos de `/api/processos` (lib/bdi/situacao.ts). */
   situacao_lip?: string | null;
   situacao_mac?: string | null;
+  /** Carimbo "Finalizado" (10/09/2026, `lib/bdi/situacao.ts`, `estaFinalizado()`) — já vem pronto
+   *  de `/api/processos`. */
+  finalizado?: boolean | null;
 };
 
 function numeroArea(v: unknown): number | null {
@@ -517,6 +530,13 @@ export function aplicarFiltrosLocais<T extends ProcessoParaFiltro>(
   filtros: FiltrosPilha,
 ): T[] {
   let saida = [...lista];
+
+  // Pedido do Fábio em 10/09/2026: processo "Finalizado" (laudo emitido ou indeferido/arquivado há
+  // mais de 15 dias) some de TODO filtro padrão — incondicional, roda mesmo sem nenhum outro
+  // critério selecionado. Só reaparece com `mostrarFinalizados` ligado explicitamente.
+  if (!filtros.mostrarFinalizados) {
+    saida = saida.filter((p) => !p.finalizado);
+  }
 
   if (filtros.triagem === "mais_simples") {
     // Atalho deliberadamente conservador: não dá nota nem previsão. Só traz
@@ -643,6 +663,7 @@ export function filtrosParaQuery(filtros: FiltrosPilha): string {
   if (filtros.prontoParaDespachar) p.set("prontoParaDespachar", "1");
   if (filtros.lipInacabado) p.set("lipInacabado", "1");
   if (filtros.macInacabado) p.set("macInacabado", "1");
+  if (filtros.mostrarFinalizados) p.set("mostrarFinalizados", "1");
   const s = p.toString();
   return s ? `?${s}` : "";
 }
@@ -666,6 +687,7 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   const prontoParaDespachar = params.get("prontoParaDespachar");
   const lipInacabado = params.get("lipInacabado");
   const macInacabado = params.get("macInacabado");
+  const mostrarFinalizados = params.get("mostrarFinalizados");
 
   if (busca) f.busca = busca;
   if (tipo && TIPOS.some(x => x.valor === tipo)) f.tipo = tipo;
@@ -700,5 +722,6 @@ export function queryParaFiltros(params: URLSearchParams): FiltrosPilha {
   if (prontoParaDespachar === "1") f.prontoParaDespachar = true;
   if (lipInacabado === "1") f.lipInacabado = true;
   if (macInacabado === "1") f.macInacabado = true;
+  if (mostrarFinalizados === "1") f.mostrarFinalizados = true;
   return f;
 }

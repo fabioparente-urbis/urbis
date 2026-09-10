@@ -240,6 +240,44 @@ export function situacaoMac(
   };
 }
 
+// ------------------------------------------------------------ finalizado
+
+/** Pedido do Fábio em 10/09/2026: laudo emitido ou indeferido/arquivado por mais de 15 dias vira
+ *  "Finalizado" — some de todo filtro padrão da Pilha, só aparece num filtro específico próprio. */
+const DIAS_PARA_FINALIZADO = 15;
+
+/**
+ * Dias desde que o processo entrou em "Encerrado" (laudo) ou
+ * "Arquivado/indeferido" — null quando a situação MAC não é nenhuma das
+ * duas, ou quando a tag que a decidiu não tem `criado_em` confiável.
+ */
+export function diasDesdeFinalizacao(
+  sitMac: ClassificacaoComMotivo<SituacaoMac>,
+  tags: TagProcesso[],
+): number | null {
+  if (sitMac.classe !== "Encerrado" && sitMac.classe !== "Arquivado/indeferido") return null;
+  const tagRelevante = sitMac.classe === "Encerrado"
+    ? tagMaisRecente(tags.filter((t) => t.tipo === "laudo"))
+    : tagMaisRecente(tags.filter((t) => TAGS_ARQUIVAMENTO.has(t.tipo)));
+  const tempo = tagRelevante?.criado_em ? Date.parse(tagRelevante.criado_em) : NaN;
+  if (!Number.isFinite(tempo)) return null;
+  return Math.floor((Date.now() - tempo) / 86400000);
+}
+
+/**
+ * "Finalizado" — carimbo adicional, não substitui `situacaoGeral`/
+ * `situacaoMac`. Um processo pode estar "Encerrado" há 3 dias (ainda
+ * recente, continua na Pilha normal) e só virar "Finalizado" depois do
+ * prazo — é aí que sai dos filtros padrão.
+ */
+export function estaFinalizado(
+  sitMac: ClassificacaoComMotivo<SituacaoMac>,
+  tags: TagProcesso[],
+): boolean {
+  const dias = diasDesdeFinalizacao(sitMac, tags);
+  return dias !== null && dias >= DIAS_PARA_FINALIZADO;
+}
+
 // --------------------------------------------------------- situação geral
 
 /**

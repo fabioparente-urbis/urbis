@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -282,6 +282,11 @@ export async function GET(req: NextRequest) {
         situacao_geral: sitGeral.classe, situacao_motivo: sitGeral.motivo,
         situacao_lip: sitLip.classe, situacao_lip_motivo: sitLip.motivo,
         situacao_mac: sitMac.classe, situacao_mac_motivo: sitMac.motivo,
+        // Carimbo "Finalizado" (10/09/2026) — laudo emitido ou indeferido/arquivado há mais de 15
+        // dias. Some dos filtros padrão da Pilha (lib/urbi/navegacao.ts); só aparece com o filtro
+        // "mostrarFinalizados" ligado. Não substitui situacao_geral/situacao_mac.
+        finalizado: estaFinalizado(sitMac, tags),
+        dias_desde_finalizacao: diasDesdeFinalizacao(sitMac, tags),
         // Só populado quando a própria classificação MAC já é "Aguardando retorno" — nunca
         // um número solto sem a situação que o justifica.
         dias_aguardando_retorno: sitMac.classe === "Aguardando retorno do interessado"
