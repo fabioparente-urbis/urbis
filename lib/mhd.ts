@@ -61,6 +61,15 @@ export type EntradaMHD = {
   dataRevisao?: string | null;
   dataAssinatura?: string | null;
   dataRegistro?: string | null;
+  /**
+   * Departamento/secretaria emissora e quem assinou — melhor esforço, calculados por
+   * `lib/documentosSei/fatiar.ts` (Organizador de PDF SEI, Fase 1 do plano de leitura de PDF).
+   * Nunca bloqueiam nada: podem faltar (documento do interessado não tem letreiro de órgão,
+   * assinatura ilegível). Adicionados 10/09/2026 — antes eram calculados na tela e descartados
+   * na gravação (achado §5.4 do plano).
+   */
+  setor?: string | null;
+  assinante?: string | null;
   revisao?: string | null;
   texto?: string | null;
   linhas?: unknown;
@@ -88,6 +97,8 @@ export type MemoriaConteudo = {
   papeis: string[] | null;
   revisao: string | null;
   data_documento: string | null;
+  setor: string | null;
+  assinante: string | null;
   origem: string;
   paginas_ia: number;
   extrator_versao: string;
@@ -156,7 +167,7 @@ export async function buscarPorHash(
 
   const { data, error } = await supabase
     .from("mhd_conteudos")
-    .select("id,hash,paginas,texto,linhas,dados,papeis,revisao,data_documento,origem,paginas_ia,extrator_versao,extraido_em")
+    .select("id,hash,paginas,texto,linhas,dados,papeis,revisao,data_documento,setor,assinante,origem,paginas_ia,extrator_versao,extraido_em")
     .in("hash", hashes)
     .eq("status", "ok");
   if (error || !data) return { conhecidos, desatualizados };
@@ -193,7 +204,7 @@ export async function historicoDoProcesso(processoCodigo: string) {
   const { data: versoes } = await supabase
     .from("mhd_versoes")
     .select("id,documento_id,versao,vigente,hash,nome_arquivo,rodada,lido_em,conteudo_id," +
-            "mhd_conteudos(paginas,papeis,revisao,data_documento,origem,paginas_ia,extrator_versao,dados)")
+            "mhd_conteudos(paginas,papeis,revisao,data_documento,setor,assinante,origem,paginas_ia,extrator_versao,dados)")
     .in("documento_id", docs.map((d: any) => d.id))
     .order("versao", { ascending: false });
 
@@ -261,6 +272,8 @@ export async function acharOuCriarConteudo(e: EntradaMHD): Promise<{ id: string 
     data_revisao: e.dataRevisao ?? null,
     data_assinatura: e.dataAssinatura ?? null,
     data_registro: e.dataRegistro ?? null,
+    setor: e.setor ?? null,
+    assinante: e.assinante ?? null,
     origem: e.origem ?? "texto", modelo: e.modelo ?? null,
     paginas_ia: e.paginasIA ?? 0,
     extrator_versao: EXTRATOR_VERSAO, status: "ok",

@@ -83,6 +83,15 @@ type ItemParaPersistir = {
   papel: string;
   escopo: string;
   estadoResolucao?: Pick<ResolucaoVersao, "estado" | "motivo" | "confianca">;
+  /**
+   * Melhor esforço, herdados do EVENTO (`fatiar.ts`) que originou o item — inclusive para peças
+   * de dentro de um contêiner, que não têm setor/data/assinante próprios: usar os do contêiner é
+   * a mesma lógica de "melhor esforço, nunca bloqueia" do resto do módulo. Fase 1 do plano de
+   * leitura de PDF (10/09/2026) — antes eram calculados e descartados na gravação (achado §5.4).
+   */
+  setor?: string;
+  data?: string;
+  assinante?: string;
 };
 
 export type ResumoPersistencia = {
@@ -121,6 +130,7 @@ function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemPar
     itens.push({
       idSei: ev.idSei, titulo: ev.titulo, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim,
       papel, escopo, estadoResolucao: estadoPorIdSei.get(ev.idSei),
+      setor: ev.setor, data: ev.data, assinante: ev.assinante,
     });
   }
 
@@ -145,19 +155,20 @@ function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemPar
       idSei: ev.idSei, titulo: ev.titulo, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim,
       papel: "container", escopo: tituloSemNumeros(ev.titulo),
       estadoResolucao: estadoPorIdSei.get(ev.idSei),
+      setor: ev.setor, data: ev.data, assinante: ev.assinante,
     });
   }
 
   // peças de TODOS os contêineres do fatiamento, agrupadas por papel (família cruza contêineres)
   const pecasParaResolver: { chave: string; idSei: string; paginaIni: number; paginaFim: number }[] = [];
-  const origemPeca = new Map<string, { idSei: string; tituloContainer: string; peca: PecaSei }>();
+  const origemPeca = new Map<string, { idSei: string; tituloContainer: string; peca: PecaSei; eventoContainer: EventoSei }>();
   for (const ev of eventos) {
     if (!ehContainerGenerico(ev.titulo)) continue;
     for (const peca of ev.pecas ?? []) {
       if (peca.papel === "classificacao_pendente") continue; // nunca inventa identidade pra pendência
       const chaveAlvo = `${peca.papel}#${peca.paginaIni}`;
       pecasParaResolver.push({ chave: peca.papel, idSei: ev.idSei, paginaIni: peca.paginaIni, paginaFim: peca.paginaFim });
-      origemPeca.set(chaveAlvo, { idSei: ev.idSei, tituloContainer: ev.titulo, peca });
+      origemPeca.set(chaveAlvo, { idSei: ev.idSei, tituloContainer: ev.titulo, peca, eventoContainer: ev });
     }
   }
   const estadosPecas = resolverEstadosPecas(pecasParaResolver);
@@ -170,6 +181,9 @@ function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemPar
       paginaIni: origem.peca.paginaIni, paginaFim: origem.peca.paginaFim,
       papel: res.chave, escopo: "",
       estadoResolucao: { estado: res.estado, motivo: res.motivo, confianca: res.confianca },
+      // a peça em si não tem setor/data/assinante próprios (só texto+dimensões, ver PaginaTexto)
+      // — herda do contêiner que a contém, mesma lógica de melhor esforço do resto do módulo.
+      setor: origem.eventoContainer.setor, data: origem.eventoContainer.data, assinante: origem.eventoContainer.assinante,
     });
   }
 
@@ -209,6 +223,7 @@ export async function persistirDocumentosVivos(args: {
       papeis: [item.papel], escopo: item.escopo,
       dados: { idSei: item.idSei, paginaIni: item.paginaIni, paginaFim: item.paginaFim },
       origem: "texto",
+      dataDocumento: item.data ?? null, setor: item.setor ?? null, assinante: item.assinante ?? null,
     });
     if (conteudo.erro) { resumo.problemas.push(conteudo.erro); continue; }
     if (!conteudo.id) continue;

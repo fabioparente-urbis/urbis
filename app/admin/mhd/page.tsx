@@ -375,6 +375,10 @@ export default function MhdAdminPage() {
                         rodada {v.rodada}
                         {v.revisao ? ` · ${v.revisao}` : ""}
                         {v.data_documento ? ` · emitido ${v.data_documento}` : ""}
+                        {/* setor/assinante — Fase 1 do plano de leitura de PDF (10/09/2026): antes
+                            calculados pelo Organizador e descartados na gravação (achado §5.4) */}
+                        {v.setor ? ` · ${v.setor}` : ""}
+                        {v.assinante ? ` · assinado por ${v.assinante}` : ""}
                         {v.paginas ? ` · ${v.paginas}p` : ""}
                         {` · ${v.origem}`}
                         {v.custo_paginas_ia ? ` · ${v.custo_paginas_ia}p de IA` : " · sem IA"}
