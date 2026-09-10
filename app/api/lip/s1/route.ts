@@ -13,9 +13,13 @@ export async function POST(req: NextRequest) {
 
     const contentLength = req.headers.get("x-file-size") || "0";
     const fileSizeBytes = parseInt(contentLength);
-    const MAX_BYTES = 60 * 1024 * 1024;
+    // 50MB não é arbitrário: é o teto do próprio Gemini pra leitura de PDF
+    // (document understanding), documentado pela Google. Acima disso a
+    // chamada ao generateContent falha com 400 INVALID_ARGUMENT sem detalhe —
+    // já confirmado testando direto contra a API, fora do nosso código.
+    const MAX_BYTES = 50 * 1024 * 1024;
     if (fileSizeBytes > MAX_BYTES) {
-      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 60MB. Comprima o PDF antes de enviar.` }, { status: 413 });
+      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB (teto do Gemini). Comprima o PDF antes de enviar.` }, { status: 413 });
     }
     const fileName = req.headers.get("x-file-name") || "processo.pdf";
     // O tipo tem que ser o real: o pipeline mandava application/pdf fixo,
