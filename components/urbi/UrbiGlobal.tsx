@@ -199,6 +199,26 @@ export default function UrbiGlobal() {
     setProcessoCodigo(codigo);
   }, [pathname]);
 
+  /**
+   * Rótulo da TELA atual (LIP/MAC/Pilha/módulo satélite, vocabulário do CLAUDE.md) — pedido do
+   * Fábio, 10/09/2026: "tem sempre que... estar em sintonia com a tela". Passado pro cabeçalho
+   * de UrbiChat, pra nunca deixar dúvida de onde o URBI está falando.
+   */
+  const telaAtual = useMemo(() => {
+    if (/^\/processo\//.test(pathname)) return "LIP";
+    if (/^\/analise-regularizacao\//.test(pathname)) return "MAC — Regularização SEI";
+    if (/^\/analise-aceite-sei\//.test(pathname)) return "MAC — Aceite SEI";
+    if (/^\/analise-aprovacao-projeto\//.test(pathname)) return "MAC — Aprovação de Projeto";
+    if (/^\/processos\/?$/.test(pathname)) return "Pilha";
+    if (/^\/mdp\/?/.test(pathname)) return "MDP — Despachos e Pareceres";
+    if (/^\/mrp\/?/.test(pathname)) return "MRP — Minha Produtividade";
+    if (/^\/logradouro\//.test(pathname)) return "Logradouro";
+    if (/^\/configuracoes\/?/.test(pathname)) return "Configurações";
+    if (/^\/admin\/?/.test(pathname)) return "Administração";
+    if (isHome) return null;
+    return null;
+  }, [pathname, isHome]);
+
   useEffect(() => {
     function onDica(e: Event) {
       const { processoId, mensagem } = (e as CustomEvent).detail || {};
@@ -758,6 +778,7 @@ export default function UrbiGlobal() {
         modo={isHome ? "center" : "corner"}
         assuntoId={assuntoId}
         processoCodigo={processoCodigo}
+        telaAtual={telaAtual}
         urbiVoz={usuario?.urbi_voz ?? false}
         modalAberto={modalAberto}
         mensagemInicial={mensagemInicial}

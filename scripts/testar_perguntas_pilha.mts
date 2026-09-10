@@ -41,7 +41,7 @@ secao("1 · auditoria de chave real por slot (confere contra lip_campos de verda
 // ─────────────────────────────────────────────────────────────────────────────
 secao("2 · montarBlocoAtributosConsultaveis — sintético, cobre os 3 slots e a normalização onerosa≠onerosa");
 {
-  const relatorioFake = { situacao: "x", acoes: [], esforco: "rapido" as const, motivo: "x" };
+  const relatorioFake = { situacao: "x", acoes: [], esforco: "rapido" as const, motivo: "x", processoCodigo: "TESTE-000" };
   const dReg = {
     processo: { tipo_processo: "regularizacao", porte: "GP", area_construida: 300 },
     lip: { campos_tecnicos: { bairro: { valor: "SETOR BUENO", rotulo: "Bairro" }, onerosa: { valor: "Sim", rotulo: "Tem Onerosa?" }, pav: { valor: "6", rotulo: "Número de Pavimentos" } }, campos_vazios: 4, campos_em_x: 0, campos_totais: 86 },

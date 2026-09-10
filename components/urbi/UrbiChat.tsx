@@ -182,6 +182,12 @@ type Props = {
    *  estava aberto). */
   acoesIniciais?: Msg["acoes"];
   onMensagemInicialConsumida?: () => void;
+  /**
+   * Rótulo curto da tela atual (LIP, MAC, Pilha, ou o nome do módulo satélite — ver UrbiGlobal),
+   * pedido do Fábio em 10/09/2026: "tem sempre que... estar em sintonia com a tela". Mostrado no
+   * cabeçalho pra deixar claro de onde o URBI está falando, sem precisar adivinhar pela URL.
+   */
+  telaAtual?: string | null;
 };
 
 const DEFAULT_CORNER = { bottom: 24, right: 24 };
@@ -285,7 +291,7 @@ function OrientacaoCoAnalista({ onFechar, small }: { onFechar: () => void; small
   );
 }
 
-export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, acoesIniciais, onMensagemInicialConsumida }: Props) {
+export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo = "center", assuntoId = null, processoCodigo = null, urbiVoz = false, modalAberto = false, mensagemInicial = null, acoesIniciais, onMensagemInicialConsumida, telaAtual = null }: Props) {
   const router = useRouter();
   // Permissão de áudio: decidida só pelo administrador (urbi_modo_audio) pra
   // qualquer usuário, ele mesmo incluído — o Administrador concede ou remove
@@ -299,6 +305,15 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
   // digitado, evento global) consegue religar. Ver
   // supabase/migrations/2026_09_01_urbi_modo_audio.sql.
   const permiteAudio = usuario?.urbi_modo_audio === "navegador";
+  /**
+   * Valor SEMPRE atual de `processoCodigo`, pra `entregarRelatorioMotor` conferir — dentro do
+   * `.then` do fetch — se o processo que disparou a busca ainda é o que está na tela. Achado ao
+   * vivo em 10/09/2026 (Fábio): navegando rápido entre processos, a resposta do dossiê do
+   * processo ANTERIOR podia chegar DEPOIS da do processo atual (sem garantia de ordem de rede) e
+   * sobrescrever a mensagem certa com a de um processo que nem estava mais aberto.
+   */
+  const processoCodigoRef = useRef(processoCodigo);
+  processoCodigoRef.current = processoCodigo;
   const [fase, setFase] = useState<"fora"|"entrando"|"idle"|"saindo">("fora");
   const [poseId, setPoseId] = useState("sucesso");
   const [input, setInput] = useState("");
@@ -912,9 +927,13 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
    * `abrirComRelatorioMotor` porque ligar o microfone faz sentido ao chamar o URBI, não ao navegar.
    */
   function entregarRelatorioMotor() {
+    const codigoDaChamada = processoCodigo;
     fetch(`/api/urbi/dossie?codigo=${encodeURIComponent(processoCodigo!)}`)
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
+        // Guarda contra corrida: se o analista já navegou pra outro processo antes desta
+        // resposta chegar, ela é do processo ERRADO — nunca escreve na tela.
+        if (processoCodigoRef.current !== codigoDaChamada) return;
         if (!j?.ok) { saudacaoOnMount(); return; }
         const relatorio = montarRelatorioMotor(j.data);
         const texto = formatarRelatorioMotor(relatorio);
@@ -961,7 +980,7 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         resetIdleTimer();
         if (permiteAudio && !speech.mudo) falar(texto);
       })
-      .catch(() => saudacaoOnMount());
+      .catch(() => { if (processoCodigoRef.current === codigoDaChamada) saudacaoOnMount(); });
   }
   function abrir() {
     anunciar("URBI aberto.");
@@ -1282,7 +1301,12 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         color: modoBip ? "#7c3aed" : "#1d4ed8",
       }}>
         <span aria-hidden="true">{modoBip ? "⚖️ " : "🧭 "}</span>
-        <span style={{ flex: 1 }}>{modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}</span>
+        <span style={{ flex: 1 }}>
+          {modoBip ? "Modo: BIP — Especialista em Legislação" : "Modo: Assistente de análise"}
+          {telaAtual && (
+            <span style={{ fontWeight: 400, color: "#64748b" }}> · {telaAtual}</span>
+          )}
+        </span>
         <button
           type="button"
           className="urbi-focavel"

@@ -55,6 +55,13 @@ export type RelatorioMotor = {
   acoes: AcaoPrioritaria[];
   esforco: EsforcoProvavel;
   motivo: string;
+  /**
+   * Pedido do Fábio, 10/09/2026: navegando rápido entre processos, o relatório do processo
+   * ANTERIOR podia chegar depois e sobrescrever o do processo atual na tela — sem o código no
+   * próprio texto, o analista não tinha como perceber a troca. Vem de `d.processo.codigo`
+   * (montarDossieFactual); null só se o dossiê vier sem processo (não deveria acontecer aqui).
+   */
+  processoCodigo: string | null;
 };
 
 // ─────────────────────────────────────────────────────────────── util
@@ -328,6 +335,8 @@ export function montarRelatorioMotor(d: Record<string, any>): RelatorioMotor {
     numRetornos > 0 ? `${numRetornos} retorno${numRetornos > 1 ? "s" : ""}` : null,
   ].filter(Boolean).join(" | ");
 
+  const processoCodigo: string | null = d.processo?.codigo ?? null;
+
   if (acoes.length === 0) {
     const coberturaCompleta = d.cobertura?.completo !== false;
     return {
@@ -337,11 +346,12 @@ export function montarRelatorioMotor(d: Record<string, any>): RelatorioMotor {
       motivo: coberturaCompleta
         ? "Nenhuma pendência determinística encontrada — processo em dia (LIP/MAC/BDI/cruzamentos sem sinal)."
         : `Leitura incompleta do dossiê (${(d.cobertura?.fontes_indisponiveis ?? []).length} fonte(s) indisponível(is)) — sem dado suficiente pra priorizar com segurança.`,
+      processoCodigo,
     };
   }
 
   // Esforço/motivo do topo refletem a ação #1 (a mais prioritária) — é o que decide o ritmo real.
-  return { situacao, acoes, esforco: acoes[0].esforco, motivo: acoes[0].motivo };
+  return { situacao, acoes, esforco: acoes[0].esforco, motivo: acoes[0].motivo, processoCodigo };
 }
 
 const ROTULO_ESFORCO: Record<EsforcoProvavel, string> = {
@@ -404,13 +414,17 @@ function tirarPrefixoComum(itens: string[]): string[] {
  * situação/esforço numa linha só em vez de três seções com rótulo.
  */
 export function formatarRelatorioMotor(r: RelatorioMotor): string {
+  // Nome o processo SEMPRE, primeira linha — pedido do Fábio (10/09/2026): navegando rápido
+  // entre processos, uma resposta que chega atrasada (rede) não tem como ser confundida com a do
+  // processo que está na tela agora, porque o texto mesmo já diz de qual processo fala.
+  const prefixo = r.processoCodigo ? `Processo ${r.processoCodigo}\n` : "";
   const cabecalho = [
     (r.situacao || "sem situação disponível").replace(/\s*\|\s*/g, ", "),
     ROTULO_ESFORCO[r.esforco].toLowerCase(),
   ].filter(Boolean).join(" · ");
 
   if (r.acoes.length === 0) {
-    return `${cabecalho}\n\nNão achei nada travando aqui. ${r.motivo}`;
+    return `${prefixo}${cabecalho}\n\nNão achei nada travando aqui. ${r.motivo}`;
   }
 
   // Agrupa pelo grupo do checklist: "Calçada: largura...; superfície..." em vez de três linhas
@@ -428,7 +442,7 @@ export function formatarRelatorioMotor(r: RelatorioMotor): string {
   });
 
   const quantas = r.acoes.length;
-  return `${cabecalho}
+  return `${prefixo}${cabecalho}
 
 ${quantas === 1 ? "Falta isto" : `Faltam estas ${quantas}`} pra destravar:
 ${linhas.join("\n")}
