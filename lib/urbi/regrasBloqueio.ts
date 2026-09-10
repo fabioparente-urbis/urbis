@@ -16,7 +16,8 @@ export type ChaveRegraBloqueio =
   | "COND_USO_SOLO"
   | "COND_BUSCA_ENDERECO"
   | "COND_ASSUNTO_ERRADO"
-  | "COND_CHEADV_APTO";
+  | "COND_CHEADV_APTO"
+  | "COND_IMOVEL_DUPLICADO";
 
 export type RegraBloqueio = { ativo: boolean; parametros: Record<string, any> };
 
@@ -32,6 +33,7 @@ export async function lerRegrasBloqueio(): Promise<Record<ChaveRegraBloqueio, Re
     COND_BUSCA_ENDERECO: { ...PADRAO },
     COND_ASSUNTO_ERRADO: { ...PADRAO },
     COND_CHEADV_APTO: { ...PADRAO },
+    COND_IMOVEL_DUPLICADO: { ...PADRAO },
   } as Record<ChaveRegraBloqueio, RegraBloqueio>;
 
   const { data, error } = await supabaseAdmin

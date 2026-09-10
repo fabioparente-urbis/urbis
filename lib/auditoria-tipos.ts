@@ -38,7 +38,13 @@ export type AcaoURBI =
    * intervenção tem que aceitar concordar/discordar). É o que permite medir se o URBI está
    * ajudando ou incomodando — sem isso, "o URBI é útil?" seria opinião.
    */
-  | 'URBI_INTERVENCAO_ACEITA' | 'URBI_INTERVENCAO_RECUSADA';
+  | 'URBI_INTERVENCAO_ACEITA' | 'URBI_INTERVENCAO_RECUSADA'
+  /**
+   * Indeferimento automático por imóvel duplicado (COND_IMOVEL_DUPLICADO, pedido do Fábio em
+   * 10/09/2026) — o clique do analista no botão "Indeferir" do card grande É a autorização;
+   * fica registrado tanto quando dá certo quanto quando falha, pra nunca sumir em silêncio.
+   */
+  | 'URBI_INDEFERIMENTO_IMOVEL_DUPLICADO_EXECUTADO' | 'URBI_INDEFERIMENTO_IMOVEL_DUPLICADO_FALHOU';
 
 /**
  * Ações administrativas fora do fluxo normal de análise — hoje só o estorno

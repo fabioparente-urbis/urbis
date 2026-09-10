@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import UrbiChat from "./UrbiChat";
 import { montarRelatorioMotor } from "@/lib/urbi/motorProducao";
 import { calcularSinaleiro, combinarComDicaRt, CORES_SINALEIRO, type EstadoSinaleiro } from "@/lib/urbi/sinaleiro";
+import { executarIndeferimentoImovelDuplicado, type ConflitoImovel } from "@/lib/urbi/indeferimentoImovelDuplicado";
 import type { Aviso } from "@/lib/bdi/vigia";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
@@ -246,6 +247,43 @@ export default function UrbiGlobal() {
       processo_codigo: processoCodigo ?? undefined,
       origem: "MANUAL",
       detalhe: { itens: estadoFinal?.itens.map(i => ({ titulo: i.titulo })) ?? [] },
+    });
+  }
+
+  /**
+   * "Indeferir" no card do imóvel duplicado (pedido do Fábio, 10/09/2026) — o clique É a
+   * autorização (CLAUDE.md: nunca emitir sem o analista autorizar; aqui ele autorizou). Roda o
+   * mesmo mecanismo do botão manual "Baixar Indeferimento" das telas do MAC, de qualquer tela
+   * onde o card aparecer (LIP incluído).
+   */
+  const [indeferindoImovel, setIndeferindoImovel] = useState(false);
+  const [erroIndeferirImovel, setErroIndeferirImovel] = useState<string | null>(null);
+
+  async function indeferirPorImovelDuplicado(conflito: ConflitoImovel) {
+    if (!processoCodigo || indeferindoImovel) return;
+    setIndeferindoImovel(true);
+    setErroIndeferirImovel(null);
+    const resultado = await executarIndeferimentoImovelDuplicado(processoCodigo, conflito);
+    setIndeferindoImovel(false);
+    if (resultado.ok) {
+      registrar({
+        modulo: "URBI",
+        acao: "URBI_INDEFERIMENTO_IMOVEL_DUPLICADO_EXECUTADO",
+        processo_codigo: processoCodigo,
+        origem: "MANUAL",
+        detalhe: { conflito },
+      });
+      setOverlayDispensado(true);
+      window.location.reload();
+      return;
+    }
+    setErroIndeferirImovel(resultado.erro);
+    registrar({
+      modulo: "URBI",
+      acao: "URBI_INDEFERIMENTO_IMOVEL_DUPLICADO_FALHOU",
+      processo_codigo: processoCodigo,
+      origem: "MANUAL",
+      detalhe: { conflito, erro: resultado.erro },
     });
   }
 
@@ -639,6 +677,43 @@ export default function UrbiGlobal() {
               {estadoFinal.itens[0]?.titulo}
               {estadoFinal.itens.length > 1 ? ` (+ ${estadoFinal.itens.length - 1} outro${estadoFinal.itens.length > 2 ? "s" : ""})` : ""}
             </div>
+            {(() => {
+              const itemImovel = estadoFinal.itens.find(i => i.id === "cond_imovel_duplicado" && i.dados);
+              if (!itemImovel) return null;
+              const conflito = itemImovel.dados as ConflitoImovel;
+              return (
+                <div onClick={e => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                  {erroIndeferirImovel && (
+                    <div style={{ fontSize: 12, color: "#dc2626", textAlign: "center" }}>{erroIndeferirImovel}</div>
+                  )}
+                  <div style={{ display: "flex", gap: 8, width: "100%" }}>
+                    <button
+                      onClick={() => void indeferirPorImovelDuplicado(conflito)}
+                      disabled={indeferindoImovel}
+                      style={{
+                        flex: 1, padding: "10px 12px", borderRadius: 10, border: "none",
+                        background: indeferindoImovel ? "#fca5a5" : "#dc2626", color: "#fff",
+                        fontWeight: 700, fontSize: 13, cursor: indeferindoImovel ? "default" : "pointer",
+                      }}
+                    >
+                      {indeferindoImovel ? "Indeferindo…" : "❌ Indeferir"}
+                    </button>
+                    <button
+                      onClick={dispensarOverlayBloqueio}
+                      disabled={indeferindoImovel}
+                      style={{
+                        flex: 1, padding: "10px 12px", borderRadius: 10,
+                        border: "1px solid var(--border, #cbd5e1)", background: "transparent",
+                        color: "var(--text-primary, #334155)", fontWeight: 600, fontSize: 13,
+                        cursor: indeferindoImovel ? "default" : "pointer",
+                      }}
+                    >
+                      Analisar processo
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{ fontSize: 11, color: "#94a3b8" }}>Clique para o URBI explicar · clique fora para dispensar</div>
           </div>
         </div>

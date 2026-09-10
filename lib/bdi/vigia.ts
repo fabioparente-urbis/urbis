@@ -12,6 +12,7 @@
  * logo abaixo, e mudar um número muda a triagem inteira.
  */
 import { compararAreas } from "@/lib/compatibilidadeArea";
+import { confrontarEndereco } from "@/lib/cadastroMapaFacil";
 
 /** De onde saiu cada aviso. Aparece na tela junto do aviso. */
 export type FonteAviso =
@@ -37,6 +38,12 @@ export type Aviso = {
    * cor do avatar. Ausente/false em todo aviso normal — nem todo "alerta" é bloqueante.
    */
   bloqueante?: boolean;
+  /**
+   * Payload estruturado, só nos avisos que uma ação pode consumir direto (hoje só
+   * `cond_imovel_duplicado`, ver `ImovelConflito`) — sem isso, quem mostra o aviso só tem texto
+   * solto pra oferecer um botão de ação.
+   */
+  dados?: Record<string, any>;
 };
 
 export type ClasseTriagem = "mais simples para análise" | "exige atenção" | "maior risco de retrabalho";
@@ -204,11 +211,101 @@ export function acharIncoerencias(p: DadosProcesso): Incoerencia[] {
   return achados;
 }
 
+// ------------------------------------------------ imóvel duplicado (cond. 8)
+
+/** Status que fazem um processo anterior NÃO contar como conflito — ver acharImovelConflitante. */
+const STATUS_NAO_CONFLITA = new Set(["INDEFERIDO", "ARQUIVADO", "ARQUIVADO_DUPLICADO"]);
+
+/** Só dígitos — "12.345-6" e "123456" são o mesmo IPTU. */
+function apenasDigitos(v: string): string {
+  return v.replace(/\D/g, "");
+}
+
+/** O mínimo de outro processo que a comparação de imóvel precisa enxergar. */
+export type CandidatoImovel = {
+  codigo: string;
+  tipo_processo?: string | null;
+  status?: string | null;
+  dados?: Record<string, any> | null;
+};
+
+export type ImovelConflito = {
+  codigo: string;
+  tipoProcesso: string;
+  status: string;
+  /** Como a igualdade foi decidida — aparece no aviso, pra dar pro analista o que conferir. */
+  criterio: "iptu" | "endereco";
+};
+
+/**
+ * Acha, entre os candidatos, outro processo (Regularização ou Aceite SEI) do MESMO imóvel que
+ * ainda conta (pedido do Fábio, 10/09/2026 — ver migration 2026_09_10_urbi_cond_imovel_duplicado):
+ * indeferido/arquivado não conta, mas um alvará já aprovado ou concluído conta pra sempre, mesmo
+ * anos depois.
+ *
+ * Critério 1, IPTU: só dígitos, os dois lados não-vazios, iguais. É o identificador mais
+ * confiável quando existe.
+ *
+ * Critério 2, endereço (só quando não há IPTU num dos lados): reaproveita `confrontarEndereco`
+ * (mesma lógica que já confronta LIP × Mapa Fácil) exigindo logradouro, quadra E lote batendo —
+ * bairro fica de fora do critério porque costuma ser redundante com a quadra e divergir por
+ * causa só de nomenclatura de setor. "sem_dado" em qualquer um dos três não conta como bate: é
+ * bloqueio automático, e dado faltando não pode virar acusação de duplicidade.
+ *
+ * Puro — sem I/O, quem chama já buscou os candidatos no banco.
+ */
+export function acharImovelConflitante(
+  dadosAtual: Record<string, any> | null | undefined,
+  candidatos: CandidatoImovel[],
+): ImovelConflito | null {
+  const iptuAtual = apenasDigitos(valorCampo(dadosAtual, "iptu"));
+
+  const enderecoAtual = {
+    logradouro: valorCampo(dadosAtual, "logradouro"),
+    quadra: valorCampo(dadosAtual, "quadra"),
+    lote: valorCampo(dadosAtual, "lote"),
+    bairro: valorCampo(dadosAtual, "bairro"),
+  };
+  const temEnderecoAtual = !!(enderecoAtual.logradouro && enderecoAtual.quadra && enderecoAtual.lote);
+
+  for (const c of candidatos) {
+    const status = String(c.status ?? "").toUpperCase();
+    if (STATUS_NAO_CONFLITA.has(status)) continue;
+
+    const iptuCand = apenasDigitos(valorCampo(c.dados, "iptu"));
+    if (iptuAtual.length >= 3 && iptuCand.length >= 3 && iptuAtual === iptuCand) {
+      return { codigo: c.codigo, tipoProcesso: String(c.tipo_processo ?? ""), status, criterio: "iptu" };
+    }
+  }
+
+  if (!temEnderecoAtual) return null;
+
+  for (const c of candidatos) {
+    const status = String(c.status ?? "").toUpperCase();
+    if (STATUS_NAO_CONFLITA.has(status)) continue;
+
+    const confronto = confrontarEndereco(enderecoAtual, {
+      logradouro: valorCampo(c.dados, "logradouro"),
+      quadra: valorCampo(c.dados, "quadra"),
+      lote: valorCampo(c.dados, "lote"),
+      bairro: valorCampo(c.dados, "bairro"),
+    });
+    const porCampo = new Map(confronto.map((it) => [it.campo, it.situacao]));
+    const bate = porCampo.get("logradouro") === "bate" && porCampo.get("quadra") === "bate" && porCampo.get("lote") === "bate";
+    if (bate) {
+      return { codigo: c.codigo, tipoProcesso: String(c.tipo_processo ?? ""), status, criterio: "endereco" };
+    }
+  }
+
+  return null;
+}
+
 // ------------------------------------------------------------- os avisos
 
 export type ChaveRegraBloqueio =
   | "COND_180_DIAS" | "COND_FISCAL_DIVERGE" | "COND_MARCO_TEMPORAL"
-  | "COND_USO_SOLO" | "COND_BUSCA_ENDERECO" | "COND_ASSUNTO_ERRADO" | "COND_CHEADV_APTO";
+  | "COND_USO_SOLO" | "COND_BUSCA_ENDERECO" | "COND_ASSUNTO_ERRADO" | "COND_CHEADV_APTO"
+  | "COND_IMOVEL_DUPLICADO";
 
 export type RegraBloqueio = { ativo: boolean; parametros: Record<string, any> };
 
@@ -244,6 +341,13 @@ export type EntradaVigia = {
   } | null;
   /** Dias corridos desde a última emissão em mdp_registros. null = nunca emitiu nada ainda. */
   diasSemUltimaEmissao?: number | null;
+  /**
+   * Outro processo (Regularização/Aceite SEI) do MESMO imóvel que ainda conta como conflito —
+   * condição 8, pedido do Fábio em 10/09/2026. Já vem pronto de `acharImovelConflitante`; quem
+   * chama busca os candidatos no banco (`processos` do mesmo imóvel) e aplica a função pura.
+   * null = não achou nenhum.
+   */
+  imovelConflito?: ImovelConflito | null;
 };
 
 /**
@@ -371,8 +475,14 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     e.regras?.[chave] ?? { ativo: false, parametros: {} };
   const tipo = String(e.processo.tipo_processo ?? "").toLowerCase().trim();
   const ehRegularizacao = tipo.startsWith("regularizacao");
+  /**
+   * As 8 condições bloqueantes só valem para Regularização/Aceite SEI — Slot 1/2 hoje,
+   * Slot 3/4 (PED, futuro) amanhã, sempre pelo mesmo prefixo do tipo. Slot 5 (Aprovação de
+   * Projeto) atende outra legislação e NUNCA entra aqui — pedido explícito do Fábio, 10/09/2026.
+   */
+  const aplicaCondicoesBloqueio = ehRegularizacao || tipo.startsWith("aceite");
 
-  if (regra("COND_FISCAL_DIVERGE").ativo) {
+  if (regra("COND_FISCAL_DIVERGE").ativo && aplicaCondicoesBloqueio) {
     const vistoriaLevante = valorCampo(e.processo.dados, "vistoriaLevante");
     if (vistoriaLevante.toLowerCase() === "não" || vistoriaLevante.toLowerCase() === "nao") {
       avisos.push({
@@ -404,7 +514,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
-  if (regra("COND_MARCO_TEMPORAL").ativo && e.marcoTemporalReprovado) {
+  if (regra("COND_MARCO_TEMPORAL").ativo && aplicaCondicoesBloqueio && e.marcoTemporalReprovado) {
     const ev = e.marcoTemporalEvidencia;
     const trecho = ev?.trecho?.trim();
     const detalhe = trecho
@@ -441,7 +551,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
   // e Aceite SEI" (ver plano floating-humming-orbit.md). Achado em 08/09/2026: faltava esse
   // filtro, e a condição disparava também na Aprovação de Projeto (Slot 5), que nunca teve busca
   // de endereço no fluxo. "Slot 5 não tem busca... não deve haver esse pedido" — Fábio.
-  if (regra("COND_BUSCA_ENDERECO").ativo && (ehRegularizacao || tipo.startsWith("aceite"))) {
+  if (regra("COND_BUSCA_ENDERECO").ativo && aplicaCondicoesBloqueio) {
     const outro = valorCampo(e.processo.dados, "outro");
     if (!outro) {
       avisos.push({
@@ -455,7 +565,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
-  if (regra("COND_ASSUNTO_ERRADO").ativo) {
+  if (regra("COND_ASSUNTO_ERRADO").ativo && aplicaCondicoesBloqueio) {
     const carimbo = valorCampo(e.processo.dados, "carimboTipoProjeto");
     const carimboNorm = carimbo.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     if (carimboNorm) {
@@ -473,7 +583,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
-  if (regra("COND_CHEADV_APTO").ativo) {
+  if (regra("COND_CHEADV_APTO").ativo && aplicaCondicoesBloqueio) {
     const cheadvAprovado = valorCampo(e.processo.dados, "cheadvAprovado");
     if (cheadvAprovado.toLowerCase() === "não" || cheadvAprovado.toLowerCase() === "nao") {
       avisos.push({
@@ -487,8 +597,23 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
+  if (regra("COND_IMOVEL_DUPLICADO").ativo && aplicaCondicoesBloqueio && e.imovelConflito) {
+    const conf = e.imovelConflito;
+    const outroTipo = conf.tipoProcesso.toLowerCase().startsWith("regularizacao") ? "Regularização SEI" : "Aceite SEI";
+    const porQue = conf.criterio === "iptu" ? "mesmo IPTU" : "mesmo logradouro, quadra e lote";
+    avisos.push({
+      id: "cond_imovel_duplicado",
+      titulo: "Já existe outro processo para este imóvel",
+      detalhe: `O processo ${conf.codigo} (${outroTipo}, status ${conf.status}) é do mesmo imóvel (${porQue}). Só é permitida uma Regularização ou um Aceite SEI por imóvel — indeferido/arquivado não conta, mas um alvará já aprovado ou concluído conta mesmo anos depois. Conferir antes de seguir analisando.`,
+      fonte: "campo do processo",
+      severidade: "alerta",
+      bloqueante: true,
+      dados: { codigo: conf.codigo, tipoProcesso: conf.tipoProcesso, status: conf.status },
+    });
+  }
+
   const regra180 = regra("COND_180_DIAS");
-  if (regra180.ativo && e.diasSemUltimaEmissao != null) {
+  if (regra180.ativo && aplicaCondicoesBloqueio && e.diasSemUltimaEmissao != null) {
     const diasBloqueio = Number(regra180.parametros?.diasBloqueio ?? 180);
     const diasAviso = Number(regra180.parametros?.diasAviso ?? 170);
     if (e.diasSemUltimaEmissao >= diasBloqueio) {

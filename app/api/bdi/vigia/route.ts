@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { autenticar, verificarOwnership } from "@/lib/auth";
-import { montarAvisos, triar, type EntradaVigia, type Aviso } from "@/lib/bdi/vigia";
+import { montarAvisos, triar, acharImovelConflitante, type EntradaVigia, type Aviso, type CandidatoImovel } from "@/lib/bdi/vigia";
 import { lerRegrasBloqueio } from "@/lib/urbi/regrasBloqueio";
 
 /** "DD/MM/AAAA" (formato usado em mdp_registros.data_despacho) → Date, ou null se ilegível. */
@@ -63,6 +63,10 @@ export async function GET(req: NextRequest) {
   const tipo = (processo as any).tipo_processo
     ? String((processo as any).tipo_processo).toLowerCase()
     : null;
+  // As 8 condições bloqueantes do URBI só servem para Regularização/Aceite SEI (Slot 1/2, e
+  // futuramente Slot 3/4 PED — mesmo prefixo) — pedido do Fábio, 10/09/2026: "esses 8 passos não
+  // servem para o slot 5... que é um assunto que atende outra legislação". Slot 5 não entra aqui.
+  const aplicaCondicoesBloqueio = !!tipo && (tipo.startsWith("regularizacao") || tipo.startsWith("aceite"));
   let exigenciasRecorrentes: any[] = [];
   if (tipo) {
     const { data } = await supabase
@@ -110,7 +114,7 @@ export async function GET(req: NextRequest) {
   const avisosExtras: Aviso[] = [];
   let marcoTemporalReprovado = false;
   let marcoTemporalEvidencia: EntradaVigia["marcoTemporalEvidencia"] = null;
-  if (regras.COND_MARCO_TEMPORAL.ativo) {
+  if (regras.COND_MARCO_TEMPORAL.ativo && aplicaCondicoesBloqueio) {
     // Pega o evento MAIS RECENTE (não "algum dia já existiu") — achado real em 08/09/2026: o
     // registro é gravado toda vez que uma leitura reprova, mas NUNCA existe um evento de
     // correção quando uma leitura seguinte aprova (só `naoApta===true` grava, ver
@@ -162,7 +166,7 @@ export async function GET(req: NextRequest) {
   }
 
   let diasSemUltimaEmissao: number | null = null;
-  if (regras.COND_180_DIAS.ativo) {
+  if (regras.COND_180_DIAS.ativo && aplicaCondicoesBloqueio) {
     const { data: ultimaEmissao } = await supabase
       .from("mdp_registros")
       .select("data_despacho, criado_em")
@@ -176,6 +180,22 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // --- imóvel duplicado (condição 8, 10/09/2026): outra Regularização/Aceite SEI no mesmo imóvel
+  let imovelConflito: EntradaVigia["imovelConflito"] = null;
+  if (regras.COND_IMOVEL_DUPLICADO.ativo && aplicaCondicoesBloqueio) {
+    const { data: candidatos } = await supabase
+      .from("processos")
+      .select("codigo, tipo_processo, status, dados")
+      .in("tipo_processo", ["regularizacao", "aceite_sei"])
+      .neq("codigo", codigo)
+      .is("excluido_em", null)
+      .limit(5000);
+    imovelConflito = acharImovelConflitante(
+      (processo as any).dados,
+      (candidatos ?? []) as CandidatoImovel[],
+    );
+  }
+
   const entrada: EntradaVigia = {
     processo: processo as any,
     retrabalho: retrabalho ?? null,
@@ -186,6 +206,7 @@ export async function GET(req: NextRequest) {
     marcoTemporalReprovado,
     marcoTemporalEvidencia,
     diasSemUltimaEmissao,
+    imovelConflito,
   };
 
   return NextResponse.json({

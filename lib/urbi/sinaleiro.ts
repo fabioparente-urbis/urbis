@@ -19,6 +19,11 @@ export type ItemSinaleiro = {
   fonte: string;
   /** Condição que impede a análise (ver lib/bdi/vigia.ts, Aviso.bloqueante). */
   bloqueante?: boolean;
+  /** Chave estável do aviso de origem (Aviso.id) — permite ao card grande oferecer um botão de
+   * ação pra um aviso específico (hoje só "cond_imovel_duplicado"), em vez de só abrir o chat. */
+  id?: string;
+  /** Payload estruturado do aviso de origem (Aviso.dados), quando existir. */
+  dados?: Record<string, any>;
 };
 
 export type EstadoSinaleiro = {
@@ -51,7 +56,7 @@ export function calcularSinaleiro(avisos: Aviso[], acoes: AcaoPrioritaria[]): Es
 
   for (const a of avisos ?? []) {
     if (a.severidade === "alerta") {
-      vermelho.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}`, bloqueante: a.bloqueante === true });
+      vermelho.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}`, bloqueante: a.bloqueante === true, id: a.id, dados: a.dados });
     } else if (a.severidade === "atencao") {
       amarelo.push({ titulo: a.titulo, detalhe: a.detalhe, fonte: `Vigia — ${a.fonte}` });
     }

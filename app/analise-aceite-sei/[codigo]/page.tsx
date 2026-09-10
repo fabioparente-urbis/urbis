@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
 import { parseAreaBR } from "@/lib/mrp";
+import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -2842,6 +2843,7 @@ export default function MacPage() {
               "Reforma ou construção após 04/03/2022 — não elegível para regularização",
               "Edificação em APP/APM — vedada pela legislação ambiental",
               "Processo sem documentação mínima para análise",
+              MOTIVO_IMOVEL_DUPLICADO,
             ].map((motivo) => (
               <label key={motivo} className="flex items-start gap-2 mb-2 cursor-pointer">
                 <input type="checkbox" className="mt-1" checked={motivosIndeferimento.includes(motivo)}
