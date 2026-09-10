@@ -9,6 +9,7 @@ import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTe
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
 import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
+import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
@@ -1360,9 +1361,14 @@ export default function ProcessoClient() {
       for (const arquivo of arquivos) {
         resultados.push(await (async (arquivo) => {
           // 2. S1 — Upload para Gemini File API (streaming direto)
-          if (arquivo.size > 50 * 1024 * 1024) {
-            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — limite é 50MB (teto do Gemini para leitura de PDF). Comprima o PDF antes de enviar.`);
+          // Tamanho não bloqueia mais por si: acima do teto do modelo padrão a leitura sobe
+          // sozinha para o modelo que suporta (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
+          // o teto do servidor, e para esse caso a saída é fatiar o PDF, não comprimir.
+          if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
+            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita. Use o Organizador de PDF SEI para separar os documentos e leia por partes.`);
           }
+          const avisoModelo = avisoModeloArquivoGrande(arquivo.size);
+          if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`, "info");
           setProgresso(20);
           mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
           // O tipo vai junto: print de tela (PNG/JPG) precisa chegar ao
@@ -1390,7 +1396,7 @@ export default function ProcessoClient() {
           const s2Res = await fetch("/api/lip/s2", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl }),
+            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }),
           });
           const s2Data = await s2Res.json();
           const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
@@ -1407,7 +1413,7 @@ export default function ProcessoClient() {
           const s3Init = await fetch("/api/lip/s3", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType }),
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, tamanhoBytes: arquivo.size }),
           }).then(r => r.json());
           if (!s3Init.ok) {
             if (s3Init.erro === "LIMITE_DIARIO_GEMINI" || s3Init.erro === "BUDGET_EXCEDIDO") {
@@ -1591,6 +1597,11 @@ export default function ProcessoClient() {
         const arquivo = vcpArquivos[i];
         setProgresso(Math.round(10 + (i / total) * 60));
         mostrarToast(`📄 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
+        if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
+          throw new Error(`"${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita.`);
+        }
+        const avisoModeloVcp = avisoModeloArquivoGrande(arquivo.size);
+        if (avisoModeloVcp) mostrarToast(`⚠️ ${avisoModeloVcp}`, "info");
         const tipoVcp = arquivo.type || "application/pdf";
         const s1Res = await fetch("/api/lip/s1", {
           method: "POST",
@@ -1599,14 +1610,14 @@ export default function ProcessoClient() {
         });
         const s1Data = await s1Res.json();
         if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
-        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl }) });
+        const s2Res = await fetch("/api/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }) });
         const s2Data = await s2Res.json();
         const pdfBase64vcp = await new Promise<string>((res) => {
           const r = new FileReader();
           r.onload = () => res((r.result as string).split(",")[1]);
           r.readAsDataURL(arquivo);
         });
-        const s3VcpInit = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current }) }).then(r => r.json());
+        const s3VcpInit = await fetch("/api/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current, tamanhoBytes: arquivo.size }) }).then(r => r.json());
         if (!s3VcpInit.ok) throw new Error("S3: " + (s3VcpInit.erro || "Erro ao iniciar leitura"));
         mostrarToast(`⏳ VCP: Processando ${arquivo.name} com IA...`, "info");
         const s3VcpData = await aguardarJobS3(s3VcpInit.jobId);

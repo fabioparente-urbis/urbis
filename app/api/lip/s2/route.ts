@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GEMINI_MODEL } from "@/lib/constants";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { aplicarMarcadores } from "@/lib/promptCampos";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import { escolherModeloPorTamanho } from "@/lib/modeloGemini";
 
 export const maxDuration = 280;
 
@@ -10,8 +10,14 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   let processoCodigo: string | null = null;
   let slot: string | null = null;
+  /* Fora do try porque o catch também registra o uso, e ali precisa dizer qual modelo falhou.
+     Sem tamanho informado é o padrão de sempre — nenhum chamador antigo muda de comportamento. */
+  let modelo = escolherModeloPorTamanho(null);
   try {
-    const { fileUri, assunto_id, mimeType, codigo, tipoProcesso } = await req.json();
+    const { fileUri, assunto_id, mimeType, codigo, tipoProcesso, tamanhoBytes } = await req.json();
+    // O tamanho vem do S1, que é quem viu o arquivo. Acima do teto do modelo padrão, a leitura
+    // sobe para o modelo que suporta — Fase 2, ver lib/modeloGemini.ts.
+    modelo = escolherModeloPorTamanho(typeof tamanhoBytes === "number" ? tamanhoBytes : null);
     processoCodigo = typeof codigo === "string" ? codigo : null;
     slot = typeof tipoProcesso === "string" ? tipoProcesso : null;
     // Sem isto, print de tela ia para o Gemini rotulado como PDF.
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,7 +75,7 @@ export async function POST(req: NextRequest) {
       const err = await res.text();
       await registrarChamadaIA({
         modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
-        modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500),
+        modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: err.slice(0, 500),
       });
       return NextResponse.json({ ok: false, erro: err }, { status: 500 });
     }
@@ -81,7 +87,7 @@ export async function POST(req: NextRequest) {
 
     await registrarChamadaIA({
       modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
-      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
+      modelo, duracaoMs: Date.now() - t0, status: "ok",
       tokensEntrada: data.usageMetadata?.promptTokenCount ?? null,
       tokensSaida: data.usageMetadata?.candidatesTokenCount ?? null,
     });
@@ -90,7 +96,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     await registrarChamadaIA({
       modulo: "LIP", slot, operacao: "S2_MAPA_DOCUMENTOS", processoCodigo,
-      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+      modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
     });
     return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import { escolherModeloPorTamanho, ehModeloDeArquivoGrande, LIMITE_BYTES_PLATAFORMA, LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
@@ -13,14 +14,17 @@ export async function POST(req: NextRequest) {
 
     const contentLength = req.headers.get("x-file-size") || "0";
     const fileSizeBytes = parseInt(contentLength);
-    // 50MB não é arbitrário: é o teto do próprio Gemini pra leitura de PDF
-    // (document understanding), documentado pela Google. Acima disso a
-    // chamada ao generateContent falha com 400 INVALID_ARGUMENT sem detalhe —
-    // já confirmado testando direto contra a API, fora do nosso código.
-    const MAX_BYTES = 50 * 1024 * 1024;
-    if (fileSizeBytes > MAX_BYTES) {
-      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de 50MB (teto do Gemini). Comprima o PDF antes de enviar.` }, { status: 413 });
+    // Os 50MB que este ponto recusava eram teto do MODELO 2.5, não da plataforma nem do upload —
+    // medido em 10/09/2026: o mesmo arquivo de 52MB que o 2.5 recusa com 400, o 3.6 lê inteiro.
+    // Desde a Fase 2 do plano de leitura de PDF, tamanho não bloqueia mais: ele ESCOLHE o modelo
+    // (ver lib/modeloGemini.ts). O que ainda bloqueia é o teto de plataforma, e para esse caso a
+    // saída não é comprimir, é fatiar o PDF — que é coisa que o sistema já sabe fazer.
+    if (fileSizeBytes > LIMITE_BYTES_PLATAFORMA) {
+      return NextResponse.json({ ok: false, erro: `ARQUIVO_GRANDE: PDF com ${(fileSizeBytes/1024/1024).toFixed(0)}MB excede o limite de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB que o servidor aceita. Use o Organizador de PDF SEI para separar os documentos e leia por partes.` }, { status: 413 });
     }
+    // O modelo vai junto na resposta para que o S2 e o S3 leiam o MESMO arquivo com o MESMO
+    // modelo. Eles recebem só o fileUri, e do fileUri não dá para deduzir tamanho.
+    const modelo = escolherModeloPorTamanho(fileSizeBytes);
     const fileName = req.headers.get("x-file-name") || "processo.pdf";
     // O tipo tem que ser o real: o pipeline mandava application/pdf fixo,
     // então print de tela (PNG/JPG) subia rotulado como PDF e o Gemini
@@ -31,7 +35,10 @@ export async function POST(req: NextRequest) {
       ? (tipoBruto === "image/jpg" ? "image/jpeg" : tipoBruto)
       : "application/pdf";
 
-    console.log(`[S1] Streaming: ${fileName} (${(parseInt(contentLength) / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`[S1] Streaming: ${fileName} (${(parseInt(contentLength) / 1024 / 1024).toFixed(2)} MB) | modelo: ${modelo}`);
+    if (ehModeloDeArquivoGrande(modelo)) {
+      console.log(`[S1] Arquivo acima de ${LIMITE_BYTES_MODELO_PADRAO / 1024 / 1024}MB — leitura escalada para ${modelo}.`);
+    }
 
     const uploadRes = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     await registrarChamadaIA({
-      modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo,
+      modulo: "LIP", slot, operacao: "S1_UPLOAD", processoCodigo, modelo,
       tamanhoBytes: fileSizeBytes, duracaoMs: Date.now() - t0, status: "ok",
     });
 
@@ -102,6 +109,9 @@ export async function POST(req: NextRequest) {
       fileName: filName,
       state,
       tamanhoMB: (parseInt(contentLength) / 1024 / 1024).toFixed(2),
+      /** Repassados ao S2/S3 para que os três passos usem o mesmo modelo. */
+      tamanhoBytes: fileSizeBytes,
+      modelo,
     });
   } catch (e: any) {
     console.error("[S1] Erro:", e?.message);

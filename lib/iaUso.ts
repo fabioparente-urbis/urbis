@@ -7,6 +7,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  */
 const PRECO_USD_POR_MILHAO: Record<string, { entrada: number; saida: number }> = {
   "gemini-2.5-flash": { entrada: 0.30, saida: 2.50 },
+  // Preço promocional do sucessor, MEDIDO/consultado em 10/09/2026 — dobra em 01/01/2027, quando
+  // a promoção acaba. Entrou aqui junto com a Fase 2 (arquivo grande sobe para este modelo):
+  // sem a linha, toda leitura de PDF grande apareceria com custo estimado nulo na Rastreabilidade.
+  "gemini-3.6-flash": { entrada: 0.75, saida: 3.75 },
 };
 
 function custoEstimadoUsd(modelo: string | null | undefined, tokensEntrada: number | null | undefined, tokensSaida: number | null | undefined): number | null {

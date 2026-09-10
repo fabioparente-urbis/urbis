@@ -3,7 +3,8 @@
 ### Fatiador de PDF do SEI · Módulo de Análise de Fluxo
 ### Plano de implantação e operação
 
-**Versão:** 4 · **Data:** 10/09/2026 · **Estado:** proposto, nada implementado
+**Versão:** 5 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fase 2 concluída** (1 de 16
+fases: **6% concluído, 94% restante**)
 
 **Concepção e direção do produto:** Fábio Parente Martins Santos
 **Expansão do Módulo de Análise de Fluxo:** discussão com Gemini
@@ -468,7 +469,7 @@ nenhuma fase** — condição inegociável, porque o sistema está em produção
 | **0 — Medir para mirar** | Taxa de acerto atual do fatiador nos processos reais: quantos documentos identifica, quantos ficam pendentes, quantas vezes departamento/assinante/data saem vazios. | 0,5 sessão | Relatório por tipo de erro, ordenado por frequência |
 | **1 — Gravar departamento, assinante e data** | Três colunas novas e a gravação correspondente. | 0,5 sessão | Um processo fatiado deposita os três campos e eles podem ser consultados |
 | **1B — Dar visão ao classificador** | Passar departamento, assinante, data e posição no fluxo para a classificação, e criar regras que combinem sinais. | 1 sessão | Taxa da Fase 0 remedida, com ganho demonstrado |
-| **2 — Modelo passa a ser escolha** | O modelo de IA deixa de ser fixo. O atual continua padrão; o novo entra automaticamente quando o arquivo é grande demais. | 1 sessão | PDF que hoje dá erro é lido com sucesso |
+| ✅ **2 — Modelo passa a ser escolha** | **CONCLUÍDA em 10/09/2026.** O modelo deixa de ser constante: `lib/modeloGemini.ts` escolhe pelo tamanho do arquivo. O 2.5 continua padrão até 50MB; acima disso entra o 3.6 sozinho, sem pedir nada ao analista. Vale para os dois botões do LIP (LER PROCESSO e LER ARQUIVOS INDIVIDUAIS, via S1/S2/S3) e para o checklist do MAC (`/api/mac/p3`). O bloqueio de tamanho que existia em 4 telas deixou de ser teto de modelo e virou teto de servidor (350MB, o mesmo já praticado nas rotas de documentos SEI). | 1 sessão | PDF que hoje dá erro é lido com sucesso |
 | **3 — Comparar qualidade entre modelos** | Leitura do mesmo processo nos dois modelos, comparação campo a campo. | 0,5 sessão | Tabela de divergências, com decisão sobre reescrita de instruções |
 | **4 — Regras editáveis pelo analista** | As regras de identificação saem do código e passam para tabela com tela de edição. | 1,5 sessão | O analista adiciona uma regra e ela passa a valer sem publicação de versão |
 | **5 — Carga do conhecimento** | Entrevistas estruturadas alimentando as tabelas: departamentos, textos que delimitam, tipos, fluxo, assinaturas. | A definir, com o Fábio | Cobertura medida subindo a cada rodada |
@@ -486,7 +487,7 @@ nenhuma fase** — condição inegociável, porque o sistema está em produção
 
 | Após a fase | O que já é possível |
 |---|---|
-| **2** | PDFs grandes voltam a ser lidos. Dor imediata resolvida. |
+| **2** ✅ | PDFs grandes voltam a ser lidos. Dor imediata resolvida. |
 | **1B e 5** | O fatiador acerta a maioria. A conferência fica rápida. |
 | **6** | O módulo existe como produto, com tela própria. |
 | **7, 8 e 9** | O custo por processo cai **abaixo** do praticado hoje, mesmo com o modelo mais caro. |
@@ -628,3 +629,4 @@ Pontos sem resposta definida, que valem discussão técnica antes ou durante a i
 | 2 | 10/09/2026 | Acrescentado o Módulo B — Análise de Fluxo (discussão com Gemini). Achado central: o BDI é cego para fora do URBIS e o Fatiador é a única porta do fluxo real; setor/assinante/data calculados e descartados. Governança de métrica nominal. Integração com URBI/BDI. |
 | 3 | 10/09/2026 | Correção do Fábio, aceita: classificar não precisa de imagem. Documento administrativo é identificado pela moldura, não pelo miolo. Achado F10: o classificador recebe só o texto da página e ignora três sinais que o fatiador já extrai. Nova Fase 1B. |
 | 4 | 10/09/2026 | **Reescrita completa com foco em operação.** Acrescentados: glossário, as quatro rotinas de uso passo a passo (processo novo, retorno, carga do acervo, gestão), desenho das cinco telas, quem opera o quê, o que acontece quando dá errado, critérios de conclusão por fase e marcos de valor. Corrigida a afirmação da v2 de que a estatística não seria retroativa — o histórico está dentro do PDF e pode ser reconstruído. Precisão de tempo recalibrada para faixas, não calendário. Governança reposicionada como argumento comercial. Documento renomeado para "Upgrade na leitura de PDF — Slot 1 e 2". |
+| 5 | 10/09/2026 | **Primeira fase implementada: a Fase 2 saiu do papel.** O modelo virou escolha por tamanho (`lib/modeloGemini.ts`), o teto de 50MB deixou de ser recusa e virou troca de modelo nos dois botões do LIP e no MAC, e o preço do modelo novo entrou no registro de uso para a Rastreabilidade não mostrar custo nulo. Conferência automatizada em `scripts/conferir_escolha_modelo.mts`. Estado do documento passa de "proposto" para "em implantação", com percentual. |

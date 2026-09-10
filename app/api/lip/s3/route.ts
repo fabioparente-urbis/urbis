@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GEMINI_MODEL, type GeminiModel } from "@/lib/constants";
-
-const _modeloValidado: GeminiModel = GEMINI_MODEL;
+import { type GeminiModel } from "@/lib/constants";
+import { escolherModeloPorTamanho } from "@/lib/modeloGemini";
 import { createClient } from "@supabase/supabase-js";
 import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
 import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
@@ -20,7 +19,11 @@ export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   try {
-    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id, mimeType } = await req.json();
+    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id, mimeType, tamanhoBytes } = await req.json();
+    // Tamanho medido pelo S1: acima do teto do modelo padrão a extração sobe para o modelo que
+    // suporta o arquivo, em vez de falhar com 400 — Fase 2, ver lib/modeloGemini.ts. Sem tamanho
+    // informado, continua o padrão de sempre.
+    const modelo = escolherModeloPorTamanho(typeof tamanhoBytes === "number" ? tamanhoBytes : null);
     const tipoArquivo = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "application/pdf";
     if (!fileUri)
       return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY!;
 
     // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
-    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, tipoArquivo }).catch(
+    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo }).catch(
       (e) => console.error("[S3-bg] erro não capturado:", e?.message)
     );
 
@@ -154,8 +157,10 @@ async function processarJobBackground(jobId: string, params: {
   tipoProcesso?: string | null;
   /** application/pdf ou image/* — o print de tela precisa ir como imagem. */
   tipoArquivo?: string;
+  /** Escolhido pelo tamanho do arquivo no POST — o job não tem como recalcular sozinho. */
+  modelo: GeminiModel;
 }) {
-  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso } = params;
+  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo } = params;
   const tipoArquivo = params.tipoArquivo ?? "application/pdf";
   const t0 = Date.now();
   try {
@@ -172,7 +177,7 @@ async function processarJobBackground(jobId: string, params: {
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       console.log(`[S3-bg] job=${jobId} tentativa ${tentativa}/${MAX_TENTATIVAS}`);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -228,7 +233,7 @@ async function processarJobBackground(jobId: string, params: {
       else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
       await registrarChamadaIA({
         modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
-        modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: motivo,
+        modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: motivo,
       });
       await supabaseAdmin.from("lip_jobs").update({
         status: "erro",
@@ -240,7 +245,7 @@ async function processarJobBackground(jobId: string, params: {
 
     await registrarChamadaIA({
       modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
-      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "ok",
+      modelo, duracaoMs: Date.now() - t0, status: "ok",
       tokensEntrada: usageMetadata?.promptTokenCount ?? null,
       tokensSaida: usageMetadata?.candidatesTokenCount ?? null,
     });
@@ -332,7 +337,7 @@ async function processarJobBackground(jobId: string, params: {
     console.error(`[S3-bg] job=${jobId} falha:`, e?.message);
     await registrarChamadaIA({
       modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
-      modelo: GEMINI_MODEL, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+      modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
     });
     await supabaseAdmin.from("lip_jobs").update({
       status: "erro",

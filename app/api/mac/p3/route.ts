@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GEMINI_MODEL } from "@/lib/constants";
+import { escolherModeloPorTamanho, ehModeloDeArquivoGrande, LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseAdmin = createClient(
@@ -107,7 +107,13 @@ export async function POST(req: NextRequest) {
 
     // 1) Upload do PDF ao Gemini Files API
     const sizeMb = (file.size / 1024 / 1024).toFixed(2);
-    console.log(`[P3_MAC] Upload PDF: ${file.name} (${sizeMb} MB)`);
+    // Acima do teto do modelo padrão o checklist era simplesmente recusado pela tela. Desde a
+    // Fase 2 do plano de leitura de PDF, o tamanho escolhe o modelo — ver lib/modeloGemini.ts.
+    const modelo = escolherModeloPorTamanho(file.size);
+    console.log(`[P3_MAC] Upload PDF: ${file.name} (${sizeMb} MB) | modelo: ${modelo}`);
+    if (ehModeloDeArquivoGrande(modelo)) {
+      console.log(`[P3_MAC] Arquivo acima de ${LIMITE_BYTES_MODELO_PADRAO / 1024 / 1024}MB — leitura escalada para ${modelo}.`);
+    }
     const uploadRes = await fetch(
       `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
       {
@@ -201,7 +207,7 @@ Por isso:
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
       console.log(`[P3_MAC] tentativa ${tentativa}/${MAX_TENTATIVAS}`);
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -252,7 +258,7 @@ Por isso:
     }
 
     if (!geminiOk) {
-      console.error("[P3_MAC] fileUri:", fileUri, "| modelo:", GEMINI_MODEL);
+      console.error("[P3_MAC] fileUri:", fileUri, "| modelo:", modelo);
       if (ultimoStatus === 429 || ultimoCorpo.toLowerCase().includes("resource_exhausted") || ultimoCorpo.toLowerCase().includes("quota")) {
         return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
       }

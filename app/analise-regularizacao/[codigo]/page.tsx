@@ -8,6 +8,7 @@ import { useParams, useRouter } from "next/navigation";
 import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
 import { parseAreaBR } from "@/lib/mrp";
 import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado";
+import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -1573,9 +1574,14 @@ export default function MacPage() {
 
       for (let i = 0; i < arquivos.length; i++) {
         const arquivo = arquivos[i];
-        if (arquivo.size > 50 * 1024 * 1024) {
-          throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(0)}MB — limite é 50MB (teto do Gemini para leitura de PDF). Comprima o PDF antes de enviar.`);
+        // 50MB era teto do MODELO padrão, não do servidor: acima disso a leitura sobe sozinha
+        // para o modelo que suporta o arquivo (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
+        // o teto do servidor, e aí a saída é separar os documentos, não comprimir.
+        if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
+          throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita. Use o Organizador de PDF SEI para separar os documentos e leia por partes.`);
         }
+        const avisoModelo = avisoModeloArquivoGrande(arquivo.size);
+        if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`);
         setProgressoP2(Math.round((i / arquivos.length) * 90));
         mostrarToast(`📎 Lendo ${arquivo.name} (${i + 1}/${arquivos.length})...`);
 
