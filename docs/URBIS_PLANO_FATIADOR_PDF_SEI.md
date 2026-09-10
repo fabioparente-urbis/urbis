@@ -13,18 +13,27 @@ Gemini · levantamento técnico, verificação e redação na sessão Claude de 
 
 ---
 
-## 1. O que mudou da versão 1 para a 2
+## 1. Como este plano chegou aqui
 
-A v1 tratava de **um** módulo (o Fatiador). A conversa com o Gemini acrescentou um **segundo**:
-o **Módulo de Análise de Fluxo de Processos**.
+**v1** tratava de **um** módulo: o Fatiador.
 
-Ao verificar essa proposta contra o banco de produção, apareceu o achado que reorganiza o plano
-inteiro — e que nem o Gemini nem eu tínhamos visto (§4). Ele muda a ordem de prioridade e
-transforma uma tarefa pequena e barata na peça mais estratégica do projeto.
+**v2** — a conversa do Fábio com o Gemini acrescentou um **segundo módulo**, a **Análise de Fluxo
+de Processos**. Ao verificar essa proposta contra o banco de produção apareceu o achado de §4, que
+nem o Gemini nem eu tínhamos visto: o BDI é cego para fora do URBIS, e o Fatiador é a única porta
+pela qual o fluxo real da prefeitura pode entrar. Isso transformou uma tarefa de meia sessão na
+peça mais estratégica do projeto (Fase 1). A v2 também levantou a **governança de métrica nominal
+de servidores** (§9), que é o maior risco pessoal do Fábio e ninguém tinha citado.
 
-Esta versão também **corrige duas premissas** da proposta do Gemini (§8) e acrescenta uma
-**questão de governança** que ninguém tinha levantado e que é a de maior risco pessoal para o
-Fábio (§9).
+**v3** — o Fábio corrigiu uma análise minha que estava errada: *classificar documento não precisa
+de imagem*. Documento administrativo é identificado pela **moldura** (rodapé, cabeçalho,
+assinatura, departamento, posição no fluxo), não pelo miolo. Verificar isso achou o buraco real
+(**F10**): o classificador recebe apenas o texto da página e **ignora três sinais que o fatiador
+já extrai**. Daí nasceu a Fase 1B — e a perspectiva de que a IA sobre imagem se torne quase
+desnecessária. Ver §8.1.
+
+> **Padrão que se repete e vale registrar:** as três correções mais valiosas deste documento
+> vieram do Fábio ou do Gemini, e todas foram confirmadas indo verificar o código e o banco. As
+> hipóteses que eu levantei sem medir foram justamente as que caíram.
 
 ---
 
