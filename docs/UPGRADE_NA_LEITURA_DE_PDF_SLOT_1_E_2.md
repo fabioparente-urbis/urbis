@@ -3,7 +3,7 @@
 ### Fatiador de PDF do SEI · Módulo de Análise de Fluxo
 ### Plano de implantação e operação
 
-**Versão:** 5 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fase 2 concluída** (1 de 16
+**Versão:** 6 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fase 2 concluída** (1 de 16
 fases: **6% concluído, 94% restante**)
 
 **Concepção e direção do produto:** Fábio Parente Martins Santos
@@ -242,6 +242,16 @@ Princípio comum a todas: **nada some em silêncio**, e nada é gravado sem deci
 ---
 
 ## 4. As telas, em detalhe
+
+> **Regra de navegação (decidida por Fábio em 10/09/2026): todo módulo novo ganha card na Home.**
+>
+> O Fatiador com tela própria (Fase 6) e o painel de Análise de Fluxo (Fase 12) não ficam
+> acessíveis só por dentro de outra tela ou por URL digitada — entram em `app/page.tsx` como
+> card próprio, no mesmo padrão dos demais (`cards: Card[]`, com `chave`, `Icone`, `rota` e o
+> gate de perfil que cada um exigir). Precedente já existe no próprio código: o MHD só vivia
+> dentro do LIP e o Fábio não achava; ganhou card na Home em 06/09/2026, mesmo gate de
+> URBI/BIP. Vale para qualquer módulo satélite novo deste plano, não só os dois — é regra
+> geral, não exceção pontual.
 
 ### 4.1 Tela de entrada do Fatiador
 
@@ -630,3 +640,4 @@ Pontos sem resposta definida, que valem discussão técnica antes ou durante a i
 | 3 | 10/09/2026 | Correção do Fábio, aceita: classificar não precisa de imagem. Documento administrativo é identificado pela moldura, não pelo miolo. Achado F10: o classificador recebe só o texto da página e ignora três sinais que o fatiador já extrai. Nova Fase 1B. |
 | 4 | 10/09/2026 | **Reescrita completa com foco em operação.** Acrescentados: glossário, as quatro rotinas de uso passo a passo (processo novo, retorno, carga do acervo, gestão), desenho das cinco telas, quem opera o quê, o que acontece quando dá errado, critérios de conclusão por fase e marcos de valor. Corrigida a afirmação da v2 de que a estatística não seria retroativa — o histórico está dentro do PDF e pode ser reconstruído. Precisão de tempo recalibrada para faixas, não calendário. Governança reposicionada como argumento comercial. Documento renomeado para "Upgrade na leitura de PDF — Slot 1 e 2". |
 | 5 | 10/09/2026 | **Primeira fase implementada: a Fase 2 saiu do papel.** O modelo virou escolha por tamanho (`lib/modeloGemini.ts`), o teto de 50MB deixou de ser recusa e virou troca de modelo nos dois botões do LIP e no MAC, e o preço do modelo novo entrou no registro de uso para a Rastreabilidade não mostrar custo nulo. Conferência automatizada em `scripts/conferir_escolha_modelo.mts`. Estado do documento passa de "proposto" para "em implantação", com percentual. |
+| 6 | 10/09/2026 | Regra de navegação decidida pelo Fábio: todo módulo novo deste plano (Fatiador com tela própria, Análise de Fluxo) ganha card próprio na Home (`app/page.tsx`), nunca fica só dentro de outra tela. Nenhum código mudou — ainda não existe módulo com tela própria a cadastrar (isso é Fase 6/12); a regra fica registrada para quando existir. |
