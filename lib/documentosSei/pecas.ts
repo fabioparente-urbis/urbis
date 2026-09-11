@@ -40,6 +40,8 @@ export type PapelPeca =
   | "procuracao"
   | "embargo"
   | "notificacao_calcada"
+  | "liberacao_comaer"
+  | "outorga_onerosa"
   | "despacho_cheadv"
   | "despacho"
   | "parecer"
@@ -108,6 +110,14 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   // GEFEP (Fase 5, medido em NOTIFICACAO DA CALÇADA 6797870.pdf pg. 4) — checar ANTES de "vistoria",
   // que casaria com a página de relatório circunstanciado do mesmo PDF (é peça separada, ok)
   { papel: "notificacao_calcada", re: /\bnotificacao\s+calcada\s+n\b/ },
+  // documento federal, sem carimbo do SEI próprio — só aparece como peça de contêiner (Fase 5,
+  // rodada 2, medido em COMAER 10375631.pdf: "Comando da Aeronáutica... Declaração de
+  // Inexigibilidade"). Ainda sem campo correspondente no LIP — só melhora a classificação/MHD.
+  { papel: "liberacao_comaer", re: /\bcomando\s+da\s+aeronautica\b/ },
+  // certidão de Outorga Onerosa do Direito de Construir (Fase 5, rodada 2, medido em ONEROSA
+  // 10072818.pdf pg. 2) — a frase completa evita casar o "quadro de áreas onerosa" (pg. 1 do mesmo
+  // PDF, tabela técnica, não é a certidão). Ainda sem campo correspondente no LIP.
+  { papel: "outorga_onerosa", re: /\boutorga\s+onerosa\s+do\s+direito\s+de\s+construir\b/ },
   // despacho de conformidade documental da CHEADV — só o que APROVA, não qualquer despacho de
   // pendência (cobrança de documento) no meio do caminho. Carimbo real medido: "Despacho 956 -
   // CHEADV - Documentação conforme" — mesmo teste (cheadv + conforme) já usado em
@@ -248,8 +258,8 @@ function fundirPendentesEntreIguais(pecas: PecaSei[]): PecaSei[] {
 const PAPEIS_VALIDOS = new Set<string>([
   "processo_fisico", "uso_solo", "projeto", "levantamento", "art", "art_levantamento", "art_caixa",
   "matricula", "certidao", "laudo", "vistoria", "foto", "ortofoto", "memorial", "procuracao",
-  "embargo", "notificacao_calcada", "despacho_cheadv", "despacho", "parecer", "oficio",
-  "requerimento", "email",
+  "embargo", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
+  "despacho", "parecer", "oficio", "requerimento", "email",
 ]);
 
 /**
@@ -308,6 +318,8 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   procuracao: "Procuração",
   embargo: "Embargo",
   notificacao_calcada: "Notificação de Calçada (GEFEP)",
+  liberacao_comaer: "Liberação COMAER",
+  outorga_onerosa: "Outorga Onerosa do Direito de Construir",
   despacho_cheadv: "Despacho de Conformidade (CHEADV)",
   despacho: "Despacho",
   parecer: "Parecer",

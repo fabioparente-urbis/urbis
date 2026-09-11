@@ -3,11 +3,11 @@
 ### Fatiador de PDF do SEI · Módulo de Análise de Fluxo
 ### Plano de implantação e operação
 
-**Versão:** 16 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
-concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído, Fase 5 primeira rodada concluída** (a
-carga do conhecimento é incremental por natureza — não tem "100%", ver §7) — migration da Fase 1
-aplicada e CONFIRMADA em produção; migrations da Fase 4 e 5 escritas mas ainda não aplicadas,
-**sem risco de ordem de deploy** (MEDIDO: rodei os scripts locais contra 2 PDFs reais sem a tabela
+**Versão:** 17 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
+concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído, Fase 5 em duas rodadas** (a carga do
+conhecimento é incremental por natureza — não tem "100%", ver §7) — migration da Fase 1 aplicada e
+CONFIRMADA em produção; migrations da Fase 4 e 5 (duas) escritas mas ainda não aplicadas, **sem
+risco de ordem de deploy** (MEDIDO: rodei os scripts locais contra 4 PDFs reais sem a tabela
 existir — o código cai no array fixo do próprio arquivo, comportamento idêntico ao de antes, zero
 página perdida)
 
@@ -573,11 +573,28 @@ caminho de evento avulso — melhorar isso exigiria ler o corpo de eventos avuls
 maior, fora do escopo desta rodada. `uso_solo` e `despacho_cheadv` não têm esse problema porque a
 frase distintiva está no próprio carimbo/título.
 
-**Documentos citados pelo Fábio (10/09/2026) sem exemplo real ainda — aguardando processo que os
-contenha antes de escrever regra:**
-- Liberação da Aeronáutica (COMAER)
-- Liberação do Exército
-- Comprovante de pagamento de Outorga Onerosa
+**2ª rodada (10/09/2026, mesma sessão)** — dois dos três documentos citados sem exemplo já
+apareceram em processos que o Fábio tinha separado à mão:
+
+- **Liberação COOMAER** (`liberacao_comaer`) — Declaração de Inexigibilidade do Comando da
+  Aeronáutica, sem carimbo próprio do SEI (documento federal anexado). Medido em
+  `RETORNOS/2026/08.17` (processo 26.5.000016045-3), confirmado disparando na peça de contêiner do
+  PDF completo do processo.
+- **Outorga Onerosa do Direito de Construir** (`outorga_onerosa`) — certidão OODC. Medida no
+  documento avulso `RETORNOS/2026/06.22/.../Análise 3/ONEROSA 10072818.pdf`, mas **não confirmada
+  contra o PDF completo do processo** — o SEI daquele documento (10072818) não aparece no export
+  consolidado disponível (a pasta "Análise 3" parece ser de uma rodada posterior ao export salvo em
+  disco). Regra escrita com a mesma cautela das demais (frase completa da certidão, evita casar a
+  tabela técnica "quadro de áreas onerosa" da página anterior do mesmo PDF avulso), mas ainda sem a
+  mesma confirmação de ponta a ponta que as outras regras desta fase tiveram.
+- **Liberação do Exército** — Fábio confirmou que nunca viu esse documento em 4 anos de atuação;
+  retirado da lista de pendência (aposta especulativa não vale a pena, sem processo real nem
+  perspectiva de aparecer).
+
+Nenhum dos dois papéis novos (`liberacao_comaer`, `outorga_onerosa`) tem campo correspondente no LIP
+ainda — os 11 campos do LIP (`app/api/lip/analisar/route.ts`) não têm slot para nenhum dos dois.
+Adicionar um campo novo ao LIP é decisão de schema, fora do escopo desta rodada; por ora os dois só
+melhoram a classificação/cobertura do MHD (Fase 0/1B), sem alimentar sugestão nenhuma na ficha.
 
 **Decisão registrada — nome de arquivo na exportação** (10/09/2026): quando o fatiador exportar
 peças individuais (Fase 6/7), o nome do arquivo deve seguir o mesmo padrão que o Fábio já usa
@@ -692,3 +709,4 @@ Pontos sem resposta definida, que valem discussão técnica antes ou durante a i
 | 14 | 10/09/2026 | **Migration da Fase 1 aplicada pelo Fábio e confirmada** por consulta direta ao banco de produção (`mhd_conteudos.setor`/`.assinante` existem). Risco de ordem de deploy que bloqueava o push está resolvido. |
 | 15 | 10/09/2026 | **Fase 4 implementada (código).** `ASSINATURAS_PECA`/`ASSINATURAS_CONTEUDO` saem do array fixo, passam a vir de `documentos_sei_regras_identificacao` com tela própria (`app/admin/regras-identificacao`) e cache curto invalidado na gravação. Ao contrário da Fase 1, o design é fail-safe por construção (cai no array fixo se o banco falhar) — MEDIDO contra PDF real sem a migration aplicada, mesmo resultado de antes. Migration ainda não aplicada em produção. |
 | 16 | 10/09/2026 | **Fase 5, 1ª rodada.** Entrevista com o Fábio sobre o fluxo real (Atende Fácil → CONTEC → CHEADV → GEFEP → DIRAAP) conferida contra documentos reais separados à mão (processos 24.5.000056065-3 e 24.5.000024350-0). 5 papéis novos em `PapelPeca`, 2 ligados a campos do LIP que existiam sem alimentação (achado: `usoSolo`/`seiCheadv` já estavam em `ROTULO_CAMPO_LIP` mas nenhum papel os produzia). Achado de arquitetura registrado: regras de conteúdo só disparam para peça dentro de contêiner ou para evento avulso cujo TÍTULO (não corpo) contém o sinal — `processo_fisico`/`notificacao_calcada` ficam com alcance limitado até essa lacuna ser fechada. Decisão registrada sobre nome de arquivo na exportação futura (papel/departamento + Nº SEI, sem implementar ainda). |
+| 17 | 10/09/2026 | **Fase 5, 2ª rodada.** 2 papéis novos vindos de exemplos que o Fábio lembrou: `liberacao_comaer` (medido e confirmado no PDF completo do processo) e `outorga_onerosa` (medido no documento avulso, não confirmado no PDF completo — o SEI do exemplo não está no export salvo em disco). Nenhum dos dois tem campo no LIP ainda — melhoram só a cobertura do MHD. Liberação do Exército retirada da lista de pendência: Fábio nunca viu em 4 anos, não vale regra especulativa. |
