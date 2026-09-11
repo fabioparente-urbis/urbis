@@ -25,6 +25,7 @@ import {
   type LucideIcon,
   Route,
   Bot,
+  Scissors,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 import { perfilDe, validarNumero, normalizarNumero } from "@/lib/numeracao";
@@ -199,6 +200,9 @@ export default function Home() {
     // MHD só existia dentro do processo ("🗂 HISTÓRICO DOCUMENTAL" na tela do LIP) — sem entrada
     // própria na Home o Fábio não achava. Mesmo gate de URBI/BIP (06/09/2026).
     { chave: "mhd", nome: "MHD", descricao: "Histórico e Documentos — memória do que entrou, por hash", Icone: HardDrive, rota: "/admin/mhd", visivel: irrestrito },
+    // Fase 6 do fatiador de PDF do SEI (docs/UPGRADE_NA_LEITURA_DE_PDF_SLOT_1_E_2.md §6) — tela
+    // própria, fora do processo. Mesmo gate de MHD/URBI (irrestrito) enquanto é ferramenta nova.
+    { chave: "fatiador-sei", nome: "FATIADOR SEI", descricao: "Organizar e corrigir o corte do PDF do SEI, por teclado", Icone: Scissors, rota: "/fatiador-sei", visivel: irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);

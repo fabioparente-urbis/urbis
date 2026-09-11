@@ -29,10 +29,9 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { Document, Page, pdfjs } from "react-pdf";
 import { PDFDocument } from "pdf-lib";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
-import "react-pdf/dist/Page/TextLayer.css";
+import VisualizadorPdf from "@/components/documentosSei/VisualizadorPdf";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP, type SugestaoCampo } from "@/lib/documentosSei/compararLip";
 import { ROTULO_PAPEL_PECA, ehContainerGenerico, aplicarClassificacaoVisao, type PecaSei } from "@/lib/documentosSei/pecas";
 import { resolverEstados, type EstadoVersao } from "@/lib/documentosSei/motorVersoes";
@@ -50,8 +49,6 @@ const ROTULO_ESTADO: Record<EstadoVersao, string> = {
   duplicado: "🕘 Duplicado",
   pendente: "🟡 Pendente",
 };
-
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 type EventoSei = {
   idSei: string;
@@ -1001,55 +998,6 @@ export default function OrganizadorSeiRegularizacao({
           onFechar={() => setVisualizando(null)}
         />
       )}
-    </div>
-  );
-}
-
-/**
- * Visualizador restrito AO DOCUMENTO (08/09/2026, pedido do Fábio: "pra poder abri-los dentro do
- * URBIS"). Antes abria o PDF do processo inteiro posicionado na página do documento — dava pra
- * navegar pra fora dele sem perceber qual documento se estava lendo. Agora a navegação para nos
- * limites do evento/peça (`paginaIni..paginaFim`) e a contagem é a do documento ("Página 2 de 4"),
- * com a página real dentro do processo mostrada ao lado, pra conferência com o SEI.
- *
- * O recorte continua sendo feito na hora, a partir do PDF original em cache — nada de guardar N
- * fatias separadas no navegador (multiplicaria o mesmo conteúdo e estouraria a cota).
- */
-function VisualizadorPdf({
-  arquivo, paginaInicial, paginaIni, paginaFim, onFechar,
-}: { arquivo: File; paginaInicial: number; paginaIni: number; paginaFim: number; onFechar: () => void }) {
-  const [pagina, setPagina] = useState(paginaInicial);
-  const totalDoDocumento = paginaFim - paginaIni + 1;
-  const posicaoNoDocumento = pagina - paginaIni + 1;
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
-      <div
-        className="bg-[var(--bg-card)] rounded-lg max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 p-3 border-b border-[var(--border)]">
-          <button onClick={() => setPagina((p) => Math.max(paginaIni, p - 1))} disabled={pagina <= paginaIni}
-            className="px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] disabled:opacity-40">
-            ◀
-          </button>
-          <span className="text-sm text-[var(--text-primary)]">
-            Página {posicaoNoDocumento} de {totalDoDocumento}
-            <span className="text-xs text-[var(--text-muted)] ml-2">(pg. {pagina} do processo)</span>
-          </span>
-          <button onClick={() => setPagina((p) => Math.min(paginaFim, p + 1))} disabled={pagina >= paginaFim}
-            className="px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] disabled:opacity-40">
-            ▶
-          </button>
-          <button onClick={onFechar} className="ml-auto px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)]">
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 overflow-auto flex justify-center p-4">
-          <Document file={arquivo} loading={<p className="text-[var(--text-muted)]">Carregando...</p>}>
-            <Page pageNumber={pagina} width={640} renderTextLayer renderAnnotationLayer={false} />
-          </Document>
-        </div>
-      </div>
     </div>
   );
 }

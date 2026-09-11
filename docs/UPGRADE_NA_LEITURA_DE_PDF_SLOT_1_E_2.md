@@ -3,13 +3,12 @@
 ### Fatiador de PDF do SEI · Módulo de Análise de Fluxo
 ### Plano de implantação e operação
 
-**Versão:** 17 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
-concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído, Fase 5 em duas rodadas** (a carga do
-conhecimento é incremental por natureza — não tem "100%", ver §7) — migration da Fase 1 aplicada e
-CONFIRMADA em produção; migrations da Fase 4 e 5 (duas) escritas mas ainda não aplicadas, **sem
-risco de ordem de deploy** (MEDIDO: rodei os scripts locais contra 4 PDFs reais sem a tabela
-existir — o código cai no array fixo do próprio arquivo, comportamento idêntico ao de antes, zero
-página perdida)
+**Versão:** 18 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
+concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído, Fase 5 em duas rodadas, Fase 6 com NÚCLEO
+implementado** (6 de 15 fases com trabalho real — Fase 5 e 6 continuam abertas por natureza, ver
+§6/§7) — migration da Fase 1 aplicada e CONFIRMADA em produção; migrations da Fase 4 e 5 (duas)
+escritas mas ainda não aplicadas, **sem risco de ordem de deploy** (MEDIDO: rodei os scripts locais
+contra 4 PDFs reais sem a tabela existir, e a tela nova sobe sem tocar o banco)
 
 **Concepção e direção do produto:** Fábio Parente Martins Santos
 **Expansão do Módulo de Análise de Fluxo:** discussão com Gemini
@@ -489,7 +488,7 @@ nenhuma fase** — condição inegociável, porque o sistema está em produção
 | ~~**3 — Comparar qualidade entre modelos**~~ | **ABOLIDA em 10/09/2026, decisão do Fábio.** Razão dada: não há escolha real de modelo depois que o 2.5 morrer (16/10/2026) — todo processo vai forçosamente usar o sucessor, comparar não muda o destino. Condição que ele impôs antes de tirar: eu pesquisar se há indício de PIORA de qualidade na troca; se houver, a fase fica. Pesquisado (10/09/2026, web): um benchmark real (Box, extração de campos de documentos difíceis) mediu a geração "Gemini 3 Flash" contra o 2.5 Flash e achou **+10 pontos de acerto em PDF, +13 em extração de múltiplos campos** — melhora, não piora. Único contraponto achado foi genérico e sem medição direta dos dois modelos (artigo de fornecedor de parser nativo de PDF, viés comercial, argumentando que modelos de visão *em geral* podem perder precisão caractere-a-caractere em tabela/formatação — não testa 2.5 vs 3.6 especificamente). Sem indício concreto de piora, a fase sai do plano. | ~~0,5 sessão~~ | ~~Tabela de divergências, com decisão sobre reescrita de instruções~~ |
 | ✅ **4 — Regras editáveis pelo analista** | **CÓDIGO CONCLUÍDO em 10/09/2026, migration escrita mas não aplicada.** `ASSINATURAS_PECA` (pecas.ts) e `ASSINATURAS_CONTEUDO` (fatiar.ts) saem do array fixo e passam a vir de `documentos_sei_regras_identificacao`, tela `app/admin/regras-identificacao` (CRUD completo: papel restrito ao que o código já reconhece, regex validada na gravação, ordem, ativo/inativo). Cache de 60s em `lib/documentosSei/regrasIdentificacao.ts`, invalidado na hora a cada gravação — uma regra nova vale antes mesmo do TTL, sem deploy. **Sem risco de ordem de deploy** (diferente da Fase 1): se o banco falhar ou a tabela não existir, cai no array fixo do próprio arquivo — MEDIDO rodando `scripts/fase0_medir_fatiador.mts` e `scripts/conferir_documentos_sei.mts` contra um PDF real sem a migration aplicada, comportamento idêntico ao de antes (0% de página perdida). `classificarPagina`/`abrirContainer`/`classificarTitulo`/a extração de papel por conteúdo viraram assíncronas (3 call sites ajustados: as duas rotas de documentos-sei e `persistencia.ts`). Migration: `supabase/migrations/2026_09_10_documentos_sei_regras_identificacao.sql`. | 1,5 sessão | O analista adiciona uma regra e ela passa a valer sem publicação de versão |
 | 🔄 **5 — Carga do conhecimento** | **1ª rodada concluída em 10/09/2026** (ver §7.3): fluxo completo Atende Fácil → CONTEC → CHEADV → GEFEP → DIRAAP, com 5 papéis novos (`processo_fisico`, `uso_solo`, `ortofoto`, `notificacao_calcada`, `despacho_cheadv`) e 2 campos do LIP que já existiam sem alimentação (`usoSolo`, `seiCheadv`) agora ligados. Fase por natureza incremental — não fecha com "concluída", cada rodada nova de entrevista/documento real soma cobertura. Pendente: Laudo de Habitabilidade (CHEADV) ainda sem papel próprio, 3 documentos citados sem exemplo real (COMAER, Exército, Outorga Onerosa). | A definir, com o Fábio | Cobertura medida subindo a cada rodada |
-| **6 — Módulo próprio e tela gráfica** | Extração das telas duplicadas para um módulo só, fora da tela do processo, com ajuste visual de corte. | 3-4 sessões | Tempo por processo medido e **menor** que a rotina atual |
+| 🔄 **6 — Módulo próprio e tela gráfica** | **Núcleo implementado em 10/09/2026**: tela nova `/fatiador-sei` (card na Home), 100% operável por teclado (Mac/Windows), reaproveita o pipeline de produção sem alterá-lo. Novo: estado de edição do analista (`lib/documentosSei/estadoEdicao.ts` — proposto/confirmado/editado/lixo), pilha de desfazer/refazer genérica (`hooks/useHistoricoReducer.ts`, não existia nada assim no projeto), motor de atalhos com convenção Mac/Windows (`lib/documentosSei/atalhosTeclado.ts`, também não existia), exportação por peça usando o nome de arquivo da Fase 5 (`lib/documentosSei/exportarPecas.ts`), rastreabilidade de cada correção em `mhd_eventos` via rota nova `/api/documentos-sei/fatiador-eventos`. `VisualizadorPdf` extraído do par de Organizadores duplicados para `components/documentosSei/VisualizadorPdf.tsx` (reduz uma duplicação real, sem mudar comportamento). Verificado: `tsc` limpo, tela sobe sem erro no preview (o crash inicial — `DOMMatrix is not defined`, faltava `dynamic(..., {ssr:false})` no react-pdf — foi corrigido, mesmo padrão que `ProcessoClient.tsx` já usa pros dois Organizadores). **Não verificado por falta de sessão de teste**: o fluxo completo de teclado dentro do navegador (criar corte, confirmar, desfazer) — só a carga da tela e o compile foram confirmados nesta sessão. Fica para depois: zip com manifesto por peça, portar "Analisar páginas ambíguas (Gemini)", persistir o estado de edição entre sessões. | 3-4 sessões | Tempo por processo medido e **menor** que a rotina atual |
 | **7 — Ligar fatiador à leitura** | Os documentos recortados passam a alimentar a leitura, agrupados até o limite de tamanho. | 2 sessões | Um processo é lido usando só os documentos selecionados |
 | **8 — Não pagar duas vezes** | Consulta à impressão digital antes de chamar a IA; documento já lido é pulado. | 1 sessão | Reimportar o mesmo processo não gera cobrança nova |
 | **9 — Uma leitura, dois destinos** | Ficha e checklist preenchidos por uma leitura única. | 1 sessão | Contagem de chamadas cai pela metade |
@@ -597,17 +596,16 @@ Adicionar um campo novo ao LIP é decisão de schema, fora do escopo desta rodad
 melhoram a classificação/cobertura do MHD (Fase 0/1B), sem alimentar sugestão nenhuma na ficha.
 
 **Decisão registrada — nome de arquivo na exportação** (10/09/2026): quando o fatiador exportar
-peças individuais (Fase 6/7), o nome do arquivo deve seguir o mesmo padrão que o Fábio já usa
-manualmente — `{PAPEL OU DEPARTAMENTO EM MAIÚSCULAS} {Nº SEI}.pdf` (ex.: `USO 4167740.pdf`, `CHEADV
-6635217.pdf`, `LAUDO 6376909.pdf`), não o título completo do documento — para o Nº SEI ficar fácil
-de achar visualmente no nome do arquivo (ajuda o LIP/analista a conferir rápido). **Não implementado
-ainda**: a exportação de peças por papel não existe hoje — o único exportador em produção
-(`lib/documentosSei/pacoteVigenteClient.ts`, Fase 5 do plano Documentos Vivos, outro plano) opera só
-no nível de EVENTO (não peça) e já usa `"{título} ({idSei}).pdf"`; ele já carrega o Nº SEI no nome,
-só num formato diferente (parênteses no fim, título inteiro em vez de código curto). Mudar esse
-exportador hoje sairia do escopo desta rodada (código de produção do Slot 1/2, tocaria as duas telas
-Organizador) — decisão registrada para quando a Fase 6/7 desta leitura de PDF criar exportação por
-peça, aí o nome já nasce no formato certo.
+peças individuais, o nome do arquivo deve seguir o mesmo padrão que o Fábio já usa manualmente —
+`{PAPEL OU DEPARTAMENTO EM MAIÚSCULAS} {Nº SEI}.pdf` (ex.: `USO 4167740.pdf`, `CHEADV 6635217.pdf`,
+`LAUDO 6376909.pdf`), não o título completo do documento — para o Nº SEI ficar fácil de achar
+visualmente no nome do arquivo. **Correção do que a v17 registrou aqui**: dizia que isso não estava
+implementado; na verdade `nomeArquivoAnalista` (`lib/documentosSei/rotuloAnalista.ts:280`) já existe
+pronto, escrito em 08/09/2026 junto com `rotuloDoEvento`/`rotuloDoPapelPeca`, mas nunca tinha sido
+CHAMADO em lugar nenhum — código morto até a Fase 6 (v18) usá-lo de verdade em
+`lib/documentosSei/exportarPecas.ts`. O exportador antigo por evento
+(`lib/documentosSei/pacoteVigenteClient.ts`) continua com o formato dele (parênteses, título
+inteiro) — não foi mexido, é de outro plano (Documentos Vivos).
 
 ---
 
@@ -709,4 +707,5 @@ Pontos sem resposta definida, que valem discussão técnica antes ou durante a i
 | 14 | 10/09/2026 | **Migration da Fase 1 aplicada pelo Fábio e confirmada** por consulta direta ao banco de produção (`mhd_conteudos.setor`/`.assinante` existem). Risco de ordem de deploy que bloqueava o push está resolvido. |
 | 15 | 10/09/2026 | **Fase 4 implementada (código).** `ASSINATURAS_PECA`/`ASSINATURAS_CONTEUDO` saem do array fixo, passam a vir de `documentos_sei_regras_identificacao` com tela própria (`app/admin/regras-identificacao`) e cache curto invalidado na gravação. Ao contrário da Fase 1, o design é fail-safe por construção (cai no array fixo se o banco falhar) — MEDIDO contra PDF real sem a migration aplicada, mesmo resultado de antes. Migration ainda não aplicada em produção. |
 | 16 | 10/09/2026 | **Fase 5, 1ª rodada.** Entrevista com o Fábio sobre o fluxo real (Atende Fácil → CONTEC → CHEADV → GEFEP → DIRAAP) conferida contra documentos reais separados à mão (processos 24.5.000056065-3 e 24.5.000024350-0). 5 papéis novos em `PapelPeca`, 2 ligados a campos do LIP que existiam sem alimentação (achado: `usoSolo`/`seiCheadv` já estavam em `ROTULO_CAMPO_LIP` mas nenhum papel os produzia). Achado de arquitetura registrado: regras de conteúdo só disparam para peça dentro de contêiner ou para evento avulso cujo TÍTULO (não corpo) contém o sinal — `processo_fisico`/`notificacao_calcada` ficam com alcance limitado até essa lacuna ser fechada. Decisão registrada sobre nome de arquivo na exportação futura (papel/departamento + Nº SEI, sem implementar ainda). |
+| 18 | 10/09/2026 | **Fase 6, núcleo implementado.** Tela nova `/fatiador-sei` fora do processo, card na Home, 100% por teclado (Mac/Windows). 4 conceitos novos que não existiam em lugar nenhum do projeto: estado de edição do analista (proposto/confirmado/editado/lixo), pilha de desfazer/refazer genérica, motor de atalhos com convenção Mac/Windows, exportação por peça usando `nomeArquivoAnalista` (achado: já existia desde 08/09, nunca tinha sido chamada — corrige o que a v17 registrou como "não implementado"). `VisualizadorPdf` extraído dos dois Organizadores duplicados. Rastreabilidade via `mhd_eventos` (rota nova, mesma fonte que já alimenta o BDI). Corrigido no caminho: a tela quebrava a compilação SSR (`DOMMatrix is not defined`) por faltar `dynamic(..., {ssr:false})` no react-pdf — mesmo padrão que `ProcessoClient.tsx` já usa. Não verificado: fluxo de teclado dentro do navegador (sem sessão de teste disponível nesta sessão). |
 | 17 | 10/09/2026 | **Fase 5, 2ª rodada.** 2 papéis novos vindos de exemplos que o Fábio lembrou: `liberacao_comaer` (medido e confirmado no PDF completo do processo) e `outorga_onerosa` (medido no documento avulso, não confirmado no PDF completo — o SEI do exemplo não está no export salvo em disco). Nenhum dos dois tem campo no LIP ainda — melhoram só a cobertura do MHD. Liberação do Exército retirada da lista de pendência: Fábio nunca viu em 4 anos, não vale regra especulativa. |
