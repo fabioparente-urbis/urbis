@@ -22,6 +22,9 @@ import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/docu
 import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { exportarItem } from "@/lib/documentosSei/exportarPecas";
 import { baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
+import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
+import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
+import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
 } from "@/lib/documentosSei/estadoEdicao";
@@ -80,14 +83,14 @@ function montarItensIniciais(eventos: EventoSei[]): ItemFatiado[] {
         itens.push({
           id: `${ev.idSei}::peca::${i}`, idSei: ev.idSei, titulo: ev.titulo, papel: p.papel,
           paginaIni: p.paginaIni, paginaFim: p.paginaFim, setor: p.setor, assinante: p.assinante,
-          data: p.data, status: "proposto",
+          data: p.data, status: "proposto", paraLeitura: true,
         });
       }
     } else {
       itens.push({
         id: ev.idSei, idSei: ev.idSei, titulo: rotuloDoEvento(ev) ?? ev.titulo,
         paginaIni: ev.paginaIni, paginaFim: ev.paginaFim, setor: ev.setor, assinante: ev.assinante,
-        data: ev.data, status: "proposto",
+        data: ev.data, status: "proposto", paraLeitura: true,
       });
     }
   }
@@ -105,6 +108,9 @@ export default function TelaFatiamento() {
   const [erro, setErro] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState<{ pagina: number; paginaIni: number; paginaFim: number } | null>(null);
   const [exportando, setExportando] = useState<string | null>(null);
+  const [lendo, setLendo] = useState(false);
+  const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
+  const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { estado, aplicar, desfazer, refazer, resetar, podeDesfazer, podeRefazer } =
@@ -235,6 +241,50 @@ export default function TelaFatiamento() {
     registrarEvento("fatiador_correcao", `junta ${selecionado.titulo} (${selecionado.idSei}) ao vizinho anterior`);
   }
 
+  function alternarParaLeitura() {
+    if (!selecionado) return;
+    aplicar({ tipo: "alternarParaLeitura", id: selecionado.id });
+  }
+
+  /**
+   * Fase 7 — "ligar fatiador à leitura". Agrupa os itens marcados (`paraLeitura`, sem lixo) em
+   * lotes até LIMITE_BYTES_MODELO_PADRAO e roda o mesmo pipeline S1→S2→S3 que a tela do processo
+   * usa, só que sobre os lotes menores. Resultado é PROPOSTA — nunca grava em lugar nenhum
+   * sozinho, o analista confere e copia pra onde precisar (mesmo princípio de sempre).
+   */
+  async function enviarParaLeitura() {
+    if (!arquivo || !processoCodigo.trim() || lendo) return;
+    const elegiveis = itensParaLeitura(itens);
+    if (!elegiveis.length) { setErro("Nenhum item marcado para leitura (tudo lixo ou desmarcado)."); return; }
+    setLendo(true);
+    setErro(null);
+    setResultadoLeitura(null);
+    setProgressoLeitura({ mensagem: "Montando lotes...", pct: 0 });
+    try {
+      const lotes = await agruparEmLotes(arquivo, itens, LIMITE_BYTES_MODELO_PADRAO);
+      const resultado = await lerLotes(
+        lotes, { processoCodigo, slot },
+        (mensagem, pct) => setProgressoLeitura({ mensagem, pct }),
+      );
+      setResultadoLeitura(resultado);
+      registrarEvento("fatiador_leitura", `${lotes.length} lote(s), ${elegiveis.length} item(ns)`, {
+        lotes: lotes.length, itens: elegiveis.length, foraDaLeitura: itens.length - elegiveis.length,
+        campos: Object.keys(resultado.campos).length,
+      });
+    } catch (e: any) {
+      setErro(`Falha na leitura: ${e?.message ?? e}`);
+    } finally {
+      setLendo(false);
+      setProgressoLeitura(null);
+    }
+  }
+
+  async function copiarResultadoLeitura() {
+    if (!resultadoLeitura) return;
+    const linhas = Object.entries(resultadoLeitura.campos).map(([chave, c]) => `${chave}: ${c.valor} (${c.fonte})`);
+    try { await navigator.clipboard.writeText(linhas.join("\n")); } catch {}
+  }
+
   function abrirVisualizador() {
     if (!selecionado) return;
     setVisualizando({ pagina: paginaCorte ?? selecionado.paginaIni, paginaIni: selecionado.paginaIni, paginaFim: selecionado.paginaFim });
@@ -271,14 +321,16 @@ export default function TelaFatiamento() {
     { tecla: "n", acao: aplicarNovoCorte, descricao: "criar corte na página marcada" },
     { tecla: "Backspace", acao: excluirCorte, descricao: "excluir corte (junta ao anterior)" },
     { tecla: "x", acao: alternarLixo, descricao: "marcar/desmarcar como lixo" },
+    { tecla: "l", acao: alternarParaLeitura, descricao: "marcar/desmarcar para leitura" },
     { tecla: " ", acao: abrirVisualizador, descricao: "abrir a página no visualizador" },
+    { tecla: "Enter", mod: true, acao: enviarParaLeitura, descricao: "enviar marcados para leitura" },
     { tecla: "z", mod: true, acao: desfazer, descricao: "desfazer" },
     { tecla: "z", mod: true, shift: true, acao: refazer, descricao: "refazer" },
     { tecla: "y", mod: true, acao: refazer },
     { tecla: "o", mod: true, acao: abrirNovoPdf, descricao: "abrir novo PDF" },
     { tecla: "e", mod: true, acao: exportarSelecionado, descricao: "exportar o item selecionado" },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [selecionado, arquivo, paginaCorte, podeDesfazer, podeRefazer]);
+  ], [selecionado, arquivo, paginaCorte, podeDesfazer, podeRefazer, itens, lendo, processoCodigo]);
 
   useAtalhosTeclado(atalhos, !visualizando);
 
@@ -364,6 +416,9 @@ export default function TelaFatiamento() {
                       {rotulo}
                       {item.criadoManualmente && <span className="text-[10px] text-[var(--accent)] ml-1">(corte manual)</span>}
                     </span>
+                    <span className="text-xs shrink-0" title={item.paraLeitura ? "Entra no lote de leitura" : "Fora da leitura"}>
+                      {item.paraLeitura ? "📖" : "🚫"}
+                    </span>
                     <span className={`text-xs shrink-0 ${COR_STATUS[item.status]}`}>{ROTULO_STATUS[item.status]}</span>
                   </div>
                 );
@@ -377,6 +432,36 @@ export default function TelaFatiamento() {
           {/* Pedido explícito do Fábio (10/09/2026): a lista de atalhos fica sempre visível na
               tela, não escondida atrás de "?" — velocidade não combina com abrir ajuda toda hora. */}
           <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-3 h-fit sticky top-4">
+            <p className="text-xs text-[var(--text-muted)] mb-2">
+              📖 {itensParaLeitura(itens).length} de {itens.length} para leitura
+            </p>
+            <button onClick={enviarParaLeitura} disabled={lendo || !itensParaLeitura(itens).length}
+              className="mb-3 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
+              {lendo ? "⏳ Lendo..." : "🧠 Enviar marcados para leitura"}
+            </button>
+            {progressoLeitura && (
+              <div className="mb-3">
+                <p className="text-[10px] text-[var(--text-muted)] mb-1">{progressoLeitura.mensagem}</p>
+                <div className="w-full h-1.5 rounded bg-[var(--bg-secondary)] overflow-hidden">
+                  <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${progressoLeitura.pct}%` }} />
+                </div>
+              </div>
+            )}
+            {resultadoLeitura && (
+              <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[10px] font-bold text-[var(--text-primary)]">
+                    {Object.keys(resultadoLeitura.campos).length} campo(s) lido(s)
+                  </p>
+                  <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)]">copiar</button>
+                </div>
+                <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
+                  {Object.entries(resultadoLeitura.campos).map(([chave, c]) => (
+                    <li key={chave}><b className="text-[var(--text-primary)]">{chave}</b>: {c.valor}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <p className="text-xs font-bold text-[var(--text-primary)] mb-2">⌨️ Atalhos</p>
             <ul className="space-y-1.5 text-xs">
               {atalhos.filter((a) => a.descricao).map((a, i) => (

@@ -34,5 +34,17 @@ export default function PaginaFatiadorSei() {
   }, [router]);
 
   if (!autorizado) return <p className="p-6 text-sm text-[var(--text-muted)]">carregando…</p>;
-  return <TelaFatiamento />;
+  return (
+    <div className="min-h-screen bg-[var(--bg-primary)]">
+      {/* Mesmo padrão de cabeçalho das outras telas fora do processo (ex.: app/mrp/page.tsx) —
+          a tela nasceu sem isso, ficava sem saída. */}
+      <header className="bg-[var(--bg-primary)] text-[var(--primary-text)] px-8 py-4 flex items-center gap-4">
+        <button onClick={() => router.push("/")}
+          className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">🏠 Home</button>
+        <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+          className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] font-bold px-3 py-1.5 rounded text-sm transition-colors border border-[var(--error)]">🚪 Sair</button>
+      </header>
+      <TelaFatiamento />
+    </div>
+  );
 }

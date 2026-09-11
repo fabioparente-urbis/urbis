@@ -28,6 +28,12 @@ export type ItemFatiado = {
   status: StatusEdicao;
   /** true = nasceu de um "novo corte" do analista, não existia no fatiamento automático */
   criadoManualmente?: boolean;
+  /**
+   * Fase 7 do plano ("ligar fatiador à leitura") — marca se este item entra no lote mandado pra IA.
+   * Default `true` ao carregar; forçado a `false` quando `status` vira "lixo" (lixo nunca é lido,
+   * mesmo que o analista já tivesse marcado antes) e de volta a `true` ao restaurar do lixo.
+   */
+  paraLeitura: boolean;
 };
 
 export type EstadoFatiamento = {
@@ -43,6 +49,7 @@ export type AcaoFatiamento =
   | { tipo: "confirmar"; id: string }
   | { tipo: "marcarLixo"; id: string }
   | { tipo: "restaurarDoLixo"; id: string }
+  | { tipo: "alternarParaLeitura"; id: string }
   /** divide o item em dois, a partir de `naPagina` (inclusive) até o fim */
   | { tipo: "novoCorte"; id: string; naPagina: number }
   /** desfaz um corte: junta o item ao vizinho anterior na ordem de página */
@@ -87,13 +94,21 @@ export function reduzirFatiamento(estado: EstadoFatiamento, acao: AcaoFatiamento
     case "marcarLixo":
       return {
         ...estado,
-        itens: estado.itens.map((i) => (i.id === acao.id ? { ...i, status: "lixo" } : i)),
+        itens: estado.itens.map((i) => (i.id === acao.id ? { ...i, status: "lixo", paraLeitura: false } : i)),
       };
 
     case "restaurarDoLixo":
       return {
         ...estado,
-        itens: estado.itens.map((i) => (i.id === acao.id ? { ...i, status: "proposto" } : i)),
+        itens: estado.itens.map((i) => (i.id === acao.id ? { ...i, status: "proposto", paraLeitura: true } : i)),
+      };
+
+    case "alternarParaLeitura":
+      return {
+        ...estado,
+        itens: estado.itens.map((i) =>
+          i.id === acao.id && i.status !== "lixo" ? { ...i, paraLeitura: !i.paraLeitura } : i,
+        ),
       };
 
     case "editarPapel":
