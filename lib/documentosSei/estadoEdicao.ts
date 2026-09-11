@@ -29,6 +29,13 @@ export type ItemFatiado = {
   /** true = nasceu de um "novo corte" do analista, não existia no fatiamento automático */
   criadoManualmente?: boolean;
   /**
+   * Nome que o analista escolheu para o PDF exportado, sobrepondo o padrão automático
+   * (`{papel ou título} {nº SEI}.pdf`, ver `lib/documentosSei/rotuloAnalista.ts`). Pedido do
+   * Fábio (11/09/2026): "renomear os pdf fatiado". Só o NOME muda — `idSei` continua sendo
+   * acrescentado ao final pelo exportador, pro Nº SEI continuar fácil de achar no arquivo.
+   */
+  nomeExportacao?: string;
+  /**
    * Fase 7 do plano ("ligar fatiador à leitura") — marca se este item entra no lote mandado pra IA.
    * Default `true` ao carregar; forçado a `false` quando `status` vira "lixo" (lixo nunca é lido,
    * mesmo que o analista já tivesse marcado antes) e de volta a `true` ao restaurar do lixo.
@@ -56,6 +63,8 @@ export type AcaoFatiamento =
   | { tipo: "excluirCorte"; id: string }
   | { tipo: "editarPapel"; id: string; papel: string }
   | { tipo: "editarTitulo"; id: string; titulo: string }
+  /** Define `nomeExportacao` — não mexe em `titulo` nem em `papel`, só no nome do arquivo baixado. */
+  | { tipo: "renomear"; id: string; nomeExportacao: string }
   /**
    * Resultado de "Analisar páginas ambíguas" (visão do Gemini), portado do Organizador em
    * 11/09/2026. Mapa página → papel. Só toca item que ainda é `classificacao_pendente` E está em
@@ -133,6 +142,14 @@ export function reduzirFatiamento(estado: EstadoFatiamento, acao: AcaoFatiamento
         ...estado,
         itens: estado.itens.map((i) =>
           i.id === acao.id ? { ...i, titulo: acao.titulo, status: "editado" } : i,
+        ),
+      };
+
+    case "renomear":
+      return {
+        ...estado,
+        itens: estado.itens.map((i) =>
+          i.id === acao.id ? { ...i, nomeExportacao: acao.nomeExportacao, status: "editado" } : i,
         ),
       };
 

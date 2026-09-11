@@ -18,6 +18,11 @@
  *   1. comparar com o LIP e gravar campo na ficha (só campo VAZIO, nunca sobrescreve);
  *   2. pacote vigente + manifesto (.zip, Vigentes/Histórico);
  *   3. "Analisar páginas ambíguas" com a visão do Gemini, sob clique e com custo estimado antes.
+ *
+ * Mesmo dia, pedido do Fábio já usando a tela: renomear o PDF exportado (`R`, muda só o nome do
+ * arquivo — `nomeExportacao` em `estadoEdicao.ts` —, nunca o título da lista); ir direto pra uma
+ * página do visualizador digitando o número; abrir o PDF do processo inteiro em outra aba
+ * (`Cmd/Ctrl+P`, `blob:` local, nunca sobe ao servidor).
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -131,7 +136,11 @@ export default function TelaFatiamento() {
   const [camposLipAtuais, setCamposLipAtuais] = useState<Record<string, { valor?: string } | undefined>>({});
   const [selecionadosLip, setSelecionadosLip] = useState<Record<string, boolean>>({});
   const [salvandoLip, setSalvandoLip] = useState(false);
+  const [nomeRenomeando, setNomeRenomeando] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const renomearInputRef = useRef<HTMLInputElement>(null);
+  /** URL do PDF inteiro aberto em outra aba — guardada pra revogar quando troca de arquivo. */
+  const urlPdfInteiroRef = useRef<string | null>(null);
 
   const { estado, aplicar, desfazer, refazer, resetar, podeDesfazer, podeRefazer } =
     useHistoricoReducer(reduzirFatiamento, ESTADO_VAZIO);
@@ -140,6 +149,16 @@ export default function TelaFatiamento() {
   const selecionado = itens.find((i) => i.id === estado.selecionadoId) ?? null;
   /** página candidata a novo corte dentro do item selecionado — ajustável com ←/→ */
   const [paginaCorte, setPaginaCorte] = useState<number | null>(null);
+
+  // Campo de renomear segue a seleção: troca de item mostra o nome DELE, não o do anterior.
+  useEffect(() => {
+    setNomeRenomeando(selecionado?.nomeExportacao ?? "");
+  }, [selecionado?.id]);
+
+  // O objeto URL do PDF inteiro só faz sentido para o arquivo atual — revoga ao trocar/sair.
+  useEffect(() => {
+    return () => { if (urlPdfInteiroRef.current) URL.revokeObjectURL(urlPdfInteiroRef.current); };
+  }, [arquivo]);
 
   const registrarEvento = useCallback(
     (tipo: string, titulo: string, detalhe?: unknown) => {
@@ -479,7 +498,34 @@ export default function TelaFatiamento() {
     }
   }
 
+  /** Renomeia o item selecionado — só muda o nome do PDF exportado, não o título na lista. */
+  function renomearSelecionado() {
+    if (!selecionado) return;
+    const nome = nomeRenomeando.trim();
+    if (!nome) return;
+    aplicar({ tipo: "renomear", id: selecionado.id, nomeExportacao: nome });
+    registrarEvento("fatiador_correcao", `renomeado para "${nome}"`, { idSei: selecionado.idSei, id: selecionado.id });
+  }
+
+  function focarRenomear() {
+    if (!selecionado) return;
+    renomearInputRef.current?.focus();
+    renomearInputRef.current?.select();
+  }
+
+  /**
+   * Abre o PDF do processo inteiro numa aba nova — pedido do Fábio (11/09/2026), pra conferir o
+   * contexto sem sair da tela de fatiamento. Nunca sobe pro servidor: é o mesmo `File` já em
+   * memória no navegador, só virando um `blob:` URL local.
+   */
+  function abrirPdfInteiro() {
+    if (!arquivo) return;
+    if (!urlPdfInteiroRef.current) urlPdfInteiroRef.current = URL.createObjectURL(arquivo);
+    window.open(urlPdfInteiroRef.current, "_blank", "noopener,noreferrer");
+  }
+
   function abrirNovoPdf() {
+    if (urlPdfInteiroRef.current) { URL.revokeObjectURL(urlPdfInteiroRef.current); urlPdfInteiroRef.current = null; }
     setArquivo(null);
     setNumeroProcesso(null);
     setErro(null);
@@ -504,6 +550,8 @@ export default function TelaFatiamento() {
     { tecla: "y", mod: true, acao: refazer },
     { tecla: "o", mod: true, acao: abrirNovoPdf, descricao: "abrir novo PDF" },
     { tecla: "e", mod: true, acao: exportarSelecionado, descricao: "exportar o item selecionado" },
+    { tecla: "r", acao: focarRenomear, descricao: "renomear o item selecionado" },
+    { tecla: "p", mod: true, acao: abrirPdfInteiro, descricao: "abrir o PDF inteiro em outra aba" },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [selecionado, arquivo, paginaCorte, podeDesfazer, podeRefazer, itens, lendo, processoCodigo]);
 
@@ -569,7 +617,14 @@ export default function TelaFatiamento() {
               <p className="text-xs text-[var(--text-muted)]">
                 Processo {numeroProcesso} · {itens.length} item(ns)
               </p>
-              {erro && <p className="text-xs text-[var(--error)]">⚠ {erro}</p>}
+              <div className="flex items-center gap-3">
+                {erro && <p className="text-xs text-[var(--error)]">⚠ {erro}</p>}
+                <button onClick={abrirPdfInteiro} disabled={!arquivo}
+                  title="Abre o PDF do processo inteiro numa aba nova, pra conferir contexto sem sair daqui (Cmd/Ctrl+P)"
+                  className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40 whitespace-nowrap">
+                  📄 PDF inteiro em outra aba
+                </button>
+              </div>
             </div>
             <div className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
               {itens.map((item) => {
@@ -714,10 +769,33 @@ export default function TelaFatiamento() {
               </button>
             </div>
             {selecionado && (
-              <button onClick={exportarSelecionado} disabled={!arquivo || exportando === selecionado.id}
-                className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
-                {exportando === selecionado.id ? "⏳ Exportando..." : "⬇ Exportar selecionado"}
-              </button>
+              <>
+                {/* Renomear — pedido do Fábio (11/09/2026): só muda o NOME do PDF exportado, nunca
+                    o título que aparece na lista (esse continua vindo do fatiamento/carimbo). */}
+                <div className="mt-2 flex gap-1">
+                  <input
+                    ref={renomearInputRef} value={nomeRenomeando}
+                    onChange={(e) => setNomeRenomeando(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renomearSelecionado(); } }}
+                    placeholder="nome do PDF ao exportar"
+                    title="Atalho: R"
+                    className="flex-1 min-w-0 text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)]"
+                  />
+                  <button onClick={renomearSelecionado} disabled={!nomeRenomeando.trim()}
+                    className="shrink-0 text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+                    ✎
+                  </button>
+                </div>
+                {selecionado.nomeExportacao && (
+                  <p className="mt-1 text-[10px] text-[var(--text-muted)]">
+                    exporta como: <b className="text-[var(--text-primary)]">{selecionado.nomeExportacao} {selecionado.idSei}.pdf</b>
+                  </p>
+                )}
+                <button onClick={exportarSelecionado} disabled={!arquivo || exportando === selecionado.id}
+                  className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
+                  {exportando === selecionado.id ? "⏳ Exportando..." : "⬇ Exportar selecionado"}
+                </button>
+              </>
             )}
             <button onClick={abrirNovoPdf}
               className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)]">

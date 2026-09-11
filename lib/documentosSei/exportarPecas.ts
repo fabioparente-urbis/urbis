@@ -27,8 +27,19 @@ export async function exportarItem(arquivo: File, item: ItemFatiado): Promise<{ 
   const bytes = await novo.save();
   const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
 
-  const rotulo = item.papel ? rotuloDoPapelPeca(item.papel) : null;
-  const nomeArquivo = nomeArquivoAnalista(rotulo ?? item.titulo, item.idSei);
+  // `nomeExportacao` (renomeação manual, 11/09/2026) tem prioridade sobre a derivação automática
+  // por papel/título — é o analista escolhendo o nome, não o sistema adivinhando. Vai DIRETO pro
+  // arquivo, sem passar por `nomeArquivoAnalista`/`rotuloDoTitulo`: aquela função tenta casar o
+  // texto contra os padrões conhecidos (ex.: "laudo", "vistoria") e reescreveria um nome escolhido
+  // à mão que por acaso contivesse uma dessas palavras — o analista pediu ESTE texto, verbatim.
+  let nomeArquivo: string;
+  if (item.nomeExportacao?.trim()) {
+    const base = item.nomeExportacao.trim().replace(/[\\/:*?"<>|]/g, "-");
+    nomeArquivo = `${base} ${item.idSei}.pdf`;
+  } else {
+    const rotulo = item.papel ? rotuloDoPapelPeca(item.papel) : null;
+    nomeArquivo = nomeArquivoAnalista(rotulo ?? item.titulo, item.idSei);
+  }
   return { blob, nomeArquivo };
 }
 

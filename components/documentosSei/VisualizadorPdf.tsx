@@ -13,7 +13,7 @@
  * O recorte é feito na hora, a partir do PDF original em memória — nunca guarda fatia separada.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 
@@ -25,6 +25,22 @@ export default function VisualizadorPdf({
   const [pagina, setPagina] = useState(paginaInicial);
   const totalDoDocumento = paginaFim - paginaIni + 1;
   const posicaoNoDocumento = pagina - paginaIni + 1;
+
+  /**
+   * Ir direto pra página — pedido do Fábio (11/09/2026): "navegar com rapidez entre páginas...
+   * digitar a página e ele vai". Campo de rascunho (`indo`) separado de `pagina`: o analista pode
+   * apagar o número pra digitar de novo sem o clamp brigando a cada tecla; só ao confirmar
+   * (Enter/blur) é que o valor é validado e aplicado.
+   */
+  const [indo, setIndo] = useState(String(pagina));
+  useEffect(() => setIndo(String(pagina)), [pagina]);
+
+  function irParaPagina() {
+    const n = parseInt(indo, 10);
+    if (Number.isFinite(n)) setPagina(Math.min(paginaFim, Math.max(paginaIni, n)));
+    else setIndo(String(pagina));
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
       <div
@@ -38,7 +54,17 @@ export default function VisualizadorPdf({
           </button>
           <span className="text-sm text-[var(--text-primary)]">
             Página {posicaoNoDocumento} de {totalDoDocumento}
-            <span className="text-xs text-[var(--text-muted)] ml-2">(pg. {pagina} do processo)</span>
+          </span>
+          <span className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
+            pg.
+            <input
+              type="number" value={indo} min={paginaIni} max={paginaFim}
+              onChange={(e) => setIndo(e.target.value)}
+              onBlur={irParaPagina}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); irParaPagina(); } }}
+              className="w-14 px-1 py-0.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] text-center"
+            />
+            do processo
           </span>
           <button onClick={() => setPagina((p) => Math.min(paginaFim, p + 1))} disabled={pagina >= paginaFim}
             className="px-3 py-1 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] disabled:opacity-40">
