@@ -107,7 +107,7 @@ export type ResumoPersistencia = {
  * (Fase 3). Contêineres em si NUNCA são persistidos como documento — só as peças de dentro deles
  * (o contêiner é só um bolso, não um documento com identidade própria).
  */
-function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemParaPersistir[] {
+async function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): Promise<ItemParaPersistir[]> {
   /**
    * Estado resolvido sobre TODOS os eventos, contêineres inclusive — exatamente a mesma chamada
    * que as duas telas fazem (`resolverEstados(resultado.eventos)`).
@@ -125,7 +125,7 @@ function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemPar
   for (const ev of eventos) {
     if (ehContainerGenerico(ev.titulo)) continue; // tratados logo abaixo, com identidade própria
     const ato = tipoAto(ev.titulo);
-    const papel = ato ?? classificarTitulo(ev.titulo) ?? "outro";
+    const papel = ato ?? (await classificarTitulo(ev.titulo)) ?? "outro";
     const escopo = ato || papel === "outro" ? ev.idSei : "";
     itens.push({
       idSei: ev.idSei, titulo: ev.titulo, paginaIni: ev.paginaIni, paginaFim: ev.paginaFim,
@@ -203,7 +203,7 @@ export async function persistirDocumentosVivos(args: {
   eventos: (EventoSei & { pecas?: PecaSei[] })[];
 }): Promise<ResumoPersistencia> {
   const resumo: ResumoPersistencia = { documentosNovos: 0, versoesNovas: 0, inalterados: 0, alertasIntegridade: [], problemas: [] };
-  const itens = construirItens(args.eventos);
+  const itens = await construirItens(args.eventos);
 
   for (const item of itens) {
     const paginas = await lerPaginasIntervalo(args.leitor, item.paginaIni, item.paginaFim);

@@ -11,10 +11,16 @@
  * escrita do zero para o vocabulário dos Slots 1/2 e testada por PÁGINA (não pelo documento
  * inteiro, que aqui é só um pedaço do PDF do SEI).
  *
- * Zero IA, zero rede. Página que não casa nenhuma assinatura vira `classificacao_pendente` —
- * NUNCA é descartada (princípio §5.2 do plano: "nenhuma página some em silêncio").
+ * Zero IA. Página que não casa nenhuma assinatura vira `classificacao_pendente` — NUNCA é
+ * descartada (princípio §5.2 do plano: "nenhuma página some em silêncio").
+ *
+ * Fase 4 (10/09/2026): as regras saem do array `ASSINATURAS_PECA` fixo e passam a vir de
+ * `documentos_sei_regras_identificacao` (tela `app/admin/regras-identificacao`), com cache curto
+ * em `regrasIdentificacao.ts` — o array abaixo continua existindo como PADRÃO, usado se o banco
+ * estiver vazio ou fora do ar.
  */
 import type { PaginaTexto } from "./fatiar";
+import { carregarRegras, type RegraRegex } from "./regrasIdentificacao";
 
 export type PapelPeca =
   | "projeto"
@@ -64,6 +70,10 @@ function normalizar(t: string): string {
  * Ordem importa: a primeira assinatura que casar decide o papel da página (mesmo princípio de
  * `ASSINATURAS`/`SLOTS_SEI` em `lerPastaSlot5.ts` e de `REGRAS` em `compararLip.ts`). Vocabulário
  * limitado ao que o plano cita (§6 Fase 3) — ampliar exige processo real que justifique.
+ *
+ * PADRÃO de fallback (Fase 4) — a tabela `documentos_sei_regras_identificacao` é a fonte normal em
+ * produção; isto só entra em jogo se o banco estiver vazio/fora do ar. Mantido idêntico à carga
+ * inicial da migration `2026_09_10_documentos_sei_regras_identificacao.sql` de propósito.
  */
 const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   { papel: "matricula", re: /\b(certidao\s+de\s+matricula|registro\s+de\s+imoveis)\b/ },
@@ -91,10 +101,19 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   { papel: "certidao", re: /\bcertidao\b/ },
 ];
 
-function classificarPagina(texto: string): PapelPeca | null {
+function classificarComRegras(texto: string, regras: RegraRegex<PapelPeca>[]): PapelPeca | null {
   const norm = normalizar(texto);
-  for (const a of ASSINATURAS_PECA) if (a.re.test(norm)) return a.papel;
+  for (const a of regras) if (a.re.test(norm)) return a.papel;
   return null;
+}
+
+/**
+ * Carrega as regras de `documentos_sei_regras_identificacao` (tabela='peca', Fase 4 do plano de
+ * leitura de PDF) — cacheado, cai em `ASSINATURAS_PECA` se o banco falhar ou estiver vazio. Regex
+ * compilada SEM flag: o texto já chega normalizado (minúsculo, sem acento) por `normalizar()`.
+ */
+function carregarAssinaturasPeca() {
+  return carregarRegras("peca", PAPEIS_VALIDOS as ReadonlySet<PapelPeca>, ASSINATURAS_PECA, (s) => new RegExp(s));
 }
 
 /** Testa se o título do evento é um contêiner genérico (esconde várias peças dentro). */
@@ -109,8 +128,9 @@ export function ehContainerGenerico(titulo: string): boolean {
  * do SEI que não é ato (despacho/parecer/ofício/notificação) nem contêiner. `null` quando nenhuma
  * assinatura casa — o chamador decide o que fazer (nunca inventa papel).
  */
-export function classificarTitulo(titulo: string): PapelPeca | null {
-  return classificarPagina(titulo);
+export async function classificarTitulo(titulo: string): Promise<PapelPeca | null> {
+  const regras = await carregarAssinaturasPeca();
+  return classificarComRegras(titulo, regras);
 }
 
 /**
@@ -124,12 +144,13 @@ export function classificarTitulo(titulo: string): PapelPeca | null {
  * (nunca junta duas peças diferentes por engano) — direção seguindo o princípio de nunca perder
  * dado, só eventualmente sobrar peça de mais.
  */
-export function abrirContainer(paginasDoEvento: PaginaTexto[]): PecaSei[] {
+export async function abrirContainer(paginasDoEvento: PaginaTexto[]): Promise<PecaSei[]> {
+  const regras = await carregarAssinaturasPeca();
   const pecas: PecaSei[] = [];
   let orientacaoAnterior: "retrato" | "paisagem" | null = null;
 
   for (const p of paginasDoEvento) {
-    const papel = classificarPagina(p.texto) ?? "classificacao_pendente";
+    const papel = classificarComRegras(p.texto, regras) ?? "classificacao_pendente";
     const orientacao: "retrato" | "paisagem" = p.largura > p.altura ? "paisagem" : "retrato";
     const mudaOrientacao = orientacaoAnterior !== null && orientacao !== orientacaoAnterior;
 

@@ -133,7 +133,7 @@ async function processar(
         continue;
       }
       const paginasDoEvento = await lerPaginasIntervalo(leitor, ev.paginaIni, ev.paginaFim);
-      const pecas = abrirContainer(paginasDoEvento);
+      const pecas = await abrirContainer(paginasDoEvento);
       paginasContainer += paginasDoEvento.length;
       paginasClassificadas += pecas.filter((p) => p.papel !== "classificacao_pendente")
         .reduce((soma, p) => soma + (p.paginaFim - p.paginaIni + 1), 0);

@@ -61,7 +61,7 @@ async function conferir(caminho: string): Promise<void> {
 
     if (!ehContainerGenerico(ev.titulo)) continue;
     const paginas = await lerPaginasIntervalo(leitor, ev.paginaIni, ev.paginaFim);
-    const pecas = abrirContainer(paginas);
+    const pecas = await abrirContainer(paginas);
     paginasContainer += paginas.length;
     for (const p of pecas) {
       const n = p.paginaFim - p.paginaIni + 1;

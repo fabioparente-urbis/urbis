@@ -20,6 +20,7 @@
  * GARANTE é a contagem fechada de páginas por ID SEI. Refinar setor/data fica para quando algum
  * consumidor (Fase 3 em diante) precisar de verdade.
  */
+import { carregarRegras, type RegraRegex } from "./regrasIdentificacao";
 
 export type Carimbo = {
   idSei: string;
@@ -254,6 +255,11 @@ export function acharData(textoPagina: string): string | undefined {
  * Assinaturas de CONTEÚDO — usadas só quando o título do SEI não diz o que o documento é.
  * Zero IA: são frases que o próprio documento escreve. Entra pouca coisa aqui de propósito —
  * cada regra tem que ser afirmação do documento, não pista fraca.
+ *
+ * PADRÃO de fallback (Fase 4, 10/09/2026) — a tabela `documentos_sei_regras_identificacao`
+ * (tabela='conteudo') é a fonte normal em produção (tela `app/admin/regras-identificacao`); isto
+ * só entra em jogo se o banco estiver vazio/fora do ar. Mantido idêntico à carga inicial da
+ * migration `2026_09_10_documentos_sei_regras_identificacao.sql` de propósito.
  */
 const ASSINATURAS_CONTEUDO: { papel: PapelPorConteudo; re: RegExp }[] = [
   {
@@ -271,9 +277,23 @@ const ASSINATURAS_CONTEUDO: { papel: PapelPorConteudo; re: RegExp }[] = [
   { papel: "foto", re: /registro\s+fotogr[áa]fico/i },
 ];
 
-function acharPapelPorConteudo(textoPagina: string): PapelPorConteudo | undefined {
-  for (const a of ASSINATURAS_CONTEUDO) if (a.re.test(textoPagina)) return a.papel;
+const PAPEIS_VALIDOS_CONTEUDO = new Set<PapelPorConteudo>(["busca", "vistoria", "foto"]);
+
+function acharPapelPorConteudoComRegras(
+  textoPagina: string,
+  regras: RegraRegex<PapelPorConteudo>[],
+): PapelPorConteudo | undefined {
+  for (const a of regras) if (a.re.test(textoPagina)) return a.papel;
   return undefined;
+}
+
+/**
+ * Carrega as regras de `documentos_sei_regras_identificacao` (tabela='conteudo', Fase 4) —
+ * cacheado, cai em `ASSINATURAS_CONTEUDO` se o banco falhar ou estiver vazio. Regex compilada com
+ * flag 'i': o texto testado é o CRU da página, com acento (diferente de `pecas.ts`).
+ */
+function carregarAssinaturasConteudo() {
+  return carregarRegras("conteudo", PAPEIS_VALIDOS_CONTEUDO, ASSINATURAS_CONTEUDO, (s) => new RegExp(s, "i"));
 }
 
 type PaginaLida = {
@@ -303,6 +323,7 @@ async function abrirDocumentoPdf(buffer: Uint8Array): Promise<any> {
 }
 
 async function lerPaginas(doc: any, aoAndar?: AoAndarFatiamento): Promise<PaginaLida[]> {
+  const regrasConteudo = await carregarAssinaturasConteudo();
   const paginas: PaginaLida[] = [];
   for (let p = 1; p <= doc.numPages; p++) {
     aoAndar?.({ atual: p - 1, total: doc.numPages });
@@ -321,7 +342,7 @@ async function lerPaginas(doc: any, aoAndar?: AoAndarFatiamento): Promise<Pagina
       setor: acharSetorNaPagina(itens),
       data: acharData(textoPagina),
       assinante: acharAssinante(textoPagina),
-      papelPorConteudo: acharPapelPorConteudo(textoPagina),
+      papelPorConteudo: acharPapelPorConteudoComRegras(textoPagina, regrasConteudo),
     });
   }
   aoAndar?.({ atual: doc.numPages, total: doc.numPages });
