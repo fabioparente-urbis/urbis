@@ -20,6 +20,10 @@ import { registrarEvento } from "@/lib/mhd";
 const TIPOS_VALIDOS = new Set([
   "fatiador_corte", "fatiador_correcao", "fatiador_confirmacao", "fatiador_lixo",
   "fatiador_restauracao", "fatiador_exportacao",
+  // A tela já mandava `fatiador_leitura` desde a Fase 7, mas o tipo não estava aqui: a rota
+  // respondia 400 e o cliente engolia no .catch(), então o envio para leitura sumia do histórico
+  // em silêncio — contra o princípio "nada some em silêncio" do §3.6 do plano.
+  "fatiador_leitura",
 ]);
 
 export async function POST(req: NextRequest) {

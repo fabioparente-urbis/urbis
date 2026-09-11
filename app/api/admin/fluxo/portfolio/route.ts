@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { agregarPortfolio } from "@/lib/documentosSei/analiseFluxo";
+import { lerEventosFluxo, agruparPorProcesso, type EventoBruto } from "@/lib/documentosSei/lerEventosFluxo";
 
 /**
  * GET /api/admin/fluxo/portfolio — Fase 12 do plano de leitura de PDF (§4.5, painel de gestão).
@@ -20,19 +21,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador." }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("fluxo_processo_eventos")
-    .select("processo_codigo, titulo, setor, data_documento")
-    .order("processo_codigo");
-  if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-
-  const porProcesso = new Map<string, { titulo: string; setor: string | null; dataDocumento: string | null }[]>();
-  for (const row of data ?? []) {
-    const lista = porProcesso.get(row.processo_codigo) ?? [];
-    lista.push({ titulo: row.titulo, setor: row.setor, dataDocumento: row.data_documento });
-    porProcesso.set(row.processo_codigo, lista);
+  // Paginado: um .select() simples pararia em 1000 linhas e o painel agregaria um terço do acervo
+  // como se fosse o todo (ver lib/documentosSei/lerEventosFluxo.ts).
+  let linhas: EventoBruto[];
+  try {
+    linhas = await lerEventosFluxo<EventoBruto>(supabaseAdmin, "processo_codigo, titulo, setor, data_documento, pagina_ini");
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e?.message ?? "Falha ao ler o acervo." }, { status: 500 });
   }
 
+  const porProcesso = agruparPorProcesso(linhas);
   const portfolio = agregarPortfolio([...porProcesso.values()]);
   return NextResponse.json({ ok: true, portfolio, processos: [...porProcesso.keys()] });
 }

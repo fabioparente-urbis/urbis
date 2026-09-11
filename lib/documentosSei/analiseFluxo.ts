@@ -9,6 +9,7 @@
  * um número que finge precisão que o dado não tem.
  */
 import { parseDataDocumento } from "./parseDataDocumento";
+import { normalizarSetor, exibicaoPreferida } from "./normalizarSetor";
 
 export type EventoFluxo = {
   titulo: string;
@@ -18,7 +19,7 @@ export type EventoFluxo = {
 
 export type FaixaTempo = "menos de 30 dias" | "30 a 90 dias" | "90 a 365 dias" | "mais de 1 ano";
 
-export type TempoPorSetor = { setor: string; dias: number };
+export type TempoPorSetor = { setor: string; chave: string; dias: number };
 
 export type AnaliseJornada = {
   totalEventos: number;
@@ -32,6 +33,8 @@ export type AnaliseJornada = {
   retrabalho: number;
   /** datas descartadas por destoarem demais das outras (ex: data de nascimento em cópia de RG anexada) */
   datasDescartadasComoRuido: number;
+  /** intervalos cujo setor não passou em `normalizarSetor` (endereço, área, lixo de OCR) */
+  intervalosSemSetorUtil: number;
 };
 
 const RUIDO_ANOS = 5; // datas a mais de 5 anos da mediana do próprio processo são tratadas como ruído (§ ver parseDataDocumento)
@@ -65,16 +68,25 @@ export function analisarJornada(eventos: EventoFluxo[]): AnaliseJornada {
     duracaoDias = Math.round(ms / (24 * 60 * 60 * 1000));
   }
 
-  const tempoPorSetorMap = new Map<string, number>();
+  // A espera entre dois documentos é creditada ao setor que emitiu o documento SEGUINTE — foi ele
+  // que segurou o processo até produzir a sua peça. Creditar ao anterior (como esta função fazia
+  // até 11/09/2026) nomeia quem já tinha terminado, e o painel existe justamente pra responder
+  // "onde intervir primeiro". Decisão do Fábio em 11/09/2026, depois de ver os dois rankings.
+  const tempoPorSetorMap = new Map<string, { dias: number; grafias: string[] }>();
+  let intervalosSemSetorUtil = 0;
   for (let i = 0; i < confiaveis.length - 1; i++) {
-    const atual = confiaveis[i];
-    if (!atual.setor) continue;
-    const dias = Math.round((confiaveis[i + 1].data.getTime() - atual.data.getTime()) / (24 * 60 * 60 * 1000));
+    const seguinte = confiaveis[i + 1];
+    const dias = Math.round((seguinte.data.getTime() - confiaveis[i].data.getTime()) / (24 * 60 * 60 * 1000));
     if (dias <= 0) continue;
-    tempoPorSetorMap.set(atual.setor, (tempoPorSetorMap.get(atual.setor) ?? 0) + dias);
+    const setor = normalizarSetor(seguinte.setor);
+    if (!setor) { intervalosSemSetorUtil++; continue; }
+    const acc = tempoPorSetorMap.get(setor.chave) ?? { dias: 0, grafias: [] };
+    acc.dias += dias;
+    acc.grafias.push(setor.exibicao);
+    tempoPorSetorMap.set(setor.chave, acc);
   }
   const tempoPorSetor = [...tempoPorSetorMap.entries()]
-    .map(([setor, dias]) => ({ setor, dias }))
+    .map(([chave, { dias, grafias }]) => ({ chave, setor: exibicaoPreferida(grafias), dias }))
     .sort((a, b) => b.dias - a.dias);
 
   return {
@@ -86,10 +98,20 @@ export function analisarJornada(eventos: EventoFluxo[]): AnaliseJornada {
     tempoPorSetor,
     retrabalho: eventos.filter((e) => PADRAO_RETRABALHO.test(e.titulo)).length,
     datasDescartadasComoRuido: descartadas,
+    intervalosSemSetorUtil,
   };
 }
 
 export type PortfolioSetor = { setor: string; medianaDias: number; processos: number };
+
+export type RetrabalhoPortfolio = {
+  /** quantos processos voltaram pelo menos uma vez */
+  processosComRetrabalho: number;
+  totalProcessos: number;
+  /** mediana de voltas ENTRE OS QUE VOLTARAM — 0 quando ninguém voltou */
+  medianaEntreOsQueVoltaram: number;
+  maximo: number;
+};
 
 export type AnalisePortfolio = {
   totalProcessos: number;
@@ -99,8 +121,17 @@ export type AnalisePortfolio = {
    * 11/09/2026: processo esquecido anos num setor) distorce a média sem dizer nada sobre o
    * caso comum. É o "ordinário antes do extraordinário" pedido pelo Fábio. */
   tempoTipicoPorSetor: PortfolioSetor[];
-  retrabalhoMedio: number;
+  /** setores que existem mas ficaram fora do ranking por aparecerem em menos processos que o piso */
+  setoresOcultadosPorAmostra: number;
+  retrabalho: RetrabalhoPortfolio;
 };
+
+/**
+ * Piso de amostra para entrar no ranking. MEDIDO em 11/09/2026: sem piso, 54 das 89 linhas vinham
+ * de um único processo — a "mediana" dessa linha é só a duração daquele processo, com aparência de
+ * estatística. Uma linha só aparece se o setor foi visto em pelo menos dois processos.
+ */
+const MINIMO_PROCESSOS_NO_RANKING = 2;
 
 function mediana(nums: number[]): number {
   const s = [...nums].sort((a, b) => a - b);
@@ -117,23 +148,41 @@ export function agregarPortfolio(porProcesso: EventoFluxo[][]): AnalisePortfolio
   };
   for (const j of jornadas) if (j.faixa) contagemPorFaixa[j.faixa]++;
 
-  const diasPorSetor = new Map<string, number[]>();
+  const diasPorSetor = new Map<string, { dias: number[]; grafias: string[] }>();
   for (const j of jornadas) {
-    for (const { setor, dias } of j.tempoPorSetor) {
-      const lista = diasPorSetor.get(setor) ?? [];
-      lista.push(dias);
-      diasPorSetor.set(setor, lista);
+    for (const { chave, setor, dias } of j.tempoPorSetor) {
+      const acc = diasPorSetor.get(chave) ?? { dias: [], grafias: [] };
+      acc.dias.push(dias);
+      acc.grafias.push(setor);
+      diasPorSetor.set(chave, acc);
     }
   }
-  const tempoTipicoPorSetor = [...diasPorSetor.entries()]
-    .map(([setor, dias]) => ({ setor, medianaDias: Math.round(mediana(dias)), processos: dias.length }))
+  const ranking = [...diasPorSetor.values()]
+    .map(({ dias, grafias }) => ({
+      setor: exibicaoPreferida(grafias),
+      medianaDias: Math.round(mediana(dias)),
+      processos: dias.length,
+    }))
     .sort((a, b) => b.medianaDias - a.medianaDias);
+  const tempoTipicoPorSetor = ranking.filter((s) => s.processos >= MINIMO_PROCESSOS_NO_RANKING);
+
+  // Retrabalho é contagem com muitos zeros: a mediana sobre TODOS os processos dava 0 e o painel
+  // dizia "retrabalho típico: 0", que se lê como "não há retrabalho" — falso, 31 de 101 processos
+  // voltaram pelo menos uma vez (medido em 11/09/2026). Diz-se quantos voltaram e quanto voltaram.
+  const voltas = jornadas.map((j) => j.retrabalho);
+  const dosQueVoltaram = voltas.filter((n) => n > 0);
 
   return {
     totalProcessos: jornadas.length,
     processosComDuracaoMedida: jornadas.filter((j) => j.duracaoDias !== null).length,
     contagemPorFaixa,
     tempoTipicoPorSetor,
-    retrabalhoMedio: jornadas.length ? Math.round(mediana(jornadas.map((j) => j.retrabalho)) * 10) / 10 : 0,
+    setoresOcultadosPorAmostra: ranking.length - tempoTipicoPorSetor.length,
+    retrabalho: {
+      processosComRetrabalho: dosQueVoltaram.length,
+      totalProcessos: jornadas.length,
+      medianaEntreOsQueVoltaram: dosQueVoltaram.length ? Math.round(mediana(dosQueVoltaram) * 10) / 10 : 0,
+      maximo: voltas.length ? Math.max(...voltas) : 0,
+    },
   };
 }

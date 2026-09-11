@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { agregarPortfolio } from "@/lib/documentosSei/analiseFluxo";
+import { lerEventosFluxo, agruparPorProcesso, type EventoBruto } from "@/lib/documentosSei/lerEventosFluxo";
 import {
   interpretacaoAssistidaFluxoAtiva,
   avaliarProntidaoBase,
@@ -33,14 +34,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador." }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("fluxo_processo_eventos")
-    .select("processo_codigo, criado_em");
-  if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+  // Paginado — sem isso o portão contava 35 processos em vez de 101 (ver lerEventosFluxo.ts).
+  let linhas: { processo_codigo: string; criado_em: string | null }[];
+  try {
+    linhas = await lerEventosFluxo(supabaseAdmin, "processo_codigo, criado_em, pagina_ini");
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e?.message ?? "Falha ao ler o acervo." }, { status: 500 });
+  }
 
   const codigos = new Set<string>();
   let primeiraCargaEm: string | null = null;
-  for (const row of data ?? []) {
+  for (const row of linhas) {
     codigos.add(row.processo_codigo);
     if (row.criado_em && (!primeiraCargaEm || row.criado_em < primeiraCargaEm)) primeiraCargaEm = row.criado_em;
   }
@@ -61,18 +65,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Interpretação assistida desligada (urbis_config)." }, { status: 403 });
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("fluxo_processo_eventos")
-    .select("processo_codigo, titulo, setor, data_documento, criado_em")
-    .order("processo_codigo");
-  if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+  let linhas: (EventoBruto & { criado_em: string | null })[];
+  try {
+    linhas = await lerEventosFluxo(supabaseAdmin, "processo_codigo, titulo, setor, data_documento, criado_em, pagina_ini");
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e?.message ?? "Falha ao ler o acervo." }, { status: 500 });
+  }
 
-  const porProcesso = new Map<string, { titulo: string; setor: string | null; dataDocumento: string | null }[]>();
+  const porProcesso = agruparPorProcesso(linhas);
   let primeiraCargaEm: string | null = null;
-  for (const row of data ?? []) {
-    const lista = porProcesso.get(row.processo_codigo) ?? [];
-    lista.push({ titulo: row.titulo, setor: row.setor, dataDocumento: row.data_documento });
-    porProcesso.set(row.processo_codigo, lista);
+  for (const row of linhas) {
     if (row.criado_em && (!primeiraCargaEm || row.criado_em < primeiraCargaEm)) primeiraCargaEm = row.criado_em;
   }
 

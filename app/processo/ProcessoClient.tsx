@@ -1368,7 +1368,13 @@ export default function ProcessoClient() {
           let hashArquivo: string | null = null;
           try {
             hashArquivo = await hashCompletoBytes(await arquivo.arrayBuffer());
-            const cacheRes = await fetch(`/api/lip/cache-gemini?hash=${hashArquivo}`).then(r => r.json());
+            // Slot, assunto e processo entram na chave: sem eles o mesmo PDF lido no Slot 1
+            // devolvia a extração do Slot 1 para o Slot 2, e editar o prompt não surtia efeito.
+            const cacheQuery = new URLSearchParams({
+              hash: hashArquivo, codigo: idUrl, tipoProcesso: tipoUrl,
+              assuntoId: assuntoIdRef.current ?? "",
+            });
+            const cacheRes = await fetch(`/api/lip/cache-gemini?${cacheQuery}`).then(r => r.json());
             if (cacheRes.ok && cacheRes.encontrado) {
               mostrarToast("♻️ Documento já lido antes — reaproveitando, sem custo novo", "info");
               registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_REAPROVEITADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name, hash: hashArquivo } });
@@ -1463,7 +1469,7 @@ export default function ProcessoClient() {
           if (hashArquivo) {
             fetch("/api/lip/cache-gemini", {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ hash: hashArquivo, processoCodigo: idUrl, resultado: resultadoLeitura }),
+              body: JSON.stringify({ hash: hashArquivo, processoCodigo: idUrl, resultado: resultadoLeitura, tipoProcesso: tipoUrl, assuntoId: assuntoIdRef.current ?? "" }),
             }).catch(() => {});
           }
           return resultadoLeitura;
@@ -1642,7 +1648,11 @@ export default function ProcessoClient() {
         let camposVcpDoCache: Record<string, any> | null = null;
         try {
           hashArquivoVcp = await hashCompletoBytes(await arquivo.arrayBuffer());
-          const cacheResVcp = await fetch(`/api/lip/cache-gemini?hash=${hashArquivoVcp}`).then(r => r.json());
+          const cacheQueryVcp = new URLSearchParams({
+            hash: hashArquivoVcp, codigo: idUrl, tipoProcesso: tipoUrl,
+            assuntoId: assuntoIdRef.current ?? "",
+          });
+          const cacheResVcp = await fetch(`/api/lip/cache-gemini?${cacheQueryVcp}`).then(r => r.json());
           if (cacheResVcp.ok && cacheResVcp.encontrado) camposVcpDoCache = cacheResVcp.campos ?? {};
         } catch { /* cache indisponível — segue a leitura normalmente */ }
 
@@ -1683,7 +1693,7 @@ export default function ProcessoClient() {
         if (hashArquivoVcp) {
           fetch("/api/lip/cache-gemini", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hash: hashArquivoVcp, processoCodigo: idUrl, resultado: { campos: s3VcpData.campos ?? {} } }),
+            body: JSON.stringify({ hash: hashArquivoVcp, processoCodigo: idUrl, resultado: { campos: s3VcpData.campos ?? {} }, tipoProcesso: tipoUrl, assuntoId: assuntoIdRef.current ?? "" }),
           }).catch(() => {});
         }
       }

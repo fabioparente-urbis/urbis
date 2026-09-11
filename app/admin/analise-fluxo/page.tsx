@@ -15,8 +15,7 @@ import { isPerfilIrrestrito } from "@/lib/perfis";
  * Mesmo padrão de /admin/mhd: cliente, gate isPerfilIrrestrito redirecionando pra Home, dado vem
  * de uma rota própria (`/api/admin/fluxo/portfolio`). Só leitura — esta tela não escreve nada.
  *
- * Base de dados ainda pequena (5 processos em 11/09/2026, carga do acervo em andamento) — os
- * números aqui são reais, mas a amostra é pequena até a Fase 10 escalar.
+ * Base carregada pela Fase 10: 101 processos / 2441 eventos em 11/09/2026.
  */
 
 type FaixaTempo = "menos de 30 dias" | "30 a 90 dias" | "90 a 365 dias" | "mais de 1 ano";
@@ -26,7 +25,13 @@ type Portfolio = {
   processosComDuracaoMedida: number;
   contagemPorFaixa: Record<FaixaTempo, number>;
   tempoTipicoPorSetor: { setor: string; medianaDias: number; processos: number }[];
-  retrabalhoMedio: number;
+  setoresOcultadosPorAmostra: number;
+  retrabalho: {
+    processosComRetrabalho: number;
+    totalProcessos: number;
+    medianaEntreOsQueVoltaram: number;
+    maximo: number;
+  };
 };
 
 type Prontidao = { pronta: boolean; totalProcessos: number; diasDesdePrimeiraCarga: number | null; motivos: string[] };
@@ -134,7 +139,13 @@ export default function AnaliseFluxoPage() {
           <section>
             <h2 className="mb-1 text-sm font-medium text-[var(--text-primary)]">Onde trava (típico por setor)</h2>
             <p className="mb-3 text-xs text-[var(--text-muted)]">
-              Mediana entre os processos que passaram por cada setor — não média, pra um processo esquecido anos num setor não distorcer o retrato do caso comum.
+              Tempo que o processo passou esperando cada setor produzir o seu documento. Mediana entre
+              os processos que passaram por ele — não média, pra um processo esquecido anos num setor
+              não distorcer o retrato do caso comum.
+              {portfolio.setoresOcultadosPorAmostra > 0 && (
+                <> {portfolio.setoresOcultadosPorAmostra} setor(es) ficaram de fora por aparecerem em
+                um único processo — amostra pequena demais pra virar estatística.</>
+              )}
             </p>
             {portfolio.tempoTipicoPorSetor.length === 0 && (
               <p className="text-sm text-[var(--text-muted)]">Sem dado suficiente ainda.</p>
@@ -158,7 +169,12 @@ export default function AnaliseFluxoPage() {
           <section>
             <h2 className="mb-1 text-sm font-medium text-[var(--text-primary)]">Retrabalho</h2>
             <p className="text-sm text-[var(--text-primary)]">
-              Mediana de {portfolio.retrabalhoMedio} despacho(s) de pendência/diligência por processo.
+              {portfolio.retrabalho.processosComRetrabalho} de {portfolio.retrabalho.totalProcessos} processo(s)
+              voltaram pelo menos uma vez.
+              {portfolio.retrabalho.processosComRetrabalho > 0 && (
+                <> Entre os que voltaram, a mediana é de {portfolio.retrabalho.medianaEntreOsQueVoltaram}{" "}
+                despacho(s) de pendência/diligência — o pior chegou a {portfolio.retrabalho.maximo}.</>
+              )}
             </p>
           </section>
 

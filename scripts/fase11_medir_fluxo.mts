@@ -11,24 +11,16 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { analisarJornada, agregarPortfolio } from "../lib/documentosSei/analiseFluxo";
+import { lerEventosFluxo, agruparPorProcesso, type EventoBruto } from "../lib/documentosSei/lerEventosFluxo";
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 const codigosFiltro = process.argv.slice(2);
 
-const { data, error } = await sb
-  .from("fluxo_processo_eventos")
-  .select("processo_codigo, titulo, setor, data_documento, pagina_ini")
-  .order("processo_codigo")
-  .order("pagina_ini");
-if (error) { console.error(error.message); process.exit(1); }
-
-const porProcesso = new Map<string, { titulo: string; setor: string | null; dataDocumento: string | null }[]>();
-for (const row of data) {
-  if (codigosFiltro.length && !codigosFiltro.includes(row.processo_codigo)) continue;
-  const lista = porProcesso.get(row.processo_codigo) ?? [];
-  lista.push({ titulo: row.titulo, setor: row.setor, dataDocumento: row.data_documento });
-  porProcesso.set(row.processo_codigo, lista);
-}
+// Paginado — um .select() simples para em 1000 linhas e este script mediria 35 dos 101 processos.
+const linhas = await lerEventosFluxo<EventoBruto>(sb, "processo_codigo, titulo, setor, data_documento, pagina_ini");
+const porProcesso = agruparPorProcesso(
+  codigosFiltro.length ? linhas.filter((l) => codigosFiltro.includes(l.processo_codigo)) : linhas,
+);
 
 if (porProcesso.size === 0) {
   console.log("Nenhum processo encontrado em fluxo_processo_eventos" + (codigosFiltro.length ? " para os códigos informados." : "."));
@@ -58,9 +50,13 @@ if (porProcesso.size > 1) {
   console.log(`Duração medida em: ${portfolio.processosComDuracaoMedida}/${portfolio.totalProcessos}`);
   console.log("Faixas de tempo:");
   for (const [faixa, n] of Object.entries(portfolio.contagemPorFaixa)) console.log(`  ${n} processo(s) — ${faixa}`);
-  console.log(`Retrabalho típico (mediana): ${portfolio.retrabalhoMedio} despacho(s) de pendência/diligência por processo`);
+  const rt = portfolio.retrabalho;
+  console.log(`Retrabalho: ${rt.processosComRetrabalho}/${rt.totalProcessos} processos voltaram ao menos uma vez (mediana entre eles: ${rt.medianaEntreOsQueVoltaram}, máximo: ${rt.maximo})`);
+  if (portfolio.setoresOcultadosPorAmostra) {
+    console.log(`(${portfolio.setoresOcultadosPorAmostra} setor(es) fora do ranking por aparecerem em um único processo)`);
+  }
   if (portfolio.tempoTipicoPorSetor.length) {
-    console.log("Tempo TÍPICO por setor (mediana entre os processos que passaram por ele — não é a média, um outlier não distorce):");
+    console.log("Tempo TÍPICO por setor (espera ATÉ o setor emitir seu documento; mediana, não média):");
     for (const t of portfolio.tempoTipicoPorSetor) console.log(`  ${String(t.medianaDias).padStart(4)} dias — ${t.setor} (visto em ${t.processos} processo(s))`);
   }
 }
