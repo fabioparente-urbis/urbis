@@ -152,7 +152,52 @@ export function abrirContainer(paginasDoEvento: PaginaTexto[]): PecaSei[] {
     orientacaoAnterior = orientacao;
   }
 
-  return pecas;
+  return fundirPendentesEntreIguais(pecas);
+}
+
+/**
+ * Fase 1B do plano de leitura de PDF (10/09/2026), regra do Fábio: "tem que analisar o que tá
+ * escrito antes e depois da página em branco... se o padrão do documento é o mesmo". Uma peça
+ * `classificacao_pendente` (tipicamente página escaneada, sem texto pra casar regra nenhuma) que
+ * fica ENTRE duas peças do MESMO papel é a MESMA peça continuando — funde as três numa só.
+ *
+ * Conservador de propósito, mesmo espírito da continuidade de idSei em `fatiar.ts`: só funde
+ * quando os dois lados CONCORDAM. Papel diferente dos dois lados (ex.: laudo → páginas em branco
+ * → memorial, caso real medido no processo 24.5.000024350-0) NUNCA funde — fica pendente, pro
+ * analista decidir, exatamente como hoje. O pior caso desta regra é deixar pendente uma página
+ * que era mesmo continuação; nunca o oposto (grudar em documento errado).
+ *
+ * Só o próprio texto pode dizer que uma peça pendente já classificada continua depois — nunca
+ * decide GRAVAR fora do triplo (esquerda, pendente, direita); pendente entre uma peça e o FIM do
+ * contêiner (sem vizinho direito) ou o INÍCIO (sem vizinho esquerdo) não tem com o que concordar.
+ */
+function fundirPendentesEntreIguais(pecas: PecaSei[]): PecaSei[] {
+  const fundidas: PecaSei[] = [];
+  for (const peca of pecas) {
+    const anterior = fundidas[fundidas.length - 1];
+    const antesDoAnterior = fundidas[fundidas.length - 2];
+    if (
+      peca.papel !== "classificacao_pendente" &&
+      anterior?.papel === "classificacao_pendente" &&
+      antesDoAnterior &&
+      antesDoAnterior.papel === peca.papel
+    ) {
+      fundidas.pop(); // a pendente
+      fundidas.pop(); // a peça de antes, que agora se estende até o fim da atual
+      fundidas.push({
+        papel: peca.papel,
+        paginaIni: antesDoAnterior.paginaIni,
+        paginaFim: peca.paginaFim,
+        confianca: "baixa", // parte foi inferida por posição, não por regra de texto — sinaliza "confira"
+        setor: antesDoAnterior.setor ?? anterior.setor ?? peca.setor,
+        assinante: antesDoAnterior.assinante ?? anterior.assinante ?? peca.assinante,
+        data: antesDoAnterior.data ?? anterior.data ?? peca.data,
+      });
+      continue;
+    }
+    fundidas.push(peca);
+  }
+  return fundidas;
 }
 
 /** Papéis que a classificação por visão (Fase 8) pode devolver — qualquer outro valor é ignorado. */
