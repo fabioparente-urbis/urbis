@@ -20,14 +20,6 @@ import AlertaFluxo from "@/components/documentosSei/AlertaFluxo";
 // desligado) — isolamento entre slots do CLAUDE.md, não uma tela genérica com `if (slot)`.
 // Carregados sob demanda porque react-pdf usa APIs de navegador (worker), como já feito em
 // BipPdfViewer.
-const OrganizadorSeiRegularizacao = dynamic(
-  () => import("@/components/regularizacao/OrganizadorSeiRegularizacao"),
-  { ssr: false },
-);
-const OrganizadorSeiAceite = dynamic(
-  () => import("@/components/aceiteSei/OrganizadorSeiAceite"),
-  { ssr: false },
-);
 const OrganizadorSlot5 = dynamic(
   () => import("@/components/aprovacaoProjeto/OrganizadorSlot5"),
   { ssr: false },
@@ -1309,25 +1301,6 @@ export default function ProcessoClient() {
   }
 
   /**
-   * Aceite do painel "Comparar com o LIP" do Organizador de PDF SEI (Documentos Vivos, Fase 2 —
-   * ver docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md §16.4). Mesmo mecanismo de `aceitarPropostaPasta`
-   * (setD + autoSalvar), só que o componente já manda só os campos que o analista marcou —
-   * quem decide QUAIS aceitar é sempre a tela do Organizador, nunca esta função.
-   */
-  function aceitarCamposOrganizador(campos: Record<string, { valor: string; fonte: string }>) {
-    setD((prev) => {
-      const novo = { ...prev };
-      for (const [chave, item] of Object.entries(campos)) {
-        if (!item?.valor) continue;
-        novo[chave] = { valor: item.valor, origem: "urbis" as Origem, fonte: item.fonte };
-      }
-      autoSalvar(novo);
-      return novo;
-    });
-    mostrarToast(`✅ ${Object.keys(campos).length} campo(s) aceito(s) do Organizador de PDF SEI`, "sucesso");
-  }
-
-  /**
    * Só entrega os arquivos para a leitura depois de saber o que fazer com o que
    * já está no LIP.
    *
@@ -1395,7 +1368,7 @@ export default function ProcessoClient() {
           // sozinha para o modelo que suporta (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
           // o teto do servidor, e para esse caso a saída é fatiar o PDF, não comprimir.
           if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
-            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita. Use o Organizador de PDF SEI para separar os documentos e leia por partes.`);
+            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita. Use o Fatiador de PDF SEI (menu principal) para separar os documentos e leia por partes.`);
           }
           const avisoModelo = avisoModeloArquivoGrande(arquivo.size);
           if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`, "info");
@@ -3177,15 +3150,20 @@ export default function ProcessoClient() {
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
 
-      {/* Documentos Vivos — Fase 2, um componente por slot, cada um atrás do seu interruptor.
-          `d` (valores atuais do LIP) só é passado pra COMPARAR na tela; quem grava de volta é
-          sempre aceitarCamposOrganizador, nunca o componente sozinho. */}
-      {idUrl && tipoUrl === "regularizacao" && (
-        <OrganizadorSeiRegularizacao processoCodigo={idUrl} camposLipAtuais={d} onAceitarCampos={aceitarCamposOrganizador} />
-      )}
-      {idUrl && tipoUrl === "aceite_sei" && (
-        <OrganizadorSeiAceite processoCodigo={idUrl} camposLipAtuais={d} onAceitarCampos={aceitarCamposOrganizador} />
-      )}
+      {/* ORGANIZADOR DE PDF SEI REMOVIDO DO SLOT 1 E 2 — 11/09/2026, decisão do Fábio.
+          Substituído pela tela própria `/fatiador-sei` (Fase 6 do plano de leitura de PDF), que
+          desde o commit anterior faz TUDO o que só o Organizador fazia: comparar com o LIP e
+          gravar campo na ficha, pacote vigente + manifesto (.zip) e "Analisar páginas ambíguas".
+          Os dois já cortavam o PDF pela mesma rota e já alimentavam o MHD igual.
+
+          Os componentes `components/regularizacao/OrganizadorSeiRegularizacao.tsx` e
+          `components/aceiteSei/OrganizadorSeiAceite.tsx` NÃO foram apagados de propósito: a
+          portagem não pôde ser exercitada no navegador logado nesta sessão (sem credencial do
+          analista). Se faltar alguma coisa, `git revert` do commit desta remoção traz a tela
+          antiga de volta inteira. Apagar os dois arquivos é o passo seguinte, depois do Fábio
+          confirmar os três botões na tela nova.
+
+          Slot 5 NÃO é tocado — abaixo continua exatamente como estava. */}
       {/* Organizador de Documentos — Slot 5, só leitura sobre o MHD (ver componente).
           Não é fatiador: o Slot 5 já recebe arquivos separados, não um PDF único do SEI. */}
       {idUrl && ehSlot5 && <OrganizadorSlot5 processoCodigo={idUrl} />}
