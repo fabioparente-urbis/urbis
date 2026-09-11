@@ -10,6 +10,7 @@ import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
 import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
+import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
@@ -1360,6 +1361,28 @@ export default function ProcessoClient() {
       const resultados = [];
       for (const arquivo of arquivos) {
         resultados.push(await (async (arquivo) => {
+          // 1.5. Fase 8 — "não pagar duas vezes": mesmo arquivo (bytes idênticos) já lido antes
+          // pula S1/S2/S3 inteiros. Melhor esforço: qualquer falha aqui (rede, tabela ainda não
+          // migrada) cai no caminho de sempre, nunca bloqueia a leitura.
+          let hashArquivo: string | null = null;
+          try {
+            hashArquivo = await hashCompletoBytes(await arquivo.arrayBuffer());
+            const cacheRes = await fetch(`/api/lip/cache-gemini?hash=${hashArquivo}`).then(r => r.json());
+            if (cacheRes.ok && cacheRes.encontrado) {
+              mostrarToast("♻️ Documento já lido antes — reaproveitando, sem custo novo", "info");
+              registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_REAPROVEITADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name, hash: hashArquivo } });
+              return {
+                campos: cacheRes.campos ?? {},
+                alertasMAC: cacheRes.alertasMAC ?? [],
+                validacoes: cacheRes.validacoes ?? {},
+                pendencias: cacheRes.pendencias ?? [],
+                marcoTemporal: cacheRes.marcoTemporal ?? null,
+                tipoProcesso: cacheRes.tipoProcesso ?? null,
+                documentos: cacheRes.documentos ?? [],
+              };
+            }
+          } catch { /* cache indisponível — segue a leitura normalmente */ }
+
           // 2. S1 — Upload para Gemini File API (streaming direto)
           // Tamanho não bloqueia mais por si: acima do teto do modelo padrão a leitura sobe
           // sozinha para o modelo que suporta (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
@@ -1425,7 +1448,7 @@ export default function ProcessoClient() {
           const s3Data = await aguardarJobS3(s3Init.jobId);
 
           registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_CONCLUIDA", processo_codigo: idUrl, origem: "IA", detalhe: { campos: Object.keys(s3Data.campos ?? {}).length, alertas: (s3Data.alertasMAC ?? []).length } });
-          return {
+          const resultadoLeitura = {
             campos: s3Data.campos ?? {},
             alertasMAC: s3Data.alertasMAC ?? [],
             validacoes: s3Data.validacoes ?? {},
@@ -1434,6 +1457,15 @@ export default function ProcessoClient() {
             tipoProcesso: s3Data.tipoProcesso ?? null,
             documentos,
           };
+          // Fase 8 — grava no cache pro PRÓXIMO reimport do mesmo arquivo não custar de novo.
+          // Melhor esforço: nunca espera nem derruba a leitura que já terminou com sucesso.
+          if (hashArquivo) {
+            fetch("/api/lip/cache-gemini", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ hash: hashArquivo, processoCodigo: idUrl, resultado: resultadoLeitura }),
+            }).catch(() => {});
+          }
+          return resultadoLeitura;
         })(arquivo));
       }
 
@@ -1602,6 +1634,26 @@ export default function ProcessoClient() {
         }
         const avisoModeloVcp = avisoModeloArquivoGrande(arquivo.size);
         if (avisoModeloVcp) mostrarToast(`⚠️ ${avisoModeloVcp}`, "info");
+
+        // Fase 8 — "não pagar duas vezes", mesmo cache da leitura de processo inteiro
+        // (app/api/lip/cache-gemini). Melhor esforço: qualquer falha cai no caminho de sempre.
+        let hashArquivoVcp: string | null = null;
+        let camposVcpDoCache: Record<string, any> | null = null;
+        try {
+          hashArquivoVcp = await hashCompletoBytes(await arquivo.arrayBuffer());
+          const cacheResVcp = await fetch(`/api/lip/cache-gemini?hash=${hashArquivoVcp}`).then(r => r.json());
+          if (cacheResVcp.ok && cacheResVcp.encontrado) camposVcpDoCache = cacheResVcp.campos ?? {};
+        } catch { /* cache indisponível — segue a leitura normalmente */ }
+
+        if (camposVcpDoCache) {
+          mostrarToast(`♻️ VCP: ${arquivo.name} já lido antes — reaproveitando`, "info");
+          resultados.push({
+            nome: arquivo.name, tipo: detectarTipoArquivo(arquivo.name),
+            sei: extrairSEIArquivo(arquivo.name), campos: camposVcpDoCache,
+          });
+          continue;
+        }
+
         const tipoVcp = arquivo.type || "application/pdf";
         const s1Res = await fetch("/api/lip/s1", {
           method: "POST",
@@ -1627,6 +1679,12 @@ export default function ProcessoClient() {
           sei: extrairSEIArquivo(arquivo.name),
           campos: s3VcpData.campos ?? {},
         });
+        if (hashArquivoVcp) {
+          fetch("/api/lip/cache-gemini", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hash: hashArquivoVcp, processoCodigo: idUrl, resultado: { campos: s3VcpData.campos ?? {} } }),
+          }).catch(() => {});
+        }
       }
       setProgresso(80);
       mostrarToast("🔍 VCP: Cruzando dados entre documentos...", "info");

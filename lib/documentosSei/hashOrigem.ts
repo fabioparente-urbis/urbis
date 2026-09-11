@@ -28,6 +28,19 @@ export async function hashCurtoOrigem(bytes: ArrayBuffer): Promise<string> {
     .slice(0, 8);
 }
 
+/**
+ * SHA-256 completo (64 hex) dos bytes — usado pela Fase 8 do plano
+ * docs/UPGRADE_NA_LEITURA_DE_PDF_SLOT_1_E_2.md ("não pagar duas vezes") como CHAVE do cache de
+ * leitura por IA (`app/api/lip/cache-gemini`): mesmo arquivo re-importado (bytes idênticos) não
+ * volta a custar. Diferente de `hashCurtoOrigem` (truncado, só pra nome de arquivo) — aqui a
+ * colisão custaria dinheiro real (reaproveitar campo de um documento errado), por isso o hash
+ * inteiro.
+ */
+export async function hashCompletoBytes(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** AAAA-MM-DD, hora local — igual em todo lugar que precisa datar um arquivo derivado. */
 export function dataParaNomeArquivo(): string {
   const d = new Date();
