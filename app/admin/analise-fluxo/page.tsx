@@ -29,6 +29,8 @@ type Portfolio = {
   retrabalhoMedio: number;
 };
 
+type Prontidao = { pronta: boolean; totalProcessos: number; diasDesdePrimeiraCarga: number | null; motivos: string[] };
+
 const ORDEM_FAIXAS: FaixaTempo[] = ["menos de 30 dias", "30 a 90 dias", "90 a 365 dias", "mais de 1 ano"];
 
 export default function AnaliseFluxoPage() {
@@ -37,6 +39,7 @@ export default function AnaliseFluxoPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [prontidao, setProntidao] = useState<Prontidao | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -60,6 +63,14 @@ export default function AnaliseFluxoPage() {
       })
       .catch(() => setErro("Erro ao carregar."))
       .finally(() => setCarregando(false));
+  }, [autorizado]);
+
+  useEffect(() => {
+    if (autorizado !== true) return;
+    fetch("/api/admin/fluxo/interpretar")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setProntidao(j.prontidao); })
+      .catch(() => {});
   }, [autorizado]);
 
   if (autorizado !== true) return null;
@@ -140,6 +151,27 @@ export default function AnaliseFluxoPage() {
               Mediana de {portfolio.retrabalhoMedio} despacho(s) de pendência/diligência por processo.
             </p>
           </section>
+
+          {prontidao && (
+            <section>
+              <h2 className="mb-1 text-sm font-medium text-[var(--text-primary)]">Interpretação assistida (Fase 13)</h2>
+              {prontidao.pronta ? (
+                <p className="text-sm text-[var(--text-primary)]">
+                  Base madura ({prontidao.totalProcessos} processos, {prontidao.diasDesdePrimeiraCarga} dias desde a
+                  primeira carga). Falta ligar o interruptor <code>urbis_config.interpretacao_assistida_fluxo_ativo</code> por SQL.
+                </p>
+              ) : (
+                <>
+                  <p className="mb-2 text-xs text-[var(--text-muted)]">
+                    Ainda bloqueada — o plano manda esperar a base amadurecer antes de deixar a IA opinar:
+                  </p>
+                  <ul className="list-disc pl-5 text-xs text-[var(--text-muted)] space-y-1">
+                    {prontidao.motivos.map((m, i) => <li key={i}>{m}</li>)}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
         </div>
       )}
     </div>

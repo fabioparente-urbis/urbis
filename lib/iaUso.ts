@@ -22,7 +22,7 @@ function custoEstimadoUsd(modelo: string | null | undefined, tokensEntrada: numb
 }
 
 type RegistroChamadaIA = {
-  modulo: "LIP" | "MAC" | "URBI" | "BDI";
+  modulo: "LIP" | "MAC" | "URBI" | "BDI" | "ANALISE_FLUXO";
   slot?: string | null;
   operacao: string;
   processoCodigo?: string | null;
