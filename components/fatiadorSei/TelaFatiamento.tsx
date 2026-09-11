@@ -12,16 +12,23 @@
  * (`/api/documentos-sei/fatiador-eventos`, grava em `mhd_eventos`, mesma fonte que já alimenta o
  * BDI hoje).
  *
- * As duas telas Organizador antigas (dentro do processo) continuam existindo, intocadas — este
- * módulo só ORGANIZA o PDF; a comparação com o LIP e a gravação de campos continuam lá.
+ * Em 11/09/2026 esta tela recebeu os três recursos que só existiam no Organizador (dentro do
+ * processo), para que ele possa ser removido do Slot 1/2 sem o analista perder nada no caminho —
+ * decisão do Fábio, "leva os 3 pro Fatiador, depois arranca":
+ *   1. comparar com o LIP e gravar campo na ficha (só campo VAZIO, nunca sobrescreve);
+ *   2. pacote vigente + manifesto (.zip, Vigentes/Histórico);
+ *   3. "Analisar páginas ambíguas" com a visão do Gemini, sob clique e com custo estimado antes.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VisualizadorPdf from "@/components/documentosSei/VisualizadorPdf";
 import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/documentosSei/pecas";
 import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { exportarItem } from "@/lib/documentosSei/exportarPecas";
-import { baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
+import { baixarBlob, gerarPacoteVigente } from "@/lib/documentosSei/pacoteVigenteClient";
+import { resolverEstados } from "@/lib/documentosSei/motorVersoes";
+import { sugerirCamposLip, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
+import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
 import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
 import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
@@ -111,6 +118,19 @@ export default function TelaFatiamento() {
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
+  /**
+   * Os eventos como o servidor devolveu, antes de virarem itens editáveis. Guardados porque o
+   * pacote-zip (motorVersoes) e a análise de páginas ambíguas trabalham sobre EVENTO/peça, não
+   * sobre o item achatado — portados do Organizador em 11/09/2026.
+   */
+  const [eventosBrutos, setEventosBrutos] = useState<EventoSei[] | null>(null);
+  const [geminiAtivo, setGeminiAtivo] = useState(false);
+  const [gerandoPacote, setGerandoPacote] = useState(false);
+  const [analisandoPendentes, setAnalisandoPendentes] = useState(false);
+  const [comparandoLip, setComparandoLip] = useState(false);
+  const [camposLipAtuais, setCamposLipAtuais] = useState<Record<string, { valor?: string } | undefined>>({});
+  const [selecionadosLip, setSelecionadosLip] = useState<Record<string, boolean>>({});
+  const [salvandoLip, setSalvandoLip] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { estado, aplicar, desfazer, refazer, resetar, podeDesfazer, podeRefazer } =
@@ -182,11 +202,166 @@ export default function TelaFatiamento() {
       if (!dados) throw new Error(`a leitura terminou sem resultado (HTTP ${r.status})`);
       const d = dados as ResultadoFatiamento;
       setNumeroProcesso(d.numeroProcesso);
+      setEventosBrutos(d.eventos);
       resetar({ itens: montarItensIniciais(d.eventos), selecionadoId: null });
     } catch (e: any) {
       setErro(e?.message ?? String(e));
     } finally {
       setProcessando(false);
+    }
+  }
+
+  /**
+   * Interruptor global de IA, lido uma vez. Conferido ANTES de perguntar do custo (regra do Fábio,
+   * 07/09/2026 — docs/URBIS_PLANO_GOVERNANCA_IA.md §5): perguntar "confirma US$ 0,004?" e só
+   * depois dizer que está desligado faz o analista aprovar um gasto que nunca poderia acontecer.
+   * O servidor recusa de novo de qualquer jeito — isto aqui é para o analista, não para a segurança.
+   */
+  useEffect(() => {
+    let cancelado = false;
+    fetch("/api/admin/config")
+      .then((r) => (r.ok ? r.json() : { data: null }))
+      .then((j) => { if (!cancelado) setGeminiAtivo(!!j?.data?.documentos_vivos_gemini_ativo); })
+      .catch(() => { if (!cancelado) setGeminiAtivo(false); });
+    return () => { cancelado = true; };
+  }, []);
+
+  /** Pacote vigente + manifesto — portado do Organizador. Opera sobre EVENTOS, não sobre peças. */
+  async function baixarPacoteVigente() {
+    if (!arquivo || !eventosBrutos || !numeroProcesso) return;
+    setGerandoPacote(true);
+    try {
+      const { blob, nomeArquivo } = await gerarPacoteVigente({
+        arquivo, numeroProcesso, eventos: eventosBrutos as any,
+        estados: resolverEstados(eventosBrutos as any),
+      });
+      baixarBlob(blob, nomeArquivo);
+      registrarEvento("fatiador_exportacao", `pacote vigente — ${nomeArquivo}`);
+    } catch (e: any) {
+      setErro(`Falha ao gerar o pacote vigente: ${e?.message ?? e}`);
+    } finally {
+      setGerandoPacote(false);
+    }
+  }
+
+  /** Páginas que o fatiador não conseguiu classificar sozinho — candidatas à visão. */
+  const paginasPendentes = useMemo(() => {
+    const out: number[] = [];
+    for (const i of itens) {
+      if (i.papel !== "classificacao_pendente" || i.status !== "proposto") continue;
+      for (let p = i.paginaIni; p <= i.paginaFim; p++) out.push(p);
+    }
+    return out;
+  }, [itens]);
+
+  /**
+   * Estimativa duplicada aqui de propósito (mesma razão do Organizador): importar
+   * lib/documentosSei/visaoAmbiguas.ts traria lib/visao/rasterizar junto, que é server-only
+   * (mupdf/WASM) e não pode entrar no bundle do cliente.
+   */
+  function estimarCustoUsd(nPaginas: number): number {
+    return nPaginas * (1100 * (0.3 / 1_000_000) + 200 * (2.5 / 1_000_000));
+  }
+
+  async function analisarPendentes() {
+    if (!arquivo || !paginasPendentes.length) return;
+    if (!geminiAtivo) { setErro(AVISO_IA_DESLIGADA); return; }
+    const custo = estimarCustoUsd(paginasPendentes.length);
+    if (!window.confirm(`Mandar ${paginasPendentes.length} página(s) pro Gemini? Custo estimado: US$ ${custo.toFixed(4)}.`)) return;
+    setAnalisandoPendentes(true);
+    setErro(null);
+    try {
+      const fd = new FormData();
+      fd.append("arquivo", arquivo, arquivo.name);
+      fd.append("processo_codigo", processoCodigo);
+      fd.append("paginas", JSON.stringify(paginasPendentes));
+      const r = await fetch(`${ROTA_POR_SLOT[slot]}/analisar-pendentes`, { method: "POST", body: fd });
+      const j = await r.json();
+      // "IA desligada" é instrução, não falha: vai sem o prefixo "Falha ao...", que faria o
+      // analista ler como defeito do sistema em vez de algo que ele resolve pedindo liberação.
+      if (!j.ok && j.iaDesligada) { setErro(j.erro ?? AVISO_IA_DESLIGADA); return; }
+      if (!j.ok) throw new Error(j.erro ?? "Falha ao analisar páginas ambíguas");
+      const porPagina: Record<number, string | null> = {};
+      for (const item of j.resultados) porPagina[item.pagina] = item.papel;
+      aplicar({ tipo: "aplicarVisao", porPagina });
+      registrarEvento("fatiador_correcao", `visão classificou ${Object.keys(porPagina).length} página(s) ambígua(s)`, { paginas: paginasPendentes });
+    } catch (e: any) {
+      setErro(`Falha ao analisar páginas ambíguas: ${e?.message ?? e}`);
+    } finally {
+      setAnalisandoPendentes(false);
+    }
+  }
+
+  /**
+   * "Comparar com o LIP" — terceiro e último recurso portado do Organizador (11/09/2026).
+   *
+   * Diferença de desenho, obrigatória: o Organizador vivia DENTRO de `ProcessoClient` e entregava
+   * os campos por callback (`onAceitarCampos`), com o estado do LIP já na mão. O Fatiador é tela
+   * separada — precisa buscar a ficha (`/api/processo/carregar`) e gravar (`/api/processo/salvar`)
+   * por conta própria.
+   *
+   * REGRA: só preenche campo VAZIO, nunca sobrescreve o que já está lá — mesma regra que a
+   * sugestão do MAC (Fase 9B) já usa. Campo já preenchido aparece na lista, dizendo com o quê,
+   * mas desmarcado: quem decide trocar é o analista, não a tela. E a ficha é relida na hora de
+   * gravar, para não escrever por cima de algo alterado em outra aba nesse meio tempo.
+   */
+  const sugestoesLip = useMemo(
+    () => (eventosBrutos ? sugerirCamposLip(eventosBrutos as any) : {}),
+    [eventosBrutos],
+  );
+
+  async function carregarFichaLip() {
+    if (!processoCodigo) return null;
+    const r = await fetch(`/api/processo/carregar?id=${encodeURIComponent(processoCodigo)}&tipo=${slot}`, { credentials: "include" });
+    const j = await r.json();
+    if (!j?.ok) throw new Error(j?.erro ?? "não consegui carregar a ficha do processo");
+    return (j.dados ?? {}) as Record<string, { valor?: string } | undefined>;
+  }
+
+  async function abrirComparacaoLip() {
+    setErro(null);
+    try {
+      const dados = await carregarFichaLip();
+      if (!dados) return;
+      setCamposLipAtuais(dados);
+      const iniciais: Record<string, boolean> = {};
+      for (const chave of Object.keys(sugestoesLip)) iniciais[chave] = !dados[chave]?.valor;
+      setSelecionadosLip(iniciais);
+      setComparandoLip(true);
+    } catch (e: any) {
+      setErro(`Falha ao comparar com o LIP: ${e?.message ?? e}`);
+    }
+  }
+
+  async function aceitarCamposLip() {
+    const marcados = Object.entries(selecionadosLip).filter(([, v]) => v).map(([k]) => k);
+    if (!marcados.length) return;
+    setSalvandoLip(true);
+    setErro(null);
+    try {
+      const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
+      if (!dados) return;
+      const novo: Record<string, any> = { ...dados };
+      let gravados = 0;
+      for (const chave of marcados) {
+        const s = sugestoesLip[chave];
+        if (!s) continue;
+        novo[chave] = { valor: s.idSei, origem: "urbis", fonte: `Fatiador de PDF SEI — ${s.titulo}, pg. ${s.pagina}` };
+        gravados++;
+      }
+      const r = await fetch("/api/processo/salvar", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
+      });
+      const j = await r.json();
+      if (!j?.ok) throw new Error(j?.erro ?? "o servidor recusou a gravação");
+      registrarEvento("fatiador_correcao", `${gravados} campo(s) aceito(s) no LIP`, { campos: marcados });
+      setCamposLipAtuais(novo);
+      setComparandoLip(false);
+    } catch (e: any) {
+      setErro(`Falha ao gravar no LIP: ${e?.message ?? e}`);
+    } finally {
+      setSalvandoLip(false);
     }
   }
 
@@ -438,6 +613,61 @@ export default function TelaFatiamento() {
             <button onClick={enviarParaLeitura} disabled={lendo || !itensParaLeitura(itens).length}
               className="mb-3 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
               {lendo ? "⏳ Lendo..." : "🧠 Enviar marcados para leitura"}
+            </button>
+
+            {/* Portados do Organizador de PDF SEI em 11/09/2026, antes de ele ser removido do
+                Slot 1/2 — decisão do Fábio: nenhum botão que ele usa pode sumir no meio do caminho. */}
+            <button onClick={baixarPacoteVigente} disabled={gerandoPacote || !eventosBrutos}
+              title="Zip com um PDF por documento, separado em Vigentes/Histórico, com o manifesto junto"
+              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {gerandoPacote ? "⏳ Gerando..." : "📦 Baixar pacote (.zip)"}
+            </button>
+            <button onClick={abrirComparacaoLip} disabled={!eventosBrutos || !processoCodigo}
+              title="Ver quais campos da ficha este PDF consegue preencher"
+              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              📋 Comparar com o LIP ({Object.keys(sugestoesLip).length})
+            </button>
+            {comparandoLip && (
+              <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
+                <p className="text-[10px] text-[var(--text-muted)] mb-2">
+                  Marcado = grava na ficha. Campo já preenchido vem desmarcado — trocar é decisão sua.
+                </p>
+                <div className="max-h-56 overflow-y-auto space-y-1">
+                  {Object.entries(sugestoesLip).map(([chave, s]) => {
+                    const atual = camposLipAtuais[chave]?.valor;
+                    return (
+                      <label key={chave} className="flex items-start gap-1.5 text-[10px] cursor-pointer">
+                        <input type="checkbox" checked={!!selecionadosLip[chave]} className="mt-0.5"
+                          onChange={(e) => setSelecionadosLip((p) => ({ ...p, [chave]: e.target.checked }))} />
+                        <span className="text-[var(--text-primary)]">
+                          <b>{ROTULO_CAMPO_LIP[chave] ?? chave}</b> → {s.idSei}
+                          <span className="text-[var(--text-muted)]"> ({s.titulo}, pg. {s.pagina})</span>
+                          {atual && <span className="text-[var(--error)]"> · já preenchido: {atual}</span>}
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {!Object.keys(sugestoesLip).length && (
+                    <p className="text-[10px] text-[var(--text-muted)]">Este PDF não trouxe nenhum documento que alimente campo do LIP.</p>
+                  )}
+                </div>
+                <div className="flex gap-1 mt-2">
+                  <button onClick={aceitarCamposLip} disabled={salvandoLip}
+                    className="flex-1 text-[10px] px-2 py-1 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
+                    {salvandoLip ? "gravando..." : "Gravar marcados na ficha"}
+                  </button>
+                  <button onClick={() => setComparandoLip(false)} className="text-[10px] px-2 py-1 rounded border border-[var(--border-strong)] text-[var(--text-primary)]">
+                    fechar
+                  </button>
+                </div>
+              </div>
+            )}
+            <button onClick={analisarPendentes} disabled={analisandoPendentes || !paginasPendentes.length}
+              title={paginasPendentes.length
+                ? `${paginasPendentes.length} página(s) que o fatiador não classificou sozinho — custo estimado US$ ${estimarCustoUsd(paginasPendentes.length).toFixed(4)}`
+                : "Nenhuma página ambígua pendente"}
+              className="mb-3 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {analisandoPendentes ? "⏳ Analisando..." : `🔍 Analisar ${paginasPendentes.length} página(s) ambígua(s)`}
             </button>
             {progressoLeitura && (
               <div className="mb-3">

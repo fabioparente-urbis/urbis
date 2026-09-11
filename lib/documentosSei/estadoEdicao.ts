@@ -55,7 +55,16 @@ export type AcaoFatiamento =
   /** desfaz um corte: junta o item ao vizinho anterior na ordem de página */
   | { tipo: "excluirCorte"; id: string }
   | { tipo: "editarPapel"; id: string; papel: string }
-  | { tipo: "editarTitulo"; id: string; titulo: string };
+  | { tipo: "editarTitulo"; id: string; titulo: string }
+  /**
+   * Resultado de "Analisar páginas ambíguas" (visão do Gemini), portado do Organizador em
+   * 11/09/2026. Mapa página → papel. Só toca item que ainda é `classificacao_pendente` E está em
+   * `proposto`: regra determinística nunca é sobrescrita por palpite de visão (mesma regra de
+   * `aplicarClassificacaoVisao` em pecas.ts), e correção já feita pelo analista tem a última
+   * palavra sobre a máquina. Passa pelo reducer — e não por um setState solto — para o analista
+   * poder DESFAZER o que a visão sugeriu, como qualquer outra ação da tela.
+   */
+  | { tipo: "aplicarVisao"; porPagina: Record<number, string | null> };
 
 function ordenarPorPagina(itens: ItemFatiado[]): ItemFatiado[] {
   return [...itens].sort((a, b) => a.paginaIni - b.paginaIni);
@@ -125,6 +134,21 @@ export function reduzirFatiamento(estado: EstadoFatiamento, acao: AcaoFatiamento
         itens: estado.itens.map((i) =>
           i.id === acao.id ? { ...i, titulo: acao.titulo, status: "editado" } : i,
         ),
+      };
+
+    case "aplicarVisao":
+      return {
+        ...estado,
+        itens: estado.itens.map((i) => {
+          if (i.papel !== "classificacao_pendente" || i.status !== "proposto") return i;
+          // A visão responde por PÁGINA; o item pode cobrir várias. Vale o primeiro palpite não
+          // nulo dentro do intervalo — nunca sobrescreve com `null` o que já estava classificado.
+          for (let p = i.paginaIni; p <= i.paginaFim; p++) {
+            const papel = acao.porPagina[p];
+            if (papel) return { ...i, papel, status: "editado" };
+          }
+          return i;
+        }),
       };
 
     case "novoCorte": {
