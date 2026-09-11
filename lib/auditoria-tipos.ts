@@ -15,7 +15,10 @@ export type AcaoMAC =
   | 'MAC_EXCEL_IMPORTADO' | 'MAC_ANALISE_IA_CONCLUIDA' | 'MAC_ANALISE_COPIADA'
   | 'MAC_VINCULO_PROPOSTO' | 'MAC_VINCULO_APROVADO' | 'MAC_VINCULO_REJEITADO'
   /** Exclusão de análise pela lixeira do MAC (08/09/2026) — some da tela, fica no rastro. */
-  | 'MAC_ANALISE_EXCLUIDA';
+  | 'MAC_ANALISE_EXCLUIDA'
+  /** Fase 9B (leitura única LIP+MAC, 11/09/2026): analista aplicou a sugestão de checklist que
+   * a leitura combinada do LIP deixou pendente. */
+  | 'MAC_LEITURA_UNICA_APLICADA';
 
 export type AcaoDESPACHO =
   | 'DESPACHO_GERADO' | 'DESPACHO_INTERNO_GERADO' | 'LAUDO_EXCEL_GERADO'

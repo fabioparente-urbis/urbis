@@ -74,3 +74,62 @@ export type RespostaLeituraUnica = {
     incompatibilidades?: string[];
   };
 };
+
+type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
+
+/**
+ * Mesmo parsing/validação que app/api/mac/p3/route.ts já faz na resposta do Gemini (itens,
+ * documentos, incompatibilidades) — reproduzido aqui, não importado, porque p3/route.ts continua
+ * intocado (só usado hoje por LER ARQUIVOS INDIVIDUAIS e pela leitura standalone do MAC).
+ */
+export function interpretarRespostaMac(
+  dadosMac: any,
+  checklistItens: ChecklistItemIn[]
+): { itens: Record<string, StatusItem>; fontes: Record<string, "p2">; documentos: any[]; incompatibilidades: string[] } {
+  const mapaItens: Record<string, any> =
+    dadosMac && typeof dadosMac.itens === "object" && dadosMac.itens !== null ? dadosMac.itens : dadosMac ?? {};
+  const documentos: any[] = Array.isArray(dadosMac?.documentos) ? dadosMac.documentos : [];
+  const incompatibilidades: string[] = Array.isArray(dadosMac?.incompatibilidades)
+    ? dadosMac.incompatibilidades.filter(Boolean).map(String)
+    : [];
+  const STATUS_VALIDOS = new Set<StatusItem>(["conforme", "nao_conforme", "nao_aplica", null]);
+  const idsValidos = new Set(checklistItens.map((i) => i.id));
+  const itens: Record<string, StatusItem> = {};
+  const fontes: Record<string, "p2"> = {};
+  for (const [id, raw] of Object.entries(mapaItens)) {
+    if (!idsValidos.has(id)) continue;
+    let status: StatusItem = null;
+    if (raw !== null) {
+      const v = String(raw).toLowerCase().trim();
+      if (v === "conforme") status = "conforme";
+      else if (v === "nao_conforme" || v === "não_conforme") status = "nao_conforme";
+      else if (v === "nao_aplica" || v === "não_aplica") status = "nao_aplica";
+    }
+    if (!STATUS_VALIDOS.has(status)) status = null;
+    itens[id] = status;
+    fontes[id] = "p2";
+  }
+  return { itens, fontes, documentos, incompatibilidades };
+}
+
+/**
+ * Grava a sugestão do bloco MAC numa tabela própria (`mac_sugestoes_leitura_unica`), indexada por
+ * processo — não por hash, ao contrário de `documentos_ia_cache` (Fase 8): a tela do MAC não tem
+ * o arquivo/hash disponível quando abre, só o código do processo. Melhor esforço: nunca lança,
+ * uma falha aqui não pode derrubar um job de S3 que já terminou a parte do LIP com sucesso.
+ */
+export async function gravarSugestaoMac(
+  codigo: string,
+  sugestao: { itens: Record<string, StatusItem>; fontes: Record<string, "p2">; documentos: any[]; incompatibilidades: string[] }
+): Promise<void> {
+  try {
+    await supabaseAdmin.from("mac_sugestoes_leitura_unica").upsert({
+      processo_codigo: codigo,
+      sugestao,
+      aplicado: false,
+      criado_em: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    console.error("[leituraUnicaLipMac] falha ao gravar sugestão MAC (melhor esforço):", e?.message);
+  }
+}

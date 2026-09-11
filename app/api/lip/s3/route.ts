@@ -9,6 +9,14 @@ import { blocoPromptCarimboAssunto } from "@/lib/carimboAssunto";
 import { blocoPromptCheadvAprovado } from "@/lib/cheadvAprovado";
 import { aplicarMarcadores } from "@/lib/promptCampos";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import {
+  leituraUnicaLipMacAtiva,
+  montarPromptCombinadoLipMac,
+  interpretarRespostaMac,
+  gravarSugestaoMac,
+} from "@/lib/documentosSei/leituraUnicaLipMac";
+
+type ChecklistItemMac = { id: string; texto: string; grupo: string };
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -113,6 +121,62 @@ export async function POST(req: NextRequest) {
     });
     const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea + blocoCaixa + blocoCarimbo + blocoCheadvAprovado;
 
+    // Fase 9B — "uma leitura, dois destinos": se o interruptor estiver ligado e o processo já
+    // tiver uma análise MAC (é dela que vem o checklist a julgar), junta o prompt do LIP com o
+    // P3_MAC e pede os dois blocos numa resposta só. Qualquer falha aqui (interruptor desligado,
+    // sem análise MAC ainda, prompt P3_MAC não cadastrado) cai no comportamento de sempre —
+    // fail-safe, nunca bloqueia a leitura do LIP.
+    let promptParaEnviar = promptFinal;
+    let checklistCombinado: ChecklistItemMac[] | null = null;
+    if (typeof codigo === "string" && codigo) {
+      try {
+        if (await leituraUnicaLipMacAtiva()) {
+          const { data: analise } = await supabaseAdmin
+            .from("analises_mac")
+            .select("modelo_id")
+            .eq("processo_codigo", codigo)
+            .is("excluido_em", null)
+            .order("numero_analise", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const modeloId = (analise as any)?.modelo_id ?? null;
+          if (modeloId) {
+            const { data: itensModelo } = await supabaseAdmin
+              .from("mac_checklist_itens")
+              .select("id, texto, grupo")
+              .eq("modelo_id", modeloId)
+              .eq("ativo", true);
+            const checklistItens = (itensModelo ?? []) as ChecklistItemMac[];
+            if (checklistItens.length) {
+              // Mesma busca de app/api/mac/p3/route.ts: prompt do assunto, senão o global.
+              let promptMacData: { conteudo: string } | null = null;
+              if (assuntoValido) {
+                const { data } = await supabaseAdmin
+                  .from("lip_prompts").select("conteudo, versao")
+                  .eq("ativo", true).eq("chave", "P3_MAC").eq("assunto_id", assunto_id)
+                  .order("versao", { ascending: false }).limit(1).maybeSingle();
+                promptMacData = data;
+              }
+              if (!promptMacData) {
+                const { data } = await supabaseAdmin
+                  .from("lip_prompts").select("conteudo, versao")
+                  .eq("ativo", true).eq("chave", "P3_MAC")
+                  .order("versao", { ascending: false }).limit(1).maybeSingle();
+                promptMacData = data;
+              }
+              if (promptMacData) {
+                promptParaEnviar = montarPromptCombinadoLipMac(promptFinal, promptMacData.conteudo, checklistItens);
+                checklistCombinado = checklistItens;
+                console.log(`[S3] Fase 9B ativa — leitura combinada LIP+MAC (${checklistItens.length} itens de checklist).`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[S3] leitura combinada indisponível, seguindo só com LIP:", e?.message);
+      }
+    }
+
     // Cria job no banco
     const { data: job, error: jobErr } = await supabaseAdmin
       .from("lip_jobs")
@@ -127,7 +191,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY!;
 
     // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
-    processarJobBackground(jobId, { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo }).catch(
+    processarJobBackground(jobId, { fileUri, promptFinal: promptParaEnviar, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo, checklistCombinado }).catch(
       (e) => console.error("[S3-bg] erro não capturado:", e?.message)
     );
 
@@ -159,8 +223,10 @@ async function processarJobBackground(jobId: string, params: {
   tipoArquivo?: string;
   /** Escolhido pelo tamanho do arquivo no POST — o job não tem como recalcular sozinho. */
   modelo: GeminiModel;
+  /** Fase 9B: presente = promptFinal é o prompt COMBINADO (pede `{lip, mac}`), não só o do LIP. */
+  checklistCombinado?: ChecklistItemMac[] | null;
 }) {
-  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo } = params;
+  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo, checklistCombinado } = params;
   const tipoArquivo = params.tipoArquivo ?? "application/pdf";
   const t0 = Date.now();
   try {
@@ -263,18 +329,26 @@ async function processarJobBackground(jobId: string, params: {
       return;
     }
 
-    if (!dados.campos || Object.keys(dados.campos).length === 0) {
+    // Fase 9B: em leitura combinada o Gemini responde { lip: {...}, mac: {...} }. Se ele não
+    // seguiu o formato pedido (dados.lip ausente), cai no comportamento de sempre — trata `dados`
+    // como se fosse só o LIP, igual antes da Fase 9B existir. Nunca perde a leitura por isso.
+    const dadosLip: any = checklistCombinado && dados && typeof dados.lip === "object" && dados.lip !== null
+      ? dados.lip
+      : dados;
+    const dadosMac: any = checklistCombinado && dados && typeof dados.mac === "object" ? dados.mac : null;
+
+    if (!dadosLip.campos || Object.keys(dadosLip.campos).length === 0) {
       await supabaseAdmin.from("lip_jobs").update({
         status: "erro",
-        erro: `Gemini respondeu sem a chave "campos". Chaves recebidas: ${Object.keys(dados).join(", ") || "(nenhuma)"} | Resposta: ${clean.slice(0, 400)}`,
+        erro: `Gemini respondeu sem a chave "campos". Chaves recebidas: ${Object.keys(dadosLip).join(", ") || "(nenhuma)"} | Resposta: ${clean.slice(0, 400)}`,
         atualizado_em: new Date().toISOString(),
       }).eq("id", jobId);
       return;
     }
 
     const campos: Record<string, { valor: string; fonte: string } | null> = {};
-    if (dados.campos) {
-      for (const [chave, item] of Object.entries(dados.campos as Record<string, any>)) {
+    if (dadosLip.campos) {
+      for (const [chave, item] of Object.entries(dadosLip.campos as Record<string, any>)) {
         const val = item?.valor?.toString().trim();
         if (!val || ["null","n/a","nao identificado",""].includes(val.toLowerCase())) {
           campos[chave] = CAMPOS_NP.includes(chave) ? { valor: "NP", fonte: "Nao identificado" } : null;
@@ -307,16 +381,25 @@ async function processarJobBackground(jobId: string, params: {
       status: "concluido",
       resultado: {
         campos,
-        alertasMAC: dados.alertasMAC ?? [],
-        validacoes: dados.validacoes ?? {},
-        pendencias: dados.pendencias ?? [],
+        alertasMAC: dadosLip.alertasMAC ?? [],
+        validacoes: dadosLip.validacoes ?? {},
+        pendencias: dadosLip.pendencias ?? [],
         // Marco temporal (LC 314/2018) — só vem preenchido nos slots que têm
         // data limite; o veredito é do fiscal, o URBIS só repassa.
-        marcoTemporal: dados.marcoTemporal ?? null,
+        marcoTemporal: dadosLip.marcoTemporal ?? null,
         tipoProcesso: tipoProcesso ?? null,
       },
       atualizado_em: new Date().toISOString(),
     }).eq("id", jobId);
+
+    // Fase 9B — grava a sugestão do bloco MAC pra tela do MAC oferecer "aplicar" depois. Melhor
+    // esforço, depois do job do LIP já ter sido salvo com sucesso: uma falha aqui nunca pode
+    // fazer a leitura do LIP parecer que deu errado.
+    if (checklistCombinado && checklistCombinado.length && dadosMac && codigo) {
+      const sugestao = interpretarRespostaMac(dadosMac, checklistCombinado);
+      await gravarSugestaoMac(codigo, sugestao);
+      console.log(`[S3-bg] job=${jobId} sugestão MAC gravada (${Object.keys(sugestao.itens).length} item(ns)).`);
+    }
 
     // Auditoria
     if (codigo) {

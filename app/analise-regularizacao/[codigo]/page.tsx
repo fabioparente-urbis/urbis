@@ -89,6 +89,13 @@ export default function MacPage() {
   // (corrida do autosave). Ver salvarSilencioso() e iniciarNovaAnalise().
   const criandoAnaliseRef = useRef(false);
   const [checklistItens, setChecklistItens] = useState<Item[]>([]);
+  // Fase 9B (docs/UPGRADE_NA_LEITURA_DE_PDF_SLOT_1_E_2.md): quando a leitura combinada do LIP
+  // (LER PROCESSO) já sugeriu o checklist deste processo, mostra um aviso pra aplicar em vez de
+  // ler tudo de novo aqui. null = ainda não checou ou não há nada pendente.
+  const [sugestaoLeituraUnica, setSugestaoLeituraUnica] = useState<{
+    itens: Record<string, StatusItem>; fontes: Record<string, "p2">; documentos: any[]; incompatibilidades: string[];
+  } | null>(null);
+  const [aplicandoSugestaoLeituraUnica, setAplicandoSugestaoLeituraUnica] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [observacoesPorAba, setObservacoesPorAba] = useState<Record<string, string>>({});
   const [carregando, setCarregando] = useState(true);
@@ -437,6 +444,58 @@ export default function MacPage() {
   }
 
   useEffect(() => { carregar(); }, [codigo]);
+
+  // Fase 9B — pergunta uma vez, ao abrir a tela, se a leitura do LIP já deixou sugestão
+  // pendente. Melhor esforço: qualquer erro (tabela não migrada, rede) só deixa o aviso não
+  // aparecer, nunca trava a tela.
+  useEffect(() => {
+    if (!codigo) return;
+    fetch(`/api/mac/leitura-unica?codigo=${encodeURIComponent(codigo)}`)
+      .then((r) => r.json())
+      .then((json) => { if (json?.ok && json.encontrado && json.sugestao) setSugestaoLeituraUnica(json.sugestao); })
+      .catch(() => {});
+  }, [codigo]);
+
+  function aplicarSugestaoLeituraUnica() {
+    if (!sugestaoLeituraUnica) return;
+    setAplicandoSugestaoLeituraUnica(true);
+    // Mesma regra de mescla que a leitura P3 de sempre: só preenche o que ainda está em branco,
+    // nunca sobrescreve o que o analista já marcou.
+    setItens((prev) => {
+      const novo = { ...prev };
+      Object.entries(sugestaoLeituraUnica.itens).forEach(([id, status]) => {
+        if (prev[id] == null) novo[id] = status;
+      });
+      return novo;
+    });
+    setFontes((prev) => ({ ...prev, ...sugestaoLeituraUnica.fontes }));
+    setAceites((prev) => {
+      const novo = { ...prev };
+      Object.keys(sugestaoLeituraUnica.fontes).forEach((id) => { novo[id] = false; });
+      return novo;
+    });
+    const total = Object.keys(sugestaoLeituraUnica.itens).length;
+    setObservacoes((prev: string) => {
+      const linha = `━━━ SUGESTÃO DA LEITURA ÚNICA (LIP+MAC) ━━━\n✅ Aplicada em ${new Date().toLocaleString("pt-BR")} | ${total} item(ns) sugerido(s)`;
+      return prev ? prev + "\n\n" + linha : linha;
+    });
+    registrar({ modulo: "MAC", acao: "MAC_LEITURA_UNICA_APLICADA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
+    mostrarToast(`🤖 Sugestão da leitura única aplicada — ${total} item(ns).`);
+    fetch("/api/mac/leitura-unica", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo }),
+    }).catch(() => {});
+    setSugestaoLeituraUnica(null);
+    setAplicandoSugestaoLeituraUnica(false);
+  }
+
+  function dispensarSugestaoLeituraUnica() {
+    fetch("/api/mac/leitura-unica", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ codigo }),
+    }).catch(() => {});
+    setSugestaoLeituraUnica(null);
+  }
 
   useEffect(() => {
     if (!modalDespachoInterno || !assuntoId) return;
@@ -2106,6 +2165,26 @@ export default function MacPage() {
               ACIMA das abas de propósito, porque antes vivia dentro do container que
               some quando a aba OBS está selecionada: o analista trocava de aba durante
               a leitura e perdia a barra inteira. Aqui é visível não importa a aba. */}
+          {/* Fase 9B — a leitura combinada do LIP (LER PROCESSO) já pode ter sugerido este
+              checklist. Fica ACIMA das abas pelo mesmo motivo da barra de progresso: visível não
+              importa em qual aba o analista está. Nunca aplica sozinha. */}
+          {sugestaoLeituraUnica && (
+            <div className="flex items-center justify-between gap-3 mx-6 mt-3 px-4 py-2.5 rounded-lg border border-[var(--accent)] bg-[var(--bg-secondary)] text-sm">
+              <span className="text-[var(--text-primary)]">
+                🤖 A leitura do LIP já sugeriu {Object.keys(sugestaoLeituraUnica.itens).length} item(ns) deste checklist.
+              </span>
+              <span className="flex gap-2 shrink-0">
+                <button onClick={aplicarSugestaoLeituraUnica} disabled={aplicandoSugestaoLeituraUnica}
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                  Aplicar sugestão
+                </button>
+                <button onClick={dispensarSugestaoLeituraUnica}
+                  className="bg-transparent border border-[var(--border)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                  Dispensar
+                </button>
+              </span>
+            </div>
+          )}
           {progressoP2 > 0 && (
             <div className="flex flex-col gap-1 px-6 pt-3">
               <div className="flex justify-between text-xs text-indigo-300 font-semibold">
