@@ -14,6 +14,7 @@ import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
+import AlertaFluxo from "@/components/documentosSei/AlertaFluxo";
 // Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — um componente por
 // slot (Regularização e Aceite SEI), cada um atrás do seu próprio interruptor (default
 // desligado) — isolamento entre slots do CLAUDE.md, não uma tela genérica com `if (slot)`.
@@ -3156,6 +3157,10 @@ export default function ProcessoClient() {
           Cadastrar
         </button>
       </div>
+
+      {/* ALERTA DE FLUXO — Fase 12 do plano de leitura de PDF. Só leitura, custo zero, escopo
+          Slot 1/2. Mostra tempo parado quando passa do limiar; nunca escreve nada. */}
+      {idUrl && <AlertaFluxo codigo={idUrl} tipoProcesso={tipoUrl} />}
 
       {/* VIGIA DO PROCESSO — só leitura, custo zero. Mostra fato verificável
           com a origem de cada um, e a triagem por evidência. Nunca escreve
