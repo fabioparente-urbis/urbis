@@ -181,9 +181,12 @@ function construirItens(eventos: (EventoSei & { pecas?: PecaSei[] })[]): ItemPar
       paginaIni: origem.peca.paginaIni, paginaFim: origem.peca.paginaFim,
       papel: res.chave, escopo: "",
       estadoResolucao: { estado: res.estado, motivo: res.motivo, confianca: res.confianca },
-      // a peça em si não tem setor/data/assinante próprios (só texto+dimensões, ver PaginaTexto)
-      // — herda do contêiner que a contém, mesma lógica de melhor esforço do resto do módulo.
-      setor: origem.eventoContainer.setor, data: origem.eventoContainer.data, assinante: origem.eventoContainer.assinante,
+      // Fase 1B (10/09/2026): a peça agora carrega seus PRÓPRIOS sinais (achado §5.5 —
+      // ver pecas.ts). Prefere o da peça; cai pro contêiner só quando a peça não tiver nada —
+      // mesma lógica de melhor esforço do resto do módulo.
+      setor: origem.peca.setor ?? origem.eventoContainer.setor,
+      data: origem.peca.data ?? origem.eventoContainer.data,
+      assinante: origem.peca.assinante ?? origem.eventoContainer.assinante,
     });
   }
 

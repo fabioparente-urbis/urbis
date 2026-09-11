@@ -43,6 +43,17 @@ export type PecaSei = {
   paginaFim: number;
   /** "media" quando casou uma assinatura de conteúdo; "baixa" quando ficou pendente. */
   confianca: "media" | "baixa";
+  /**
+   * Melhor esforço, primeira ocorrência não vazia dentro do intervalo da peça — Fase 1B do plano
+   * de leitura de PDF (10/09/2026), achado §5.5: o classificador via só o texto do corpo; estes
+   * três já eram extraídos por página (`fatiar.ts`) e descartados aqui. Nunca decidem o papel
+   * sozinhos nesta fase (risco de inventar regra sem processo real que a sustente — ver
+   * `feedback_medir_antes_de_afirmar`); servem por ora para o analista ver na tela e para uma
+   * fase futura combinar sinais com evidência real.
+   */
+  setor?: string;
+  assinante?: string;
+  data?: string;
 };
 
 function normalizar(t: string): string {
@@ -125,12 +136,17 @@ export function abrirContainer(paginasDoEvento: PaginaTexto[]): PecaSei[] {
     const atual = pecas[pecas.length - 1];
     if (atual && atual.papel === papel && !mudaOrientacao) {
       atual.paginaFim = p.pagina;
+      // melhor esforço: primeira ocorrência não vazia dentro da peça, nunca sobrescreve a que já achou
+      if (!atual.setor && p.setor) atual.setor = p.setor;
+      if (!atual.assinante && p.assinante) atual.assinante = p.assinante;
+      if (!atual.data && p.data) atual.data = p.data;
     } else {
       pecas.push({
         papel,
         paginaIni: p.pagina,
         paginaFim: p.pagina,
         confianca: papel === "classificacao_pendente" ? "baixa" : "media",
+        setor: p.setor, assinante: p.assinante, data: p.data,
       });
     }
     orientacaoAnterior = orientacao;

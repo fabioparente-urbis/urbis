@@ -80,10 +80,18 @@ export type ResultadoFatiamento = {
   paginasRevisao: PaginaRevisao[];
 };
 
-type ItemPosicionado = { t: string; x: number; y: number; h: number };
+export type ItemPosicionado = { t: string; x: number; y: number; h: number };
 
-/** Texto corrido + dimensões de uma página, para quem precisa reprocessar um intervalo (Fase 3). */
-export type PaginaTexto = { pagina: number; texto: string; largura: number; altura: number };
+/**
+ * Texto corrido + dimensões de uma página, para quem precisa reprocessar um intervalo (Fase 3).
+ * `setor`/`assinante`/`data` são os MESMOS sinais melhor-esforço que `fatiarPdfSei` já calcula
+ * por página (Fase 1B do plano de leitura de PDF, 10/09/2026 — achado §5.5: o classificador de
+ * peças recebia só o texto do corpo, ignorando estes três). Nunca bloqueiam nada, podem faltar.
+ */
+export type PaginaTexto = {
+  pagina: number; texto: string; largura: number; altura: number;
+  setor?: string; assinante?: string; data?: string;
+};
 
 const RE_TITULO_ID = /^(.+?)\s*\((\d+)\)\s*$/;
 /**
@@ -170,7 +178,7 @@ const ALTURA_CABECALHO = 260;
  * despacho pode CITAR outra secretaria de passagem — "Secretaria Municipal da Fazenda" — que não
  * é quem emitiu; por isso a busca para em `ALTURA_CABECALHO` e não desce pro corpo do texto).
  */
-function acharSetorNaPagina(itens: ItemPosicionado[]): string | undefined {
+export function acharSetorNaPagina(itens: ItemPosicionado[]): string | undefined {
   const linhas = agruparEmLinhas(itens).filter((l) => l[0] && l[0].y < ALTURA_CABECALHO);
   let ultimo: string | undefined;
   for (const linha of linhas) {
@@ -203,7 +211,7 @@ const RE_NOME_MAIUSCULO_COM_CARGO =
   /\b([A-ZÀÂÃÁÉÊÍÓÔÕÚÇ][A-ZÀÂÃÁÉÊÍÓÔÕÚÇ'’.\s]{4,60}[A-ZÀÂÃÁÉÊÍÓÔÕÚÇ])\s+(?:Auditor|Fiscal|Analista|Assistente|Chefe|Diretor[a]?|Gerente|Coordenador[a]?|Engenheiro[a]?|Arquiteto[a]?|Advogad[oa]|Secretári[oa])\b/;
 
 /** Melhor esforço: quem assinou o documento — nunca bloqueia nada, só ajuda o analista a identificar. */
-function acharAssinante(textoPagina: string): string | undefined {
+export function acharAssinante(textoPagina: string): string | undefined {
   const eletronico = RE_ASSINADO_ELETRONICAMENTE.exec(textoPagina);
   if (eletronico) return eletronico[1].trim();
   const sifis = RE_NOME_MAIUSCULO_COM_CARGO.exec(textoPagina);
@@ -225,7 +233,7 @@ const RE_DATA_NUMERICA = /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-]((?:19
  * PRIORIDADE (é a da assinatura); a numérica é só o que sobra quando não existe assinatura por
  * extenso na página.
  */
-function acharData(textoPagina: string): string | undefined {
+export function acharData(textoPagina: string): string | undefined {
   let ultima: RegExpExecArray | null = null;
   const re = new RegExp(RE_DATA_LONGA, "gi");
   let m: RegExpExecArray | null;
@@ -337,8 +345,16 @@ export async function lerPaginasIntervalo(
     const page = await leitor.doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
-    const texto = (tc.items as any[]).map((i) => i.str ?? "").join(" ");
-    paginas.push({ pagina: p, texto, largura: vp.width, altura: vp.height });
+    // mesma extração de item posicionado que `lerPaginas` usa — precisa de x/y/altura pra achar o
+    // setor (que só conta dentro do cabeçalho, ver ALTURA_CABECALHO), não só o texto corrido.
+    const itens: ItemPosicionado[] = (tc.items as any[])
+      .map((i) => ({ t: i.str ?? "", x: i.transform[4], y: vp.height - i.transform[5], h: i.height || 8 }))
+      .filter((i) => i.t.trim());
+    const texto = itens.map((i) => i.t).join(" ");
+    paginas.push({
+      pagina: p, texto, largura: vp.width, altura: vp.height,
+      setor: acharSetorNaPagina(itens), assinante: acharAssinante(texto), data: acharData(texto),
+    });
   }
   return paginas;
 }
