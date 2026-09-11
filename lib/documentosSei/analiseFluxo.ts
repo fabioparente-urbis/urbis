@@ -35,6 +35,9 @@ export type AnaliseJornada = {
   datasDescartadasComoRuido: number;
   /** intervalos cujo setor não passou em `normalizarSetor` (endereço, área, lixo de OCR) */
   intervalosSemSetorUtil: number;
+  /** as duas pontas que realmente produziram `duracaoDias` (ISO) — não a primeira/última PÁGINA */
+  primeiraDataConfiavel: string | null;
+  ultimaDataConfiavel: string | null;
 };
 
 const RUIDO_ANOS = 5; // datas a mais de 5 anos da mediana do próprio processo são tratadas como ruído (§ ver parseDataDocumento)
@@ -99,6 +102,8 @@ export function analisarJornada(eventos: EventoFluxo[]): AnaliseJornada {
     retrabalho: eventos.filter((e) => PADRAO_RETRABALHO.test(e.titulo)).length,
     datasDescartadasComoRuido: descartadas,
     intervalosSemSetorUtil,
+    primeiraDataConfiavel: confiaveis.length ? confiaveis[0].data.toISOString().slice(0, 10) : null,
+    ultimaDataConfiavel: confiaveis.length ? confiaveis[confiaveis.length - 1].data.toISOString().slice(0, 10) : null,
   };
 }
 

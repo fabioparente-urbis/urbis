@@ -27,6 +27,7 @@ import {
 } from "@/lib/urbi/dossieProcesso";
 import { cruzarLipComDocumento, cruzarItensMacComBip, cruzarEvolucaoChecklist } from "@/lib/urbi/cruzamento";
 import { montarDossieTecnico } from "@/lib/urbi/adaptadores";
+import { jornadaDoProcesso, referenciaDoAcervo, compararComAcervo } from "@/lib/documentosSei/jornadaNaPrefeitura";
 
 export type ResultadoMontagemDossie =
   | { ok: true; data: Record<string, unknown> }
@@ -271,6 +272,20 @@ export async function montarDossieFactual(
     eventosCatalogo: eventosCatalogoBrutos ?? [],
   });
 
+  // Jornada do processo PELA PREFEITURA (Fases 10-12), reconstruída dos carimbos do próprio PDF.
+  // Fonte OPCIONAL, mesmo tratamento das demais: falha vira cobertura indisponível, nunca derruba
+  // o dossiê. Processo que não está no acervo devolve `encontrada: false` — que é a resposta certa,
+  // não um erro. São FATOS para o analista julgar: o dossiê não conclui que algo está atrasado.
+  let jornadaPrefeitura: Awaited<ReturnType<typeof jornadaDoProcesso>> | null = null;
+  let comparacaoAcervo: ReturnType<typeof compararComAcervo> = [];
+  let acervo: Awaited<ReturnType<typeof referenciaDoAcervo>> = null;
+  try {
+    [jornadaPrefeitura, acervo] = await Promise.all([jornadaDoProcesso(codigo), referenciaDoAcervo()]);
+    comparacaoAcervo = compararComAcervo(jornadaPrefeitura, acervo);
+  } catch (e: any) {
+    fontesIndisponiveis.push(`jornada_na_prefeitura: ${e?.message ?? String(e)}`);
+  }
+
   const sitMacDossie = situacaoMac(ultimaPassada, tags as any);
   const situacoes = {
     geral: situacaoGeral(resumoCampos, ultimaPassada, tags as any, (processo as any).lip_incompleto === true),
@@ -329,6 +344,25 @@ export async function montarDossieFactual(
           dias: r.dias_aguardando_retorno,
           situacao: r.situacao,
         })),
+        // Tudo acima é o fluxo DENTRO do URBIS. Isto é o fluxo pela PREFEITURA — setores que não
+        // usam o sistema e só existem como carimbo dentro do PDF (§5.3 do plano de leitura de PDF).
+        jornada_na_prefeitura: jornadaPrefeitura ? {
+          encontrada: jornadaPrefeitura.encontrada,
+          total_documentos: jornadaPrefeitura.totalDocumentos,
+          duracao_dias: jornadaPrefeitura.duracaoDias,
+          faixa: jornadaPrefeitura.faixa,
+          primeiro_documento_em: jornadaPrefeitura.primeiroDocumentoEm,
+          ultimo_documento_em: jornadaPrefeitura.ultimoDocumentoEm,
+          espera_por_setor: jornadaPrefeitura.esperaPorSetor,
+          idas_e_vindas: jornadaPrefeitura.retrabalho,
+          comparacao_com_acervo: comparacaoAcervo,
+          referencia_do_acervo: acervo ? {
+            processos_no_acervo: acervo.totalProcessos,
+            tempo_tipico_por_setor: acervo.tempoTipicoPorSetor.slice(0, 8),
+            processos_que_voltaram: acervo.retrabalho.processosComRetrabalho,
+          } : null,
+          fonte: "fluxo_processo_eventos (carimbo do SEI, sem IA)",
+        } : null,
       },
       cruzamentos,
       tecnico,
@@ -341,6 +375,8 @@ export async function montarDossieFactual(
           "Ausência de vínculo BIP não significa conformidade nem ausência de fundamento legal.",
           "Este dossiê não prevê prazo, não julga e não altera o processo.",
           "Documento emitido sem registro em MDP/MRP (fluxo.documentos_emitidos) é ausência de FONTE satélite, não indício de erro do analista ou do interessado — pode ser lançamento pendente, registro em outro formato ou lacuna de integração ainda não coberta.",
+          "fluxo.jornada_na_prefeitura é RECONSTRUÇÃO a partir da data dos documentos assinados, não registro de tramitação: a data de um documento não é o dia em que o processo entrou ou saiu do setor. Serve para ordem de grandeza (dez dias x um ano), nunca para calendário. `comparacao_com_acervo` é só a diferença entre dois números medidos — não é veredito de atraso, não julga setor nem pessoa, e a decisão continua sendo do analista.",
+          "fluxo.jornada_na_prefeitura.encontrada=false significa que o processo não está no acervo carregado (processo novo, tipicamente) — é ausência de FONTE, nunca prova de que o processo não tramitou.",
           "lip.historico_alteracoes só lista o RÓTULO do campo que mudou e quando — nunca o valor anterior/novo, mesmo quando a fonte tem esse dado, por privacidade. A fonte (processo_historico) hoje não recebe linha nova de nenhum caminho de código conhecido — ausência de item aqui não prova ausência de alteração real no processo.",
         ],
       },
