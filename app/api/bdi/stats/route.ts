@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
+import { panoramaDosAtivos, referenciaDoAcervo } from "@/lib/documentosSei/jornadaNaPrefeitura";
 
 // Estatísticas agregadas de produtividade/conformidade por analista e por
 // autor técnico — dado sensível o bastante para restringir a Administrador.
@@ -267,9 +268,28 @@ export async function GET(req: NextRequest) {
     console.warn("[bdi/stats] vw_bdi_aguardando_retorno indisponível (migration não aplicada?):", erroAguardandoRetorno.message);
   }
 
+  // Jornada pela PREFEITURA (Fases 10-12 do plano de leitura de PDF). Até 11/09/2026 o BDI era
+  // cego para fora do URBIS: todas as views medem o trabalho feito DENTRO do sistema — §5.3 do
+  // plano mediu `vw_bdi_tempo_etapas` devolvendo "minutos de análise" e amostras com "0 dias".
+  // Fonte OPCIONAL, mesmo padrão das views ainda não migradas acima: falha vira `_pendente`.
+  let jornadaPrefeitura: Awaited<ReturnType<typeof panoramaDosAtivos>> = null;
+  let acervoReferencia: Awaited<ReturnType<typeof referenciaDoAcervo>> = null;
+  try {
+    const codigosAtivos = codigosDoAssunto;
+    [jornadaPrefeitura, acervoReferencia] = await Promise.all([
+      panoramaDosAtivos(codigosAtivos),
+      referenciaDoAcervo(),
+    ]);
+  } catch (e: any) {
+    console.warn("[bdi/stats] jornada pela prefeitura indisponível:", e?.message);
+  }
+
   return NextResponse.json({
     ok: true,
     assunto_filtrado: assuntoAtivo ? { slug: assuntoSlug, nome: assuntoAtivo.nome } : null,
+    jornada_prefeitura: jornadaPrefeitura,
+    jornada_prefeitura_acervo: acervoReferencia,
+    jornada_prefeitura_pendente: jornadaPrefeitura === null,
     // Views que continuam mostrando o total mesmo com um assunto selecionado
     // — ver auditoria no cabeçalho do arquivo.
     nao_filtraveis: ["vw_bdi_desempenho_referencia", "vw_bdi_numeracao_saldo"],

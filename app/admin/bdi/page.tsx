@@ -27,6 +27,13 @@ type Stats = {
   numeracao: { tipo: string; ano: number; numero_inicial: number; numero_final: number; proximo: number; restantes: number; situacao: string }[];
   nao_conformidades: { grupo: string; texto: string; ref: string; assunto: string; frequencia: number }[];
   tempo_etapas: { codigo: string; tipo_processo: string; analise_iniciada_em: string; analise_concluida_em: string; dias: number; marcacoes_no_mac: number }[];
+  jornada_prefeitura: {
+    linhas: { codigo: string; duracaoDias: number | null; faixa: string | null; idasEVindas: number;
+      ondeMaisEsperou: { setor: string; dias: number; medianaDoAcervo: number | null } | null }[];
+    comJornadaConhecida: number;
+    totalAtivos: number;
+  } | null;
+  jornada_prefeitura_pendente: boolean;
   retorno_por_slot: { tipo_processo: string; faixa_area: string; processos: number; processos_com_retorno: number; pct_retorno: number; media_passadas_quando_retorna: number | null; passadas_extras_total: number }[];
   cobertura_satelite: { tipo_processo: string; tipo_documento: string; emitidos: number; com_mdp: number; com_mrp: number; faltando_mdp: number; faltando_mrp: number; pct_mdp: number; pct_mrp: number }[];
   retrabalho_por_passada: { processo_codigo: string; exigencia: string; aba: string | null; referencia_legal: string | null; passada_anterior: number; status_na_passada_anterior: string; passada_atual: number; status_antes_da_volta: string; status_depois_da_volta: string; voltou_em: string }[];
@@ -691,6 +698,43 @@ export default function BDIPage() {
                       </tbody>
                     </table>
                   </div>
+                </Secao>
+
+                <Secao
+                  titulo="Jornada do processo pela prefeitura"
+                  descricao={<>A seção acima mede o que aconteceu <b>dentro do URBIS</b>. Esta mede o trajeto do processo <b>pelos setores da prefeitura</b>, reconstruído dos carimbos do próprio PDF (sem IA). É <b>reconstrução por data de documento</b>, não registro de tramitação: serve para ordem de grandeza, nunca para calendário. A coluna &quot;típico&quot; é a mediana do acervo para aquele setor — é referência para você comparar, <b>não um veredito de atraso</b>.</>}
+                >
+                  {stats.jornada_prefeitura_pendente || !stats.jornada_prefeitura ? (
+                    <p className="text-sm text-[var(--text-muted)]">
+                      Acervo de fluxo indisponível — nenhum processo carregado ainda pela carga do acervo (Fase 10), ou a leitura falhou. Esta seção não afeta o resto do painel.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mb-3 text-xs text-[var(--text-muted)]">
+                        {stats.jornada_prefeitura.comJornadaConhecida} de {stats.jornada_prefeitura.totalAtivos} processos
+                        ativos têm jornada conhecida no acervo. Os demais não foram carregados — é ausência de fonte, não ausência de tramitação.
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead><tr className="border-b border-[var(--border)]">{["PROCESSO","DURAÇÃO","FAIXA","IDAS E VINDAS","ONDE MAIS ESPEROU","DIAS","TÍPICO"].map(h=><th key={h} className={TH}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {stats.jornada_prefeitura.linhas.slice(0,25).map((r,i)=>(
+                              <tr key={i} className={TR}>
+                                <td className={`${TD} font-mono text-xs text-[var(--text-primary)]`}>{r.codigo}</td>
+                                <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.duracaoDias ?? "—"}</td>
+                                <td className={`${TD} text-xs`}>{r.faixa ?? "—"}</td>
+                                <td className={`${TD} text-center`}>{r.idasEVindas}</td>
+                                <td className={`${TD} text-xs`} title={r.ondeMaisEsperou?.setor ?? ""}>{r.ondeMaisEsperou ? r.ondeMaisEsperou.setor.slice(0,42) : "—"}</td>
+                                <td className={`${TD} text-center font-semibold text-[var(--text-primary)]`}>{r.ondeMaisEsperou?.dias ?? "—"}</td>
+                                <td className={`${TD} text-center text-[var(--text-muted)]`}>{r.ondeMaisEsperou?.medianaDoAcervo ?? "—"}</td>
+                              </tr>
+                            ))}
+                            {stats.jornada_prefeitura.linhas.length===0 && <Vazio cols={7}>Nenhum processo ativo está no acervo carregado ainda</Vazio>}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
                 </Secao>
 
                 <Secao

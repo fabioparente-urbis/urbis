@@ -82,21 +82,79 @@ export async function jornadaDoProcesso(codigo: string): Promise<JornadaNaPrefei
  * só quando roda uma carga nova.
  */
 const TTL_MS = 10 * 60 * 1000;
-let cache: { em: number; portfolio: AnalisePortfolio } | null = null;
+type Cache = { em: number; porProcesso: Map<string, { titulo: string; setor: string | null; dataDocumento: string | null }[]> };
+let cache: Cache | null = null;
 
-export async function referenciaDoAcervo(): Promise<AnalisePortfolio | null> {
-  if (cache && Date.now() - cache.em < TTL_MS) return cache.portfolio;
+/** Acervo inteiro agrupado por processo, cacheado — a base de tudo abaixo. */
+async function acervoAgrupado(): Promise<Cache["porProcesso"] | null> {
+  if (cache && Date.now() - cache.em < TTL_MS) return cache.porProcesso;
   try {
     const linhas = await lerEventosFluxo<EventoBruto>(
       supabaseAdmin,
       "processo_codigo, titulo, setor, data_documento, pagina_ini",
     );
-    const portfolio = agregarPortfolio([...agruparPorProcesso(linhas).values()]);
-    cache = { em: Date.now(), portfolio };
-    return portfolio;
+    const porProcesso = agruparPorProcesso(linhas);
+    cache = { em: Date.now(), porProcesso };
+    return porProcesso;
   } catch {
     return null; // fonte opcional: quem chama registra como cobertura indisponível
   }
+}
+
+export async function referenciaDoAcervo(): Promise<AnalisePortfolio | null> {
+  const porProcesso = await acervoAgrupado();
+  return porProcesso ? agregarPortfolio([...porProcesso.values()]) : null;
+}
+
+export type LinhaPanorama = {
+  codigo: string;
+  duracaoDias: number | null;
+  faixa: string | null;
+  idasEVindas: number;
+  /** setor onde este processo mais esperou, e a régua do acervo para ele */
+  ondeMaisEsperou: { setor: string; dias: number; medianaDoAcervo: number | null } | null;
+};
+
+/**
+ * Cruza os processos ATIVOS do sistema com a jornada que o acervo conhece de cada um. É o que o
+ * BDI não tinha: as views dele medem o trabalho feito DENTRO do URBIS (§5.3 do plano — a medição
+ * de tempo por etapa devolve "minutos de análise", e amostras reais davam "0 dias"), nunca o
+ * trajeto do processo pela prefeitura.
+ *
+ * Devolve FATO, ordenado do que mais esperou para o que menos esperou. Não classifica processo
+ * como atrasado, não sugere ação: a leitura é do analista.
+ */
+export async function panoramaDosAtivos(codigosAtivos: string[]): Promise<{
+  linhas: LinhaPanorama[];
+  comJornadaConhecida: number;
+  totalAtivos: number;
+} | null> {
+  const porProcesso = await acervoAgrupado();
+  if (!porProcesso) return null;
+
+  const acervo = agregarPortfolio([...porProcesso.values()]);
+  const medianaPorChave = new Map(
+    acervo.tempoTipicoPorSetor.map((s) => [normalizarSetor(s.setor)?.chave ?? s.setor, s.medianaDias]),
+  );
+
+  const linhas: LinhaPanorama[] = [];
+  for (const codigo of codigosAtivos) {
+    const eventos = porProcesso.get(codigo);
+    if (!eventos) continue;
+    const a = analisarJornada(eventos);
+    const pior = a.tempoPorSetor[0] ?? null;
+    linhas.push({
+      codigo,
+      duracaoDias: a.duracaoDias,
+      faixa: a.faixa,
+      idasEVindas: a.retrabalho,
+      ondeMaisEsperou: pior
+        ? { setor: pior.setor, dias: pior.dias, medianaDoAcervo: medianaPorChave.get(pior.chave) ?? null }
+        : null,
+    });
+  }
+  linhas.sort((a, b) => (b.duracaoDias ?? -1) - (a.duracaoDias ?? -1));
+  return { linhas, comJornadaConhecida: linhas.length, totalAtivos: codigosAtivos.length };
 }
 
 /**
