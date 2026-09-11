@@ -26,6 +26,7 @@ import {
   Route,
   Bot,
   Scissors,
+  Activity,
 } from "lucide-react";
 import { isPerfilIrrestrito } from "@/lib/perfis";
 import { perfilDe, validarNumero, normalizarNumero } from "@/lib/numeracao";
@@ -203,6 +204,10 @@ export default function Home() {
     // Fase 6 do fatiador de PDF do SEI (docs/UPGRADE_NA_LEITURA_DE_PDF_SLOT_1_E_2.md §6) — tela
     // própria, fora do processo. Mesmo gate de MHD/URBI (irrestrito) enquanto é ferramenta nova.
     { chave: "fatiador-sei", nome: "FATIADOR SEI", descricao: "Organizar e corrigir o corte do PDF do SEI, por teclado", Icone: Scissors, rota: "/fatiador-sei", visivel: irrestrito },
+    // Fase 12 do fatiador de PDF do SEI (docs/UPGRADE_NA_LEITURA_DE_PDF_SLOT_1_E_2.md §6) —
+    // painel de gestão do Módulo de Análise de Fluxo, faltava card na Home (regra da v6 do
+    // plano, achado ao fechar a Fase 12 em 11/09/2026). Mesmo gate de MHD/URBI.
+    { chave: "analise-fluxo", nome: "ANÁLISE DE FLUXO", descricao: "Tempo parado, gargalo por setor e retrabalho — dados reais do acervo", Icone: Activity, rota: "/admin/analise-fluxo", visivel: irrestrito },
   ];
 
   const visiveis = cards.filter((c) => c.visivel);

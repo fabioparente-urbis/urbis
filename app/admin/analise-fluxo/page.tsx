@@ -30,6 +30,7 @@ type Portfolio = {
 };
 
 type Prontidao = { pronta: boolean; totalProcessos: number; diasDesdePrimeiraCarga: number | null; motivos: string[] };
+type SinalFase14 = { correcoesReais: number; processosDistintos: number; primeiraCorrecaoEm: string | null; pronta: boolean };
 
 const ORDEM_FAIXAS: FaixaTempo[] = ["menos de 30 dias", "30 a 90 dias", "90 a 365 dias", "mais de 1 ano"];
 
@@ -40,6 +41,7 @@ export default function AnaliseFluxoPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [prontidao, setProntidao] = useState<Prontidao | null>(null);
+  const [sinalFase14, setSinalFase14] = useState<SinalFase14 | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -70,6 +72,14 @@ export default function AnaliseFluxoPage() {
     fetch("/api/admin/fluxo/interpretar")
       .then((r) => r.json())
       .then((j) => { if (j.ok) setProntidao(j.prontidao); })
+      .catch(() => {});
+  }, [autorizado]);
+
+  useEffect(() => {
+    if (autorizado !== true) return;
+    fetch("/api/admin/fluxo/fase14-sinal")
+      .then((r) => r.json())
+      .then((j) => { if (j.ok) setSinalFase14(j); })
       .catch(() => {});
   }, [autorizado]);
 
@@ -169,6 +179,24 @@ export default function AnaliseFluxoPage() {
                     {prontidao.motivos.map((m, i) => <li key={i}>{m}</li>)}
                   </ul>
                 </>
+              )}
+            </section>
+          )}
+
+          {sinalFase14 && (
+            <section>
+              <h2 className="mb-1 text-sm font-medium text-[var(--text-primary)]">Aprendizado por correção (Fase 14)</h2>
+              {sinalFase14.pronta ? (
+                <p className="text-sm text-[var(--text-primary)]">
+                  ⚡ {sinalFase14.correcoesReais} correção(ões) real(is) já registrada(s) em {sinalFase14.processosDistintos}{" "}
+                  processo(s), desde {sinalFase14.primeiraCorrecaoEm ? new Date(sinalFase14.primeiraCorrecaoEm).toLocaleDateString("pt-BR") : "—"}.
+                  Já dá pra desenhar a Fase 14 com exemplo real — não precisa mais esperar.
+                </p>
+              ) : (
+                <p className="text-xs text-[var(--text-muted)]">
+                  0 correções reais registradas ainda — o Fatiador (`/fatiador-sei`) só foi testado com PDF sintético.
+                  Este número sobe sozinho assim que uma correção real acontecer; não precisa lembrar de checar.
+                </p>
               )}
             </section>
           )}
