@@ -87,6 +87,11 @@ export const CAMPO_POR_PAPEL_PECA: Record<string, string | undefined> = {
   foto: "foto",
   procuracao: "seiProcuracao",
   embargo: "seiEmbargo",
+  // Fase 5 do plano de leitura de PDF (10/09/2026): campos que já existiam em ROTULO_CAMPO_LIP sem
+  // nenhum papel os alimentando — achado da entrevista com o Fábio sobre o fluxo Atende Fácil →
+  // CONTEC → CHEADV → GEFEP → DIRAAP.
+  uso_solo: "usoSolo",
+  despacho_cheadv: "seiCheadv",
 };
 
 /**

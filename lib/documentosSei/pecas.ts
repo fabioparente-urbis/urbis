@@ -23,6 +23,8 @@ import type { PaginaTexto } from "./fatiar";
 import { carregarRegras, type RegraRegex } from "./regrasIdentificacao";
 
 export type PapelPeca =
+  | "processo_fisico"
+  | "uso_solo"
   | "projeto"
   | "levantamento"
   | "art"
@@ -33,9 +35,12 @@ export type PapelPeca =
   | "laudo"
   | "vistoria"
   | "foto"
+  | "ortofoto"
   | "memorial"
   | "procuracao"
   | "embargo"
+  | "notificacao_calcada"
+  | "despacho_cheadv"
   | "despacho"
   | "parecer"
   | "oficio"
@@ -76,6 +81,13 @@ function normalizar(t: string): string {
  * inicial da migration `2026_09_10_documentos_sei_regras_identificacao.sql` de propósito.
  */
 const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
+  // capa do Atende Fácil (Fase 5, entrevista 10/09/2026, medido em FISICO 3941406.pdf/5340648.pdf):
+  // só confirmado para regularização — "aceite" ainda sem exemplo real, entra como aposta cautelosa.
+  { papel: "processo_fisico", re: /\bsolicita\s+o\s+alvara\s+de\s+(regularizacao|aceite)\b/ },
+  // uso do solo do CONTEC (só Regularização; Aceite não passa por lá — Fase 5, medido em USO
+  // 4167740.pdf e 5444163.pdf: carimbo varia — "Parecer NNN - Uso do Solo - COMTEC" num processo,
+  // "Uso do Solo Aprovação de Projeto NN - COMTEC" no outro — a frase fixa dos dois é "uso do solo")
+  { papel: "uso_solo", re: /\buso\s+do\s+solo\b/ },
   { papel: "matricula", re: /\b(certidao\s+de\s+matricula|registro\s+de\s+imoveis)\b/ },
   // ART de Levantamento e ART da Caixa (recarga) são campos DISTINTOS no LIP — só sugerir um ou
   // outro quando a peça deixa isso explícito; ambíguo fica em "art" genérico, sem sugestão
@@ -88,9 +100,20 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   { papel: "laudo", re: /\blaudo\s+(tecnico|de\s+vistoria|geologico|estrutural)?\b/ },
   { papel: "vistoria", re: /\b(relatorio\s+de\s+vistoria|relatorio\s+de\s+fiscalizacao|relatorio\s+circunstanciado)\b/ },
   { papel: "foto", re: /\b(registro\s+fotografico|fotografia|fotos?\s+do\s+local)\b/ },
+  // aérea do Google/mapa urbano digital de Goiânia (Fase 5, medido em ORTOFOTO 5607055.pdf)
+  { papel: "ortofoto", re: /\bmapa\s+urbano\s+basico\s+digital\s+de\s+goiania\b/ },
   { papel: "memorial", re: /\bmemorial\s+(descritivo|de\s+calculo)\b/ },
   { papel: "procuracao", re: /\bprocuracao\b/ },
   { papel: "embargo", re: /\bembargo\b/ },
+  // GEFEP (Fase 5, medido em NOTIFICACAO DA CALÇADA 6797870.pdf pg. 4) — checar ANTES de "vistoria",
+  // que casaria com a página de relatório circunstanciado do mesmo PDF (é peça separada, ok)
+  { papel: "notificacao_calcada", re: /\bnotificacao\s+calcada\s+n\b/ },
+  // despacho de conformidade documental da CHEADV — só o que APROVA, não qualquer despacho de
+  // pendência (cobrança de documento) no meio do caminho. Carimbo real medido: "Despacho 956 -
+  // CHEADV - Documentação conforme" — mesmo teste (cheadv + conforme) já usado em
+  // compararLip.ts:REGRAS (`seiCheadv`), que opera direto sobre o título do evento; esta cópia em
+  // ASSINATURAS_PECA cobre o caso do despacho aparecer como PEÇA dentro de um contêiner genérico.
+  { papel: "despacho_cheadv", re: /\bcheadv\b[^.]{0,60}\bconforme\b|\bconforme\b[^.]{0,60}\bcheadv\b/ },
   // atos numerados: mesma distinção já registrada no plano ("despachos sucessivos são atos, não versões")
   { papel: "despacho", re: /^\s*despacho\b/ },
   { papel: "parecer", re: /^\s*parecer\b/ },
@@ -223,9 +246,10 @@ function fundirPendentesEntreIguais(pecas: PecaSei[]): PecaSei[] {
 
 /** Papéis que a classificação por visão (Fase 8) pode devolver — qualquer outro valor é ignorado. */
 const PAPEIS_VALIDOS = new Set<string>([
-  "projeto", "levantamento", "art", "art_levantamento", "art_caixa", "matricula", "certidao",
-  "laudo", "vistoria", "foto", "memorial", "procuracao", "embargo", "despacho", "parecer",
-  "oficio", "requerimento", "email",
+  "processo_fisico", "uso_solo", "projeto", "levantamento", "art", "art_levantamento", "art_caixa",
+  "matricula", "certidao", "laudo", "vistoria", "foto", "ortofoto", "memorial", "procuracao",
+  "embargo", "notificacao_calcada", "despacho_cheadv", "despacho", "parecer", "oficio",
+  "requerimento", "email",
 ]);
 
 /**
@@ -267,6 +291,8 @@ export function aplicarClassificacaoVisao(
 
 /** Rótulo humano de cada papel, para a tela. */
 export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
+  processo_fisico: "Processo Físico (capa Atende Fácil)",
+  uso_solo: "Uso do Solo (CONTEC)",
   projeto: "Projeto",
   levantamento: "Levantamento",
   art: "ART/RRT (não identificado qual)",
@@ -277,9 +303,12 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   laudo: "Laudo",
   vistoria: "Vistoria",
   foto: "Fotografia",
+  ortofoto: "Ortofoto",
   memorial: "Memorial",
   procuracao: "Procuração",
   embargo: "Embargo",
+  notificacao_calcada: "Notificação de Calçada (GEFEP)",
+  despacho_cheadv: "Despacho de Conformidade (CHEADV)",
   despacho: "Despacho",
   parecer: "Parecer",
   oficio: "Ofício",

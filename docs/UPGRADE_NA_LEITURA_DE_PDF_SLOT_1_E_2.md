@@ -3,12 +3,13 @@
 ### Fatiador de PDF do SEI · Módulo de Análise de Fluxo
 ### Plano de implantação e operação
 
-**Versão:** 15 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
-concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído** (5 de 15 fases: **~33% concluído, 67%
-restante**) — migration da Fase 1 aplicada e CONFIRMADA em produção; migration da Fase 4 escrita
-mas ainda não aplicada, **sem risco de ordem de deploy desta vez** (MEDIDO: rodei dois scripts
-locais contra PDF real sem a tabela existir — o código cai no array fixo do próprio arquivo,
-comportamento idêntico ao de antes da Fase 4, zero página perdida)
+**Versão:** 16 · **Data:** 10/09/2026 · **Estado:** em implantação — **Fases 0, 1, 1B e 2
+concluídas, Fase 3 abolida, Fase 4 com CÓDIGO concluído, Fase 5 primeira rodada concluída** (a
+carga do conhecimento é incremental por natureza — não tem "100%", ver §7) — migration da Fase 1
+aplicada e CONFIRMADA em produção; migrations da Fase 4 e 5 escritas mas ainda não aplicadas,
+**sem risco de ordem de deploy** (MEDIDO: rodei os scripts locais contra 2 PDFs reais sem a tabela
+existir — o código cai no array fixo do próprio arquivo, comportamento idêntico ao de antes, zero
+página perdida)
 
 **Concepção e direção do produto:** Fábio Parente Martins Santos
 **Expansão do Módulo de Análise de Fluxo:** discussão com Gemini
@@ -487,7 +488,7 @@ nenhuma fase** — condição inegociável, porque o sistema está em produção
 | ✅ **2 — Modelo passa a ser escolha** | **CONCLUÍDA em 10/09/2026.** O modelo deixa de ser constante: `lib/modeloGemini.ts` escolhe pelo tamanho do arquivo. O 2.5 continua padrão até 50MB; acima disso entra o 3.6 sozinho, sem pedir nada ao analista. Vale para os dois botões do LIP (LER PROCESSO e LER ARQUIVOS INDIVIDUAIS, via S1/S2/S3) e para o checklist do MAC (`/api/mac/p3`). O bloqueio de tamanho que existia em 4 telas deixou de ser teto de modelo e virou teto de servidor (350MB, o mesmo já praticado nas rotas de documentos SEI). | 1 sessão | PDF que hoje dá erro é lido com sucesso |
 | ~~**3 — Comparar qualidade entre modelos**~~ | **ABOLIDA em 10/09/2026, decisão do Fábio.** Razão dada: não há escolha real de modelo depois que o 2.5 morrer (16/10/2026) — todo processo vai forçosamente usar o sucessor, comparar não muda o destino. Condição que ele impôs antes de tirar: eu pesquisar se há indício de PIORA de qualidade na troca; se houver, a fase fica. Pesquisado (10/09/2026, web): um benchmark real (Box, extração de campos de documentos difíceis) mediu a geração "Gemini 3 Flash" contra o 2.5 Flash e achou **+10 pontos de acerto em PDF, +13 em extração de múltiplos campos** — melhora, não piora. Único contraponto achado foi genérico e sem medição direta dos dois modelos (artigo de fornecedor de parser nativo de PDF, viés comercial, argumentando que modelos de visão *em geral* podem perder precisão caractere-a-caractere em tabela/formatação — não testa 2.5 vs 3.6 especificamente). Sem indício concreto de piora, a fase sai do plano. | ~~0,5 sessão~~ | ~~Tabela de divergências, com decisão sobre reescrita de instruções~~ |
 | ✅ **4 — Regras editáveis pelo analista** | **CÓDIGO CONCLUÍDO em 10/09/2026, migration escrita mas não aplicada.** `ASSINATURAS_PECA` (pecas.ts) e `ASSINATURAS_CONTEUDO` (fatiar.ts) saem do array fixo e passam a vir de `documentos_sei_regras_identificacao`, tela `app/admin/regras-identificacao` (CRUD completo: papel restrito ao que o código já reconhece, regex validada na gravação, ordem, ativo/inativo). Cache de 60s em `lib/documentosSei/regrasIdentificacao.ts`, invalidado na hora a cada gravação — uma regra nova vale antes mesmo do TTL, sem deploy. **Sem risco de ordem de deploy** (diferente da Fase 1): se o banco falhar ou a tabela não existir, cai no array fixo do próprio arquivo — MEDIDO rodando `scripts/fase0_medir_fatiador.mts` e `scripts/conferir_documentos_sei.mts` contra um PDF real sem a migration aplicada, comportamento idêntico ao de antes (0% de página perdida). `classificarPagina`/`abrirContainer`/`classificarTitulo`/a extração de papel por conteúdo viraram assíncronas (3 call sites ajustados: as duas rotas de documentos-sei e `persistencia.ts`). Migration: `supabase/migrations/2026_09_10_documentos_sei_regras_identificacao.sql`. | 1,5 sessão | O analista adiciona uma regra e ela passa a valer sem publicação de versão |
-| **5 — Carga do conhecimento** | Entrevistas estruturadas alimentando as tabelas: departamentos, textos que delimitam, tipos, fluxo, assinaturas. | A definir, com o Fábio | Cobertura medida subindo a cada rodada |
+| 🔄 **5 — Carga do conhecimento** | **1ª rodada concluída em 10/09/2026** (ver §7.3): fluxo completo Atende Fácil → CONTEC → CHEADV → GEFEP → DIRAAP, com 5 papéis novos (`processo_fisico`, `uso_solo`, `ortofoto`, `notificacao_calcada`, `despacho_cheadv`) e 2 campos do LIP que já existiam sem alimentação (`usoSolo`, `seiCheadv`) agora ligados. Fase por natureza incremental — não fecha com "concluída", cada rodada nova de entrevista/documento real soma cobertura. Pendente: Laudo de Habitabilidade (CHEADV) ainda sem papel próprio, 3 documentos citados sem exemplo real (COMAER, Exército, Outorga Onerosa). | A definir, com o Fábio | Cobertura medida subindo a cada rodada |
 | **6 — Módulo próprio e tela gráfica** | Extração das telas duplicadas para um módulo só, fora da tela do processo, com ajuste visual de corte. | 3-4 sessões | Tempo por processo medido e **menor** que a rotina atual |
 | **7 — Ligar fatiador à leitura** | Os documentos recortados passam a alimentar a leitura, agrupados até o limite de tamanho. | 2 sessões | Um processo é lido usando só os documentos selecionados |
 | **8 — Não pagar duas vezes** | Consulta à impressão digital antes de chamar a IA; documento já lido é pulado. | 1 sessão | Reimportar o mesmo processo não gera cobrança nova |
@@ -539,22 +540,57 @@ cauda longa.
 
 ### 7.3 Documentos já mapeados pelo analista
 
-Ponto de partida para a primeira rodada de entrevistas.
+**Primeira rodada de entrevistas concluída (10/09/2026)** — o fluxo completo do processo de
+Regularização, departamento por departamento, na ordem real. Conferido contra documentos reais
+separados à mão pelo Fábio (`RETORNOS/2026/09.04` e `09.08`, processos 24.5.000056065-3 e
+24.5.000024350-0 — os mesmos 2 processos com gabarito humano da Fase 0).
 
-**Documentação base**
-- Certidão de Matrícula — padrão de cartório, com áreas e lotes
-- Procuração
-- ARTs — padrão identificável do conselho profissional (CAU/CREA)
+**Regra geral de fatiamento, dita pelo Fábio**: não precisa ler imagem — 90% do PDF é digitalização
+mas os 10% de texto nativo (rodapé do SEI, cabeçalho, assinatura, departamento, posição no fluxo)
+bastam para identificar. Os documentos da prefeitura são **padronizados**: mesmo título, mesmo
+formato, mesmo departamento emissor sempre — por isso dá para achar por texto, sem IA (confirma o
+que já estava em produção; nenhuma mudança de arquitetura, só amplia o vocabulário de regras).
 
-**GEFEP**
-- Notificação de Calçada
-- Laudo de Irregularidade
-- Fotos da Obra
-- **Laudo de Fiscalização do Imóvel** — é o documento que **destrava o avanço do processo**
+**O fluxo, na ordem, com o documento que cada etapa produz:**
 
-**DIRAAP**
-- **Encaminhamento do CPD** — comprova a busca por processos anteriores no arquivo. **Bloqueia o
-  risco de duplicidade de alvarás.**
+| Ordem | Departamento | Documento(s) | Observação |
+|---|---|---|---|
+| 1 | **Atende Fácil** | Capa do processo físico (`processo_fisico`) | Sempre igual: número do processo físico, dados do imóvel, contato. Gera o SEI logo em seguida. **Medido**: carimbo do SEI para este evento não traz o assunto no título ("Protocolo"/"Protocolo /DUAMs") — a frase que identifica ("SOLICITA O ALVARA DE...") está só no corpo digitalizado; hoje só é pega se a página cair DENTRO de um contêiner genérico, não como evento avulso (ver nota técnica abaixo). |
+| 2 | **CONTEC** | Certidão/Parecer de Uso do Solo (`uso_solo`) | **Só Regularização — Aceite não passa pelo CONTEC.** Carimbo varia entre processos ("Parecer NNN - Uso do Solo - COMTEC" / "Uso do Solo Aprovação de Projeto NN - COMTEC"), frase fixa é "uso do solo". Alimenta o campo `usoSolo` do LIP (já existia no LIP, sem nada que o alimentasse — achado desta sessão). |
+| 3 | **CHEADV** (Chefia da Advocacia Setorial) | Despacho de conformidade documental (`despacho_cheadv`) | Analisa um ROL de documentos (linha abaixo) e só quando está tudo certo emite o despacho **"...documentação está conforme, concluímos a análise documental"**. Regra crítica: **pega sempre a versão MAIS RECENTE de cada documento do rol antes deste despacho** — ida e volta anterior (pendência, reenvio) não interessa. Medido no processo real: 4 despachos de "Pendência Documentação" da CHEADV antes do único despacho final "Documentação conforme" — a regra (`cheadv` + `conforme`) já existia em `compararLip.ts:REGRAS` para o campo `seiCheadv`; replicada em `ASSINATURAS_PECA` para o caso de aparecer como peça de contêiner. |
+| 3.1 | **Rol que a CHEADV analisa** (todos precisam ser fatiados) | Ortofoto (`ortofoto`), Certidão de Matrícula, ART/RRT de Levantamento, ART/execução da caixa de recarga, **Levantamento** (não "projeto" — regularização é de obra já construída), Procuração, Embargo (se houver), **Laudo de Habitabilidade e Segurança do Imóvel** (emitido pelo responsável técnico do levantamento) | Ortofoto: foto aérea do Google/Mapa Urbano Digital de Goiânia, exigida por lei — carimbo próprio "MAPA URBANO BÁSICO DIGITAL DE GOIÂNIA" (medido). Laudo de Habitabilidade ainda **sem papel próprio**: hoje cai no `laudo` genérico (mesmo campo do LIP) — separar do laudo do GEFEP (linha 4) exigiria mais um processo real com os dois lado a lado para não chutar. |
+| 4 | **GEFEP** (fiscalização) | Notificação de Calçada (`notificacao_calcada`, nem sempre), Laudo de Irregularidade (nem sempre), Fotos da Obra (quase sempre), **Laudo de Fiscalização do Imóvel** (sempre — é o que **destrava o avanço do processo**) | Fiscal designado confere se o levantamento bate com a obra construída; volta e cobra ajuste até aprovar. Notificação de calçada medida em documento real (carimbo "NOTIFICACAO CALCADA N.: NN/AAAA") — cuidado: o mesmo PDF trazia também um "RELATÓRIO CIRCUNSTANCIADO – CALÇADA" numa página vizinha, que já casa a regra `vistoria` existente — são peças DIFERENTES da mesma notificação, corretamente separadas por página. |
+| 5 | **DIRAAP** (minha diretoria/gerência) | **Encaminhamento do CPD** — não é certidão, é aviso administrativo de que a busca não achou processo anterior no endereço | Primeiro passo: busca de processos anteriores. **Só bloqueia se já existe Regularização ou Aceite anterior** — aprovação de projeto aprovada ou com modificação NÃO bloqueia (o interessado só perde a vantagem de já ter projeto aprovado, mas pode seguir). Regra já coberta pela `ASSINATURAS_CONTEUDO` existente (`busca`, fatiar.ts) — medido no documento real, casa "buscas no endereço" e "projeto anteriormente aprovado" ao mesmo tempo. Depois disso o processo vai para análise técnica da própria DIRAAP (Fábio). |
+
+**Nota técnica sobre alcance das novas regras** (honestidade de medição, 10/09/2026): `processo_fisico`
+e `notificacao_calcada` foram escritas contra o texto do CORPO do documento — funcionam quando a
+página cai DENTRO de um contêiner genérico (`abrirContainer`), mas os dois exemplos reais medidos
+apareceram como EVENTOS AVULSOS do SEI, cujo papel hoje é decidido só pelo TÍTULO do carimbo
+(`classificarTitulo`, `persistencia.ts`) — e o título desses dois eventos não traz a frase
+distintiva ("Protocolo", sem menção a "alvará" ou "calçada"). As regras ficam registradas (não
+custam nada, cobrem o caso de aparecerem dentro de um contêiner) mas **hoje raramente disparam** no
+caminho de evento avulso — melhorar isso exigiria ler o corpo de eventos avulsos também, mudança
+maior, fora do escopo desta rodada. `uso_solo` e `despacho_cheadv` não têm esse problema porque a
+frase distintiva está no próprio carimbo/título.
+
+**Documentos citados pelo Fábio (10/09/2026) sem exemplo real ainda — aguardando processo que os
+contenha antes de escrever regra:**
+- Liberação da Aeronáutica (COMAER)
+- Liberação do Exército
+- Comprovante de pagamento de Outorga Onerosa
+
+**Decisão registrada — nome de arquivo na exportação** (10/09/2026): quando o fatiador exportar
+peças individuais (Fase 6/7), o nome do arquivo deve seguir o mesmo padrão que o Fábio já usa
+manualmente — `{PAPEL OU DEPARTAMENTO EM MAIÚSCULAS} {Nº SEI}.pdf` (ex.: `USO 4167740.pdf`, `CHEADV
+6635217.pdf`, `LAUDO 6376909.pdf`), não o título completo do documento — para o Nº SEI ficar fácil
+de achar visualmente no nome do arquivo (ajuda o LIP/analista a conferir rápido). **Não implementado
+ainda**: a exportação de peças por papel não existe hoje — o único exportador em produção
+(`lib/documentosSei/pacoteVigenteClient.ts`, Fase 5 do plano Documentos Vivos, outro plano) opera só
+no nível de EVENTO (não peça) e já usa `"{título} ({idSei}).pdf"`; ele já carrega o Nº SEI no nome,
+só num formato diferente (parênteses no fim, título inteiro em vez de código curto). Mudar esse
+exportador hoje sairia do escopo desta rodada (código de produção do Slot 1/2, tocaria as duas telas
+Organizador) — decisão registrada para quando a Fase 6/7 desta leitura de PDF criar exportação por
+peça, aí o nome já nasce no formato certo.
 
 ---
 
@@ -655,3 +691,4 @@ Pontos sem resposta definida, que valem discussão técnica antes ou durante a i
 | 13 | 10/09/2026 | **Fase 3 abolida**, a pedido do Fábio ("não terei escolha, e o mais novo logicamente será melhor"). Condicionei a remoção a uma pesquisa por indício de piora; pesquisa (web, ver linha da fase) achou evidência de melhora, não de piora, então a fase saiu. Fases não foram renumeradas (a numeração das fases 4-14 é referenciada em commits e no OBS COD) — o plano segue com 15 fases, não 16. |
 | 14 | 10/09/2026 | **Migration da Fase 1 aplicada pelo Fábio e confirmada** por consulta direta ao banco de produção (`mhd_conteudos.setor`/`.assinante` existem). Risco de ordem de deploy que bloqueava o push está resolvido. |
 | 15 | 10/09/2026 | **Fase 4 implementada (código).** `ASSINATURAS_PECA`/`ASSINATURAS_CONTEUDO` saem do array fixo, passam a vir de `documentos_sei_regras_identificacao` com tela própria (`app/admin/regras-identificacao`) e cache curto invalidado na gravação. Ao contrário da Fase 1, o design é fail-safe por construção (cai no array fixo se o banco falhar) — MEDIDO contra PDF real sem a migration aplicada, mesmo resultado de antes. Migration ainda não aplicada em produção. |
+| 16 | 10/09/2026 | **Fase 5, 1ª rodada.** Entrevista com o Fábio sobre o fluxo real (Atende Fácil → CONTEC → CHEADV → GEFEP → DIRAAP) conferida contra documentos reais separados à mão (processos 24.5.000056065-3 e 24.5.000024350-0). 5 papéis novos em `PapelPeca`, 2 ligados a campos do LIP que existiam sem alimentação (achado: `usoSolo`/`seiCheadv` já estavam em `ROTULO_CAMPO_LIP` mas nenhum papel os produzia). Achado de arquitetura registrado: regras de conteúdo só disparam para peça dentro de contêiner ou para evento avulso cujo TÍTULO (não corpo) contém o sinal — `processo_fisico`/`notificacao_calcada` ficam com alcance limitado até essa lacuna ser fechada. Decisão registrada sobre nome de arquivo na exportação futura (papel/departamento + Nº SEI, sem implementar ainda). |
