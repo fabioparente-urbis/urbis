@@ -30,7 +30,12 @@
  * linha virou clicável (select pra peça com `papel`, texto livre pro resto) — liga na tela o
  * `editarPapel`/`editarTitulo` que já existiam no reducer desde a Fase 6, mas nunca tinham UI.
  * "Exportar confirmados" baixa num zip só todos os itens ✓, depois de exportar um avulso só
- * esbarrar na pergunta óbvia seguinte: "e se tiver várias da mesma forma?".
+ * esbarrar na pergunta óbvia seguinte: "e se tiver várias da mesma forma?". E "Limpar fatiador"
+ * zera tudo sem forçar a escolher outro arquivo na hora.
+ *
+ * O último fatiamento em andamento passa a ficar salvo POR USUÁRIO no navegador (IndexedDB, ver
+ * `lib/documentosSei/rascunhoFatiador.ts`), auto-salvo debounced a cada correção — recarregar a
+ * página ou fechar sem querer não perde o trabalho. Nunca sobe pro servidor.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -50,6 +55,7 @@ import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
 } from "@/lib/documentosSei/estadoEdicao";
+import { salvarRascunho, carregarRascunho, limparRascunho, type RascunhoFatiador } from "@/lib/documentosSei/rascunhoFatiador";
 import { useHistoricoReducer } from "@/hooks/useHistoricoReducer";
 import { useAtalhosTeclado } from "@/hooks/useAtalhosTeclado";
 import { rotuloAtalho, type Atalho } from "@/lib/documentosSei/atalhosTeclado";
@@ -167,6 +173,48 @@ export default function TelaFatiamento() {
   /** URL do PDF inteiro aberto em outra aba — guardada pra revogar quando troca de arquivo. */
   const urlPdfInteiroRef = useRef<string | null>(null);
 
+  // Rascunho por usuário (14/09/2026) — precisa saber QUEM está logado antes de guardar/checar
+  // qualquer coisa; mesma rota que a tela de configurações já usa pra isso.
+  const [usuarioId, setUsuarioId] = useState<string | null>(null);
+  const [rascunho, setRascunho] = useState<RascunhoFatiador | null>(null);
+  const rascunhoSalvandoRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    fetch("/api/auth/me", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { data: null }))
+      .then((j) => { if (!cancelado && j?.data?.id) setUsuarioId(j.data.id); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, []);
+
+  // Checa se sobrou um rascunho salvo, uma vez, assim que sabe QUEM está logado — só enquanto a
+  // tela ainda está vazia (não sobrepõe um fatiamento que já esteja em andamento).
+  useEffect(() => {
+    if (!usuarioId || numeroProcesso) return;
+    let cancelado = false;
+    carregarRascunho(usuarioId).then((r) => { if (!cancelado && r) setRascunho(r); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [usuarioId]);
+
+  function restaurarRascunho(r: RascunhoFatiador) {
+    setProcessoCodigo(r.processoCodigo);
+    setSlot(r.slot as Slot);
+    setErro(null);
+    const arquivoRestaurado = new File([r.arquivoBlob], r.arquivoNome, { type: r.arquivoTipo });
+    setArquivo(arquivoRestaurado);
+    setEventosBrutos(r.eventosBrutos as EventoSei[]);
+    setNumeroProcesso(r.numeroProcesso);
+    resetar({ itens: r.itens, selecionadoId: r.itens[0]?.id ?? null });
+    setRascunho(null);
+  }
+
+  function descartarRascunho() {
+    if (usuarioId) limparRascunho(usuarioId);
+    setRascunho(null);
+  }
+
   const { estado, aplicar, desfazer, refazer, resetar, podeDesfazer, podeRefazer } =
     useHistoricoReducer(reduzirFatiamento, ESTADO_VAZIO);
 
@@ -174,6 +222,20 @@ export default function TelaFatiamento() {
   const selecionado = itens.find((i) => i.id === estado.selecionadoId) ?? null;
   /** página candidata a novo corte dentro do item selecionado — ajustável com ←/→ */
   const [paginaCorte, setPaginaCorte] = useState<number | null>(null);
+
+  // Guarda o progresso automaticamente, debounced — mesmo padrão de auto-save já usado na ficha do
+  // LIP (ProcessoClient.tsx), só que aqui o destino é o navegador do próprio analista, não o banco.
+  useEffect(() => {
+    if (!usuarioId || !arquivo || !numeroProcesso || !eventosBrutos) return;
+    if (rascunhoSalvandoRef.current) clearTimeout(rascunhoSalvandoRef.current);
+    rascunhoSalvandoRef.current = setTimeout(() => {
+      salvarRascunho(usuarioId, {
+        processoCodigo, slot, numeroProcesso, eventosBrutos, itens,
+        arquivoNome: arquivo.name, arquivoTipo: arquivo.type, arquivoBlob: arquivo,
+      });
+    }, 1200);
+    return () => { if (rascunhoSalvandoRef.current) clearTimeout(rascunhoSalvandoRef.current); };
+  }, [itens, usuarioId, arquivo, numeroProcesso, eventosBrutos, processoCodigo, slot]);
 
   // Campo de renomear segue a seleção: troca de item mostra o nome DELE, não o do anterior.
   useEffect(() => {
@@ -593,13 +655,30 @@ export default function TelaFatiamento() {
     window.open(urlPdfInteiroRef.current, "_blank", "noopener,noreferrer");
   }
 
-  function abrirNovoPdf() {
+  /**
+   * Zera o fatiamento em andamento e volta pra tela de soltar o PDF — pedido do Fábio (14/09/2026).
+   * Diferença pro "Abrir outro PDF" de baixo: aquele já abre a janela de escolher arquivo na hora;
+   * este só limpa e deixa o analista decidir quando (ou se) solta outro PDF. Pede confirmação
+   * porque é destrutivo — perde correção manual ainda não exportada, sem aviso seria fácil de
+   * clicar sem querer no meio de um fatiamento longo.
+   */
+  function limparFatiador(): boolean {
+    if (itens.length && !window.confirm("Limpar o fatiamento atual? As correções ainda não exportadas se perdem.")) return false;
     if (urlPdfInteiroRef.current) { URL.revokeObjectURL(urlPdfInteiroRef.current); urlPdfInteiroRef.current = null; }
+    if (usuarioId) limparRascunho(usuarioId);
     setArquivo(null);
     setNumeroProcesso(null);
     setErro(null);
+    setEventosBrutos(null);
+    setResultadoLeitura(null);
+    setProgressoLeitura(null);
+    setComparandoLip(false);
     resetar(ESTADO_VAZIO);
-    inputRef.current?.click();
+    return true;
+  }
+
+  function abrirNovoPdf() {
+    if (limparFatiador()) inputRef.current?.click();
   }
 
   const atalhos = useMemo<Atalho[]>(() => [
@@ -633,6 +712,25 @@ export default function TelaFatiamento() {
         Tela própria, fora do processo — corrige o fatiamento automático rápido, tudo por teclado.
         As telas de análise (dentro do processo) continuam do jeito que sempre foram.
       </p>
+
+      {!numeroProcesso && rascunho && (
+        <div className="bg-[var(--bg-card)] border border-[var(--accent)] rounded-xl p-4 max-w-xl mb-3">
+          <p className="text-sm text-[var(--text-primary)] mb-1">
+            📝 Tem um fatiamento em andamento: <b>{rascunho.numeroProcesso}</b> ({rascunho.itens.length} item(ns)),
+            salvo {new Date(rascunho.guardadoEm).toLocaleString("pt-BR")}.
+          </p>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => restaurarRascunho(rascunho)}
+              className="text-xs px-3 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)]">
+              Continuar de onde parei
+            </button>
+            <button onClick={descartarRascunho}
+              className="text-xs px-3 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)]">
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
 
       {!numeroProcesso && (
         <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 max-w-xl">
@@ -909,6 +1007,11 @@ export default function TelaFatiamento() {
             <button onClick={abrirNovoPdf}
               className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)]">
               📄 Abrir outro PDF
+            </button>
+            <button onClick={limparFatiador}
+              title="Zera o fatiamento e volta pra tela de soltar o PDF, sem abrir a janela de escolher arquivo"
+              className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--error)]">
+              🧹 Limpar fatiador
             </button>
             <input ref={inputRef} type="file" accept="application/pdf" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) processar(f); e.target.value = ""; }} />
