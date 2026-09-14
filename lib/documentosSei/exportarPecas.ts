@@ -13,6 +13,7 @@
  * volta ao servidor).
  */
 import { PDFDocument } from "pdf-lib";
+import JSZip from "jszip";
 import { nomeArquivoAnalista, rotuloDoPapelPeca } from "./rotuloAnalista";
 import type { ItemFatiado } from "./estadoEdicao";
 
@@ -48,4 +49,33 @@ export async function exportarItens(arquivo: File, itens: ItemFatiado[]) {
   const resultados: { blob: Blob; nomeArquivo: string }[] = [];
   for (const item of itens) resultados.push(await exportarItem(arquivo, item));
   return resultados;
+}
+
+/**
+ * Vários itens de uma vez, num .zip só — pedido do Fábio (14/09/2026): "tem como exportar só ela?"
+ * (uma fatia confirmada) levou à pergunta seguinte, "e se tiver várias da mesma forma?". Baixar
+ * PDF avulso por avulso um a um esbarra no bloqueio de múltiplos downloads simultâneos do próprio
+ * navegador — por isso zip, não `exportarItens` (que já existia, mas nunca tinha UI e devolveria N
+ * downloads ao mesmo tempo). Reaproveita `exportarItem` peça por peça — mesmo recorte, mesmo nome.
+ * Nome repetido dentro do zip (dois itens que exportariam pro mesmo arquivo) ganha sufixo
+ * numérico — nunca sobrescreve um pelo outro em silêncio.
+ */
+export async function exportarItensEmZip(
+  arquivo: File, itens: ItemFatiado[], nomeDoZip: string,
+): Promise<{ blob: Blob; nomeArquivo: string }> {
+  const zip = new JSZip();
+  const usados = new Map<string, number>();
+  for (const item of itens) {
+    const { blob, nomeArquivo } = await exportarItem(arquivo, item);
+    let nomeFinal = nomeArquivo;
+    const vezes = usados.get(nomeArquivo) ?? 0;
+    if (vezes > 0) {
+      const semExtensao = nomeArquivo.replace(/\.pdf$/i, "");
+      nomeFinal = `${semExtensao} (${vezes + 1}).pdf`;
+    }
+    usados.set(nomeArquivo, vezes + 1);
+    zip.file(nomeFinal, await blob.arrayBuffer());
+  }
+  const blobZip = await zip.generateAsync({ type: "blob" });
+  return { blob: blobZip, nomeArquivo: nomeDoZip };
 }

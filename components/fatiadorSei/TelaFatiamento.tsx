@@ -26,7 +26,11 @@
  *
  * 14/09/2026, olhando a tela ao vivo: `MiniaturaPdf` na coluna do meio — fixa mesmo quando a lista
  * rola, mostra a página candidata a corte (ou a primeira do item selecionado), clique amplia no
- * visualizador grande, que por sua vez ganhou setas do teclado e Esc.
+ * visualizador grande, que por sua vez ganhou setas do teclado e Esc. A classificação de cada
+ * linha virou clicável (select pra peça com `papel`, texto livre pro resto) — liga na tela o
+ * `editarPapel`/`editarTitulo` que já existiam no reducer desde a Fase 6, mas nunca tinham UI.
+ * "Exportar confirmados" baixa num zip só todos os itens ✓, depois de exportar um avulso só
+ * esbarrar na pergunta óbvia seguinte: "e se tiver várias da mesma forma?".
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +38,8 @@ import VisualizadorPdf from "@/components/documentosSei/VisualizadorPdf";
 import MiniaturaPdf from "@/components/documentosSei/MiniaturaPdf";
 import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/documentosSei/pecas";
 import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
-import { exportarItem } from "@/lib/documentosSei/exportarPecas";
+import { exportarItem, exportarItensEmZip } from "@/lib/documentosSei/exportarPecas";
+import { dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
 import { baixarBlob, gerarPacoteVigente } from "@/lib/documentosSei/pacoteVigenteClient";
 import { resolverEstados } from "@/lib/documentosSei/motorVersoes";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
@@ -76,6 +81,10 @@ type ResultadoFatiamento = {
   totalPaginas: number;
   eventos: EventoSei[];
 };
+
+/** Vocabulário de papéis conhecido, pra popular o <select> de classificação — ordenado pelo rótulo. */
+const OPCOES_PAPEL = Object.entries(ROTULO_PAPEL_PECA)
+  .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
 
 const ROTULO_STATUS: Record<StatusEdicao, string> = {
   proposto: "proposto",
@@ -125,6 +134,7 @@ export default function TelaFatiamento() {
   const [erro, setErro] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState<{ pagina: number; paginaIni: number; paginaFim: number } | null>(null);
   const [exportando, setExportando] = useState<string | null>(null);
+  const [exportandoConfirmados, setExportandoConfirmados] = useState(false);
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
@@ -142,6 +152,16 @@ export default function TelaFatiamento() {
   const [selecionadosLip, setSelecionadosLip] = useState<Record<string, boolean>>({});
   const [salvandoLip, setSalvandoLip] = useState(false);
   const [nomeRenomeando, setNomeRenomeando] = useState("");
+  /**
+   * Edição inline da classificação, direto na linha da lista — pedido do Fábio (14/09/2026):
+   * "quero poder editar o nome ali na classificação pendente". Só uma linha por vez. Item com
+   * `papel` (peça de contêiner) edita por `<select>` restrito ao vocabulário conhecido
+   * (`ROTULO_PAPEL_PECA`) — texto livre quebraria os lugares que leem `papel` pra decidir
+   * comportamento (ex.: `paginasPendentes` abaixo, que testa `=== "classificacao_pendente"`). Item
+   * sem `papel` (evento de topo, cujo rótulo vem do título) edita por texto livre.
+   */
+  const [editandoClassificacaoId, setEditandoClassificacaoId] = useState<string | null>(null);
+  const [tituloEditando, setTituloEditando] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const renomearInputRef = useRef<HTMLInputElement>(null);
   /** URL do PDF inteiro aberto em outra aba — guardada pra revogar quando troca de arquivo. */
@@ -503,6 +523,29 @@ export default function TelaFatiamento() {
     }
   }
 
+  /**
+   * Exporta todos os itens CONFIRMADOS de uma vez, num zip — pedido do Fábio (14/09/2026): "e se
+   * tiver várias da mesma forma?", depois de confirmar a primeira fatia e perguntar se dava pra
+   * exportar só ela. Baixar N PDFs avulsos ao mesmo tempo esbarra no bloqueio de pop-up/download
+   * múltiplo do navegador — por isso um zip só.
+   */
+  const confirmados = useMemo(() => itens.filter((i) => i.status === "confirmado"), [itens]);
+  async function exportarConfirmados() {
+    if (!arquivo || !confirmados.length) return;
+    setExportandoConfirmados(true);
+    setErro(null);
+    try {
+      const nomeDoZip = `${numeroProcesso} - confirmados - ${dataParaNomeArquivo()}.zip`;
+      const { blob, nomeArquivo } = await exportarItensEmZip(arquivo, confirmados, nomeDoZip);
+      baixarBlob(blob, nomeArquivo);
+      registrarEvento("fatiador_exportacao", `${confirmados.length} confirmado(s) em zip`, { itens: confirmados.length });
+    } catch (e: any) {
+      setErro(`Falha ao exportar confirmados: ${e?.message ?? e}`);
+    } finally {
+      setExportandoConfirmados(false);
+    }
+  }
+
   /** Renomeia o item selecionado — só muda o nome do PDF exportado, não o título na lista. */
   function renomearSelecionado() {
     if (!selecionado) return;
@@ -510,6 +553,27 @@ export default function TelaFatiamento() {
     if (!nome) return;
     aplicar({ tipo: "renomear", id: selecionado.id, nomeExportacao: nome });
     registrarEvento("fatiador_correcao", `renomeado para "${nome}"`, { idSei: selecionado.idSei, id: selecionado.id });
+  }
+
+  function abrirEdicaoClassificacao(item: ItemFatiado) {
+    selecionar(item.id);
+    setTituloEditando(item.titulo);
+    setEditandoClassificacaoId(item.id);
+  }
+
+  function aplicarPapel(id: string, papel: string) {
+    aplicar({ tipo: "editarPapel", id, papel });
+    registrarEvento("fatiador_correcao", `classificação alterada para "${ROTULO_PAPEL_PECA[papel as keyof typeof ROTULO_PAPEL_PECA] ?? papel}"`, { id });
+    setEditandoClassificacaoId(null);
+  }
+
+  function aplicarTitulo(id: string) {
+    const titulo = tituloEditando.trim();
+    if (titulo) {
+      aplicar({ tipo: "editarTitulo", id, titulo });
+      registrarEvento("fatiador_correcao", `título alterado para "${titulo}"`, { id });
+    }
+    setEditandoClassificacaoId(null);
   }
 
   function focarRenomear() {
@@ -647,10 +711,39 @@ export default function TelaFatiamento() {
                       )}
                     </span>
                     <span className="text-xs text-[var(--text-muted)] w-24 shrink-0">{item.idSei}</span>
-                    <span className="flex-1 text-[var(--text-primary)] truncate">
-                      {rotulo}
-                      {item.criadoManualmente && <span className="text-[10px] text-[var(--accent)] ml-1">(corte manual)</span>}
-                    </span>
+                    {editandoClassificacaoId === item.id ? (
+                      item.papel ? (
+                        <select
+                          autoFocus value={item.papel} onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => aplicarPapel(item.id, e.target.value)}
+                          onBlur={() => setEditandoClassificacaoId(null)}
+                          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEditandoClassificacaoId(null); } }}
+                          className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--accent)] text-[var(--text-primary)]"
+                        >
+                          {OPCOES_PAPEL.map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
+                        </select>
+                      ) : (
+                        <input
+                          autoFocus value={tituloEditando} onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setTituloEditando(e.target.value)}
+                          onBlur={() => aplicarTitulo(item.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); aplicarTitulo(item.id); }
+                            else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditandoClassificacaoId(null); }
+                          }}
+                          className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--accent)] text-[var(--text-primary)]"
+                        />
+                      )
+                    ) : (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); abrirEdicaoClassificacao(item); }}
+                        title="Clique pra editar a classificação"
+                        className="flex-1 text-[var(--text-primary)] truncate cursor-text hover:underline decoration-dotted"
+                      >
+                        {rotulo}
+                        {item.criadoManualmente && <span className="text-[10px] text-[var(--accent)] ml-1">(corte manual)</span>}
+                      </span>
+                    )}
                     <span className="text-xs shrink-0" title={item.paraLeitura ? "Entra no lote de leitura" : "Fora da leitura"}>
                       {item.paraLeitura ? "📖" : "🚫"}
                     </span>
@@ -687,6 +780,11 @@ export default function TelaFatiamento() {
               title="Zip com um PDF por documento, separado em Vigentes/Histórico, com o manifesto junto"
               className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
               {gerandoPacote ? "⏳ Gerando..." : "📦 Baixar pacote (.zip)"}
+            </button>
+            <button onClick={exportarConfirmados} disabled={exportandoConfirmados || !confirmados.length}
+              title="Baixa num zip só todos os itens já confirmados (✓)"
+              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {exportandoConfirmados ? "⏳ Gerando..." : `✓ Exportar confirmados (${confirmados.length})`}
             </button>
             <button onClick={abrirComparacaoLip} disabled={!eventosBrutos || !processoCodigo}
               title="Ver quais campos da ficha este PDF consegue preencher"
