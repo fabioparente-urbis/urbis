@@ -23,10 +23,15 @@
  * arquivo — `nomeExportacao` em `estadoEdicao.ts` —, nunca o título da lista); ir direto pra uma
  * página do visualizador digitando o número; abrir o PDF do processo inteiro em outra aba
  * (`Cmd/Ctrl+P`, `blob:` local, nunca sobe ao servidor).
+ *
+ * 14/09/2026, olhando a tela ao vivo: `MiniaturaPdf` na coluna do meio — fixa mesmo quando a lista
+ * rola, mostra a página candidata a corte (ou a primeira do item selecionado), clique amplia no
+ * visualizador grande, que por sua vez ganhou setas do teclado e Esc.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VisualizadorPdf from "@/components/documentosSei/VisualizadorPdf";
+import MiniaturaPdf from "@/components/documentosSei/MiniaturaPdf";
 import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/documentosSei/pecas";
 import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { exportarItem } from "@/lib/documentosSei/exportarPecas";
@@ -611,7 +616,7 @@ export default function TelaFatiamento() {
       )}
 
       {numeroProcesso && (
-        <div className="grid grid-cols-[1fr_280px] gap-4">
+        <div className="grid grid-cols-[1fr_240px_280px] gap-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-[var(--text-muted)]">
@@ -658,6 +663,12 @@ export default function TelaFatiamento() {
               )}
             </div>
           </div>
+
+          <MiniaturaPdf
+            arquivo={arquivo}
+            pagina={paginaCorte ?? selecionado?.paginaIni ?? null}
+            onAmpliar={selecionado ? abrirVisualizador : undefined}
+          />
 
           {/* Pedido explícito do Fábio (10/09/2026): a lista de atalhos fica sempre visível na
               tela, não escondida atrás de "?" — velocidade não combina com abrir ajuda toda hora. */}

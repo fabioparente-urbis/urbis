@@ -11,6 +11,9 @@
  * documento ("Página 2 de 4"), com a página real dentro do processo mostrada ao lado.
  *
  * O recorte é feito na hora, a partir do PDF original em memória — nunca guarda fatia separada.
+ *
+ * 14/09/2026: setas ←/→ do teclado navegam página (ignoradas com foco no campo "ir pra página",
+ * onde servem pra mover o cursor no número) e Esc fecha, pedido do Fábio olhando a tela ao vivo.
  */
 
 import { useEffect, useState } from "react";
@@ -40,6 +43,25 @@ export default function VisualizadorPdf({
     if (Number.isFinite(n)) setPagina(Math.min(paginaFim, Math.max(paginaIni, n)));
     else setIndo(String(pagina));
   }
+
+  /**
+   * Setas do teclado e Esc — pedido do Fábio (14/09/2026), apontando pras setas ◀▶ da tela: "quero
+   * que essas duas setas... sejam comandadas pelas setas do teclado" + "Esc" pra fechar (o ✕).
+   * Listener PRÓPRIO deste modal, não passa pelo hook de atalhos da tela de trás (que fica
+   * desligado enquanto o visualizador está aberto, de propósito). ArrowLeft/Right são ignoradas
+   * com o foco no campo "ir pra página" — lá elas servem pra mover o cursor dentro do número.
+   */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") { e.preventDefault(); onFechar(); return; }
+      const noCampoDePagina = (e.target as HTMLElement)?.tagName === "INPUT";
+      if (noCampoDePagina) return;
+      if (e.key === "ArrowLeft") { e.preventDefault(); setPagina((p) => Math.max(paginaIni, p - 1)); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); setPagina((p) => Math.min(paginaFim, p + 1)); }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [paginaIni, paginaFim, onFechar]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={onFechar}>
