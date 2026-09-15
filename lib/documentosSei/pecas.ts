@@ -32,6 +32,14 @@ export type PapelPeca =
   | "art_caixa"
   | "matricula"
   | "certidao"
+  /** Alvará de Construção emitido pela SEPLANH — documento final, diferente do PEDIDO de alvará
+   * (esse é `processo_fisico`, "solicita o alvará de..."). Medido em 14/09/2026 num processo real:
+   * carimbo "ALVARÁ DE CONSTRUÇÃO Nº: NNNNN", cabeçalho SEPLANH/Alvará Fácil. */
+  | "alvara"
+  /** Certidão de Conclusão de Obra — pedido do Fábio (14/09/2026), sem exemplo de carimbo real
+   * medido ainda; regra usa a frase completa, não a sigla "CCO" (curta demais, risco de falso
+   * positivo em texto corrido). */
+  | "cco"
   | "laudo"
   | "vistoria"
   | "foto"
@@ -91,6 +99,12 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   // "Uso do Solo Aprovação de Projeto NN - COMTEC" no outro — a frase fixa dos dois é "uso do solo")
   { papel: "uso_solo", re: /\buso\s+do\s+solo\b/ },
   { papel: "matricula", re: /\b(certidao\s+de\s+matricula|registro\s+de\s+imoveis)\b/ },
+  // documento emitido, final — não a peça que PEDE o alvará (essa já casa em processo_fisico
+  // logo acima, "solicita o alvara de..."). Medido em 14/09/2026: "ALVARÁ DE CONSTRUÇÃO Nº: NNNNN".
+  { papel: "alvara", re: /\balvara\s+de\s+(construcao|regularizacao|aceite)\b/ },
+  // sem exemplo de carimbo real medido ainda (pedido do Fábio, 14/09/2026) — frase completa, não a
+  // sigla "CCO" sozinha, curta demais e com risco de casar por acaso em texto corrido.
+  { papel: "cco", re: /\bcertidao\s+de\s+conclusao\s+de\s+obra\b/ },
   // ART de Levantamento e ART da Caixa (recarga) são campos DISTINTOS no LIP — só sugerir um ou
   // outro quando a peça deixa isso explícito; ambíguo fica em "art" genérico, sem sugestão
   // (compararLip.ts segue o princípio "melhor vazio que chutado").
@@ -257,7 +271,7 @@ function fundirPendentesEntreIguais(pecas: PecaSei[]): PecaSei[] {
 /** Papéis que a classificação por visão (Fase 8) pode devolver — qualquer outro valor é ignorado. */
 const PAPEIS_VALIDOS = new Set<string>([
   "processo_fisico", "uso_solo", "projeto", "levantamento", "art", "art_levantamento", "art_caixa",
-  "matricula", "certidao", "laudo", "vistoria", "foto", "ortofoto", "memorial", "procuracao",
+  "matricula", "certidao", "alvara", "cco", "laudo", "vistoria", "foto", "ortofoto", "memorial", "procuracao",
   "embargo", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
   "despacho", "parecer", "oficio", "requerimento", "email",
 ]);
@@ -310,6 +324,8 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   art_caixa: "ART da Caixa",
   matricula: "Matrícula",
   certidao: "Certidão",
+  alvara: "Alvará de Construção",
+  cco: "Certidão de Conclusão de Obra",
   laudo: "Laudo",
   vistoria: "Vistoria",
   foto: "Fotografia",
