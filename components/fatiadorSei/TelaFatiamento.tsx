@@ -530,31 +530,40 @@ export default function TelaFatiamento() {
    * que sem checkbox por item: aqui a escolha é o clique único no botão, que já é autorização
    * clara o bastante pra essa ação específica).
    */
-  async function gravarLeituraNaFicha() {
-    if (!resultadoLeitura) return;
+  async function gravarCamposNaFicha(campos: ResultadoLote["campos"]): Promise<number> {
+    const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
+    if (!dados) throw new Error("sem código de processo");
+    const novo: Record<string, any> = { ...dados };
+    const gravadas: string[] = [];
+    for (const [chave, c] of Object.entries(campos)) {
+      if (!c || dados[chave]?.valor) continue; // sem evidência, ou a ficha já tinha algo ali
+      novo[chave] = { valor: c.valor, origem: "urbis", fonte: `Fatiador de PDF SEI — ${c.fonte}` };
+      gravadas.push(chave);
+    }
+    if (!gravadas.length) return 0;
+    const r = await fetch("/api/processo/salvar", {
+      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
+    });
+    const j = await r.json().catch(() => null);
+    if (!j?.ok) throw new Error(j?.erro ?? "o servidor recusou a gravação");
+    registrarEvento("fatiador_correcao", `${gravadas.length} campo(s) da leitura gravado(s) direto no LIP`, { campos: gravadas });
+    return gravadas.length;
+  }
+
+  /** Grava a última leitura já concluída deste processo (lip_jobs) — sem gastar leitura nova. */
+  async function gravarUltimaLeitura() {
+    if (!processoCodigo.trim() || gravandoLeitura || lendo) return;
     setGravandoLeitura(true);
     setErro(null);
     try {
-      const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
-      if (!dados) return;
-      const novo: Record<string, any> = { ...dados };
-      let gravados = 0;
-      for (const [chave, c] of Object.entries(resultadoLeitura.campos)) {
-        if (!c || dados[chave]?.valor) continue; // sem evidência, ou a ficha já tinha algo ali
-        novo[chave] = { valor: c.valor, origem: "urbis", fonte: `Fatiador de PDF SEI — ${c.fonte}` };
-        gravados++;
-      }
-      if (!gravados) { setGravadoLeitura(0); return; }
-      const r = await fetch("/api/processo/salvar", {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
-      });
-      const j = await r.json();
-      if (!j?.ok) throw new Error(j?.erro ?? "o servidor recusou a gravação");
-      registrarEvento("fatiador_correcao", `${gravados} campo(s) da leitura gravado(s) direto no LIP`, { campos: Object.keys(resultadoLeitura.campos) });
-      setGravadoLeitura(gravados);
+      const r = await fetch(`/api/lip/ultima-leitura?codigo=${encodeURIComponent(processoCodigo)}&tipo=${encodeURIComponent(slot)}`, { credentials: "include" });
+      const j = await r.json().catch(() => null);
+      if (!j?.ok) throw new Error(j?.erro ?? "não consegui buscar a última leitura");
+      const gravados = await gravarCamposNaFicha(j.campos);
+      setGravadoLeitura((g) => (g ?? 0) + gravados);
     } catch (e: any) {
-      setErro(`Falha ao gravar a leitura no LIP: ${e?.message ?? e}`);
+      setErro(`Falha ao gravar a última leitura: ${e?.message ?? e}`);
     } finally {
       setGravandoLeitura(false);
     }
@@ -619,8 +628,11 @@ export default function TelaFatiamento() {
   /**
    * Fase 7 — "ligar fatiador à leitura". Agrupa os itens marcados (`paraLeitura`, sem lixo) em
    * lotes até LIMITE_BYTES_MODELO_PADRAO e roda o mesmo pipeline S1→S2→S3 que a tela do processo
-   * usa, só que sobre os lotes menores. Resultado é PROPOSTA — nunca grava em lugar nenhum
-   * sozinho, o analista confere e copia pra onde precisar (mesmo princípio de sempre).
+   * usa, só que sobre os lotes menores.
+   *
+   * 15/09/2026, pedido do Fábio ("quero fatiar e mandar pro LIP", depois de perder duas leituras
+   * que só existiam na memória da tela): cada lote é gravado na ficha ASSIM QUE termina — o clique
+   * no botão é a autorização. Só preenche campo vazio, nunca sobrescreve; a conferência é no LIP.
    */
   async function enviarParaLeitura() {
     if (!arquivo || !processoCodigo.trim() || lendo) return;
@@ -629,12 +641,17 @@ export default function TelaFatiamento() {
     setLendo(true);
     setErro(null);
     setResultadoLeitura(null);
+    setGravadoLeitura(null);
     setProgressoLeitura({ mensagem: "Montando lotes...", pct: 0 });
     try {
       const lotes = await agruparEmLotes(arquivo, itens, LIMITE_BYTES_MODELO_PADRAO);
       const resultado = await lerLotes(
         lotes, { processoCodigo, slot },
         (mensagem, pct) => setProgressoLeitura({ mensagem, pct }),
+        async (lote) => {
+          const gravados = await gravarCamposNaFicha(lote.campos);
+          setGravadoLeitura((g) => (g ?? 0) + gravados);
+        },
       );
       setResultadoLeitura(resultado);
       registrarEvento("fatiador_leitura", `${lotes.length} lote(s), ${elegiveis.length} item(ns)`, {
@@ -1053,9 +1070,15 @@ export default function TelaFatiamento() {
             <p className="text-xs text-[var(--text-muted)] mb-2">
               📖 {itensParaLeitura(itens).length} de {itens.length} para leitura
             </p>
-            <button onClick={enviarParaLeitura} disabled={lendo || !itensParaLeitura(itens).length}
-              className="mb-3 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
-              {lendo ? "⏳ Lendo..." : "🧠 Enviar marcados para leitura"}
+            <button onClick={enviarParaLeitura} disabled={lendo || gravandoLeitura || !itensParaLeitura(itens).length}
+              title="Lê os itens marcados e grava no LIP a cada lote concluído — só preenche campo vazio"
+              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
+              {lendo ? "⏳ Lendo e gravando no LIP..." : "🧠 Ler marcados e gravar no LIP"}
+            </button>
+            <button onClick={gravarUltimaLeitura} disabled={lendo || gravandoLeitura || !processoCodigo.trim()}
+              title="Pega a última leitura já feita deste processo e grava no LIP — não chama o Gemini de novo"
+              className="mb-3 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {gravandoLeitura ? "⏳ Gravando..." : "↺ Gravar a última leitura (sem ler de novo)"}
             </button>
 
             {/* Portados do Organizador de PDF SEI em 11/09/2026, antes de ele ser removido do
@@ -1125,30 +1148,19 @@ export default function TelaFatiamento() {
                 </div>
               </div>
             )}
-            {resultadoLeitura && (() => {
-              // `campos[chave]` vem `null` quando /api/lip/s3 não achou evidência pra esse campo
-              // (route.ts:352-354) — não conta como "lido".
-              const nEncontrados = Object.values(resultadoLeitura.campos).filter(Boolean).length;
-              return (
-                <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
-                  <p className="text-[10px] text-[var(--text-primary)] mb-2">
-                    {nEncontrados} campo(s) lido(s) — a conferência é lá no LIP, não aqui.
-                  </p>
-                  <button onClick={gravarLeituraNaFicha} disabled={gravandoLeitura || !processoCodigo.trim()}
-                    title="Só entra em campo que a ficha ainda não tinha — nunca sobrescreve o que já existe"
-                    className="w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
-                    {gravandoLeitura ? "⏳ Gravando..." : "💾 Gravar na ficha (os campos ainda vazios)"}
-                  </button>
-                  {gravadoLeitura !== null && (
-                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
-                      {gravadoLeitura > 0
-                        ? `${gravadoLeitura} campo(s) gravado(s) — confira e ajuste direto na ficha do processo.`
-                        : "Nada gravado: todos os campos encontrados já tinham valor na ficha."}
-                    </p>
-                  )}
-                </div>
-              );
-            })()}
+            {gravadoLeitura !== null && (
+              <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
+                <p className="text-[10px] text-[var(--text-primary)] mb-2">
+                  {gravadoLeitura > 0
+                    ? `✓ ${gravadoLeitura} campo(s) gravado(s) no LIP — confira lá.`
+                    : "Nada novo gravado: os campos lidos já tinham valor na ficha."}
+                </p>
+                <button onClick={() => window.open(`/processo/${encodeURIComponent(processoCodigo)}?tipo=${encodeURIComponent(slot)}`, "_blank")}
+                  className="w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)]">
+                  📋 Abrir o LIP
+                </button>
+              </div>
+            )}
             <p className="text-xs font-bold text-[var(--text-primary)] mb-2">⌨️ Atalhos</p>
             <ul className="space-y-1.5 text-xs">
               {atalhos.filter((a) => a.descricao).map((a, i) => (

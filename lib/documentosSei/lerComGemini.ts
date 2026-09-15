@@ -150,6 +150,8 @@ export async function lerLotes(
   lotes: File[],
   contexto: { processoCodigo: string; slot: string },
   aoProgredir?: (mensagem: string, percentual: number) => void,
+  /** Chamado assim que cada lote termina — quem chama grava na hora, sem esperar os outros lotes. */
+  aoConcluirLote?: (resultado: ResultadoLote) => Promise<void>,
 ): Promise<ResultadoLote> {
   const mesclado: Record<string, CampoLido | null> = {};
   const documentos: any[] = [];
@@ -165,6 +167,7 @@ export async function lerLotes(
       // evidência (null) não pode apagar o que um lote anterior já achou de verdade.
       if (campo || !(chave in mesclado)) mesclado[chave] = campo;
     }
+    await aoConcluirLote?.(resultado);
     documentos.push(...resultado.documentos);
     pendencias.push(...resultado.pendencias);
   }
