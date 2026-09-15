@@ -6,7 +6,7 @@
  *
  * EXPORTAR gera um .zip com três arquivos:
  *   - o PDF original, intocado (nunca sobe pro servidor — mesma regra do resto do fatiador);
- *   - `configuracao-fatiador.xlsx`, com o que o analista pediu explicitamente: nomes, páginas,
+ *   - `Config {nº SEI}.xlsx` (nome pedido pelo Fábio, 15/09/2026), com o que o analista pediu explicitamente: nomes, páginas,
  *     fatias, cortes — uma linha por item, legível e editável fora do sistema;
  *   - `eventos-brutos.json`, sidecar técnico ESCONDIDO (não é o que foi pedido, é o que faz o
  *     resto da tela continuar funcionando depois de importar): "Comparar com o LIP" e "Baixar
@@ -96,14 +96,15 @@ function gerarExcel(info: InfoConfiguracao, itens: ItemFatiado[]): Uint8Array {
 export async function exportarConfiguracao(
   arquivo: File, info: InfoConfiguracao, itens: ItemFatiado[], eventosBrutos: unknown[] | null,
 ): Promise<{ blob: Blob; nomeArquivo: string }> {
+  // Pedido do Fábio (15/09/2026): "quero que o nome das configurações tem que ser Config + n SEI".
+  const sei = info.numeroProcesso || info.processoCodigo;
   const zip = new JSZip();
-  zip.file(`${info.numeroProcesso || info.processoCodigo}.pdf`, await arquivo.arrayBuffer());
-  zip.file("configuracao-fatiador.xlsx", gerarExcel(info, itens));
+  zip.file(`${sei}.pdf`, await arquivo.arrayBuffer());
+  zip.file(`Config ${sei}.xlsx`, gerarExcel(info, itens));
   if (eventosBrutos) zip.file("eventos-brutos.json", JSON.stringify(eventosBrutos));
 
   const blob = await zip.generateAsync({ type: "blob" });
-  const data = new Date().toISOString().slice(0, 10);
-  const nomeArquivo = `${info.numeroProcesso || info.processoCodigo} - fatiador - ${data}.zip`;
+  const nomeArquivo = `Config ${sei}.zip`;
   return { blob, nomeArquivo };
 }
 
@@ -136,9 +137,12 @@ export async function importarConfiguracao(zipFile: File): Promise<ConfiguracaoI
   });
   const arquivo = new File([bytesPdf], nomePdf, { type: "application/pdf" });
 
-  const arquivoExcel = zip.file("configuracao-fatiador.xlsx");
-  if (!arquivoExcel) throw new Error('O arquivo .zip não tem "configuracao-fatiador.xlsx" dentro.');
-  const bytesExcel = await arquivoExcel.async("arraybuffer");
+  // Por QUALQUER .xlsx, não por um nome fixo — o nome do arquivo é "Config {nº SEI}.xlsx", que
+  // muda por processo; procurar por extensão é mais robusto que hardcoded, e já é o mesmo padrão
+  // usado acima pro PDF.
+  const nomeExcel = Object.keys(zip.files).find((n) => n.toLowerCase().endsWith(".xlsx"));
+  if (!nomeExcel) throw new Error("O arquivo .zip não tem um Excel (.xlsx) dentro.");
+  const bytesExcel = await zip.files[nomeExcel].async("arraybuffer");
   const wb = XLSX.read(bytesExcel, { type: "array" });
 
   const wsInfo = wb.Sheets["Info"];
