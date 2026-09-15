@@ -84,22 +84,51 @@ const REGRAS: RegraRotulo[] = [
   { rotulo: "EMAIL", teste: (t) => t.startsWith("e-mail") || t.startsWith("email") },
 ];
 
-/** Papel de peça (Fase 3) → mesmo vocabulário, pra peça de dentro de contêiner também ter rótulo. */
+/**
+ * Papel de peça (Fase 3) → mesmo vocabulário, pra peça de dentro de contêiner também ter rótulo
+ * quando exportada avulsa. `exportarPecas.ts` usa isto como FALLBACK do nome do arquivo quando o
+ * analista não deu nome nenhum (nem `nomeExportacao` nem `rotuloManual`).
+ *
+ * ACHADO REAL (15/09/2026): este mapa é PARALELO a `ROTULO_PAPEL_PECA` de `pecas.ts` (que alimenta
+ * a COLUNA da lista, com TypeScript garantindo — `Record<PapelPeca, string>` — que todo papel novo
+ * tem entrada ali). Este aqui não tem essa garantia, e ficou pra trás: papéis inteiros (alvara,
+ * cco, uso_solo, ortofoto...) apareciam certos na lista mas exportavam com o TÍTULO cru do evento,
+ * não com um nome curto. Preenchido de propósito com TODOS os papéis de `PapelPeca` que fazem
+ * sentido em nome de arquivo — mesma lista, dois estilos: aqui MAIÚSCULO sem acento (convenção de
+ * nome de arquivo do Fábio, §7.3 do plano), lá Title Case com acento (convenção de tela).
+ */
 const ROTULO_POR_PAPEL: Record<string, string | undefined> = {
+  processo_fisico: "PROCESSO FISICO",
+  uso_solo: "USO SOLO",
   projeto: "PROJETO",
   levantamento: "PROJETO",
   art_levantamento: "ART",
   art_caixa: "ART CAIXA",
   matricula: "CERTIDAO",
   certidao: "CERTIDAO",
+  alvara: "ALVARA",
+  cco: "CCO",
   laudo: "LAUDO",
   vistoria: "VISTORIA",
-  foto: "FOTOS",
+  foto_interessado: "FOTO INTERESSADO",
+  foto_fiscal: "FOTO FISCAL",
+  ortofoto: "ORTOFOTO",
   memorial: "MEMORIAL",
   procuracao: "PROCURACAO",
   embargo: "EMBARGO",
+  notificacao_calcada: "NOTIFICACAO CALCADA",
+  liberacao_comaer: "COMAER",
+  outorga_onerosa: "OUTORGA ONEROSA",
+  despacho_cheadv: "CHEADV",
+  busca: "BUSCA CPD",
+  contrato: "CONTRATO",
+  juntada: "JUNTADA",
+  outros: "OUTROS",
   // `art` genérico fica de fora de propósito (não se sabe se é de levantamento ou da caixa),
-  // igual `compararLip.ts` faz — e despacho/parecer/ofício/e-mail já vêm do título do evento.
+  // igual `compararLip.ts` faz — e despacho/parecer/ofício/e-mail (como PAPEL de peça, não como
+  // evento) ficam de fora porque uma peça com um desses papéis, cortada de dentro de um contêiner
+  // genérico, não tem número/identidade própria melhor que o título do evento que a contém.
+  // `classificacao_pendente` fica de fora — cai no título do evento, honesto sobre não saber o quê é.
 };
 
 /**

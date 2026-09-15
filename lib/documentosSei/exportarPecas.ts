@@ -28,14 +28,21 @@ export async function exportarItem(arquivo: File, item: ItemFatiado): Promise<{ 
   const bytes = await novo.save();
   const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
 
-  // `nomeExportacao` (renomeação manual, 11/09/2026) tem prioridade sobre a derivação automática
-  // por papel/título — é o analista escolhendo o nome, não o sistema adivinhando. Vai DIRETO pro
-  // arquivo, sem passar por `nomeArquivoAnalista`/`rotuloDoTitulo`: aquela função tenta casar o
-  // texto contra os padrões conhecidos (ex.: "laudo", "vistoria") e reescreveria um nome escolhido
-  // à mão que por acaso contivesse uma dessas palavras — o analista pediu ESTE texto, verbatim.
+  // Prioridade do nome do arquivo — achado real (15/09/2026): o exportador olhava só
+  // `nomeExportacao` (a caixa do painel lateral) e ignorava `rotuloManual` (o que o analista
+  // digita/escolhe DIRETO na coluna de classificação da lista, via R/E) — o Fábio renomeou ali e o
+  // arquivo baixado saiu com outro nome. Os dois textos manuais (`nomeExportacao` e
+  // `rotuloManual`) vão DIRETO pro arquivo, sem passar por `nomeArquivoAnalista`/`rotuloDoTitulo`:
+  // aquela função casa o texto contra padrões conhecidos ("laudo", "vistoria") e reescreveria um
+  // nome escolhido à mão que por acaso contivesse uma dessas palavras — o analista pediu ESTE
+  // texto, verbatim, seguido do Nº SEI (a coluna anterior na lista).
+  //   1. nomeExportacao — o analista pediu explicitamente ESTE nome pro ARQUIVO.
+  //   2. rotuloManual — o analista digitou/escolheu ESTA classificação; é o que a lista mostra.
+  //   3. rótulo derivado do papel, senão o título do evento — igual sempre foi.
   let nomeArquivo: string;
-  if (item.nomeExportacao?.trim()) {
-    const base = item.nomeExportacao.trim().replace(/[\\/:*?"<>|]/g, "-");
+  const manual = item.nomeExportacao?.trim() || item.rotuloManual?.trim();
+  if (manual) {
+    const base = manual.replace(/[\\/:*?"<>|]/g, "-");
     nomeArquivo = `${base} ${item.idSei}.pdf`;
   } else {
     const rotulo = item.papel ? rotuloDoPapelPeca(item.papel) : null;
