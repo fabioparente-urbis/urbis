@@ -143,6 +143,9 @@ export default function TelaFatiamento() {
   const [visualizando, setVisualizando] = useState<{ pagina: number; paginaIni: number; paginaFim: number } | null>(null);
   const [exportando, setExportando] = useState<string | null>(null);
   const [exportandoConfirmados, setExportandoConfirmados] = useState(false);
+  /** Só filtro de EXIBIÇÃO — pedido do Fábio (15/09/2026). Não mexe no estado real dos itens; as
+   * ações (exportar confirmados, enviar pra leitura etc.) continuam olhando `itens` inteiro. */
+  const [ocultarLixo, setOcultarLixo] = useState(false);
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
@@ -175,6 +178,7 @@ export default function TelaFatiamento() {
   const [tituloEditando, setTituloEditando] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const renomearInputRef = useRef<HTMLInputElement>(null);
+  const listaRef = useRef<HTMLDivElement>(null);
   /** URL do PDF inteiro aberto em outra aba — guardada pra revogar quando troca de arquivo. */
   const urlPdfInteiroRef = useRef<string | null>(null);
 
@@ -246,6 +250,14 @@ export default function TelaFatiamento() {
   useEffect(() => {
     setNomeRenomeando(selecionado?.nomeExportacao ?? "");
   }, [selecionado?.id]);
+
+  // A lista rola sozinha pra acompanhar a seleção — pedido do Fábio (15/09/2026): "à medida que
+  // vou pondo pra baixo [ArrowDown], a barra lateral tem que descer pra sempre mostrar a linha
+  // selecionada". `block: "nearest"` só rola o mínimo pra trazer a linha de volta à vista — não
+  // recentraliza a cada passo, o que deixaria a rolagem "pulando" a cada seta.
+  useEffect(() => {
+    listaRef.current?.querySelector('[data-ativo="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [estado.selecionadoId]);
 
   // O objeto URL do PDF inteiro só faz sentido para o arquivo atual — revoga ao trocar/sair.
   useEffect(() => {
@@ -807,10 +819,16 @@ export default function TelaFatiamento() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-[var(--text-muted)]">
-                Processo {numeroProcesso} · {itens.length} item(ns)
+                Processo {numeroProcesso} · {ocultarLixo
+                  ? `${itens.filter((i) => i.status !== "lixo").length} de ${itens.length} item(ns) (lixo oculto)`
+                  : `${itens.length} item(ns)`}
               </p>
               <div className="flex items-center gap-3">
                 {erro && <p className="text-xs text-[var(--error)]">⚠ {erro}</p>}
+                <label className="flex items-center gap-1 text-xs text-[var(--text-muted)] cursor-pointer select-none">
+                  <input type="checkbox" checked={ocultarLixo} onChange={(e) => setOcultarLixo(e.target.checked)} />
+                  Ocultar lixo
+                </label>
                 <button onClick={abrirPdfInteiro} disabled={!arquivo}
                   title="Abre o PDF do processo inteiro numa aba nova, pra conferir contexto sem sair daqui (Cmd/Ctrl+P)"
                   className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40 whitespace-nowrap">
@@ -818,12 +836,12 @@ export default function TelaFatiamento() {
                 </button>
               </div>
             </div>
-            <div className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
-              {itens.map((item) => {
+            <div ref={listaRef} className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
+              {(ocultarLixo ? itens.filter((i) => i.status !== "lixo") : itens).map((item) => {
                 const rotulo = rotuloAtual(item);
                 const ativo = item.id === estado.selecionadoId;
                 return (
-                  <div key={item.id} onClick={() => selecionar(item.id)}
+                  <div key={item.id} data-ativo={ativo || undefined} onClick={() => selecionar(item.id)}
                     className={`flex items-center gap-3 px-3 py-2 border-b border-[var(--border)] cursor-pointer text-sm ${
                       ativo ? "bg-[var(--accent)]/10 border-l-2 border-l-[var(--accent)]" : "hover:bg-[var(--bg-secondary)]"
                     }`}>
@@ -876,6 +894,11 @@ export default function TelaFatiamento() {
               })}
               {!itens.length && (
                 <p className="px-3 py-6 text-sm text-[var(--text-muted)] text-center">Nenhum item — o PDF não trouxe eventos.</p>
+              )}
+              {itens.length > 0 && ocultarLixo && itens.every((i) => i.status === "lixo") && (
+                <p className="px-3 py-6 text-sm text-[var(--text-muted)] text-center">
+                  Todos os itens estão no lixo — desmarque "Ocultar lixo" pra ver.
+                </p>
               )}
             </div>
           </div>

@@ -84,7 +84,10 @@ export const CAMPO_POR_PAPEL_PECA: Record<string, string | undefined> = {
   art_caixa: "artCx",
   laudo: "laudo",
   vistoria: "vistoria",
-  foto: "foto",
+  // "Fotografia" virou dois papéis (15/09/2026, interessado x fiscal) — os dois continuam
+  // sugerindo o MESMO campo do LIP, que não distingue quem tirou a foto.
+  foto_interessado: "foto",
+  foto_fiscal: "foto",
   procuracao: "seiProcuracao",
   embargo: "seiEmbargo",
   // Fase 5 do plano de leitura de PDF (10/09/2026): campos que já existiam em ROTULO_CAMPO_LIP sem

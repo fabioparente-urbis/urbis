@@ -42,7 +42,15 @@ export type PapelPeca =
   | "cco"
   | "laudo"
   | "vistoria"
-  | "foto"
+  /**
+   * "Fotografia" virou dois papéis, pedido do Fábio (15/09/2026): a foto que o interessado anexa
+   * junto do requerimento é outra coisa da foto que o fiscal tira na vistoria (GEFEP). Sem regra
+   * automática pra distinguir — nenhum texto conhecido diz de quem é a foto, então nenhuma das
+   * duas casa sozinha (ver ASSINATURAS_PECA): fica `classificacao_pendente`, o analista escolhe
+   * pela lista (`E`).
+   */
+  | "foto_interessado"
+  | "foto_fiscal"
   | "ortofoto"
   | "memorial"
   | "procuracao"
@@ -56,6 +64,19 @@ export type PapelPeca =
   | "oficio"
   | "requerimento"
   | "email"
+  /**
+   * Encaminhamento do CPD (busca de processos anteriores no endereço) — já existe como conceito
+   * em `fatiar.ts` (`PapelPorConteudo`, nível de EVENTO inteiro). Este é o espelho em nível de
+   * PEÇA, pro caso de cair dentro de um contêiner genérico — mesma técnica já usada pra
+   * `despacho_cheadv`. Mesma regex das duas tabelas, pedido do Fábio (15/09/2026).
+   */
+  | "busca"
+  /** Pedido do Fábio (15/09/2026), sem exemplo de carimbo real medido ainda — sem regra
+   * automática, só entra na lista pra escolha manual (`E`). */
+  | "contrato"
+  /** Catálogo do que já foi CONFERIDO e não é nenhum dos outros — diferente de
+   * `classificacao_pendente` (ainda não conferido). Pedido do Fábio (15/09/2026). */
+  | "outros"
   | "classificacao_pendente";
 
 export type PecaSei = {
@@ -115,7 +136,9 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   { papel: "projeto", re: /\b(area\s+total\s+da\s+construcao|projeto\s+legal\s+de\s+arquitetura|quadro\s+de\s+areas)\b/ },
   { papel: "laudo", re: /\blaudo\s+(tecnico|de\s+vistoria|geologico|estrutural)?\b/ },
   { papel: "vistoria", re: /\b(relatorio\s+de\s+vistoria|relatorio\s+de\s+fiscalizacao|relatorio\s+circunstanciado)\b/ },
-  { papel: "foto", re: /\b(registro\s+fotografico|fotografia|fotos?\s+do\s+local)\b/ },
+  // Sem regra automática de propósito — "registro fotográfico"/"fotos do local" não diz de QUEM
+  // é a foto (ver o comentário do tipo `PapelPeca`, acima); melhor cair em
+  // `classificacao_pendente` e o analista escolher do que chutar entre interessado/fiscal.
   // aérea do Google/mapa urbano digital de Goiânia (Fase 5, medido em ORTOFOTO 5607055.pdf)
   { papel: "ortofoto", re: /\bmapa\s+urbano\s+basico\s+digital\s+de\s+goiania\b/ },
   { papel: "memorial", re: /\bmemorial\s+(descritivo|de\s+calculo)\b/ },
@@ -138,6 +161,10 @@ const ASSINATURAS_PECA: { papel: PapelPeca; re: RegExp }[] = [
   // compararLip.ts:REGRAS (`seiCheadv`), que opera direto sobre o título do evento; esta cópia em
   // ASSINATURAS_PECA cobre o caso do despacho aparecer como PEÇA dentro de um contêiner genérico.
   { papel: "despacho_cheadv", re: /\bcheadv\b[^.]{0,60}\bconforme\b|\bconforme\b[^.]{0,60}\bcheadv\b/ },
+  // Encaminhamento do CPD (busca de processos anteriores) — mesma regex de fatiar.ts
+  // (ASSINATURAS_CONTEUDO). Testado ANTES do "despacho" genérico logo abaixo: o encaminhamento do
+  // CPD pode vir titulado como um tipo de despacho/ofício, e a busca é o sinal mais específico.
+  { papel: "busca", re: /busca(s)?\s+no\s+endere[çc]o|busca(s)?\s+de\s+processos?\s+arquivad|processos?\s+arquivad[oa]s?\s+no\s+endere[çc]o|projeto\s+anteriormente\s+aprovado/ },
   // atos numerados: mesma distinção já registrada no plano ("despachos sucessivos são atos, não versões")
   { papel: "despacho", re: /^\s*despacho\b/ },
   { papel: "parecer", re: /^\s*parecer\b/ },
@@ -271,9 +298,10 @@ function fundirPendentesEntreIguais(pecas: PecaSei[]): PecaSei[] {
 /** Papéis que a classificação por visão (Fase 8) pode devolver — qualquer outro valor é ignorado. */
 const PAPEIS_VALIDOS = new Set<string>([
   "processo_fisico", "uso_solo", "projeto", "levantamento", "art", "art_levantamento", "art_caixa",
-  "matricula", "certidao", "alvara", "cco", "laudo", "vistoria", "foto", "ortofoto", "memorial", "procuracao",
+  "matricula", "certidao", "alvara", "cco", "laudo", "vistoria", "foto_interessado", "foto_fiscal",
+  "ortofoto", "memorial", "procuracao",
   "embargo", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
-  "despacho", "parecer", "oficio", "requerimento", "email",
+  "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato", "outros",
 ]);
 
 /**
@@ -328,7 +356,8 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   cco: "Certidão de Conclusão de Obra",
   laudo: "Laudo",
   vistoria: "Vistoria",
-  foto: "Fotografia",
+  foto_interessado: "Foto do Interessado",
+  foto_fiscal: "Foto do Fiscal",
   ortofoto: "Ortofoto",
   memorial: "Memorial",
   procuracao: "Procuração",
@@ -342,5 +371,8 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   oficio: "Ofício",
   requerimento: "Requerimento",
   email: "E-mail",
+  busca: "Busca de Processos Anteriores (CPD)",
+  contrato: "Contrato",
+  outros: "Outros",
   classificacao_pendente: "Classificação pendente",
 };
