@@ -638,10 +638,17 @@ export default function TelaFatiamento() {
     setEditandoClassificacaoId(null);
   }
 
-  function focarRenomear() {
+  /**
+   * `R` abre DIRETO o editor de classificação da linha (select ou texto, conforme o item) — pedido
+   * do Fábio (15/09/2026): "queria apertar o r e já abrir a opção de renomear", vendo o editor que
+   * abre ao clicar em cima da classificação. Antes `R` focava a caixa de renomear do PAINEL do
+   * lado (nome do PDF na exportação, `renomearInputRef`) — outro "renomear", que só muda o nome do
+   * arquivo baixado, não a classificação da linha. Essa caixa continua funcionando, só não tem
+   * mais atalho de teclado próprio: quem quiser usá-la clica nela.
+   */
+  function atalhoEditarClassificacao() {
     if (!selecionado) return;
-    renomearInputRef.current?.focus();
-    renomearInputRef.current?.select();
+    abrirEdicaoClassificacao(selecionado);
   }
 
   /**
@@ -698,7 +705,7 @@ export default function TelaFatiamento() {
     { tecla: "y", mod: true, acao: refazer },
     { tecla: "o", mod: true, acao: abrirNovoPdf, descricao: "abrir novo PDF" },
     { tecla: "e", mod: true, acao: exportarSelecionado, descricao: "exportar o item selecionado" },
-    { tecla: "r", acao: focarRenomear, descricao: "renomear o item selecionado" },
+    { tecla: "r", acao: atalhoEditarClassificacao, descricao: "editar a classificação do item selecionado" },
     { tecla: "p", mod: true, acao: abrirPdfInteiro, descricao: "abrir o PDF inteiro em outra aba" },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [selecionado, arquivo, paginaCorte, podeDesfazer, podeRefazer, itens, lendo, processoCodigo]);
@@ -987,7 +994,7 @@ export default function TelaFatiamento() {
                     onChange={(e) => setNomeRenomeando(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renomearSelecionado(); } }}
                     placeholder="nome do PDF ao exportar"
-                    title="Atalho: R"
+                    title="Nome do arquivo ao exportar — clique aqui pra editar"
                     className="flex-1 min-w-0 text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)]"
                   />
                   <button onClick={renomearSelecionado} disabled={!nomeRenomeando.trim()}
