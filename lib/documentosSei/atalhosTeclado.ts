@@ -35,15 +35,47 @@ export function rotuloAtalho(a: Atalho): string {
   return partes.join("+");
 }
 
+/** Tipos de `<input>` onde o analista digita texto/número — os únicos que bloqueiam atalho. */
+const TIPOS_INPUT_TEXTO = new Set([
+  "text", "search", "number", "email", "tel", "url", "password",
+  "date", "time", "datetime-local", "month", "week",
+]);
+
 /**
  * true quando o alvo do evento é um campo onde o analista está digitando — atalho nunca dispara
  * ali (mesma guarda de `UrbiGlobal.tsx`), senão "N" de "novo corte" viraria letra digitada num
  * campo de título editável.
+ *
+ * Checkbox/radio NÃO contam como "digitando" (achado do Fábio, 15/09/2026: marcar a caixinha e
+ * tentar ir pro próximo item com a seta não funcionava — a tela toda ficava travada até pegar no
+ * mouse, porque `<input type="checkbox">` também é tag INPUT e bloqueava tudo, não só o espaço
+ * que o checkbox realmente precisa pra si). Meta do Fábio: 100% operável sem mouse.
  */
 export function focoEmCampoEditavel(): boolean {
   const alvo = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
   const tag = alvo?.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!alvo?.isContentEditable;
+  if (tag === "TEXTAREA" || tag === "SELECT" || !!alvo?.isContentEditable) return true;
+  if (tag === "INPUT") {
+    const tipo = (alvo as HTMLInputElement).type?.toLowerCase() || "text";
+    return TIPOS_INPUT_TEXTO.has(tipo);
+  }
+  return false;
+}
+
+/**
+ * true quando o alvo é um controle que o próprio navegador ativa com a barra de espaço
+ * (checkbox, radio, button) — nesse caso o atalho de espaço da tela (abrir visualizador) precisa
+ * ceder, senão a barra de espaço nunca marca a caixinha, só abre o visualizador por cima dela.
+ */
+export function focoEmControleDeEspaco(): boolean {
+  const alvo = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
+  const tag = alvo?.tagName;
+  if (tag === "BUTTON") return true;
+  if (tag === "INPUT") {
+    const tipo = (alvo as HTMLInputElement).type?.toLowerCase();
+    return tipo === "checkbox" || tipo === "radio";
+  }
+  return false;
 }
 
 /** Testa se um `KeyboardEvent` casa com um `Atalho` — extraído pra ser testável sem DOM. */
