@@ -608,16 +608,6 @@ export default function TelaFatiamento() {
     }
   }
 
-  async function copiarResultadoLeitura() {
-    if (!resultadoLeitura) return;
-    // `campos[chave]` pode vir `null` — é assim que /api/lip/s3 marca "nenhuma evidência pra esse
-    // campo", não é um valor a copiar (ver app/api/lip/s3/route.ts:352-354).
-    const linhas = Object.entries(resultadoLeitura.campos)
-      .filter((par): par is [string, CampoLido] => !!par[1])
-      .map(([chave, c]) => `${chave}: ${c.valor} (${c.fonte})`);
-    try { await navigator.clipboard.writeText(linhas.join("\n")); } catch {}
-  }
-
   function abrirVisualizador() {
     if (!selecionado) return;
     setVisualizando({ pagina: paginaCorte ?? selecionado.paginaIni, paginaIni: selecionado.paginaIni, paginaFim: selecionado.paginaFim });
@@ -1094,12 +1084,9 @@ export default function TelaFatiamento() {
               );
               return (
                 <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-[10px] font-bold text-[var(--text-primary)]">
-                      {encontrados.length} campo(s) lido(s)
-                    </p>
-                    <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)] cursor-pointer hover:opacity-70">copiar</button>
-                  </div>
+                  <p className="text-[10px] font-bold text-[var(--text-primary)] mb-1">
+                    {encontrados.length} campo(s) lido(s)
+                  </p>
                   <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
                     {encontrados.map(([chave, c]) => (
                       <li key={chave}><b className="text-[var(--text-primary)]">{chave}</b>: {c.valor}</li>
