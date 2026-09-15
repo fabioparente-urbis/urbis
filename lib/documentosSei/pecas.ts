@@ -74,6 +74,10 @@ export type PapelPeca =
   /** Pedido do Fábio (15/09/2026), sem exemplo de carimbo real medido ainda — sem regra
    * automática, só entra na lista pra escolha manual (`E`). */
   | "contrato"
+  /** Juntada de processo (processo antigo desarquivado e anexado ao atual) — pedido do Fábio
+   * (15/09/2026), mesma pergunta que motivou o registro em OBS COD sobre PDFs com vários
+   * processos misturados. Sem carimbo real medido ainda — só vocabulário. */
+  | "juntada"
   /** Catálogo do que já foi CONFERIDO e não é nenhum dos outros — diferente de
    * `classificacao_pendente` (ainda não conferido). Pedido do Fábio (15/09/2026). */
   | "outros"
@@ -301,7 +305,7 @@ const PAPEIS_VALIDOS = new Set<string>([
   "matricula", "certidao", "alvara", "cco", "laudo", "vistoria", "foto_interessado", "foto_fiscal",
   "ortofoto", "memorial", "procuracao",
   "embargo", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
-  "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato", "outros",
+  "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato", "juntada", "outros",
 ]);
 
 /**
@@ -373,6 +377,7 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   email: "E-mail",
   busca: "Busca de Processos Anteriores (CPD)",
   contrato: "Contrato",
+  juntada: "Juntada de Processo",
   outros: "Outros",
   classificacao_pendente: "Classificação pendente",
 };

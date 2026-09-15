@@ -38,7 +38,8 @@ export function estimarCustoUsd(numeroDePaginas: number): number {
 const PAPEIS_VALIDOS: PapelPeca[] = [
   "projeto", "levantamento", "art", "art_levantamento", "art_caixa", "matricula", "certidao",
   "alvara", "cco", "laudo", "vistoria", "foto_interessado", "foto_fiscal", "memorial", "procuracao",
-  "embargo", "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato", "outros",
+  "embargo", "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato",
+  "juntada", "outros",
 ];
 
 const PROMPT = `Esta é uma página de um processo administrativo brasileiro (SEI). Classifique-a em UMA destas categorias, pelo conteúdo visível: ${PAPEIS_VALIDOS.join(", ")}, ou "nenhuma" se não reconhecer. Responda em JSON: {"papel": "<uma das opções acima ou nenhuma>"}.`;
