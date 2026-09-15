@@ -81,10 +81,18 @@ export default function VisualizadorPdf({
    * Listener PRÓPRIO deste modal, não passa pelo hook de atalhos da tela de trás (que fica
    * desligado enquanto o visualizador está aberto, de propósito). ArrowLeft/Right são ignoradas
    * com o foco no campo "ir pra página" — lá elas servem pra mover o cursor dentro do número.
+   *
+   * 15/09/2026, achado do Fábio: Esc pra fechar e a seta seguinte (pra navegar na tela de trás)
+   * podem chegar num intervalo menor que o commit do React que desmonta este modal — o listener
+   * VELHO ainda está no `window` e engole essa seta antes do hook da tela de trás voltar a ouvir.
+   * `fechandoRef` corta esse listener no instante do Esc (sem esperar o efeito de cleanup rodar),
+   * então a seta seguinte não é capturada aqui nem some — sobra pra quem estiver ouvindo depois.
    */
+  const fechandoRef = useRef(false);
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") { e.preventDefault(); onFechar(); return; }
+      if (fechandoRef.current) return;
+      if (e.key === "Escape") { fechandoRef.current = true; e.preventDefault(); onFechar(); return; }
       const noCampoDePagina = (e.target as HTMLElement)?.tagName === "INPUT";
       if (noCampoDePagina) return;
       if (e.key === "ArrowLeft") { e.preventDefault(); setPagina((p) => Math.max(paginaIni, p - 1)); }
