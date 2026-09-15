@@ -963,6 +963,15 @@ export default function TelaFatiamento() {
                   className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40 whitespace-nowrap">
                   📄 PDF inteiro em outra aba
                 </button>
+                {/* Pedido do Fábio (15/09/2026): "poderia ter um botão pra abrir aquele LIP de cara,
+                    daquele SEI" — nova aba, não sai do fatiador (a conferência de verdade é lá, mas
+                    o trabalho de fatiar/gravar continua aqui). */}
+                <button onClick={() => window.open(`/processo/${encodeURIComponent(processoCodigo)}?tipo=${encodeURIComponent(slot)}`, "_blank")}
+                  disabled={!processoCodigo.trim()}
+                  title="Abre a ficha do LIP deste processo numa aba nova"
+                  className="text-xs px-2 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40 whitespace-nowrap">
+                  📋 Abrir o LIP
+                </button>
               </div>
             </div>
             <div ref={listaRef} className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
