@@ -19,7 +19,9 @@
 
 export type CampoLido = { valor: string; fonte: string };
 export type ResultadoLote = {
-  campos: Record<string, CampoLido>;
+  // null = /api/lip/s3 não achou evidência pra esse campo (ver route.ts:352-354) — não é um
+  // CampoLido vazio, é ausência mesmo. Quem consome isso TEM que filtrar antes de usar .valor.
+  campos: Record<string, CampoLido | null>;
   documentos: any[];
   pendencias: string[];
 };
@@ -149,7 +151,7 @@ export async function lerLotes(
   contexto: { processoCodigo: string; slot: string },
   aoProgredir?: (mensagem: string, percentual: number) => void,
 ): Promise<ResultadoLote> {
-  const mesclado: Record<string, CampoLido> = {};
+  const mesclado: Record<string, CampoLido | null> = {};
   const documentos: any[] = [];
   const pendencias: string[] = [];
 
@@ -158,7 +160,11 @@ export async function lerLotes(
     const resultado = await lerArquivoComGemini(lotes[i], contexto, (msg, pct) =>
       aoProgredir?.(`Lote ${i + 1} de ${lotes.length}: ${msg}`, Math.round((i / lotes.length) * 100 + pct / lotes.length)),
     );
-    for (const [chave, campo] of Object.entries(resultado.campos)) mesclado[chave] = campo;
+    for (const [chave, campo] of Object.entries(resultado.campos)) {
+      // "processado depois vence" vale pra achado contra achado — um lote posterior que NÃO achou
+      // evidência (null) não pode apagar o que um lote anterior já achou de verdade.
+      if (campo || !(chave in mesclado)) mesclado[chave] = campo;
+    }
     documentos.push(...resultado.documentos);
     pendencias.push(...resultado.pendencias);
   }

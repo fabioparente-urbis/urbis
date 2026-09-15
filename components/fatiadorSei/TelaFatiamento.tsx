@@ -58,7 +58,7 @@ import { resolverEstados } from "@/lib/documentosSei/motorVersoes";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
-import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
+import { lerLotes, type ResultadoLote, type CampoLido } from "@/lib/documentosSei/lerComGemini";
 import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
@@ -608,7 +608,11 @@ export default function TelaFatiamento() {
 
   async function copiarResultadoLeitura() {
     if (!resultadoLeitura) return;
-    const linhas = Object.entries(resultadoLeitura.campos).map(([chave, c]) => `${chave}: ${c.valor} (${c.fonte})`);
+    // `campos[chave]` pode vir `null` — é assim que /api/lip/s3 marca "nenhuma evidência pra esse
+    // campo", não é um valor a copiar (ver app/api/lip/s3/route.ts:352-354).
+    const linhas = Object.entries(resultadoLeitura.campos)
+      .filter((par): par is [string, CampoLido] => !!par[1])
+      .map(([chave, c]) => `${chave}: ${c.valor} (${c.fonte})`);
     try { await navigator.clipboard.writeText(linhas.join("\n")); } catch {}
   }
 
@@ -1079,21 +1083,29 @@ export default function TelaFatiamento() {
                 </div>
               </div>
             )}
-            {resultadoLeitura && (
-              <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[10px] font-bold text-[var(--text-primary)]">
-                    {Object.keys(resultadoLeitura.campos).length} campo(s) lido(s)
-                  </p>
-                  <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)]">copiar</button>
+            {resultadoLeitura && (() => {
+              // `campos[chave]` vem `null` quando /api/lip/s3 não achou evidência pra esse campo
+              // (route.ts:352-354) — renderizar `c.valor` sem filtrar antes derrubava a tela
+              // inteira (TypeError: Cannot read properties of null), achado do Fábio, 15/09/2026.
+              const encontrados = Object.entries(resultadoLeitura.campos).filter(
+                (par): par is [string, CampoLido] => !!par[1],
+              );
+              return (
+                <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-[10px] font-bold text-[var(--text-primary)]">
+                      {encontrados.length} campo(s) lido(s)
+                    </p>
+                    <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)]">copiar</button>
+                  </div>
+                  <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
+                    {encontrados.map(([chave, c]) => (
+                      <li key={chave}><b className="text-[var(--text-primary)]">{chave}</b>: {c.valor}</li>
+                    ))}
+                  </ul>
                 </div>
-                <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
-                  {Object.entries(resultadoLeitura.campos).map(([chave, c]) => (
-                    <li key={chave}><b className="text-[var(--text-primary)]">{chave}</b>: {c.valor}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+              );
+            })()}
             <p className="text-xs font-bold text-[var(--text-primary)] mb-2">⌨️ Atalhos</p>
             <ul className="space-y-1.5 text-xs">
               {atalhos.filter((a) => a.descricao).map((a, i) => (
