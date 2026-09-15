@@ -481,6 +481,16 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
    * Projeto) atende outra legislação e NUNCA entra aqui — pedido explícito do Fábio, 10/09/2026.
    */
   const aplicaCondicoesBloqueio = ehRegularizacao || tipo.startsWith("aceite");
+  /**
+   * COND_USO_SOLO e COND_BUSCA_ENDERECO leem AUSÊNCIA de campo como sinal ("sem uso do solo",
+   * "sem busca") — diferente das outras condições, que só disparam com um valor negativo
+   * explícito já lido (ex.: "não" em vistoriaLevante). Num processo recém-cadastrado, `dados`
+   * ainda está vazio porque ninguém leu o material ainda, não porque falta o documento — pedido
+   * do Fábio, 15/09/2026: essas condições só valem DEPOIS que algo do material de cadastramento
+   * já foi lido para o LIP. Sinal usado: `dados` ter pelo menos um campo — é o que a leitura
+   * (fatiador/Gemini) grava.
+   */
+  const materialLido = Object.keys(e.processo.dados ?? {}).length > 0;
 
   if (regra("COND_FISCAL_DIVERGE").ativo && aplicaCondicoesBloqueio) {
     const vistoriaLevante = valorCampo(e.processo.dados, "vistoriaLevante");
@@ -532,7 +542,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     });
   }
 
-  if (regra("COND_USO_SOLO").ativo && ehRegularizacao) {
+  if (regra("COND_USO_SOLO").ativo && ehRegularizacao && materialLido) {
     const usoSolo = valorCampo(e.processo.dados, "usoSolo");
     const usoDefinido = valorCampo(e.processo.dados, "usoDefinido");
     if (!usoSolo && !usoDefinido) {
@@ -551,7 +561,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
   // e Aceite SEI" (ver plano floating-humming-orbit.md). Achado em 08/09/2026: faltava esse
   // filtro, e a condição disparava também na Aprovação de Projeto (Slot 5), que nunca teve busca
   // de endereço no fluxo. "Slot 5 não tem busca... não deve haver esse pedido" — Fábio.
-  if (regra("COND_BUSCA_ENDERECO").ativo && aplicaCondicoesBloqueio) {
+  if (regra("COND_BUSCA_ENDERECO").ativo && aplicaCondicoesBloqueio && materialLido) {
     const outro = valorCampo(e.processo.dados, "outro");
     if (!outro) {
       avisos.push({
