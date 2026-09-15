@@ -146,6 +146,11 @@ export default function TelaFatiamento() {
   /** Só filtro de EXIBIÇÃO — pedido do Fábio (15/09/2026). Não mexe no estado real dos itens; as
    * ações (exportar confirmados, enviar pra leitura etc.) continuam olhando `itens` inteiro. */
   const [ocultarLixo, setOcultarLixo] = useState(false);
+  /** Nome do proprietário — pedido do Fábio (15/09/2026): "faltou o nome do proprietário e o
+   * número do processo SEI, como no LIP do Slot 1 ou 2". O número (`numeroProcesso`, lido do
+   * próprio PDF) já existia; só o nome nunca era buscado — a ficha só era lida sob clique de
+   * "Comparar com o LIP". */
+  const [proprietarioNome, setProprietarioNome] = useState<string | null>(null);
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
@@ -258,6 +263,20 @@ export default function TelaFatiamento() {
   useEffect(() => {
     listaRef.current?.querySelector('[data-ativo="true"]')?.scrollIntoView({ block: "nearest" });
   }, [estado.selecionadoId]);
+
+  // Nome do proprietário no cabeçalho, igual ao LIP — busca uma vez, assim que o PDF é processado
+  // e o número do processo (SEI) já está sabido. Silencioso se a ficha não existir ainda
+  // (processo novo que o analista ainda não abriu no LIP) ou se falhar: o Fatiador funciona
+  // normalmente sem esse dado, é só contexto extra.
+  useEffect(() => {
+    if (!numeroProcesso || !processoCodigo) { setProprietarioNome(null); return; }
+    let cancelado = false;
+    carregarFichaLip()
+      .then((dados) => { if (!cancelado) setProprietarioNome(dados?.proprietario?.valor ?? null); })
+      .catch(() => { if (!cancelado) setProprietarioNome(null); });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [numeroProcesso]);
 
   // O objeto URL do PDF inteiro só faz sentido para o arquivo atual — revoga ao trocar/sair.
   useEffect(() => {
@@ -820,11 +839,18 @@ export default function TelaFatiamento() {
         <div className="grid grid-cols-[1fr_620px_280px] gap-4">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-[var(--text-muted)]">
-                Processo {numeroProcesso} · {ocultarLixo
-                  ? `${itens.filter((i) => i.status !== "lixo").length} de ${itens.length} item(ns) (lixo oculto)`
-                  : `${itens.length} item(ns)`}
-              </p>
+              <div>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Processo <span className="font-mono text-[var(--text-primary)]">{numeroProcesso}</span> · {ocultarLixo
+                    ? `${itens.filter((i) => i.status !== "lixo").length} de ${itens.length} item(ns) (lixo oculto)`
+                    : `${itens.length} item(ns)`}
+                </p>
+                {/* Nome do proprietário, igual ao cabeçalho do LIP — pedido do Fábio (15/09/2026).
+                    Some sozinho se a ficha ainda não tiver esse campo preenchido. */}
+                {proprietarioNome && (
+                  <p className="text-xs text-[var(--text-primary)] mt-0.5">{proprietarioNome}</p>
+                )}
+              </div>
               <div className="flex items-center gap-3">
                 {erro && <p className="text-xs text-[var(--error)]">⚠ {erro}</p>}
                 <label className="flex items-center gap-1 text-xs text-[var(--text-muted)] cursor-pointer select-none">
