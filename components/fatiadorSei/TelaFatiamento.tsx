@@ -53,9 +53,7 @@ import { ROTULO_PAPEL_PECA, ehContainerGenerico, type PecaSei } from "@/lib/docu
 import { rotuloDoEvento, rotuloDoPapelPeca } from "@/lib/documentosSei/rotuloAnalista";
 import { exportarItem, exportarItensEmZip } from "@/lib/documentosSei/exportarPecas";
 import { dataParaNomeArquivo } from "@/lib/documentosSei/hashOrigem";
-import { baixarBlob, gerarPacoteVigente } from "@/lib/documentosSei/pacoteVigenteClient";
-import { resolverEstados } from "@/lib/documentosSei/motorVersoes";
-import { sugerirCamposLip, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
+import { baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
 import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
@@ -155,8 +153,8 @@ export default function TelaFatiamento() {
   const [ocultarLixo, setOcultarLixo] = useState(false);
   /** Nome do proprietário — pedido do Fábio (15/09/2026): "faltou o nome do proprietário e o
    * número do processo SEI, como no LIP do Slot 1 ou 2". O número (`numeroProcesso`, lido do
-   * próprio PDF) já existia; só o nome nunca era buscado — a ficha só era lida sob clique de
-   * "Comparar com o LIP". */
+   * próprio PDF) já existia; só o nome nunca era buscado — busca sozinho num efeito próprio
+   * assim que sabe o código do processo, não depende de nenhum botão de leitura. */
   const [proprietarioNome, setProprietarioNome] = useState<string | null>(null);
   const [exportandoConfig, setExportandoConfig] = useState(false);
   const [importandoConfig, setImportandoConfig] = useState(false);
@@ -171,14 +169,11 @@ export default function TelaFatiamento() {
    */
   const [eventosBrutos, setEventosBrutos] = useState<EventoSei[] | null>(null);
   const [geminiAtivo, setGeminiAtivo] = useState(false);
-  const [gerandoPacote, setGerandoPacote] = useState(false);
   const [analisandoPendentes, setAnalisandoPendentes] = useState(false);
-  const [comparandoLip, setComparandoLip] = useState(false);
-  const [camposLipAtuais, setCamposLipAtuais] = useState<Record<string, { valor?: string } | undefined>>({});
-  const [selecionadosLip, setSelecionadosLip] = useState<Record<string, boolean>>({});
-  const [salvandoLip, setSalvandoLip] = useState(false);
   const [gravandoLeitura, setGravandoLeitura] = useState(false);
   const [gravadoLeitura, setGravadoLeitura] = useState<number | null>(null);
+  const [importandoLeitura, setImportandoLeitura] = useState(false);
+  const importLeituraRef = useRef<HTMLInputElement>(null);
   const [nomeRenomeando, setNomeRenomeando] = useState("");
   /**
    * Edição inline da classificação, direto na linha da lista — pedido do Fábio (14/09/2026):
@@ -382,24 +377,6 @@ export default function TelaFatiamento() {
     return () => { cancelado = true; };
   }, []);
 
-  /** Pacote vigente + manifesto — portado do Organizador. Opera sobre EVENTOS, não sobre peças. */
-  async function baixarPacoteVigente() {
-    if (!arquivo || !eventosBrutos || !numeroProcesso) return;
-    setGerandoPacote(true);
-    try {
-      const { blob, nomeArquivo } = await gerarPacoteVigente({
-        arquivo, numeroProcesso, eventos: eventosBrutos as any,
-        estados: resolverEstados(eventosBrutos as any),
-      });
-      baixarBlob(blob, nomeArquivo);
-      registrarEvento("fatiador_exportacao", `pacote vigente — ${nomeArquivo}`);
-    } catch (e: any) {
-      setErro(`Falha ao gerar o pacote vigente: ${e?.message ?? e}`);
-    } finally {
-      setGerandoPacote(false);
-    }
-  }
-
   /** Páginas que o fatiador não conseguiu classificar sozinho — candidatas à visão. */
   const paginasPendentes = useMemo(() => {
     const out: number[] = [];
@@ -448,24 +425,6 @@ export default function TelaFatiamento() {
     }
   }
 
-  /**
-   * "Comparar com o LIP" — terceiro e último recurso portado do Organizador (11/09/2026).
-   *
-   * Diferença de desenho, obrigatória: o Organizador vivia DENTRO de `ProcessoClient` e entregava
-   * os campos por callback (`onAceitarCampos`), com o estado do LIP já na mão. O Fatiador é tela
-   * separada — precisa buscar a ficha (`/api/processo/carregar`) e gravar (`/api/processo/salvar`)
-   * por conta própria.
-   *
-   * REGRA: só preenche campo VAZIO, nunca sobrescreve o que já está lá — mesma regra que a
-   * sugestão do MAC (Fase 9B) já usa. Campo já preenchido aparece na lista, dizendo com o quê,
-   * mas desmarcado: quem decide trocar é o analista, não a tela. E a ficha é relida na hora de
-   * gravar, para não escrever por cima de algo alterado em outra aba nesse meio tempo.
-   */
-  const sugestoesLip = useMemo(
-    () => (eventosBrutos ? sugerirCamposLip(eventosBrutos as any) : {}),
-    [eventosBrutos],
-  );
-
   async function carregarFichaLip() {
     if (!processoCodigo) return null;
     const r = await fetch(`/api/processo/carregar?id=${encodeURIComponent(processoCodigo)}&tipo=${slot}`, { credentials: "include" });
@@ -474,61 +433,13 @@ export default function TelaFatiamento() {
     return (j.dados ?? {}) as Record<string, { valor?: string } | undefined>;
   }
 
-  async function abrirComparacaoLip() {
-    setErro(null);
-    try {
-      const dados = await carregarFichaLip();
-      if (!dados) return;
-      setCamposLipAtuais(dados);
-      const iniciais: Record<string, boolean> = {};
-      for (const chave of Object.keys(sugestoesLip)) iniciais[chave] = !dados[chave]?.valor;
-      setSelecionadosLip(iniciais);
-      setComparandoLip(true);
-    } catch (e: any) {
-      setErro(`Falha ao comparar com o LIP: ${e?.message ?? e}`);
-    }
-  }
-
-  async function aceitarCamposLip() {
-    const marcados = Object.entries(selecionadosLip).filter(([, v]) => v).map(([k]) => k);
-    if (!marcados.length) return;
-    setSalvandoLip(true);
-    setErro(null);
-    try {
-      const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
-      if (!dados) return;
-      const novo: Record<string, any> = { ...dados };
-      let gravados = 0;
-      for (const chave of marcados) {
-        const s = sugestoesLip[chave];
-        if (!s) continue;
-        novo[chave] = { valor: s.idSei, origem: "urbis", fonte: `Fatiador de PDF SEI — ${s.titulo}, pg. ${s.pagina}` };
-        gravados++;
-      }
-      const r = await fetch("/api/processo/salvar", {
-        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
-      });
-      const j = await r.json();
-      if (!j?.ok) throw new Error(j?.erro ?? "o servidor recusou a gravação");
-      registrarEvento("fatiador_correcao", `${gravados} campo(s) aceito(s) no LIP`, { campos: marcados });
-      setCamposLipAtuais(novo);
-      setComparandoLip(false);
-    } catch (e: any) {
-      setErro(`Falha ao gravar no LIP: ${e?.message ?? e}`);
-    } finally {
-      setSalvandoLip(false);
-    }
-  }
-
   /**
    * Pedido do Fábio (15/09/2026): "a conferência tem que ser no LIP, não faz sentido conferir os
    * itens pequenininho aqui" — em vez de mostrar os ~90 campos lidos numa lista minúscula pro
    * analista conferir NO FATIADOR, grava tudo direto na ficha de uma vez e deixa a conferência de
    * verdade pra tela do LIP, que é onde o analista já sabe olhar. Só entra em campo que a ficha
-   * ainda não tinha (nunca sobrescreve o que já existe — mesmo cuidado de `aceitarCamposLip`, só
-   * que sem checkbox por item: aqui a escolha é o clique único no botão, que já é autorização
-   * clara o bastante pra essa ação específica).
+   * ainda não tinha (nunca sobrescreve o que já existe) — sem checkbox por item: aqui a escolha
+   * é o clique único no botão, que já é autorização clara o bastante pra essa ação específica.
    */
   async function gravarCamposNaFicha(campos: ResultadoLote["campos"]): Promise<number> {
     const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
@@ -566,6 +477,39 @@ export default function TelaFatiamento() {
       setErro(`Falha ao gravar a última leitura: ${e?.message ?? e}`);
     } finally {
       setGravandoLeitura(false);
+    }
+  }
+
+  /**
+   * Salvar/Importar leitura (15/09/2026, no lugar de "Comparar com o LIP" e "Baixar pacote") —
+   * leva o resultado de uma leitura pra fora do navegador: outra máquina, outro dia, sem depender
+   * do rascunho local nem de `lip_jobs` continuar guardando o job pra sempre.
+   */
+  function salvarLeituraArquivo() {
+    if (!resultadoLeitura) return;
+    const conteudo = JSON.stringify({
+      processoCodigo, slot, numeroProcesso, guardadoEm: new Date().toISOString(),
+      campos: resultadoLeitura.campos,
+    }, null, 2);
+    const nomeArquivo = `leitura - ${numeroProcesso || processoCodigo} - ${dataParaNomeArquivo()}.json`;
+    baixarBlob(new Blob([conteudo], { type: "application/json" }), nomeArquivo);
+    registrarEvento("fatiador_exportacao", `leitura salva — ${nomeArquivo}`);
+  }
+
+  async function importarLeituraArquivo(f: File) {
+    setImportandoLeitura(true);
+    setErro(null);
+    try {
+      const texto = await f.text();
+      const j = JSON.parse(texto);
+      if (!j?.campos || typeof j.campos !== "object") throw new Error('arquivo sem a chave "campos" — não parece uma leitura salva por aqui');
+      const gravados = await gravarCamposNaFicha(j.campos);
+      setGravadoLeitura((g) => (g ?? 0) + gravados);
+      registrarEvento("fatiador_correcao", `leitura importada de arquivo — ${gravados} campo(s) gravado(s)`);
+    } catch (e: any) {
+      setErro(`Falha ao importar a leitura: ${e?.message ?? e}`);
+    } finally {
+      setImportandoLeitura(false);
     }
   }
 
@@ -789,7 +733,7 @@ export default function TelaFatiamento() {
     setEventosBrutos(null);
     setResultadoLeitura(null);
     setProgressoLeitura(null);
-    setComparandoLip(false);
+    setGravadoLeitura(null);
     resetar(ESTADO_VAZIO);
     return true;
   }
@@ -833,7 +777,7 @@ export default function TelaFatiamento() {
       setNumeroProcesso(info.numeroProcesso || info.processoCodigo);
       resetar({ itens: itensImportados, selecionadoId: itensImportados[0]?.id ?? null });
       if (!eventosImportados) {
-        setErro('Configuração importada, mas sem "eventos-brutos.json" no zip — "Comparar com o LIP" e "Baixar pacote (.zip)" ficam indisponíveis até fatiar de novo.');
+        setErro('Configuração importada, mas sem "eventos-brutos.json" no zip — "Exportar/importar configuração" completo fica indisponível até fatiar de novo (as outras ações continuam funcionando).');
       }
     } catch (e: any) {
       setErro(`Falha ao importar configuração: ${e?.message ?? e}`);
@@ -1081,58 +1025,23 @@ export default function TelaFatiamento() {
               {gravandoLeitura ? "⏳ Gravando..." : "↺ Gravar a última leitura (sem ler de novo)"}
             </button>
 
-            {/* Portados do Organizador de PDF SEI em 11/09/2026, antes de ele ser removido do
-                Slot 1/2 — decisão do Fábio: nenhum botão que ele usa pode sumir no meio do caminho. */}
-            <button onClick={baixarPacoteVigente} disabled={gerandoPacote || !eventosBrutos}
-              title="Zip com um PDF por documento, separado em Vigentes/Histórico, com o manifesto junto"
+            <button onClick={() => importLeituraRef.current?.click()} disabled={importandoLeitura || !processoCodigo.trim()}
+              title="Pega um arquivo de leitura salvo antes (outra máquina, outro dia) e grava no LIP — não chama o Gemini"
               className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
-              {gerandoPacote ? "⏳ Gerando..." : "📦 Baixar pacote (.zip)"}
+              {importandoLeitura ? "⏳ Importando..." : "📥 Importar leitura"}
+            </button>
+            <input ref={importLeituraRef} type="file" accept=".json" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importarLeituraArquivo(f); e.target.value = ""; }} />
+            <button onClick={salvarLeituraArquivo} disabled={!resultadoLeitura}
+              title="Baixa o resultado desta leitura num .json — pra importar depois sem gastar leitura de novo"
+              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              💾 Salvar leitura
             </button>
             <button onClick={exportarConfirmados} disabled={exportandoConfirmados || !confirmados.length}
               title="Baixa num zip só todos os itens já confirmados (✓)"
               className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
               {exportandoConfirmados ? "⏳ Gerando..." : `✓ Exportar confirmados (${confirmados.length})`}
             </button>
-            <button onClick={abrirComparacaoLip} disabled={!eventosBrutos || !processoCodigo}
-              title="Ver quais campos da ficha este PDF consegue preencher"
-              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
-              📋 Comparar com o LIP ({Object.keys(sugestoesLip).length})
-            </button>
-            {comparandoLip && (
-              <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
-                <p className="text-[10px] text-[var(--text-muted)] mb-2">
-                  Marcado = grava na ficha. Campo já preenchido vem desmarcado — trocar é decisão sua.
-                </p>
-                <div className="max-h-56 overflow-y-auto space-y-1">
-                  {Object.entries(sugestoesLip).map(([chave, s]) => {
-                    const atual = camposLipAtuais[chave]?.valor;
-                    return (
-                      <label key={chave} className="flex items-start gap-1.5 text-[10px] cursor-pointer">
-                        <input type="checkbox" checked={!!selecionadosLip[chave]} className="mt-0.5"
-                          onChange={(e) => setSelecionadosLip((p) => ({ ...p, [chave]: e.target.checked }))} />
-                        <span className="text-[var(--text-primary)]">
-                          <b>{ROTULO_CAMPO_LIP[chave] ?? chave}</b> → {s.idSei}
-                          <span className="text-[var(--text-muted)]"> ({s.titulo}, pg. {s.pagina})</span>
-                          {atual && <span className="text-[var(--error)]"> · já preenchido: {atual}</span>}
-                        </span>
-                      </label>
-                    );
-                  })}
-                  {!Object.keys(sugestoesLip).length && (
-                    <p className="text-[10px] text-[var(--text-muted)]">Este PDF não trouxe nenhum documento que alimente campo do LIP.</p>
-                  )}
-                </div>
-                <div className="flex gap-1 mt-2">
-                  <button onClick={aceitarCamposLip} disabled={salvandoLip}
-                    className="flex-1 text-[10px] px-2 py-1 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
-                    {salvandoLip ? "gravando..." : "Gravar marcados na ficha"}
-                  </button>
-                  <button onClick={() => setComparandoLip(false)} className="text-[10px] px-2 py-1 rounded border border-[var(--border-strong)] text-[var(--text-primary)]">
-                    fechar
-                  </button>
-                </div>
-              </div>
-            )}
             <button onClick={analisarPendentes} disabled={analisandoPendentes || !paginasPendentes.length}
               title={paginasPendentes.length
                 ? `${paginasPendentes.length} página(s) que o fatiador não classificou sozinho — custo estimado US$ ${estimarCustoUsd(paginasPendentes.length).toFixed(4)}`
