@@ -24,6 +24,28 @@ export type ResultadoLote = {
   pendencias: string[];
 };
 
+/**
+ * `res.json()` direto quebra com uma mensagem ilegível ("Unexpected token 'u', "upstream
+ * error"...") quando a resposta não é JSON — acontece quando a Vercel mata a function no meio
+ * do caminho (ex.: `maxDuration` de `/api/lip/s1` estourado num PDF grande) e devolve texto puro
+ * de infraestrutura em vez do corpo que a rota geraria. Achado do Fábio, 15/09/2026. Sempre lê
+ * como texto primeiro e só faz `JSON.parse` depois, pra poder dar um erro que diz ONDE e O QUÊ.
+ */
+async function lerJsonSeguro(res: Response, etapa: string): Promise<any> {
+  const texto = await res.text();
+  try {
+    return JSON.parse(texto);
+  } catch {
+    const resumo = texto.trim().slice(0, 200) || "(corpo vazio)";
+    throw new Error(
+      `${etapa}: o servidor respondeu algo que não é JSON (HTTP ${res.status}): "${resumo}". ` +
+      (res.status === 0 || !res.ok
+        ? "Provavelmente caiu no meio do processamento (ex.: demorou demais) — tente de novo, e se persistir, com um lote menor."
+        : ""),
+    );
+  }
+}
+
 async function aguardarJobS3(jobId: string): Promise<any> {
   if (!jobId) throw new Error("S3: jobId ausente");
   return new Promise((resolve, reject) => {
@@ -34,7 +56,7 @@ async function aguardarJobS3(jobId: string): Promise<any> {
       try {
         const poll = await fetch(`/api/lip/s3/status?jobId=${encodeURIComponent(jobId)}`);
         if (!poll.ok) return;
-        const data = await poll.json();
+        const data = await lerJsonSeguro(poll, "S3/status");
         if (data.status === "concluido") {
           if (!data.resultado) return; // ainda salvando, aguarda o próximo ciclo
           clearInterval(intervalo);
@@ -72,7 +94,7 @@ export async function lerArquivoComGemini(
     },
     body: arquivo,
   });
-  const s1Data = await s1Res.json();
+  const s1Data = await lerJsonSeguro(s1Res, "S1");
   if (!s1Data.ok) throw new Error("S1: " + (s1Data.erro || "Erro ao enviar o lote"));
   const { fileUri } = s1Data;
 
@@ -85,7 +107,9 @@ export async function lerArquivoComGemini(
       codigo: contexto.processoCodigo, tipoProcesso: contexto.slot, tamanhoBytes: arquivo.size,
     }),
   });
-  const s2Data = await s2Res.json();
+  // S2 é mapeamento auxiliar — falha aqui já era tratada como "sem documentos" (não interrompe a
+  // leitura), então uma resposta não-JSON some no mesmo catch, não vira crash.
+  const s2Data = await lerJsonSeguro(s2Res, "S2").catch(() => ({ ok: false }));
   const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
 
   aoProgredir?.("Extraindo campos do lote...", 65);
@@ -94,14 +118,15 @@ export async function lerArquivoComGemini(
     r.onload = () => res((r.result as string).split(",")[1]);
     r.readAsDataURL(arquivo);
   });
-  const s3Init = await fetch("/api/lip/s3", {
+  const s3InitRes = await fetch("/api/lip/s3", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       fileUri, documentos, codigo: contexto.processoCodigo, fileName: arquivo.name, pdfBase64,
       assunto_id: null, mimeType: s1Data.mimeType, tamanhoBytes: arquivo.size,
     }),
-  }).then((r) => r.json());
+  });
+  const s3Init = await lerJsonSeguro(s3InitRes, "S3");
   if (!s3Init.ok) throw new Error("S3: " + (s3Init.erro || "Erro ao iniciar a leitura"));
 
   aoProgredir?.("Lendo com IA... pode levar alguns minutos", 80);
