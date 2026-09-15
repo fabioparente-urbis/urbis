@@ -485,15 +485,18 @@ export default function TelaFatiamento() {
    * leva o resultado de uma leitura pra fora do navegador: outra máquina, outro dia, sem depender
    * do rascunho local nem de `lip_jobs` continuar guardando o job pra sempre.
    */
-  function salvarLeituraArquivo() {
-    if (!resultadoLeitura) return;
+  function baixarLeituraComoArquivo(campos: ResultadoLote["campos"]) {
     const conteudo = JSON.stringify({
-      processoCodigo, slot, numeroProcesso, guardadoEm: new Date().toISOString(),
-      campos: resultadoLeitura.campos,
+      processoCodigo, slot, numeroProcesso, guardadoEm: new Date().toISOString(), campos,
     }, null, 2);
     const nomeArquivo = `leitura - ${numeroProcesso || processoCodigo} - ${dataParaNomeArquivo()}.json`;
     baixarBlob(new Blob([conteudo], { type: "application/json" }), nomeArquivo);
     registrarEvento("fatiador_exportacao", `leitura salva — ${nomeArquivo}`);
+  }
+
+  function salvarLeituraArquivo() {
+    if (!resultadoLeitura) return;
+    baixarLeituraComoArquivo(resultadoLeitura.campos);
   }
 
   async function importarLeituraArquivo(f: File) {
@@ -602,6 +605,10 @@ export default function TelaFatiamento() {
         lotes: lotes.length, itens: elegiveis.length, foraDaLeitura: itens.length - elegiveis.length,
         campos: Object.keys(resultado.campos).length,
       });
+      // Pedido do Fábio (15/09/2026): já baixa o arquivo de "Salvar leitura" sozinho ao terminar —
+      // depois de perder duas leituras que só existiam na memória da tela, a leitura fica garantida
+      // em disco assim que sai do Gemini, sem depender de lembrar de clicar em nada.
+      baixarLeituraComoArquivo(resultado.campos);
     } catch (e: any) {
       setErro(`Falha na leitura: ${e?.message ?? e}`);
     } finally {
