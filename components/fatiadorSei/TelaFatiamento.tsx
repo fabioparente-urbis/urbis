@@ -812,10 +812,12 @@ export default function TelaFatiamento() {
         </div>
       )}
 
-      {/* Coluna do meio (miniatura) casada com LARGURA_PX de MiniaturaPdf.tsx: 440px de imagem
-          + padding do card — 15/09/2026, miniatura dobrada de tamanho a pedido do Fábio. */}
+      {/* Coluna do meio (miniatura) — 15/09/2026: MiniaturaPdf.tsx passou a renderizar por
+          ALTURA (mesmo max-h-[70vh] da lista), não largura fixa; a largura da imagem varia com a
+          altura da tela. 620px é folga pra caber a maioria dos monitores sem cortar — acima disso
+          o próprio componente rola horizontalmente em vez de estourar layout. */}
       {numeroProcesso && (
-        <div className="grid grid-cols-[1fr_472px_280px] gap-4">
+        <div className="grid grid-cols-[1fr_620px_280px] gap-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-[var(--text-muted)]">
