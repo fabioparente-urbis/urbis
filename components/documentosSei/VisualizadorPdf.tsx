@@ -14,13 +14,23 @@
  *
  * 14/09/2026: setas ←/→ do teclado navegam página (ignoradas com foco no campo "ir pra página",
  * onde servem pra mover o cursor no número) e Esc fecha, pedido do Fábio olhando a tela ao vivo.
+ *
+ * 15/09/2026: lupa que segue o mouse — clique ESQUERDO liga, DIREITO desliga (o direito não abre
+ * o menu de contexto do navegador enquanto o visualizador está aberto). A lupa não é CSS esticado
+ * (`transform: scale`) — captura o canvas já renderizado em `toDataURL()` (que o react-pdf desenha
+ * em resolução mais alta que o tamanho exibido, pra ficar nítido em tela retina) e usa como
+ * `background-image` com `background-size`/`background-position` calculados pela posição do
+ * mouse. Zoom de verdade, não a mesma pixelagem ampliada.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+const ZOOM_LUPA = 2.5;
+const TAMANHO_LUPA = 220; // px, diâmetro do círculo
 
 export default function VisualizadorPdf({
   arquivo, paginaInicial, paginaIni, paginaFim, onFechar,
@@ -28,6 +38,27 @@ export default function VisualizadorPdf({
   const [pagina, setPagina] = useState(paginaInicial);
   const totalDoDocumento = paginaFim - paginaIni + 1;
   const posicaoNoDocumento = pagina - paginaIni + 1;
+
+  const paginaContainerRef = useRef<HTMLDivElement>(null);
+  const [lupaAtiva, setLupaAtiva] = useState(false);
+  const [posMouse, setPosMouse] = useState<{ x: number; y: number } | null>(null);
+  /** Imagem + tamanho exibido do canvas NO MOMENTO em que foi capturado — refeito a cada troca de
+   * página, porque cada página pode ter proporção diferente. */
+  const [imagemLupa, setImagemLupa] = useState<{ url: string; largura: number; altura: number } | null>(null);
+
+  /** Captura o canvas já desenhado pelo react-pdf assim que ele termina de renderizar a página. */
+  function aoRenderizarPagina() {
+    const canvas = paginaContainerRef.current?.querySelector("canvas");
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    setImagemLupa({ url: canvas.toDataURL(), largura: rect.width, altura: rect.height });
+  }
+
+  function moverMouseNaPagina(e: React.MouseEvent<HTMLDivElement>) {
+    if (!lupaAtiva) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPosMouse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }
 
   /**
    * Ir direto pra página — pedido do Fábio (11/09/2026): "navegar com rapidez entre páginas...
@@ -97,10 +128,43 @@ export default function VisualizadorPdf({
           </button>
         </div>
         <div className="flex-1 overflow-auto flex justify-center p-4">
-          <Document file={arquivo} loading={<p className="text-[var(--text-muted)]">Carregando...</p>}>
-            <Page pageNumber={pagina} width={640} renderTextLayer renderAnnotationLayer={false} />
-          </Document>
+          <div
+            ref={paginaContainerRef}
+            className="relative"
+            style={{ cursor: lupaAtiva ? "none" : "zoom-in" }}
+            onClick={(e) => {
+              setLupaAtiva(true);
+              const rect = e.currentTarget.getBoundingClientRect();
+              setPosMouse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+            }}
+            onContextMenu={(e) => { e.preventDefault(); setLupaAtiva(false); }}
+            onMouseMove={moverMouseNaPagina}
+            onMouseLeave={() => setPosMouse(null)}
+          >
+            <Document file={arquivo} loading={<p className="text-[var(--text-muted)]">Carregando...</p>}>
+              <Page pageNumber={pagina} width={640} renderTextLayer renderAnnotationLayer={false}
+                onRenderSuccess={aoRenderizarPagina} />
+            </Document>
+            {lupaAtiva && posMouse && imagemLupa && (
+              <div
+                className="pointer-events-none absolute rounded-full border-2 border-[var(--accent)] shadow-lg"
+                style={{
+                  width: TAMANHO_LUPA, height: TAMANHO_LUPA,
+                  left: posMouse.x - TAMANHO_LUPA / 2, top: posMouse.y - TAMANHO_LUPA / 2,
+                  backgroundImage: `url(${imagemLupa.url})`,
+                  backgroundSize: `${imagemLupa.largura * ZOOM_LUPA}px ${imagemLupa.altura * ZOOM_LUPA}px`,
+                  backgroundPosition: `${-(posMouse.x * ZOOM_LUPA - TAMANHO_LUPA / 2)}px ${-(posMouse.y * ZOOM_LUPA - TAMANHO_LUPA / 2)}px`,
+                  backgroundRepeat: "no-repeat",
+                }}
+              />
+            )}
+          </div>
         </div>
+        {lupaAtiva && (
+          <p className="px-3 pb-2 text-[10px] text-[var(--text-muted)] text-center">
+            🔍 Lupa ligada — clique direito pra desligar
+          </p>
+        )}
       </div>
     </div>
   );
