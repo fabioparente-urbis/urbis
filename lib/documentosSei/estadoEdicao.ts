@@ -36,6 +36,17 @@ export type ItemFatiado = {
    */
   nomeExportacao?: string;
   /**
+   * Texto que o analista digitou pra SUBSTITUIR o que aparece na lista (a "classificação"),
+   * sobrepondo tanto `papel` quanto `titulo`. Pedido do Fábio (15/09/2026): "R poderia renomear,
+   * eu digitar, e E poderia abrir a caixa pra escolher" — dois jeitos distintos de corrigir a
+   * mesma coluna. Existe PORQUE, quando `papel` está definido, o rótulo exibido vem só dele
+   * (`ROTULO_PAPEL_PECA[papel]`) — editar `titulo` nesse caso não mudaria nada na tela; isto aqui
+   * é o único jeito de digitar um texto livre que realmente aparece, não importa se o item tem
+   * papel ou não. Escolher um papel novo pela caixa (`editarPapel`) limpa este campo — o pick
+   * estruturado tem a palavra final sobre um texto livre desatualizado.
+   */
+  rotuloManual?: string;
+  /**
    * Fase 7 do plano ("ligar fatiador à leitura") — marca se este item entra no lote mandado pra IA.
    * Default `true` ao carregar; forçado a `false` quando `status` vira "lixo" (lixo nunca é lido,
    * mesmo que o analista já tivesse marcado antes) e de volta a `true` ao restaurar do lixo.
@@ -61,8 +72,10 @@ export type AcaoFatiamento =
   | { tipo: "novoCorte"; id: string; naPagina: number }
   /** desfaz um corte: junta o item ao vizinho anterior na ordem de página */
   | { tipo: "excluirCorte"; id: string }
+  /** `E` — escolher da lista fechada de papéis conhecidos. Limpa `rotuloManual` (ver o campo). */
   | { tipo: "editarPapel"; id: string; papel: string }
-  | { tipo: "editarTitulo"; id: string; titulo: string }
+  /** `R` — digitar livre o que aparece na lista, sobrepondo `papel`/`titulo`. */
+  | { tipo: "renomearClassificacao"; id: string; rotulo: string }
   /** Define `nomeExportacao` — não mexe em `titulo` nem em `papel`, só no nome do arquivo baixado. */
   | { tipo: "renomear"; id: string; nomeExportacao: string }
   /**
@@ -133,15 +146,15 @@ export function reduzirFatiamento(estado: EstadoFatiamento, acao: AcaoFatiamento
       return {
         ...estado,
         itens: estado.itens.map((i) =>
-          i.id === acao.id ? { ...i, papel: acao.papel, status: "editado" } : i,
+          i.id === acao.id ? { ...i, papel: acao.papel, rotuloManual: undefined, status: "editado" } : i,
         ),
       };
 
-    case "editarTitulo":
+    case "renomearClassificacao":
       return {
         ...estado,
         itens: estado.itens.map((i) =>
-          i.id === acao.id ? { ...i, titulo: acao.titulo, status: "editado" } : i,
+          i.id === acao.id ? { ...i, rotuloManual: acao.rotulo, status: "editado" } : i,
         ),
       };
 

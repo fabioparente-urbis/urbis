@@ -27,9 +27,11 @@
  * 14/09/2026, olhando a tela ao vivo: `MiniaturaPdf` na coluna do meio — fixa mesmo quando a lista
  * rola, mostra a página candidata a corte (ou a primeira do item selecionado), clique amplia no
  * visualizador grande, que por sua vez ganhou setas do teclado e Esc. A classificação de cada
- * linha virou clicável (select pra peça com `papel`, texto livre pro resto) — liga na tela o
- * `editarPapel`/`editarTitulo` que já existiam no reducer desde a Fase 6, mas nunca tinham UI.
- * "Exportar confirmados" baixa num zip só todos os itens ✓, depois de exportar um avulso só
+ * linha virou clicável — liga na tela o `editarPapel` que já existia no reducer desde a Fase 6,
+ * mas nunca tinha UI. Refinado em 15/09/2026: dois modos com atalho próprio cada — `R` digita
+ * livre (`rotuloManual`), `E` escolhe da lista fechada de papéis (`editarPapel`); clique do mouse
+ * abre o mais provável pro item. "Exportar confirmados" baixa num zip só todos os itens ✓, depois
+ * de exportar um avulso só
  * esbarrar na pergunta óbvia seguinte: "e se tiver várias da mesma forma?". E "Limpar fatiador"
  * zera tudo sem forçar a escolher outro arquivo na hora.
  *
@@ -160,13 +162,16 @@ export default function TelaFatiamento() {
   const [nomeRenomeando, setNomeRenomeando] = useState("");
   /**
    * Edição inline da classificação, direto na linha da lista — pedido do Fábio (14/09/2026):
-   * "quero poder editar o nome ali na classificação pendente". Só uma linha por vez. Item com
-   * `papel` (peça de contêiner) edita por `<select>` restrito ao vocabulário conhecido
-   * (`ROTULO_PAPEL_PECA`) — texto livre quebraria os lugares que leem `papel` pra decidir
-   * comportamento (ex.: `paginasPendentes` abaixo, que testa `=== "classificacao_pendente"`). Item
-   * sem `papel` (evento de topo, cujo rótulo vem do título) edita por texto livre.
+   * "quero poder editar o nome ali na classificação pendente", refinado em 15/09/2026 em dois
+   * modos distintos, cada um com seu atalho: `select` escolhe da lista fechada de papéis
+   * conhecidos (`ROTULO_PAPEL_PECA` — texto livre ali quebraria os lugares que testam
+   * `papel === "classificacao_pendente"`, como `paginasPendentes` abaixo); `texto` digita livre,
+   * gravando em `rotuloManual` (não em `papel` nem `titulo` — ver o campo em estadoEdicao.ts).
+   * Clique do mouse abre o modo mais provável pro item (select se já tem papel, texto senão); `R`
+   * sempre abre texto, `E` sempre abre select — o analista escolhe, não o item.
    */
   const [editandoClassificacaoId, setEditandoClassificacaoId] = useState<string | null>(null);
+  const [modoEdicaoClassificacao, setModoEdicaoClassificacao] = useState<"texto" | "select">("texto");
   const [tituloEditando, setTituloEditando] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const renomearInputRef = useRef<HTMLInputElement>(null);
@@ -617,9 +622,17 @@ export default function TelaFatiamento() {
     registrarEvento("fatiador_correcao", `renomeado para "${nome}"`, { idSei: selecionado.idSei, id: selecionado.id });
   }
 
-  function abrirEdicaoClassificacao(item: ItemFatiado) {
+  /** O que a linha mostra HOJE pra este item — mesma fórmula usada no render da lista. */
+  function rotuloAtual(item: ItemFatiado): string {
+    if (item.rotuloManual) return item.rotuloManual;
+    if (item.papel) return ROTULO_PAPEL_PECA[item.papel as keyof typeof ROTULO_PAPEL_PECA] ?? rotuloDoPapelPeca(item.papel) ?? item.titulo;
+    return item.titulo;
+  }
+
+  function abrirEdicaoClassificacao(item: ItemFatiado, modo: "texto" | "select") {
     selecionar(item.id);
-    setTituloEditando(item.titulo);
+    setTituloEditando(rotuloAtual(item));
+    setModoEdicaoClassificacao(modo);
     setEditandoClassificacaoId(item.id);
   }
 
@@ -629,26 +642,28 @@ export default function TelaFatiamento() {
     setEditandoClassificacaoId(null);
   }
 
-  function aplicarTitulo(id: string) {
-    const titulo = tituloEditando.trim();
-    if (titulo) {
-      aplicar({ tipo: "editarTitulo", id, titulo });
-      registrarEvento("fatiador_correcao", `título alterado para "${titulo}"`, { id });
+  function aplicarRotuloManual(id: string) {
+    const rotulo = tituloEditando.trim();
+    if (rotulo) {
+      aplicar({ tipo: "renomearClassificacao", id, rotulo });
+      registrarEvento("fatiador_correcao", `classificação renomeada para "${rotulo}"`, { id });
     }
     setEditandoClassificacaoId(null);
   }
 
   /**
-   * `R` abre DIRETO o editor de classificação da linha (select ou texto, conforme o item) — pedido
-   * do Fábio (15/09/2026): "queria apertar o r e já abrir a opção de renomear", vendo o editor que
-   * abre ao clicar em cima da classificação. Antes `R` focava a caixa de renomear do PAINEL do
-   * lado (nome do PDF na exportação, `renomearInputRef`) — outro "renomear", que só muda o nome do
-   * arquivo baixado, não a classificação da linha. Essa caixa continua funcionando, só não tem
-   * mais atalho de teclado próprio: quem quiser usá-la clica nela.
+   * `R` sempre digita livre, `E` sempre abre a lista de papéis conhecidos — pedido do Fábio
+   * (15/09/2026): "R poderia renomear, eu digitar, e E poderia abrir a caixa pra mim escolher".
+   * Antes `R` decidia sozinho qual dos dois modos abrir, conforme o item já ter `papel` ou não;
+   * agora quem escolhe é o analista, não o item. (E antes de tudo isso `R` focava a caixa de
+   * renomear do PAINEL do lado — nome do PDF na exportação, `renomearInputRef` — que é outro
+   * "renomear" ainda; continua funcionando, só sem atalho de teclado próprio, clica nela.)
    */
-  function atalhoEditarClassificacao() {
-    if (!selecionado) return;
-    abrirEdicaoClassificacao(selecionado);
+  function atalhoRenomearClassificacao() {
+    if (selecionado) abrirEdicaoClassificacao(selecionado, "texto");
+  }
+  function atalhoEscolherClassificacao() {
+    if (selecionado) abrirEdicaoClassificacao(selecionado, "select");
   }
 
   /**
@@ -705,7 +720,8 @@ export default function TelaFatiamento() {
     { tecla: "y", mod: true, acao: refazer },
     { tecla: "o", mod: true, acao: abrirNovoPdf, descricao: "abrir novo PDF" },
     { tecla: "e", mod: true, acao: exportarSelecionado, descricao: "exportar o item selecionado" },
-    { tecla: "r", acao: atalhoEditarClassificacao, descricao: "editar a classificação do item selecionado" },
+    { tecla: "r", acao: atalhoRenomearClassificacao, descricao: "renomear a classificação (digitar)" },
+    { tecla: "e", acao: atalhoEscolherClassificacao, descricao: "escolher a classificação (lista)" },
     { tecla: "p", mod: true, acao: abrirPdfInteiro, descricao: "abrir o PDF inteiro em outra aba" },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [selecionado, arquivo, paginaCorte, podeDesfazer, podeRefazer, itens, lendo, processoCodigo]);
@@ -804,7 +820,7 @@ export default function TelaFatiamento() {
             </div>
             <div className="border border-[var(--border)] rounded-lg overflow-hidden max-h-[70vh] overflow-y-auto">
               {itens.map((item) => {
-                const rotulo = item.papel ? ROTULO_PAPEL_PECA[item.papel as keyof typeof ROTULO_PAPEL_PECA] : rotuloDoPapelPeca(item.papel ?? "") ?? item.titulo;
+                const rotulo = rotuloAtual(item);
                 const ativo = item.id === estado.selecionadoId;
                 return (
                   <div key={item.id} onClick={() => selecionar(item.id)}
@@ -819,9 +835,9 @@ export default function TelaFatiamento() {
                     </span>
                     <span className="text-xs text-[var(--text-muted)] w-24 shrink-0">{item.idSei}</span>
                     {editandoClassificacaoId === item.id ? (
-                      item.papel ? (
+                      modoEdicaoClassificacao === "select" ? (
                         <select
-                          autoFocus value={item.papel} onClick={(e) => e.stopPropagation()}
+                          autoFocus value={item.papel ?? "classificacao_pendente"} onClick={(e) => e.stopPropagation()}
                           onChange={(e) => aplicarPapel(item.id, e.target.value)}
                           onBlur={() => setEditandoClassificacaoId(null)}
                           onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEditandoClassificacaoId(null); } }}
@@ -833,9 +849,9 @@ export default function TelaFatiamento() {
                         <input
                           autoFocus value={tituloEditando} onClick={(e) => e.stopPropagation()}
                           onChange={(e) => setTituloEditando(e.target.value)}
-                          onBlur={() => aplicarTitulo(item.id)}
+                          onBlur={() => aplicarRotuloManual(item.id)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") { e.preventDefault(); aplicarTitulo(item.id); }
+                            if (e.key === "Enter") { e.preventDefault(); aplicarRotuloManual(item.id); }
                             else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setEditandoClassificacaoId(null); }
                           }}
                           className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--accent)] text-[var(--text-primary)]"
@@ -843,8 +859,8 @@ export default function TelaFatiamento() {
                       )
                     ) : (
                       <span
-                        onClick={(e) => { e.stopPropagation(); abrirEdicaoClassificacao(item); }}
-                        title="Clique pra editar a classificação"
+                        onClick={(e) => { e.stopPropagation(); abrirEdicaoClassificacao(item, item.papel ? "select" : "texto"); }}
+                        title="Clique pra editar — ou selecione o item e use R (digitar) / E (escolher da lista)"
                         className="flex-1 text-[var(--text-primary)] truncate cursor-text hover:underline decoration-dotted"
                       >
                         {rotulo}
