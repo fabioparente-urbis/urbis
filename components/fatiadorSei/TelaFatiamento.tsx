@@ -57,6 +57,7 @@ import { baixarBlob } from "@/lib/documentosSei/pacoteVigenteClient";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
 import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
+import { sugerirCamposLip } from "@/lib/documentosSei/compararLip";
 import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
@@ -434,6 +435,20 @@ export default function TelaFatiamento() {
   }
 
   /**
+   * Nº SEI de cada documento, lido DIRETO do carimbo/rodapé (sem IA, ver lib/documentosSei/fatiar.ts)
+   * — o próprio fatiamento já sabe isso com certeza antes de qualquer leitura. Pedido do Fábio
+   * (15/09/2026): "todos os números de documento SEI devem ser lidos corretamente... é
+   * inadmissível errar isso" — o carimbo tem que valer mais que o Gemini pro mesmo campo, porque
+   * o Gemini às vezes lê o número errado de dentro do documento (confunde nº de matrícula com nº
+   * SEI, por exemplo) quando o carimbo já responderia sem margem de erro. Não depende de qual
+   * lote um documento caiu — é sobre TODOS os eventos já fatiados.
+   */
+  const sugestoesCarimbo = useMemo(
+    () => (eventosBrutos ? sugerirCamposLip(eventosBrutos as any) : {}),
+    [eventosBrutos],
+  );
+
+  /**
    * Pedido do Fábio (15/09/2026): "a conferência tem que ser no LIP, não faz sentido conferir os
    * itens pequenininho aqui" — em vez de mostrar os ~90 campos lidos numa lista minúscula pro
    * analista conferir NO FATIADOR, grava tudo direto na ficha de uma vez e deixa a conferência de
@@ -447,9 +462,23 @@ export default function TelaFatiamento() {
     const novo: Record<string, any> = { ...dados };
     const gravadas: string[] = [];
     for (const [chave, c] of Object.entries(campos)) {
-      if (!c || dados[chave]?.valor) continue; // sem evidência, ou a ficha já tinha algo ali
+      // "NP" não é um valor lido — é o próprio S3 marcando "não achei evidência" pra um grupo
+      // fixo de campos (CAMPOS_NP em app/api/lip/s3/route.ts). A tela do LIP já descarta "NP" ao
+      // mesclar (ProcessoClient.tsx:1488); o fatiador gravava direto, e um "NP" preso no campo
+      // vazio trava esse campo pra sempre — nenhuma leitura seguinte, lote ou importação
+      // consegue preencher, porque `dados[chave]?.valor` passa a existir. Achado do Fábio,
+      // 15/09/2026 — 30 campos desse jeito num processo só.
+      if (!c || c.valor === "NP" || dados[chave]?.valor) continue;
       novo[chave] = { valor: c.valor, origem: "urbis", fonte: `Fatiador de PDF SEI — ${c.fonte}` };
       gravadas.push(chave);
+    }
+    // O carimbo (lido sem IA, ver sugestoesCarimbo acima) vale mais que o Gemini pro nº SEI do
+    // documento — sobrescreve o que o loop acima acabou de pôr em `novo`, mas continua sem
+    // sobrescrever o que a ficha JÁ tinha antes desta gravação (mesma regra de sempre).
+    for (const [chave, s] of Object.entries(sugestoesCarimbo)) {
+      if (dados[chave]?.valor) continue;
+      novo[chave] = { valor: s.idSei, origem: "urbis", fonte: `Fatiador de PDF SEI (carimbo) — ${s.titulo}, pg. ${s.pagina}` };
+      if (!gravadas.includes(chave)) gravadas.push(chave);
     }
     if (!gravadas.length) return 0;
     const r = await fetch("/api/processo/salvar", {

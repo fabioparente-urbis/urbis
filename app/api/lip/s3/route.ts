@@ -61,14 +61,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
     }
 
+    // Marco temporal (LC 314/2018): só Regularização SEI e Aceite SEI têm data
+    // limite. O bloco vai DEPOIS do prompt do slot — acrescenta a verificação
+    // da última vistoria sem alterar nada do que o slot já extrai.
+    //
+    // Também serve de FALLBACK pro assunto (achado do Fábio, 15/09/2026): o Fatiador de PDF SEI
+    // nunca manda `assunto_id` (só conhece o código do processo, ver lib/documentosSei/lerComGemini.ts) —
+    // sem isso, a extração caía no prompt de QUALQUER assunto de maior versão (hoje, Aceite SEI),
+    // mesmo lendo um processo de Regularização. Resultado: campo errado (prompt do Aceite não tem
+    // `outro`/`qualOutro`) e nome de campo errado (`nomeResponsavelEng` em vez de
+    // `nome_responsavel_eng`, que é o que a tela realmente lê) — a leitura ficava presa fora da
+    // ficha. Buscando o assunto pelo próprio processo aqui, todo chamador (Fatiador e LIP) ganha
+    // o prompt certo sem precisar saber o assunto de antemão.
+    let tipoProcesso: string | null = null;
+    let assuntoIdDoProcesso: string | null = null;
+    if (codigo) {
+      const { data: procTipo } = await supabaseAdmin
+        .from("processos")
+        .select("tipo_processo, assunto_id")
+        .eq("codigo", codigo)
+        .maybeSingle();
+      tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
+      assuntoIdDoProcesso = (procTipo as any)?.assunto_id ?? null;
+    }
+
     // Carrega prompt
-    const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id);
+    const assuntoValido = typeof assunto_id === "string" && /^[0-9a-f-]{36}$/i.test(assunto_id)
+      ? assunto_id
+      : assuntoIdDoProcesso;
     let promptData: { conteudo: string; versao: number } | null = null;
     if (assuntoValido) {
       const { data } = await supabaseAdmin
         .from("lip_prompts")
         .select("conteudo, versao")
-        .eq("ativo", true).eq("chave", "P2_EXTRACAO").eq("assunto_id", assunto_id)
+        .eq("ativo", true).eq("chave", "P2_EXTRACAO").eq("assunto_id", assuntoValido)
         .order("versao", { ascending: false }).limit(1).maybeSingle();
       promptData = data;
     }
@@ -87,19 +113,6 @@ export async function POST(req: NextRequest) {
     const ctxDocs = documentos?.length
       ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-
-    // Marco temporal (LC 314/2018): só Regularização SEI e Aceite SEI têm data
-    // limite. O bloco vai DEPOIS do prompt do slot — acrescenta a verificação
-    // da última vistoria sem alterar nada do que o slot já extrai.
-    let tipoProcesso: string | null = null;
-    if (codigo) {
-      const { data: procTipo } = await supabaseAdmin
-        .from("processos")
-        .select("tipo_processo")
-        .eq("codigo", codigo)
-        .maybeSingle();
-      tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
-    }
     const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
     const blocoArea = blocoPromptCompatibilidadeArea(tipoProcesso);
     // Caixa de recarga (só Regularização SEI): impede que o modelo responda
@@ -116,7 +129,7 @@ export async function POST(req: NextRequest) {
     // {{ESQUELETO_JSON}}, {{CAMPOS_VAZIOS}}). Prompt sem marcador passa
     // intacto — nada muda até alguém decidir usar.
     const conteudoResolvido = await aplicarMarcadores(promptData.conteudo, {
-      assunto_id: assuntoValido ? assunto_id : null,
+      assunto_id: assuntoValido,
       codigo: typeof codigo === "string" ? codigo : null,
     });
     const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea + blocoCaixa + blocoCarimbo + blocoCheadvAprovado;
@@ -153,7 +166,7 @@ export async function POST(req: NextRequest) {
               if (assuntoValido) {
                 const { data } = await supabaseAdmin
                   .from("lip_prompts").select("conteudo, versao")
-                  .eq("ativo", true).eq("chave", "P3_MAC").eq("assunto_id", assunto_id)
+                  .eq("ativo", true).eq("chave", "P3_MAC").eq("assunto_id", assuntoValido)
                   .order("versao", { ascending: false }).limit(1).maybeSingle();
                 promptMacData = data;
               }
