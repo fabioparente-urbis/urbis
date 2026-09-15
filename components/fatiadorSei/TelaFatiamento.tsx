@@ -38,6 +38,12 @@
  * O último fatiamento em andamento passa a ficar salvo POR USUÁRIO no navegador (IndexedDB, ver
  * `lib/documentosSei/rascunhoFatiador.ts`), auto-salvo debounced a cada correção — recarregar a
  * página ou fechar sem querer não perde o trabalho. Nunca sobe pro servidor.
+ *
+ * Mesmo dia: "Exportar/Importar configuração" (`lib/documentosSei/configuracaoFatiador.ts`) — um
+ * .zip portátil com o PDF completo + um Excel (nomes, páginas, fatias, cortes), pra levar o
+ * trabalho pra fora do navegador (backup, outra máquina, outro analista) e voltar exatamente ao
+ * ponto de onde parou. Diferente do rascunho automático (que é POR USUÁRIO e só existe no
+ * IndexedDB local): este é um arquivo de verdade, que o analista escolhe quando gerar.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -58,6 +64,7 @@ import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
 } from "@/lib/documentosSei/estadoEdicao";
 import { salvarRascunho, carregarRascunho, limparRascunho, type RascunhoFatiador } from "@/lib/documentosSei/rascunhoFatiador";
+import { exportarConfiguracao, importarConfiguracao } from "@/lib/documentosSei/configuracaoFatiador";
 import { useHistoricoReducer } from "@/hooks/useHistoricoReducer";
 import { useAtalhosTeclado } from "@/hooks/useAtalhosTeclado";
 import { rotuloAtalho, type Atalho } from "@/lib/documentosSei/atalhosTeclado";
@@ -151,6 +158,9 @@ export default function TelaFatiamento() {
    * próprio PDF) já existia; só o nome nunca era buscado — a ficha só era lida sob clique de
    * "Comparar com o LIP". */
   const [proprietarioNome, setProprietarioNome] = useState<string | null>(null);
+  const [exportandoConfig, setExportandoConfig] = useState(false);
+  const [importandoConfig, setImportandoConfig] = useState(false);
+  const importConfigRef = useRef<HTMLInputElement>(null);
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
@@ -734,6 +744,50 @@ export default function TelaFatiamento() {
     if (limparFatiador()) inputRef.current?.click();
   }
 
+  /**
+   * Exporta o pacote completo — pedido do Fábio (15/09/2026): PDF + Excel (nomes, páginas,
+   * fatias, cortes), pra importar depois e voltar exatamente ao ponto de agora.
+   */
+  async function exportarConfiguracaoAtual() {
+    if (!arquivo || !numeroProcesso) return;
+    setExportandoConfig(true);
+    setErro(null);
+    try {
+      const { blob, nomeArquivo } = await exportarConfiguracao(
+        arquivo, { processoCodigo, slot, numeroProcesso }, itens, eventosBrutos,
+      );
+      baixarBlob(blob, nomeArquivo);
+      registrarEvento("fatiador_exportacao", `configuração completa — ${nomeArquivo}`, { itens: itens.length });
+    } catch (e: any) {
+      setErro(`Falha ao exportar configuração: ${e?.message ?? e}`);
+    } finally {
+      setExportandoConfig(false);
+    }
+  }
+
+  /** Importa um .zip exportado antes e devolve o fatiador exatamente àquele ponto. */
+  async function importarConfiguracaoArquivo(f: File) {
+    setImportandoConfig(true);
+    setErro(null);
+    try {
+      const { arquivo: arquivoImportado, info, itens: itensImportados, eventosBrutos: eventosImportados } =
+        await importarConfiguracao(f);
+      setProcessoCodigo(info.processoCodigo);
+      setSlot(info.slot as Slot);
+      setArquivo(arquivoImportado);
+      setEventosBrutos(eventosImportados as EventoSei[] | null);
+      setNumeroProcesso(info.numeroProcesso || info.processoCodigo);
+      resetar({ itens: itensImportados, selecionadoId: itensImportados[0]?.id ?? null });
+      if (!eventosImportados) {
+        setErro('Configuração importada, mas sem "eventos-brutos.json" no zip — "Comparar com o LIP" e "Baixar pacote (.zip)" ficam indisponíveis até fatiar de novo.');
+      }
+    } catch (e: any) {
+      setErro(`Falha ao importar configuração: ${e?.message ?? e}`);
+    } finally {
+      setImportandoConfig(false);
+    }
+  }
+
   const atalhos = useMemo<Atalho[]>(() => [
     { tecla: "ArrowDown", acao: () => moverSelecao(1), descricao: "próximo item" },
     { tecla: "ArrowUp", acao: () => moverSelecao(-1), descricao: "item anterior" },
@@ -826,6 +880,16 @@ export default function TelaFatiamento() {
             )}
             <input ref={inputRef} type="file" accept="application/pdf" className="hidden" disabled={processando}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) processar(f); e.target.value = ""; }} />
+          </div>
+          {/* Importar configuração — pedido do Fábio (15/09/2026): retomar de um .zip exportado
+              antes (PDF + Excel com nomes/páginas/fatias/cortes), sem fatiar tudo de novo. */}
+          <div className="mt-3 text-center">
+            <button onClick={() => importConfigRef.current?.click()} disabled={importandoConfig}
+              className="text-xs px-3 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {importandoConfig ? "⏳ Importando..." : "📂 Importar configuração (.zip)"}
+            </button>
+            <input ref={importConfigRef} type="file" accept=".zip" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importarConfiguracaoArquivo(f); e.target.value = ""; }} />
           </div>
           {erro && <p className="mt-3 text-sm text-[var(--error)] bg-[var(--error-bg)] rounded p-2">⚠ {erro}</p>}
         </div>
@@ -1088,6 +1152,11 @@ export default function TelaFatiamento() {
               title="Zera o fatiamento e volta pra tela de soltar o PDF, sem abrir a janela de escolher arquivo"
               className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--error)]">
               🧹 Limpar fatiador
+            </button>
+            <button onClick={exportarConfiguracaoAtual} disabled={!arquivo || exportandoConfig}
+              title="Baixa um .zip com o PDF completo + um Excel com nomes, páginas, fatias e cortes — pra importar depois e voltar exatamente aqui"
+              className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {exportandoConfig ? "⏳ Gerando..." : "💾 Exportar configuração (.zip)"}
             </button>
             <input ref={inputRef} type="file" accept="application/pdf" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) processar(f); e.target.value = ""; }} />
