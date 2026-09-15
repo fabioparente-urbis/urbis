@@ -1096,7 +1096,7 @@ export default function TelaFatiamento() {
                     <p className="text-[10px] font-bold text-[var(--text-primary)]">
                       {encontrados.length} campo(s) lido(s)
                     </p>
-                    <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)]">copiar</button>
+                    <button onClick={copiarResultadoLeitura} className="text-[10px] underline text-[var(--accent)] cursor-pointer hover:opacity-70">copiar</button>
                   </div>
                   <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
                     {encontrados.map(([chave, c]) => (
