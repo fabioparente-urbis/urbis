@@ -58,7 +58,7 @@ import { resolverEstados } from "@/lib/documentosSei/motorVersoes";
 import { sugerirCamposLip, ROTULO_CAMPO_LIP } from "@/lib/documentosSei/compararLip";
 import { AVISO_IA_DESLIGADA } from "@/lib/constants";
 import { agruparEmLotes, itensParaLeitura } from "@/lib/documentosSei/agruparParaLeitura";
-import { lerLotes, type ResultadoLote, type CampoLido } from "@/lib/documentosSei/lerComGemini";
+import { lerLotes, type ResultadoLote } from "@/lib/documentosSei/lerComGemini";
 import { LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import {
   reduzirFatiamento, ESTADO_VAZIO, type ItemFatiado, type StatusEdicao,
@@ -177,6 +177,8 @@ export default function TelaFatiamento() {
   const [camposLipAtuais, setCamposLipAtuais] = useState<Record<string, { valor?: string } | undefined>>({});
   const [selecionadosLip, setSelecionadosLip] = useState<Record<string, boolean>>({});
   const [salvandoLip, setSalvandoLip] = useState(false);
+  const [gravandoLeitura, setGravandoLeitura] = useState(false);
+  const [gravadoLeitura, setGravadoLeitura] = useState<number | null>(null);
   const [nomeRenomeando, setNomeRenomeando] = useState("");
   /**
    * Edição inline da classificação, direto na linha da lista — pedido do Fábio (14/09/2026):
@@ -516,6 +518,45 @@ export default function TelaFatiamento() {
       setErro(`Falha ao gravar no LIP: ${e?.message ?? e}`);
     } finally {
       setSalvandoLip(false);
+    }
+  }
+
+  /**
+   * Pedido do Fábio (15/09/2026): "a conferência tem que ser no LIP, não faz sentido conferir os
+   * itens pequenininho aqui" — em vez de mostrar os ~90 campos lidos numa lista minúscula pro
+   * analista conferir NO FATIADOR, grava tudo direto na ficha de uma vez e deixa a conferência de
+   * verdade pra tela do LIP, que é onde o analista já sabe olhar. Só entra em campo que a ficha
+   * ainda não tinha (nunca sobrescreve o que já existe — mesmo cuidado de `aceitarCamposLip`, só
+   * que sem checkbox por item: aqui a escolha é o clique único no botão, que já é autorização
+   * clara o bastante pra essa ação específica).
+   */
+  async function gravarLeituraNaFicha() {
+    if (!resultadoLeitura) return;
+    setGravandoLeitura(true);
+    setErro(null);
+    try {
+      const dados = await carregarFichaLip(); // relê agora, não confia no que foi lido antes
+      if (!dados) return;
+      const novo: Record<string, any> = { ...dados };
+      let gravados = 0;
+      for (const [chave, c] of Object.entries(resultadoLeitura.campos)) {
+        if (!c || dados[chave]?.valor) continue; // sem evidência, ou a ficha já tinha algo ali
+        novo[chave] = { valor: c.valor, origem: "urbis", fonte: `Fatiador de PDF SEI — ${c.fonte}` };
+        gravados++;
+      }
+      if (!gravados) { setGravadoLeitura(0); return; }
+      const r = await fetch("/api/processo/salvar", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
+      });
+      const j = await r.json();
+      if (!j?.ok) throw new Error(j?.erro ?? "o servidor recusou a gravação");
+      registrarEvento("fatiador_correcao", `${gravados} campo(s) da leitura gravado(s) direto no LIP`, { campos: Object.keys(resultadoLeitura.campos) });
+      setGravadoLeitura(gravados);
+    } catch (e: any) {
+      setErro(`Falha ao gravar a leitura no LIP: ${e?.message ?? e}`);
+    } finally {
+      setGravandoLeitura(false);
     }
   }
 
@@ -1077,21 +1118,25 @@ export default function TelaFatiamento() {
             )}
             {resultadoLeitura && (() => {
               // `campos[chave]` vem `null` quando /api/lip/s3 não achou evidência pra esse campo
-              // (route.ts:352-354) — renderizar `c.valor` sem filtrar antes derrubava a tela
-              // inteira (TypeError: Cannot read properties of null), achado do Fábio, 15/09/2026.
-              const encontrados = Object.entries(resultadoLeitura.campos).filter(
-                (par): par is [string, CampoLido] => !!par[1],
-              );
+              // (route.ts:352-354) — não conta como "lido".
+              const nEncontrados = Object.values(resultadoLeitura.campos).filter(Boolean).length;
               return (
                 <div className="mb-3 border border-[var(--border)] rounded p-2 bg-[var(--bg-secondary)]">
-                  <p className="text-[10px] font-bold text-[var(--text-primary)] mb-1">
-                    {encontrados.length} campo(s) lido(s)
+                  <p className="text-[10px] text-[var(--text-primary)] mb-2">
+                    {nEncontrados} campo(s) lido(s) — a conferência é lá no LIP, não aqui.
                   </p>
-                  <ul className="text-[10px] text-[var(--text-muted)] space-y-0.5 max-h-32 overflow-y-auto">
-                    {encontrados.map(([chave, c]) => (
-                      <li key={chave}><b className="text-[var(--text-primary)]">{chave}</b>: {c.valor}</li>
-                    ))}
-                  </ul>
+                  <button onClick={gravarLeituraNaFicha} disabled={gravandoLeitura || !processoCodigo.trim()}
+                    title="Só entra em campo que a ficha ainda não tinha — nunca sobrescreve o que já existe"
+                    className="w-full text-xs px-2 py-1.5 rounded bg-[var(--accent)] text-[var(--accent-fg)] disabled:opacity-40">
+                    {gravandoLeitura ? "⏳ Gravando..." : "💾 Gravar na ficha (os campos ainda vazios)"}
+                  </button>
+                  {gravadoLeitura !== null && (
+                    <p className="text-[10px] text-[var(--text-muted)] mt-1">
+                      {gravadoLeitura > 0
+                        ? `${gravadoLeitura} campo(s) gravado(s) — confira e ajuste direto na ficha do processo.`
+                        : "Nada gravado: todos os campos encontrados já tinham valor na ficha."}
+                    </p>
+                  )}
                 </div>
               );
             })()}
