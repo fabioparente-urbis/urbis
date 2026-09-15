@@ -30,6 +30,14 @@ export type RascunhoFatiador = {
   arquivoNome: string;
   arquivoTipo: string;
   arquivoBlob: Blob;
+  /**
+   * Resultado de "Enviar marcados para leitura" (ResultadoLote de lerComGemini.ts, tipo solto
+   * aqui pelo mesmo motivo de `eventosBrutos`) — achado do Fábio, 15/09/2026: recarregar a tela
+   * (ex. pra pegar uma correção) jogava fora uma leitura que já tinha rodado (e custado) no
+   * Gemini, porque só ficava em estado do React. `null`/ausente em rascunho antigo, de antes
+   * deste campo existir, ou quando ainda não rodou nenhuma leitura.
+   */
+  resultadoLeitura?: unknown;
   guardadoEm: number;
 };
 

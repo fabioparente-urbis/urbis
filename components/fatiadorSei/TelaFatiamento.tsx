@@ -231,6 +231,7 @@ export default function TelaFatiamento() {
     setEventosBrutos(r.eventosBrutos as EventoSei[]);
     setNumeroProcesso(r.numeroProcesso);
     resetar({ itens: r.itens, selecionadoId: r.itens[0]?.id ?? null });
+    setResultadoLeitura((r.resultadoLeitura as ResultadoLote | undefined) ?? null);
     setRascunho(null);
   }
 
@@ -256,10 +257,11 @@ export default function TelaFatiamento() {
       salvarRascunho(usuarioId, {
         processoCodigo, slot, numeroProcesso, eventosBrutos, itens,
         arquivoNome: arquivo.name, arquivoTipo: arquivo.type, arquivoBlob: arquivo,
+        resultadoLeitura,
       });
     }, 1200);
     return () => { if (rascunhoSalvandoRef.current) clearTimeout(rascunhoSalvandoRef.current); };
-  }, [itens, usuarioId, arquivo, numeroProcesso, eventosBrutos, processoCodigo, slot]);
+  }, [itens, usuarioId, arquivo, numeroProcesso, eventosBrutos, processoCodigo, slot, resultadoLeitura]);
 
   // Campo de renomear segue a seleção: troca de item mostra o nome DELE, não o do anterior.
   useEffect(() => {
