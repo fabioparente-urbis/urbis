@@ -11,11 +11,16 @@
  *
  * Renderização enxuta de propósito — sem camada de texto/anotação, é só conferência visual rápida,
  * não leitura.
+ *
+ * 15/09/2026: largura dobrada (220px → 440px), pedido do Fábio já usando em produção. A coluna do
+ * meio no grid de TelaFatiamento.tsx cresceu junto — os dois têm que mudar sempre juntos.
  */
 
 import { Document, Page, pdfjs } from "react-pdf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+const LARGURA_PX = 440;
 
 export default function MiniaturaPdf({
   arquivo, pagina, onAmpliar,
@@ -41,7 +46,7 @@ export default function MiniaturaPdf({
             loading={<div className="flex items-center justify-center h-64 text-xs text-[var(--text-muted)]">Carregando...</div>}
             error={<div className="flex items-center justify-center h-64 text-xs text-[var(--error)]">Não abriu</div>}
           >
-            <Page pageNumber={pagina} width={220} renderTextLayer={false} renderAnnotationLayer={false} />
+            <Page pageNumber={pagina} width={LARGURA_PX} renderTextLayer={false} renderAnnotationLayer={false} />
           </Document>
         </div>
       )}

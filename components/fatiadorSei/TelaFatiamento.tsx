@@ -777,8 +777,10 @@ export default function TelaFatiamento() {
         </div>
       )}
 
+      {/* Coluna do meio (miniatura) casada com LARGURA_PX de MiniaturaPdf.tsx: 440px de imagem
+          + padding do card — 15/09/2026, miniatura dobrada de tamanho a pedido do Fábio. */}
       {numeroProcesso && (
-        <div className="grid grid-cols-[1fr_240px_280px] gap-4">
+        <div className="grid grid-cols-[1fr_472px_280px] gap-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs text-[var(--text-muted)]">
