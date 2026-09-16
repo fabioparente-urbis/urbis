@@ -430,8 +430,16 @@ export default function TelaFatiamento() {
     if (!processoCodigo) return null;
     const r = await fetch(`/api/processo/carregar?id=${encodeURIComponent(processoCodigo)}&tipo=${slot}`, { credentials: "include" });
     const j = await r.json();
-    if (!j?.ok) throw new Error(j?.erro ?? "não consegui carregar a ficha do processo");
-    return (j.dados ?? {}) as Record<string, { valor?: string } | undefined>;
+    if (!j?.ok) {
+      // Processo ainda não cadastrado — pedido do Fábio (15/09/2026): "quero que ele faça o
+      // cadastro". Devolve ficha vazia em vez de falhar; /api/processo/salvar (chamado por quem
+      // usa isto, ver gravarCamposNaFicha) faz INSERT sozinho quando o código não existe ainda —
+      // o próprio ato de gravar a leitura cadastra o processo. Qualquer outro erro (rede,
+      // permissão) continua interrompendo, não é "processo novo".
+      if (r.status === 404) return {};
+      throw new Error(j?.erro ?? "não consegui carregar a ficha do processo");
+    }
+    return (j.data?.dados ?? {}) as Record<string, { valor?: string } | undefined>;
   }
 
   /**
@@ -625,8 +633,18 @@ export default function TelaFatiamento() {
         lotes, { processoCodigo, slot },
         (mensagem, pct) => setProgressoLeitura({ mensagem, pct }),
         async (lote) => {
-          const gravados = await gravarCamposNaFicha(lote.campos);
-          setGravadoLeitura((g) => (g ?? 0) + gravados);
+          // Achado do Fábio, 15/09/2026: se a gravação deste lote falhar (processo ainda não
+          // cadastrado, rede, etc.) SEM este try/catch, o erro sobe e aborta lerLotes inteiro —
+          // a leitura já paga no Gemini nunca chega a setResultadoLeitura/baixarLeituraComoArquivo
+          // no fim de enviarParaLeitura, e volta a se perder, exatamente o problema que motivou o
+          // download automático. Gravação é best-effort aqui; a leitura em si nunca pode falhar
+          // por causa dela — o erro fica visível, mas o resultado final ainda é salvo em arquivo.
+          try {
+            const gravados = await gravarCamposNaFicha(lote.campos);
+            setGravadoLeitura((g) => (g ?? 0) + gravados);
+          } catch (e: any) {
+            setErro(`Leitura OK, mas falhou ao gravar um lote na ficha: ${e?.message ?? e}`);
+          }
         },
       );
       setResultadoLeitura(resultado);
