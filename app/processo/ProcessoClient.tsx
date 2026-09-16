@@ -258,6 +258,16 @@ export default function ProcessoClient() {
   const [dadosLogradouro, setDadosLogradouro] = useState<any>(null);
   const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
   const [carregando, setCarregando] = useState(true);
+  /**
+   * Achado do Fábio, 16/09/2026 — bug real de perda de dado: "QUALQUER CLIQUE NA TELA GRAVA"
+   * (26/08/2026) descarrega `pendenteRef` na hora, em cima do que estiver em `d` — mas `d` começa
+   * `{}` e só recebe a ficha real depois que `carregarProcesso()` (fetch assíncrono) termina. Um
+   * clique em QUALQUER lugar da tela durante essa janela grava `d` quase vazio por cima da ficha
+   * inteira no banco — confirmado no log de auditoria (processo 25.5.000074961-2, 95 campos → 0
+   * num único UPDATE). Ref (não state) porque autoSalvar/gravarPendente são callbacks que
+   * precisam do valor mais recente sem entrar em array de dependência.
+   */
+  const carregandoRef = useRef(true);
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
@@ -441,6 +451,7 @@ export default function ProcessoClient() {
     if (!idUrl) return;
     try {
       setCarregando(true);
+      carregandoRef.current = true;
       const res = await fetch(`/api/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
       const texto = await res.text();
       let json: any = null;
@@ -472,6 +483,7 @@ export default function ProcessoClient() {
       setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } }));
     } finally {
       setCarregando(false);
+      carregandoRef.current = false;
     }
   }, [idUrl, tipoUrl]);
 
@@ -617,6 +629,10 @@ export default function ProcessoClient() {
   const gravarPendente = useCallback(async () => {
     const estado = pendenteRef.current;
     if (!estado) return;
+    // Trava enquanto a ficha ainda está carregando (ver carregandoRef acima) — não descarta a
+    // edição pendente, só adia: fica em pendenteRef até o próximo gatilho (debounce seguinte ou
+    // clique) já com a ficha carregada.
+    if (carregandoRef.current) return;
     pendenteRef.current = null;
     if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
     // Auto-save blindado: salva mesmo com campos padrão vazios (CONFERIR)
