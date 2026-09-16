@@ -1658,7 +1658,10 @@ export default function MacPage() {
         const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
-          throw new Error(`${arquivo.name}: ${json?.erro || res.statusText || "falha na leitura"}`);
+          // Mesmo achado do "LER PROCESSO" (08/09/2026, linha ~2388): Railway serve por HTTP/2,
+          // `res.statusText` vem sempre vazio — sem isso a mensagem virava "falha na leitura"
+          // genérico, escondendo se foi timeout de proxy (502/504) ou falha da própria rota.
+          throw new Error(`${arquivo.name}: ${json?.erro || `HTTP ${res.status}` || "falha na leitura"}`);
         }
 
         Object.entries(json.itens || {}).forEach(([id, status]) => {
