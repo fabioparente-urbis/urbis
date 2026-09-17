@@ -4,7 +4,10 @@ import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { BotaoGerarLaudo } from "@/components/mac/BotaoGerarLaudo";
+/* Laudo do Aceite: botão + rota + gerador + template PRÓPRIOS do Slot 2 desde
+ * 17/09/2026 (CLAUDE.md — isolamento entre slots). O `BotaoGerarLaudo`
+ * compartilhado continua existindo e serve o Slot 1, intocado. */
+import { BotaoGerarLaudoAceiteSei } from "@/components/mac/aceiteSei/BotaoGerarLaudoAceiteSei";
 import { parseAreaBR } from "@/lib/mrp";
 import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado";
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
@@ -1369,11 +1372,29 @@ export default function MacPage() {
   async function handleDespachoInterno() {
     setGerandoDI(true);
     try {
-      const res = await fetch("/api/despacho-interno", {
+      /* Rota própria do Slot 2 desde 17/09/2026 (antes era a compartilhada
+       * `/api/despacho-interno`) — CLAUDE.md, isolamento entre slots. O
+       * documento é idêntico ao do Slot 1; o que muda é de quem é o caminho.
+       *
+       * O fallback do tipo era `|| "regularizacao"` AQUI, na tela do Aceite:
+       * com o estado ainda vazio, o despacho interno do Aceite ia pedindo o
+       * assunto da Regularização. Agora é "aceite_sei". */
+      const res = await fetch("/api/mac/aceite-sei/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "aceite_sei", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
       });
-      if (!res.ok) throw new Error("Erro");
+      if (!res.ok) {
+        /* Railway serve por HTTP/2 e `res.statusText` vem sempre vazio — o
+         * `throw new Error("Erro")` que estava aqui escondia se era timeout de
+         * proxy (502/504) ou falha da rota. Mesma correção que "Ler Processo"
+         * recebeu em 08/09 e "Ler Arquivos Individuais" em 16/09/2026. */
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.detalhe ?? err?.erro ?? `HTTP ${res.status}`);
+      }
+      const avisosDI = res.headers.get("X-Avisos");
+      if (avisosDI) {
+        try { mostrarToast(`⚠️ ${decodeURIComponent(avisosDI)}`); } catch { mostrarToast(`⚠️ ${avisosDI}`); }
+      }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url;
@@ -2607,7 +2628,7 @@ export default function MacPage() {
               🗂️ Arquivamento
             </button>
             <div className="mt-2">
-              <BotaoGerarLaudo
+              <BotaoGerarLaudoAceiteSei
                 processoId={codigo}
                 onAntesDeGerar={() => confirmarSePendente("o laudo")}
                 mrpData={{ assuntoNome, interessado: dadosLip?.proprietario?.valor ?? null, areaConstruida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0, bairro: dadosLip?.bairro?.valor ?? null, numeroSei: dadosLip?.processo?.valor ?? codigo, numeroFisico: dadosLip?.processoFisico?.valor ?? null }}
