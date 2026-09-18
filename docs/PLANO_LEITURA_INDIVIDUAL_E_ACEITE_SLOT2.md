@@ -2,12 +2,13 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~97% concluído (**Blocos A, B, C, D e E — todos CONCLUÍDOS em código**: 6 campos
-criados; arquivos individuais testado em produção com sucesso; prompt v36 do Aceite ativo;
-checklist auditado nos dois slots; ponte LIP→MAC restrita ao slot certo + bug real de
-"Recusar todas IA" apagando resposta manual corrigido, nos dois slots — mais 2 achados fora do
-plano original: "despacho" sem ano e grupo Art.15/APL duplicado, também nos dois slots) · ~3%
-restante (**só falta ligar o interruptor** `leitura_unica_lip_mac_ativo`, decisão do Fábio, e
+**Progresso:** ~99% concluído — **PLANO INTEIRO CONCLUÍDO** (Blocos A a E, interruptor da ponte
+LIP→MAC LIGADO em produção em 18/09/2026). 6 campos criados; arquivos individuais testado em
+produção com sucesso; prompt v36 do Aceite ativo; checklist auditado nos dois slots; ponte
+LIP→MAC restrita ao slot certo + bug real de "Recusar todas IA" apagando resposta manual
+corrigido, nos dois slots — mais 2 achados fora do plano original: "despacho" sem ano e grupo
+Art.15/APL duplicado, também nos dois slots. **~1% restante, não bloqueia:** medir o custo real
+do Gemini na primeira leitura combinada (ainda não aconteceu nenhuma desde que ligou), e
 testar numa leitura real). Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
@@ -444,10 +445,13 @@ Pedido direto do Fábio: "vamos trabalhar na ligacao do lip ao mac nos dois slot
    realmente serão preenchidos (vazio no analista + sugestão não-nula) e só mexe em
    `fontes`/`aceites` desses. Toast e OBS também passaram a dizer "X preenchido(s) de Y
    sugerido(s)", em vez de contar sugestões que nem foram aplicadas.
-4. **PENDENTE — decisão do Fábio.** Ligar o interruptor:
-   `update urbis_config set leitura_unica_lip_mac_ativo = true where id = 1;`
-   Depois, medir numa leitura real (`urbis_api_calls.tokens_saida` antes e depois) e reportar o
-   custo extra. **Este é o único passo que falta no plano inteiro.**
+4. ✅ **LIGADO em produção em 18/09/2026** ("liga rapidao... ta tudo certo" — Fábio).
+   `urbis_config.leitura_unica_lip_mac_ativo`: `false` → `true`, confirmado antes/depois. A
+   partir de agora, toda leitura do LIP (Slot 1 ou 2) num processo que já tenha análise do MAC
+   aberta pede o LIP e o checklist juntos numa chamada só.
+   **PENDENTE, não bloqueia o plano:** medir o custo real numa leitura de verdade
+   (`urbis_api_calls.tokens_saida` antes/depois) e reportar ao Fábio — ainda não teve nenhuma
+   leitura desde que ligou.
    Depois, medir numa leitura real (`urbis_api_calls.tokens_saida` antes e depois) e reportar o
    custo extra.
 
