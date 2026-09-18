@@ -2,7 +2,7 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~2% concluído (só a parte de interface do Bloco A — 2 campos criados no LIP do Aceite) · 98% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~27% concluído (Bloco A — interface: 2 campos criados no LIP do Aceite; Bloco B — código completo, arquivos individuais lendo como leitura única, falta só o teste real do Fábio pela tela) · ~73% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -185,38 +185,48 @@ Passos:
 
 ## Bloco B — "Ler Arquivos Individuais" do LIP = mesma leitura do "Ler Processo" (Slots 1 e 2)
 
-Ideia: juntar os arquivos escolhidos **num PDF só, no navegador**, e mandar pelo **mesmo caminho do
-`lerLip`**. O Gemini vê tudo junto, como no processo inteiro. Nenhuma rota do servidor muda.
+**CÓDIGO CONCLUÍDO em 18/09/2026 (Sonnet).** Falta só o passo 9 (teste real do Fábio pela tela,
+com Gemini pago) para fechar o bloco.
 
-1. Em `processarVCP` (`ProcessoClient.tsx` ~1613): desvio **só** quando `tipoUrl` é Regularização
-   ou Aceite (mesma checagem de `marcoTemporalDoTipo`: `startsWith("regularizacao")` /
-   `startsWith("aceite")`, sem diferenciar maiúscula). Outros slots continuam no `processarVCP`
-   antigo, **byte a byte igual**.
-2. Juntar com `pdf-lib` (já é dependência; ver o padrão em `lib/documentosSei/exportarPecas.ts`).
-   Criar um módulo novo e isolado, por exemplo `lib/documentosSei/juntarArquivosLeitura.ts`:
+Ideia: juntar os arquivos escolhidos **num PDF só, no navegador**, e mandar pelo **mesmo caminho do
+`lerLip`**. O Gemini vê tudo junto, como no processo inteiro. Nenhuma rota do servidor mudou.
+
+1. ✅ Em `processarVCP` (`ProcessoClient.tsx` ~1675): desvio **só** quando
+   `marcoTemporalDoTipo(tipoUrl) !== null` (Regularização ou Aceite — reaproveitada a função de
+   `lib/marcoTemporal.ts`, em vez de duplicar a checagem de prefixo). Chama
+   `processarVCPComoLeituraUnica()`. Qualquer outro `tipoUrl` (Slot 5 incluído) cai no
+   `processarVCP` antigo, **intocado**.
+2. ✅ Módulo novo `lib/documentosSei/juntarArquivosLeitura.ts` (`juntarArquivosParaLeitura` /
+   `juntarArquivosComoFile`), com `pdf-lib`:
    - PDF: `PDFDocument.load(bytes, { ignoreEncryption: true })` e `copyPages` de todas as páginas;
-   - PNG/JPG: `embedPng`/`embedJpg` em uma página do tamanho da imagem;
-   - arquivo que falhar ao abrir: erro com o **nome do arquivo** (nunca pular em silêncio);
-   - manter a ordem em que o analista escolheu;
-   - nome do arquivo: `${idUrl} - arquivos individuais (${n}).pdf`.
-3. Tamanho: se o PDF juntado passar de `LIMITE_BYTES_PLATAFORMA`, parar com mensagem clara ("leia
-   em dois lotes"). A escolha do modelo pelo tamanho já acontece sozinha no S1/S3.
-4. Chamar `lerLip([arquivoJuntado], modo)`, com o `modo` escolhido pela mesma lógica que o VCP usa
-   hoje (`lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir"`), e depois `setVcpModo(null)`.
-   Cuidar dos estados `vcpProcessando`/`lendoLip` e do cronômetro para não ficarem presos.
-5. Registro em Observações: o `lerLip` já escreve o bloco "LEITURA DO PROCESSO (LIP)". Acrescentar um
-   parâmetro opcional ao `lerLip` (por exemplo `origem?: { rotulo: string; arquivos: string[] }`)
-   para o cabeçalho dizer "ARQUIVOS INDIVIDUAIS" e listar os nomes. Sem o parâmetro, o texto fica
-   idêntico ao de hoje.
-6. O S4 (cruzamento entre arquivos) **não roda** no caminho novo: com uma leitura só, não há o que
-   cruzar. Não apagar a rota. Ela continua servindo o caminho antigo.
-7. Cache: o hash do PDF juntado entra no cache normal do `lerLip`. O mesmo conjunto na mesma ordem
-   reaproveita a leitura. Documentar isso no comentário.
-8. Teste:
-   - `npx tsc --noEmit` limpo;
-   - script em `scripts/` que junta 2 PDFs e 1 PNG de exemplo e confere o número de páginas;
-   - o Fábio compara, pela tela, o mesmo processo lido pelos dois botões. O esperado: marco temporal
-     aparecendo, sem os "Não" falsos, número de campos parecido com o do Ler Processo.
+   - PNG/JPG: `embedPng`/`embedJpg`, página do tamanho da imagem (reduzida proporcionalmente se
+     maior que A4);
+   - arquivo que falhar: erro com o **nome do arquivo** (testado, ver passo 8);
+   - mantém a ordem escolhida pelo analista;
+   - nome do arquivo final: `${idUrl} - arquivos individuais (${n}).pdf`.
+3. ✅ Tamanho: se o PDF juntado passar de `LIMITE_BYTES_PLATAFORMA`,
+   `processarVCPComoLeituraUnica` para com mensagem clara ("leia em dois lotes menores") ANTES de
+   chamar `lerLip`.
+4. ✅ Chama `lerLip([arquivoJuntado], modoFinal, origem)`, com `modoFinal` pela mesma lógica que o
+   VCP antigo usava. `setVcpModo(null)` e `setVcpArquivos([])` no fim. `lendoLip`/cronômetro são
+   geridos pelo próprio `lerLip` (não duplicados); `vcpProcessando` fecha no `finally` da função
+   nova.
+5. ✅ `lerLip` ganhou o parâmetro opcional `origem?: { rotulo: string; arquivos: string[] }`
+   (3ª posição, sem quebrar nenhum chamador existente — nenhum outro passa esse argumento). Quando
+   presente, o cabeçalho da OBS vira `LEITURA DO PROCESSO (LIP) — ARQUIVOS INDIVIDUAIS` + a lista
+   dos nomes originais, nos dois blocos (sucesso e erro) e no toast inicial.
+6. ✅ O S4 (cruzamento entre arquivos, mais abaixo em `processarVCP`) não é tocado — só deixa de
+   ser chamado no caminho novo, porque `processarVCPComoLeituraUnica` nunca entra nessa função.
+7. ✅ Cache: nada de código extra — o `arquivoJuntado` passa pelo hash/cache que `lerLip` já faz
+   sozinho para qualquer arquivo.
+8. ✅ Teste — `scripts/testar_juntar_arquivos_leitura.mts`: junta 2 PDFs (2 e 3 páginas) + 1 PNG,
+   confere 6 páginas no resultado, reabre o PDF final e confere de novo, e confere que um arquivo
+   corrompido lança erro **nomeando o arquivo** (não passa em silêncio). Todos os casos passaram.
+   `npx tsc --noEmit` limpo com as mudanças.
+9. **PENDENTE — só o Fábio pode fazer:** comparar, pela tela, o mesmo processo lido pelos dois
+   botões (LER PROCESSO × LER ARQUIVOS INDIVIDUAIS). Esperado: marco temporal aparecendo, sem os
+   "Não" falsos, número de campos parecido com o do Ler Processo. Isso gasta Gemini de verdade —
+   nenhuma sessão de IA deve rodar isso sozinha.
 
 ## Bloco C — Prompt do Aceite v36 + marco temporal do Aceite (só Slot 2)
 
