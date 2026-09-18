@@ -109,7 +109,13 @@ export async function gerarIndeferimentoAceiteSei(dados: DadosIndeferimentoAceit
     }));
   });
   children.push(vazio(140));
-  children.push(p([txt("O Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº 546, de 27 de fevereiro de 2015, define procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, §4º, Inciso II do Decreto nº. 2.559/2018.")], { after: 120 }));
+  /* Decreto nº 2.531, de 1º/07/2024 (em vigor; seu Art. 17 revogou o 2.559/2018). Mapeamento
+   * feito pelo texto oficial em 18/09/2026, autorizado pelo Fábio:
+   *   indeferir: Art. 8º §4º II (2.559) → Art. 8º § 7º (2.531), "o processo será indeferido";
+   *   recurso:   Art. 9º (2.559), 15 dias da publicação → Art. 9º (2.531), 15 dias ÚTEIS da EMISSÃO;
+   *   arquivar:  Art. 4 inciso 4.5 (2.559) não tem equivalente → Art. 9º (2.531), Seção "Do Recurso".
+   * Os modelos da chefia (INDEFERIMENTO/ARQUIVAMENTO regularização) ainda citam o 2.559. */
+  children.push(p([txt("O Decreto nº 2.531, de 1º de julho de 2024, que revogou o Decreto nº 2.559, de 13 de dezembro de 2018, institui procedimentos administrativos para análise e aprovação de projetos arquitetônicos no âmbito do Município de Goiânia. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, § 7º do Decreto nº 2.531/2024.")], { after: 120 }));
 
   if (dados.naoConformes?.length) {
     children.push(vazio(80));
@@ -139,7 +145,7 @@ export async function gerarIndeferimentoAceiteSei(dados: DadosIndeferimentoAceit
       }
     }
   }
-  children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias", { bold: true }), txt(", contados a partir da publicação deste parecer, conforme previsto no Artigo 9º do Decreto nº. 2.559/2018. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
+  children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias úteis", { bold: true }), txt(", contados a partir da data de emissão deste parecer, conforme previsto no Artigo 9º do Decreto nº 2.531/2024. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
   blocoAssinaturas(assinante, dados.gerente, dados.diretora).forEach((par) => children.push(par));
@@ -175,7 +181,7 @@ export async function gerarArquivamentoAceiteSei(dados: DadosArquivamentoAceite)
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(p([txt("AO ARQUIVO")], { align: AlignmentType.LEFT, after: 160 }));
-  children.push(p([txt("Conforme o Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº. 546, de 27 de fevereiro de 2015, definem procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal, e por não cumprimento ao exigido nos despachos anteriormente listados, esta Diretoria comunica o "), txt("ARQUIVAMENTO DO PROCESSO", { bold: true }), txt(", nos termos do Art. 4, Inciso 4.5 e seguintes do Decreto citado, tendo sido o pedido de reconsideração "), txt("INDEFERIDO", { bold: true }), txt(" pela instância competente e exigirá para expectativa de futura aprovação a abertura de "), txt("NOVO PROCESSO", { bold: true }), txt(", mediante o pagamento das respectivas taxas.")], { after: 240 }));
+  children.push(p([txt("Conforme o Decreto nº 2.531, de 1º de julho de 2024, que revogou o Decreto nº 2.559, de 13 de dezembro de 2018, e institui procedimentos administrativos para análise e aprovação de projetos arquitetônicos no âmbito do Município de Goiânia, e por não cumprimento ao exigido nos despachos anteriormente listados, esta Diretoria comunica o "), txt("ARQUIVAMENTO DO PROCESSO", { bold: true }), txt(", nos termos do Art. 9º do Decreto citado, tendo sido o pedido de reconsideração "), txt("INDEFERIDO", { bold: true }), txt(" pela instância competente e exigirá para expectativa de futura aprovação a abertura de "), txt("NOVO PROCESSO", { bold: true }), txt(", mediante o pagamento das respectivas taxas.")], { after: 240 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
   blocoAssinaturas(assinante, dados.gerente, dados.diretora).forEach((par) => children.push(par));

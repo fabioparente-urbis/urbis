@@ -97,8 +97,8 @@ export function makeHeader(logoData: Buffer | null) {
     : new TableCell({ borders, width: { size: 3600, type: WidthType.DXA }, children: [new Paragraph({ children: [txt("PREFEITURA DE GOIÂNIA", { bold: true })] })] });
   return new Header({ children: [
     new Table({ width: { size: CONTENT_W, type: WidthType.DXA }, columnWidths: [3600, CONTENT_W - 3600], borders: { top: NB, bottom: NB, left: NB, right: NB, insideHorizontal: NB, insideVertical: NB }, rows: [new TableRow({ children: [logoCell, new TableCell({ borders, width: { size: CONTENT_W - 3600, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, children: [
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Secretaria Municipal de Planejamento Urbano e Habitação", { bold: true, underline: true, size: 17, color: "375623" })] }),
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Superintendência da Ordem Pública", { bold: true, underline: true, size: 17, color: "375623" })] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Secretaria Municipal de Eficiência", { bold: true, underline: true, size: 17, color: "375623" })] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Superintendência de Análise e Licenciamento", { bold: true, underline: true, size: 17, color: "375623" })] }),
       new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos", { bold: true, underline: true, size: 17, color: "375623" })] }),
     ] })] })] }),
     new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "AAAAAA", space: 1 } }, spacing: { before: 80, after: 0 }, children: [txt("")] }),

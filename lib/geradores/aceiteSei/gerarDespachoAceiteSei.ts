@@ -200,7 +200,7 @@ export async function gerarDespachoAceiteSei(dados: DadosDespachoAceite): Promis
   [
     "Análise de acordo com a LEI COMPLEMENTAR Nº 314, de 05/11/2018 que institui o Alvará de Regularização e INSTRUÇÃO NORMATIVA nº 04, de 16/05/2024 que regulamenta a LC nº 314;",
     "Texto da LC n°314/2018 alterado na LC n°368/2023;",
-    `DE ACORDO COM O DECRETO 2531/2024, A ANÁLISE DOCUMENTAL FOI REALIZADA PELA CHEADV – CHEFIA DA ADVOCACIA SETORIAL DA SEPLANH${trechoSei};`,
+    `DE ACORDO COM O DECRETO 2531/2024, A ANÁLISE DOCUMENTAL FOI REALIZADA PELA CHEADV – CHEFIA DA ADVOCACIA SETORIAL DA SEFIC${trechoSei};`,
   ].forEach((b) => {
     children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(b)] }));
   });
