@@ -82,7 +82,7 @@ export const CHAVES_LIP_USO_SOLO = [
 
 /** Chaves do LIP ligadas à caixa de recarga. Nenhuma é exigível no Aceite. */
 export const CHAVES_LIP_CAIXA = [
-  "caixa", "volMin", "volAt", "caixas", "areaImpermeavel",
+  "caixa", "volMin", "volAt", "caixas", "areaImpermeavel", "areaPermeavel",
   "artCx", "nroArtCx",
 ] as const;
 
