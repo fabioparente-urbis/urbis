@@ -2942,9 +2942,17 @@ export default function MacPage() {
             <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento por Impossibilidade de Análise</h2>
             <p className="text-xs text-[var(--text-muted)] mb-3">Selecione o(s) motivo(s):</p>
             {[
-              "Uso do solo não definido — atividade sem classificação permitida para regularização",
+              // Bloco D do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — lista era
+              // cópia literal do Slot 1 (Regularização, ~l.3232), com data/ato errados pro Aceite.
+              // Corrigido em 18/09/2026:
+              //   - marco temporal: 04/03/2022 (Regularização) → 19/10/1995 (Aceite,
+              //     LC 314/2018 Título II);
+              //   - "Uso do solo não definido" REMOVIDO: no Aceite o uso do solo é dispensado
+              //     (Art. 7º § 2º), não pode ser motivo de indeferimento.
+              // "mais de 7 pavimentos" mantido sem confirmação do Fábio — perguntar antes de
+              // mexer (pode ser regra geral da LC 314/2018, não só do Título I).
               "Edificação com mais de 7 pavimentos — vedada pela LC 314/2018",
-              "Reforma ou construção após 04/03/2022 — não elegível para regularização",
+              "Edificação concluída após 19/10/1995 — não atende ao marco temporal do Alvará de Aceite (LC 314/2018, Título II)",
               "Edificação em APP/APM — vedada pela legislação ambiental",
               "Processo sem documentação mínima para análise",
               MOTIVO_IMOVEL_DUPLICADO,

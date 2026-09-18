@@ -2,7 +2,7 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~27% concluído (Bloco A — interface: 2 campos criados no LIP do Aceite; Bloco B — código completo, arquivos individuais lendo como leitura única, falta só o teste real do Fábio pela tela) · ~73% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~38% concluído (Bloco A — interface: 2 campos criados; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento e comentário do laudo corrigidos, tabela do checklist pronta aguardando aprovação item a item) · ~62% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -299,23 +299,46 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
 
 ## Bloco D — Correções de tela, laudo e checklist do Aceite (só Slot 2)
 
-1. **Motivos de indeferimento** (`app/analise-aceite-sei/[codigo]/page.tsx` ~l.2947):
-   - trocar o do marco para "Edificação concluída após 19/10/1995 — não atende ao marco temporal do
-     Alvará de Aceite (LC 314/2018, Título II)";
-   - tirar "Uso do solo não definido...";
-   - **perguntar ao Fábio** se "mais de 7 pavimentos" vale no Aceite.
-   Antes, fazer grep dos textos (o motivo pode ser comparado por string em outro lugar, como o
-   parecer ou o `lib/bdi/vigia.ts`). O Slot 1 (`analise-regularizacao` ~l.3234) **não é tocado**.
-2. **Laudo do Aceite** (`lib/geradores/aceiteSei/gerarLaudoAceiteSei.ts`):
-   - corrigir o comentário "DECISÕES DE CONTEÚDO" (ART exigível acima de 200 m²; caixa conferida se
-     apresentada);
-   - auditar se algum trecho do código trata ART ou caixa como "nunca" e reportar ao Fábio antes de
-     mudar;
-   - **não mexer nas fórmulas do template**: a planilha é do Fábio.
-3. **Checklist do Aceite** (lista no D4): montar uma tabela "texto atual → texto proposto" e
-   aprovar **item a item** com o Fábio. Só depois, `UPDATE` no banco. Nunca apagar item; desativar
-   só com ok. Conferir sobreposição com `~/.claude/plans/auditoria-slots-1-2-5-2026-09-18.md`
-   (auditoria de 18/09, 26 itens) para não duplicar trabalho.
+1. ✅ **CONCLUÍDO em 18/09/2026 — Motivos de indeferimento**
+   (`app/analise-aceite-sei/[codigo]/page.tsx` ~l.2947): grep confirmou que os textos são só
+   strings soltas nessa tela — não são comparados por igualdade em nenhum outro lugar (nem
+   `lib/bdi/vigia.ts`, nem gerador de parecer). Trocado:
+   - marco: "Reforma ou construção após 04/03/2022 — não elegível para regularização" →
+     "Edificação concluída após 19/10/1995 — não atende ao marco temporal do Alvará de Aceite
+     (LC 314/2018, Título II)";
+   - removida "Uso do solo não definido...";
+   - "mais de 7 pavimentos" **mantido sem mexer** — ainda pendente de confirmação do Fábio.
+   O Slot 1 (`analise-regularizacao` ~l.3234) **não foi tocado** (conferido: nenhuma linha mudou
+   nesse arquivo neste bloco).
+2. ✅ **CONCLUÍDO em 18/09/2026 — Laudo do Aceite**
+   (`lib/geradores/aceiteSei/gerarLaudoAceiteSei.ts`): auditado o arquivo inteiro — **nenhum
+   trecho de código** trata ART ou caixa como "nunca exigível"; o gerador só ESCREVE no Painel os
+   valores primitivos que vieram do LIP (inclusive ART/RRT e caixa, quando existem), nunca zera
+   nem bloqueia campo. O problema era só o comentário "DECISÕES DE CONTEÚDO", que descrevia a
+   regra errada — corrigido para refletir D3 (ART exigível acima de 200 m²; caixa conferida se
+   apresentada) e deixado explícito que a regra de EXIGIR/CONFERIR é da leitura (prompt), não
+   deste gerador. **Nenhuma fórmula do template foi tocada.**
+3. **PENDENTE — decisão do Fábio, item a item.** Tabela "texto atual → proposta", a partir dos 12
+   itens ativos do checklist do Aceite (modelo `da29333d-...`) auditados em 18/09 — texto
+   completo de cada um já foi lido, não precisa reler o banco:
+
+   | Item (8 primeiros dígitos) | Chave/Grupo | O que tem hoje | Proposta | Por quê |
+   |---|---|---|---|---|
+   | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | **Desativar** | Uso do solo é dispensado no Aceite (D3); item parece colado do fluxo de aprovação de projeto |
+   | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | **Desativar** | 250 m² é a regra do Título I (Regularização, Art. 2º §4º); no Aceite a caixa não é exigida por padrão — vira condicional (só se apresentada), não requisito por metragem |
+   | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | **Desativar** (ou reescrever tirando "indispensável" e a citação do Art. 2º §4º, se o Fábio preferir manter como orientação condicional) | Cita literalmente o artigo do Título I; "indispensável" contradiz "não é cobrada por padrão" |
+   | `cfde2b8b` | artLev / Documentação | "Conforme **Art. 2º, inc. VII** da LC 314/2018, ART/RRT de levantamento + laudo técnico..." | **Peço a citação certa do Título II ao Fábio** — Art. 2º é do Título I; não vou adivinhar o artigo certo numa peça legal | Risco de citar artigo errado no parecer |
+   | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | **Desativar** | Uso do solo dispensado no Aceite |
+   | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | **Manter — confirmar com o Fábio** | Corredor viário não está na tabela D3 (nem a favor nem contra); pode ser regra urbanística geral, não específica do Título I |
+   | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | **Manter como está** — já é instrução de "como fazer certo", compatível com "se apresentar, tem que estar certo" | Sem conflito com D3 |
+   | `88e2317c` | — / Carimbo 1/2 | 2 frases: (a) memorial de cálculo é responsabilidade do RT da ART; (b) **"aprovação do projeto sob regramento do Corpo de Bombeiro"** | **Reescrever removendo só a frase (b)** | Bombeiros está **explicitamente fora do Aceite** (Fábio, 18/09, "pra mim não entram") — a frase (a) sobre a caixa fica |
+
+   Depois do ok do Fábio: `UPDATE mac_checklist_itens SET ativo = false WHERE id = '...'` para
+   desativar (nunca `DELETE`), e `UPDATE ... SET texto = '...'` para reescrever os 2 casos de
+   reescrita. Sem sobreposição com `~/.claude/plans/auditoria-slots-1-2-5-2026-09-18.md` (achado
+   #5 daquele plano é a data `041/03/2022` no checklist **do Slot 1** — modelo
+   `00000000-0000-0000-0000-000000000001` — não é este modelo do Aceite; **não mexer lá sem
+   pedido explícito do Slot 1**).
 
 ## Bloco E — Leitura do LIP preenchendo o checklist do MAC (Slots 1 e 2) · depende do Bloco B
 
