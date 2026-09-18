@@ -2,12 +2,12 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~65% concluído (Bloco A — CONCLUÍDO, os 6 campos criados na tela; Bloco B —
-código completo, falta teste real do Fábio; **Bloco D — CONCLUÍDO**: motivos de indeferimento,
-comentário do laudo, checklist todo auditado e as 5 pendências decididas pelo Fábio; tudo
-publicado no `main`, PRs #4 e #5) · ~35% restante (Bloco B — teste real; Bloco C — prompt v36 do
-Aceite, em redação; Bloco E — ponte LIP→MAC, depende do Bloco B validado). Atualizar no próprio
-commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~80% concluído (**Bloco A — CONCLUÍDO**, 6 campos criados; **Bloco B —
+CONCLUÍDO**, testado em produção pelo Fábio no Slot 1 com sucesso: marco temporal e cruzamento
+entre documentos funcionando; **Bloco D — CONCLUÍDO**: motivos de indeferimento, comentário do
+laudo, checklist todo auditado e decidido; tudo publicado no `main`, PRs #4 e #5) · ~20% restante
+(Bloco C — prompt v36 do Aceite, em redação; Bloco E — ponte LIP→MAC, pode começar). Atualizar no
+próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -244,10 +244,23 @@ Ideia: juntar os arquivos escolhidos **num PDF só, no navegador**, e mandar pel
    confere 6 páginas no resultado, reabre o PDF final e confere de novo, e confere que um arquivo
    corrompido lança erro **nomeando o arquivo** (não passa em silêncio). Todos os casos passaram.
    `npx tsc --noEmit` limpo com as mudanças.
-9. **PENDENTE — só o Fábio pode fazer:** comparar, pela tela, o mesmo processo lido pelos dois
-   botões (LER PROCESSO × LER ARQUIVOS INDIVIDUAIS). Esperado: marco temporal aparecendo, sem os
-   "Não" falsos, número de campos parecido com o do Ler Processo. Isso gasta Gemini de verdade —
-   nenhuma sessão de IA deve rodar isso sozinha.
+9. ✅ **TESTADO EM PRODUÇÃO pelo Fábio em 18/09/2026, Slot 1** (processo `25.5.000061039-8`, 9
+   arquivos/33 páginas): sucesso. Confirma que a correção resolveu os dois problemas de raiz do
+   D1:
+   - **Marco temporal apareceu** — antes sumia sempre no VCP; saiu com veredito, trecho citado e
+     fonte;
+   - **Cruzamento entre documentos funcionando** — a leitura em conjunto achou uma divergência de
+     área real entre 3 documentos (`areaTotal`/`areaLaudo`/`areaArt` = 444,05 m² × `areaVistoria`
+     = 285,85 m²) e reportou em "Incompatibilidades" — o VCP antigo não tinha esse tipo de
+     cruzamento;
+   - 51 campos preenchidos, 12 documentos mapeados corretamente dentro do PDF juntado, 1:37 de
+     duração, sem erro;
+   - Cabeçalho da OBS saiu "ARQUIVOS INDIVIDUAIS" com os 9 nomes, como esperado.
+   Achado cosmético, não corrigido (fora de escopo — é o MODELO escrevendo, não o código, e é
+   prompt do Slot 1): a "fonte" do marco temporal saiu com o texto literal "SEI null" quando o
+   documento não tinha SEI (`"Fonte: Termo de Vistoria Fiscal, SEI null, página 31-32"`) — o
+   prompt pede pro modelo escrever o SEI, e ele escreveu a palavra "null" em vez de omitir.
+   **Bloco B está CONCLUÍDO.**
 
 ## Bloco C — Prompt do Aceite v36 + marco temporal do Aceite (só Slot 2)
 
@@ -428,3 +441,20 @@ Ao terminar cada bloco:
   restante);
 - registrar no OBS COD;
 - resumo curto e simples para o Fábio.
+
+---
+
+## Fora do plano original, mesma sessão — "despacho" da CHEADV sem o ano
+
+**CONCLUÍDO em 18/09/2026.** Pedido direto do Fábio, cobrindo os DOIS slots explicitamente
+("rever os prompts", plural — descreveu o mesmo bug nos dois): o campo `despacho` (nº do ato da
+CHEADV/Uso do Solo) estava vindo só com o número ("1492"), sem o ano ("1492/2025"). Achado: os
+dois prompts P2_EXTRACAO (Regularização id=13 v22, Aceite id=14 v35) instruíam explicitamente
+"APENAS o número do ato" — com um exemplo que MOSTRAVA o documento como "DESPACHO Nº 1374/2024"
+mas pedia pro modelo devolver só "1374", cortando o ano de propósito. Corrigido nos dois: agora
+pede o número **com o ano**, exatamente como está escrito no documento.
+Conferido antes de mudar: `despacho` não é concatenado com ano em nenhum gerador de documento —
+sem risco de duplicar o ano em nenhum documento oficial.
+SQL em `supabase/correcoes/2026_09_18_despacho_cheadv_com_ano.sql`. **Slot 1 tocado com
+autorização explícita desta mensagem** (única exceção pontual do plano — o resto do Slot 1
+continua fora de escopo).
