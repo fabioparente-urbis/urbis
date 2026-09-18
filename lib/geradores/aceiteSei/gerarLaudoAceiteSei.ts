@@ -122,6 +122,9 @@ const MAPA_PAINEL: Record<string, string> = {
   corredor:  "H16",
   faixa:     "H17",
   caixa:     "H18",
+  /* Área Permeável — campo criado no LIP do Aceite em 18/09/2026 ("2 CRIA", Fábio).
+   * H19 alimenta a fórmula H20 = L9 − H19 (Área Impermeável) do template. */
+  areaPermeavel: "H19",
   volAt:     "H22",
   caixas:    "H23",
   pav:       "H24",
@@ -176,7 +179,7 @@ function areaNumerica(bruto: string): number | string {
 const CHAVES_AREA = new Set([
   "areaVerticalRecuo", "areaVerticalForaRecuo", "areaNaoVerticalRecuo",
   "areaNaoVerticalForaRecuo", "areaTerreno", "areaExistente",
-  "areaOcupadaAtivComercial", "volAt", "caixas", "pav", "unid",
+  "areaOcupadaAtivComercial", "areaPermeavel", "volAt", "caixas", "pav", "unid",
 ]);
 
 /**
