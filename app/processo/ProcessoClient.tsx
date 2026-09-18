@@ -1353,6 +1353,8 @@ export default function ProcessoClient() {
     let _docsLeitura: any[] = [];
     let _incompatLeitura: string[] = [];
     let _veredicto: VeredictoMarcoTemporal | null = null;
+    /** Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md. */
+    let _macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" | null = null;
     try {
       setLendoLip(true);
       setTempoLeitura(0);
@@ -1392,6 +1394,8 @@ export default function ProcessoClient() {
                 pendencias: cacheRes.pendencias ?? [],
                 marcoTemporal: cacheRes.marcoTemporal ?? null,
                 tipoProcesso: cacheRes.tipoProcesso ?? null,
+                // Cache antigo (de antes do Bloco E) não tem essa chave — vira null, sem quebrar.
+                macSugestao: cacheRes.macSugestao ?? null,
                 documentos: cacheRes.documentos ?? [],
               };
             }
@@ -1469,6 +1473,7 @@ export default function ProcessoClient() {
             pendencias: s3Data.pendencias ?? [],
             marcoTemporal: s3Data.marcoTemporal ?? null,
             tipoProcesso: s3Data.tipoProcesso ?? null,
+            macSugestao: s3Data.macSugestao ?? null,
             documentos,
           };
           // Fase 8 — grava no cache pro PRÓXIMO reimport do mesmo arquivo não custar de novo.
@@ -1488,6 +1493,13 @@ export default function ProcessoClient() {
         if (Array.isArray((r as any).documentos)) _docsLeitura.push(...(r as any).documentos);
         if (Array.isArray((r as any).pendencias)) _incompatLeitura.push(...(r as any).pendencias);
         if (Array.isArray((r as any).alertasMAC)) _incompatLeitura.push(...(r as any).alertasMAC);
+      }
+
+      // Bloco E: "processado depois vence", mesmo critério do resto da função — com 1 arquivo só
+      // (o caso normal, inclusive depois do Bloco B) é só o resultado dele mesmo.
+      for (const r of resultados) {
+        const m = (r as any).macSugestao;
+        if (m) _macSugestao = m;
       }
 
       // ── Marco temporal (LC 314/2018) ──────────────────────────────
@@ -1573,6 +1585,14 @@ export default function ProcessoClient() {
             ...(_veredicto.leitura.trecho ? [`  • Trecho: "${_veredicto.leitura.trecho}"`] : []),
           ].join("\n")
         : "";
+      // Bloco E: só aparece quando a ponte de fato tentou rodar (interruptor ligado + slot
+      // elegível) — "desligado"/null vira silêncio total, pra não gerar ruído numa leitura comum
+      // enquanto o interruptor tiver que ficar desligado pela maior parte do tempo.
+      const _linhaMacSugestao =
+        _macSugestao === "gravada" ? "\n🔗 Checklist do MAC: sugestão gravada — abra o MAC para aplicar."
+        : _macSugestao === "sem_analise_mac" ? "\n🔗 Checklist do MAC: sem sugestão — a análise do MAC ainda não foi criada para este processo."
+        : _macSugestao === "falhou" ? "\n🔗 Checklist do MAC: tentou gerar a sugestão e falhou — conferir manualmente."
+        : "";
       const _cabecalho = origem
         ? `━━━ LEITURA DO PROCESSO (LIP) — ${origem.rotulo} ━━━\n📎 Arquivos: ${origem.arquivos.join(", ")}\n`
         : `━━━ LEITURA DO PROCESSO (LIP) ━━━\n`;
@@ -1581,7 +1601,8 @@ export default function ProcessoClient() {
         `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modo.toUpperCase()} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) ${modo === "sugerir" ? "sugerido(s)" : "preenchido(s)"}\n` +
         `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
         `🔎 Incompatibilidades:\n${_linhasIncompat}` +
-        _linhasMarco;
+        _linhasMarco +
+        _linhaMacSugestao;
       anexarObsLip(_bloco);
 
       mostrarToast(
