@@ -2,7 +2,7 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~45% concluído (Bloco A — interface: 2 campos criados; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento e comentário do laudo corrigidos, "pente fino" do checklist feito com 2 correções aplicadas + 1 dúvida resolvida, 6 itens ainda aguardando aprovação item a item) · ~55% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~55% concluído (Bloco A — interface CONCLUÍDA, os 6 campos criados na tela; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento, comentário do laudo, "pente fino" do checklist com 3 correções aplicadas + 1 dúvida resolvida, 5 itens ainda aguardando aprovação item a item; todas as 5 correções e criações de campo já mescladas no `main`, PR #4) · ~45% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -137,10 +137,10 @@ Comparação medida em 18/09 (`lip_abas`/`lip_campos`, Regularização `33e01883
 |---|---|---|---|
 | `processoFisico` | Nº Processo Físico | 1. Identificação `a3a2a750-...` | **ENTRA** (pedido) |
 | `comaer` | DOC SEI — COMAER | 7. Documentos `8e904571-...` | **ENTRA** (pedido) |
-| `flAnac` | Folha/SEI — Anuência ANAC | 8. Vistoria e Uso `f5685c08-...` | confirmar com o Fábio (mesma família do COMAER; o Aceite já tem `vistoriaAreaAeroportuaria`) |
-| `flExercito` | Folha/SEI — Anuência Exército | 8. Vistoria e Uso | confirmar (o Aceite já tem `vistoriaAreaMilitar`) |
-| `areaLaudo` / `areaArt` / `areaVistoria` | área segundo laudo / ART / fiscal | 2. Áreas `bd91045a-...` | confirmar (servem para cruzar a área do aceite com a dos 3 documentos) |
-| — (novo) | "DOC SEI — Comprovação do tempo de existência" | 7. Documentos | confirmar. Hoje o Aceite tem `tipoComprovacao` e `dataEnergizacao`, mas não o SEI do documento que prova 1995 |
+| `flAnac` | Folha/SEI — Anuência ANAC | 8. Vistoria e Uso `f5685c08-...` | **ENTRA** (Fábio confirmou "sim", 18/09) |
+| `flExercito` | Folha/SEI — Anuência Exército | 8. Vistoria e Uso | **ENTRA** (idem) |
+| `areaLaudo` / `areaArt` / `areaVistoria` | área segundo laudo / ART / fiscal | 2. Áreas `bd91045a-...` | **ENTRA** (idem) |
+| `seiComprovacao` (novo) | "DOC SEI — Comprovação do Tempo de Existência" | 7. Documentos | **ENTRA** (idem). Companheiro do já existente `tipoComprovacao` (guarda o TIPO) — este guarda o Nº SEI do documento |
 | uso do solo (`tipoUso`, `usoSolo`, CNAEs 3-5, descrições), `certCorredorViario`, `indiceCaptacao`, `existente`/`areaAprovada`, `certidaoRememDesm`, áreas do Slot 1 | — | — | **NÃO entram**: uso do solo é dispensado no Aceite; remembramento e área existente já têm equivalentes próprios (`remembramento`, `areaExistente`); áreas do Aceite têm outra divisão |
 
 Passos:
@@ -155,12 +155,19 @@ Passos:
      label/placeholder/valor_padrao do Slot 1 ("DOC SEI — COMAER", "Nº SEI ou NP", padrão "NP").
      A duplicidade de ordem 7 entre `foto`/`certLimites` (herdada, não é deste bloco) **não foi
      mexida** — sinalizar ao Fábio se atrapalhar a exibição.
-   - Ainda **PENDENTE**, aguardando confirmação do Fábio: `flAnac`, `flExercito`,
-     `areaLaudo`/`areaArt`/`areaVistoria`, e o campo novo de comprovação do tempo de existência
-     (tabela acima). Só entram quando ele confirmar — não criar por conta própria.
+   - **CONCLUÍDO em 18/09/2026 (2ª leva):** Fábio confirmou "sim" para os 3 pendentes.
+     `flAnac`/`flExercito` (aba Vistoria e Uso), `areaLaudo`/`areaArt`/`areaVistoria` (aba Áreas)
+     e `seiComprovacao` (aba Documentos, campo novo) criados — registrado em
+     `supabase/migrations/2026_09_18_lip_aceite_2a_leva_campos.sql`. **Os 6 campos originais do
+     Bloco A estão todos criados na tela.**
+   - **Bônus da mesma leva:** o Fábio respondeu também a citação legal certa para o ART/RRT
+     acima de 200 m² (pendência do Bloco D) — "IN 7, item 9" (Instrução Normativa nº 7/2024,
+     Anexo I, item 9). Corrigido direto o item de checklist `cfde2b8b` (artLev), que citava
+     errado "Art. 2º, inc. VII da LC 314/2018" (artigo do Título I) sem limiar de área — agora
+     cita a IN 7/2024 com o corte de 200 m² explícito. Retirado da tabela pendente do Bloco D.
    - **O que falta pra este bloco fechar:** os campos criados ainda não são lidos por nenhum
-     prompt — ver passo 2. Até lá, `processoFisico` e `comaer` ficam visíveis na tela mas só
-     preenchem com digitação manual do analista.
+     prompt — ver passo 2. Até lá, todos ficam visíveis na tela mas só preenchem com digitação
+     manual do analista.
 2. **Leitura (prompt v36, Bloco C1) — PENDENTE.** Para cada campo que entrar, acrescentar a chave no JSON de
    saída e a regra de onde procurar. Referência de redação: o prompt do Slot 1 v22 e
    `app/api/lip/analisar/route.ts:39`.
@@ -170,8 +177,17 @@ Passos:
    - `comaer`: SEI de 7 dígitos da anuência ou manifestação do COMAER. `"NP"` se
      `vistoriaAreaAeroportuaria = "Não"`; `null` se a área é aeroportuária e o documento não foi
      achado (é pendência, não "NP").
-   - `flAnac` / `flExercito`, se entrarem: mesma lógica, amarrados a `vistoriaAreaAeroportuaria` /
+   - `flAnac` / `flExercito`: mesma lógica do `comaer`, amarrados a `vistoriaAreaAeroportuaria` /
      `vistoriaAreaMilitar`.
+   - `areaLaudo` / `areaArt` / `areaVistoria`: só preencher se o respectivo documento (Laudo
+     Técnico / ART de levantamento / Termo de Vistoria) citar uma área explicitamente — não
+     calcular, não inferir. Vazio (não "NP") se o documento não citar área. Servem só para o
+     analista comparar com a área do Aceite (`areaAceite`), igual ao Slot 1.
+   - `seiComprovacao`: o Nº SEI do documento usado para provar 19/10/1995 — o mesmo documento que
+     já alimenta `tipoComprovacao` (que guarda o TIPO: "Vistoria Fiscal"/"Google
+     Earth"/"Energização"/etc.). Foto primeiro (regra D3): se a foto aérea identificar a
+     edificação, `seiComprovacao` é o SEI dela; só cai para um dos outros 3 documentos (Art. 7º
+     §1º) se a foto não identificar.
    - Conferir a lista `CAMPOS_NP` em `app/api/lip/s3/route.ts:218`. Ela é comum aos slots: se a chave
      nova estiver lá, `null` vira `"NP"` sozinho. Decidir se é isso que se quer no Aceite, sem mexer
      no comportamento do Slot 1.
@@ -347,7 +363,7 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
      ontem). **Já identificado por outra sessão** com SQL pronto, comentado, aguardando
      autorização — `supabase/correcoes/2026_09_18_auditoria_consolidado.sql`, Parte B, item B2.
      Não duplicado aqui.
-   - Continua **PENDENTE — decisão do Fábio, item a item** (tabela abaixo, dos itens restantes
+   - Continua **PENDENTE — decisão do Fábio, item a item** (5 itens na tabela abaixo, dos itens restantes
      que ainda copiam regra do Título I):
 
    | Item (8 primeiros dígitos) | Chave/Grupo | O que tem hoje | Proposta | Por quê |
@@ -355,7 +371,6 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
    | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | **Desativar** | Uso do solo é dispensado no Aceite (D3); item parece colado do fluxo de aprovação de projeto |
    | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | **Desativar** | 250 m² é a regra do Título I (Regularização, Art. 2º §4º); no Aceite a caixa não é exigida por padrão — vira condicional (só se apresentada), não requisito por metragem |
    | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | **Desativar** (ou reescrever tirando "indispensável" e a citação do Art. 2º §4º, se o Fábio preferir manter como orientação condicional) | Cita literalmente o artigo do Título I; "indispensável" contradiz "não é cobrada por padrão" |
-   | `cfde2b8b` | artLev / Documentação | "Conforme **Art. 2º, inc. VII** da LC 314/2018, ART/RRT de levantamento + laudo técnico..." | **Peço a citação certa do Título II ao Fábio** — Art. 2º é do Título I; não vou adivinhar o artigo certo numa peça legal | Risco de citar artigo errado no parecer |
    | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | **Desativar** | Uso do solo dispensado no Aceite |
    | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | **Manter — confirmar com o Fábio** | Corredor viário não está na tabela D3 (nem a favor nem contra); pode ser regra urbanística geral, não específica do Título I |
    | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | **Manter como está** — já é instrução de "como fazer certo", compatível com "se apresentar, tem que estar certo" | Sem conflito com D3 |
