@@ -55,6 +55,24 @@ export type PapelPeca =
   | "memorial"
   | "procuracao"
   | "embargo"
+  /**
+   * Documento que serve para COMPROVAR O MARCO TEMPORAL da edificação — pedido
+   * do Fábio, 17/09/2026, direto da tela do fatiador.
+   *
+   * No ACEITE são os quatro do Art. 7º, § 1º da LC nº 314/2018: declaração de
+   * energização (CELG/Equatorial) ou talão de energia anterior a 19/10/1995,
+   * talão de IPTU anterior a 19/10/1995, averbação da edificação em Cartório,
+   * e Planta Aerofotogramétrica de 1992. A Vistoria Fiscal é exigida ALÉM de
+   * um deles, e continua sendo `vistoria` — não entra aqui.
+   *
+   * Na REGULARIZAÇÃO o marco é outro (04/03/2022) e a prova é a imagem do
+   * Google Earth ou documento oficial da Prefeitura — a imagem já tem papel
+   * próprio (`ortofoto`), mas autos de infração/embargo/notificação usados
+   * como prova de data cabem aqui.
+   *
+   * SEM regra automática de propósito — ver ASSINATURAS_PECA.
+   */
+  | "doc_marco_temporal"
   | "notificacao_calcada"
   | "liberacao_comaer"
   | "outorga_onerosa"
@@ -304,7 +322,7 @@ const PAPEIS_VALIDOS = new Set<string>([
   "processo_fisico", "uso_solo", "projeto", "levantamento", "art", "art_levantamento", "art_caixa",
   "matricula", "certidao", "alvara", "cco", "laudo", "vistoria", "foto_interessado", "foto_fiscal",
   "ortofoto", "memorial", "procuracao",
-  "embargo", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
+  "embargo", "doc_marco_temporal", "notificacao_calcada", "liberacao_comaer", "outorga_onerosa", "despacho_cheadv",
   "despacho", "parecer", "oficio", "requerimento", "email", "busca", "contrato", "juntada", "outros",
 ]);
 
@@ -366,6 +384,7 @@ export const ROTULO_PAPEL_PECA: Record<PapelPeca, string> = {
   memorial: "Memorial",
   procuracao: "Procuração",
   embargo: "Embargo",
+  doc_marco_temporal: "Doc para Marco Temporal",
   notificacao_calcada: "Notificação de Calçada (GEFEP)",
   liberacao_comaer: "Liberação COMAER",
   outorga_onerosa: "Outorga Onerosa do Direito de Construir",

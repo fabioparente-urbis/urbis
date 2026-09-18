@@ -4,6 +4,7 @@ import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
 import { extrairMetricasProcesso } from "@/lib/mrp";
 import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
 import { chavesCaixaDispensadasSlot1 } from "@/lib/caixaRecargaSlot1";
+import { chavesDispensadasAceiteSei } from "@/lib/aceiteSeiDispensas";
 import { sincronizarProfissionaisDoLip, precisaResincronizarProfissionais } from "@/lib/profissionais/sincronizar";
 
 /**
@@ -195,6 +196,10 @@ export async function POST(req: NextRequest) {
     // try/catch para poder ir na resposta — nunca deixar item sumir em
     // silêncio: quem chamou precisa saber que uma pré-marcação não ocorreu.
     let respostaCaixaRecarga: { mensagem: string; chaves: string[] } | null = null;
+    // Dispensas do Slot 2 (Aceite SEI) apuradas abaixo. Mesma razão de estar
+    // fora do try/catch: quem chamou precisa saber que uma pré-marcação não
+    // ocorreu — item não pode sumir em silêncio.
+    let respostaDispensasAceite: { motivos: string[]; chaves: string[] } | null = null;
 
     // Propaga campos CONFERIR/X do LIP para a análise MAC ativa
     // (status != 'deferido' && status != 'indeferido') como itens
@@ -241,6 +246,35 @@ export async function POST(req: NextRequest) {
         }
       }
       respostaCaixaRecarga = caixaRecargaDispensada;
+
+      /* Slot 2 (Aceite SEI) — no Aceite, Uso do Solo e caixa de recarga NÃO são
+       * exigíveis, e a ART/RRT do levantamento só é exigível acima de 200 m².
+       * Ver lib/aceiteSeiDispensas.ts para a fundamentação (LC nº 314/2018,
+       * Art. 7º, § 2º; IN nº 7/2024, Anexo I, item 9).
+       *
+       * Sem este bloco, um campo desses vazio — que é a situação NORMAL e LEGAL
+       * num Aceite — virava "não conforme" automático no MAC, transformando em
+       * exigência um documento que a lei não pede. Pedido explícito do Fábio,
+       * 17/09/2026: "sem obrigatoriedade de caixa e uso... MAS PODE TER".
+       *
+       * Igual ao bloco do Slot 1 acima, isto NÃO desativa nem esconde item
+       * nenhum: só deixa de PRÉ-MARCAR sozinho. O analista continua podendo
+       * marcar à mão, e o interessado continua podendo apresentar os documentos.
+       *
+       * Não toca no caminho do Slot 1: `chavesDispensadasAceiteSei` devolve
+       * lista vazia para qualquer tipo que não comece com "aceite". */
+      const dispensaAceite = chavesDispensadasAceiteSei(tipoProcesso, dados);
+      if (dispensaAceite.chaves.length > 0) {
+        const removidas = chavesProblema.filter((c) => dispensaAceite.chaves.includes(c));
+        if (removidas.length > 0) {
+          chavesProblema = chavesProblema.filter((c) => !dispensaAceite.chaves.includes(c));
+          respostaDispensasAceite = { motivos: dispensaAceite.motivos, chaves: removidas };
+          console.info(
+            `[LIP/slot2] ${id}: sem pré-marcação automática de ${removidas.join(", ")}. ` +
+            dispensaAceite.motivos.join(" "),
+          );
+        }
+      }
 
       if (chavesProblema.length > 0) {
         // 3. Buscar a análise MAC ativa (não deferida e não indeferida).
@@ -324,6 +358,7 @@ export async function POST(req: NextRequest) {
         acao,
         tipo: tipoProcesso,
         ...(respostaCaixaRecarga ? { caixaRecargaDispensada: respostaCaixaRecarga } : {}),
+        ...(respostaDispensasAceite ? { dispensasAceiteSei: respostaDispensasAceite } : {}),
       }),
       auth.userId,
     );
