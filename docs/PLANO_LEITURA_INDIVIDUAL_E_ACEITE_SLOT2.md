@@ -2,7 +2,12 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~55% concluído (Bloco A — interface CONCLUÍDA, os 6 campos criados na tela; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento, comentário do laudo, "pente fino" do checklist com 3 correções aplicadas + 1 dúvida resolvida, 5 itens ainda aguardando aprovação item a item; todas as 5 correções e criações de campo já mescladas no `main`, PR #4) · ~45% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~65% concluído (Bloco A — CONCLUÍDO, os 6 campos criados na tela; Bloco B —
+código completo, falta teste real do Fábio; **Bloco D — CONCLUÍDO**: motivos de indeferimento,
+comentário do laudo, checklist todo auditado e as 5 pendências decididas pelo Fábio; tudo
+publicado no `main`, PRs #4 e #5) · ~35% restante (Bloco B — teste real; Bloco C — prompt v36 do
+Aceite, em redação; Bloco E — ponte LIP→MAC, depende do Bloco B validado). Atualizar no próprio
+commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -363,17 +368,23 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
      ontem). **Já identificado por outra sessão** com SQL pronto, comentado, aguardando
      autorização — `supabase/correcoes/2026_09_18_auditoria_consolidado.sql`, Parte B, item B2.
      Não duplicado aqui.
-   - Continua **PENDENTE — decisão do Fábio, item a item** (5 itens na tabela abaixo, dos itens restantes
-     que ainda copiam regra do Título I):
+   - **CONCLUÍDO em 18/09/2026 — os 5 itens restantes foram todos decididos pelo Fábio.**
+     Desativados 4 (`b1f69e47`, `522314ae`, `02589912`, `70f42389`) — nunca apagados, ver
+     `mac_checklist_itens.ativo`. Corredor viário (`c557f20f`, `83ec2c26`, `21c86749`)
+     **confirmado que vale no Aceite** ("Sim, vale no Aceite" — regra urbanística geral,
+     independente do imóvel ser antigo ou novo): mantido ativo, sem mudança. SQL em
+     `supabase/correcoes/2026_09_18_aceite_checklist_desativa_4_itens.sql`.
+     **O checklist do Aceite está com a auditoria de conteúdo fechada** (nada mais pendente de
+     decisão nesta rodada).
 
-   | Item (8 primeiros dígitos) | Chave/Grupo | O que tem hoje | Proposta | Por quê |
-   |---|---|---|---|---|
-   | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | **Desativar** | Uso do solo é dispensado no Aceite (D3); item parece colado do fluxo de aprovação de projeto |
-   | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | **Desativar** | 250 m² é a regra do Título I (Regularização, Art. 2º §4º); no Aceite a caixa não é exigida por padrão — vira condicional (só se apresentada), não requisito por metragem |
-   | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | **Desativar** (ou reescrever tirando "indispensável" e a citação do Art. 2º §4º, se o Fábio preferir manter como orientação condicional) | Cita literalmente o artigo do Título I; "indispensável" contradiz "não é cobrada por padrão" |
-   | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | **Desativar** | Uso do solo dispensado no Aceite |
-   | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | **Manter — confirmar com o Fábio** | Corredor viário não está na tabela D3 (nem a favor nem contra); pode ser regra urbanística geral, não específica do Título I |
-   | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | **Manter como está** — já é instrução de "como fazer certo", compatível com "se apresentar, tem que estar certo" | Sem conflito com D3 |
+   | Item (8 primeiros dígitos) | Chave/Grupo | O que tinha | Decisão do Fábio |
+   |---|---|---|---|
+   | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | ✅ Desativado |
+   | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | ✅ Desativado |
+   | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | ✅ Desativado |
+   | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | ✅ Desativado |
+   | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | ✅ Mantido ativo — vale no Aceite |
+   | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | Mantido como estava (já era condicional, compatível com D3) |
 
    Depois do ok do Fábio: `UPDATE mac_checklist_itens SET ativo = false WHERE id = '...'` para
    desativar (nunca `DELETE`), e `UPDATE ... SET texto = '...'` para reescrever os 2 casos de
