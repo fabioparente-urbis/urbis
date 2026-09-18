@@ -2,13 +2,13 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~90% concluído (**Blocos A, B, C e D — todos CONCLUÍDOS**: 6 campos criados;
-arquivos individuais testado em produção com sucesso; prompt v36 do Aceite escrito, aprovado e
-ATIVO; motivos de indeferimento, comentário do laudo e checklist auditado nos dois slots — mais
-2 achados fora do plano original corrigidos com autorização pontual: "despacho" sem ano e grupo
-Art.15/APL duplicado, nos dois slots; tudo publicado no `main`) · ~10% restante (**Bloco E — a
-ponte LIP→MAC, único bloco que falta**, pedido explícito do Fábio pros dois slots). Atualizar no
-próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~97% concluído (**Blocos A, B, C, D e E — todos CONCLUÍDOS em código**: 6 campos
+criados; arquivos individuais testado em produção com sucesso; prompt v36 do Aceite ativo;
+checklist auditado nos dois slots; ponte LIP→MAC restrita ao slot certo + bug real de
+"Recusar todas IA" apagando resposta manual corrigido, nos dois slots — mais 2 achados fora do
+plano original: "despacho" sem ano e grupo Art.15/APL duplicado, também nos dois slots) · ~3%
+restante (**só falta ligar o interruptor** `leitura_unica_lip_mac_ativo`, decisão do Fábio, e
+testar numa leitura real). Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -418,17 +418,36 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
 
 ## Bloco E — Leitura do LIP preenchendo o checklist do MAC (Slots 1 e 2) · depende do Bloco B
 
-1. `app/api/lip/s3/route.ts`: montar o prompt combinado **só se `tipoProcesso` for Regularização ou
-   Aceite**. O Slot 5 nunca entra, mesmo com o interruptor ligado.
-2. Devolver no resultado do job o estado da sugestão do MAC:
-   `macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou"`.
-   O `lerLip` escreve uma linha em Observações, por exemplo: "Checklist do MAC: sugestão gravada" ou
-   "não recebeu sugestão: a análise do MAC ainda não foi criada".
-3. Auditar as telas do MAC (`analise-regularizacao` ~453-500, `analise-aceite-sei` ~403-450):
-   aplicar a sugestão **só pode preencher item vazio**, nunca sobrescrever o analista. Corrigir se
-   não for assim.
-4. Ligar o interruptor é **decisão do Fábio**, por SQL:
+Pedido direto do Fábio: "vamos trabalhar na ligacao do lip ao mac nos dois slots".
+
+1. ✅ **CONCLUÍDO em 18/09/2026** — `app/api/lip/s3/route.ts`: o prompt combinado só é montado
+   quando `marcoTemporalDoTipo(tipoProcesso) !== null` (Regularização ou Aceite — reaproveita a
+   função de `lib/marcoTemporal.ts`). O Slot 5 nunca entra, mesmo com o interruptor ligado. Antes
+   desta trava, o código só checava se existia uma linha em `analises_mac` pro processo, sem
+   olhar o slot — funcionava por coincidência (Slot 5 usa outro mecanismo de checklist), não por
+   garantia.
+2. ✅ **CONCLUÍDO** — o job devolve `macSugestao: "gravada" | "sem_analise_mac" | "desligado" |
+   "falhou"` (computado em `processarJobBackground`, incluindo o resultado real do
+   `gravarSugestaoMac`, não só a intenção). `lerLip` (`ProcessoClient.tsx`) escreve uma linha em
+   Observações com o resultado — só aparece quando a ponte de fato tentou rodar (interruptor
+   ligado + slot elegível); "desligado" fica em silêncio total, pra não gerar ruído numa leitura
+   comum enquanto o interruptor tiver que ficar desligado a maior parte do tempo. Cache
+   (`/api/lip/cache-gemini`) e o pipeline de VCP-como-leitura-única (Bloco B) herdam o campo
+   automaticamente, sem código extra.
+3. ✅ **CONCLUÍDO — achado um bug real na auditoria.** `aplicarSugestaoLeituraUnica`
+   (`analise-regularizacao` e `analise-aceite-sei`, código idêntico nos dois) preenchia `itens`
+   só nos vazios (certo), mas escrevia `fontes`/`aceites` para **todos** os ids da sugestão,
+   inclusive os que o analista já tinha respondido — deixando `fontes[id] = "p2"` e
+   `aceites[id] = false` numa resposta manual. Isso é uma armadilha: "Recusar todas IA" apaga
+   qualquer item com `aceites === false`, então uma resposta manual do analista podia sumir numa
+   ação que nunca teve nada a ver com ela. Corrigido nos dois slots: calcula ANTES quais ids
+   realmente serão preenchidos (vazio no analista + sugestão não-nula) e só mexe em
+   `fontes`/`aceites` desses. Toast e OBS também passaram a dizer "X preenchido(s) de Y
+   sugerido(s)", em vez de contar sugestões que nem foram aplicadas.
+4. **PENDENTE — decisão do Fábio.** Ligar o interruptor:
    `update urbis_config set leitura_unica_lip_mac_ativo = true where id = 1;`
+   Depois, medir numa leitura real (`urbis_api_calls.tokens_saida` antes e depois) e reportar o
+   custo extra. **Este é o único passo que falta no plano inteiro.**
    Depois, medir numa leitura real (`urbis_api_calls.tokens_saida` antes e depois) e reportar o
    custo extra.
 

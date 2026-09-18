@@ -409,26 +409,39 @@ export default function MacPage() {
   function aplicarSugestaoLeituraUnica() {
     if (!sugestaoLeituraUnica) return;
     setAplicandoSugestaoLeituraUnica(true);
+    /* Achado em auditoria, Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md
+     * (18/09/2026): a versão antiga preenchia `itens` só nos vazios (certo), mas escrevia
+     * `fontes`/`aceites` para TODOS os ids da sugestão, inclusive os que o analista já tinha
+     * respondido. Isso deixava `fontes[id] = "p2"` e `aceites[id] = false` num item que nunca
+     * veio da IA — e "Recusar todas IA" apaga qualquer item com `aceites === false`, então uma
+     * resposta manual do analista podia sumir numa ação que nada tinha a ver com ela. Calcula
+     * ANTES de escrever quais ids realmente vão ser preenchidos, e só mexe nesses. */
+    const idsAplicados = Object.keys(sugestaoLeituraUnica.itens).filter(
+      (id) => itens[id] == null && sugestaoLeituraUnica.itens[id] != null,
+    );
     setItens((prev) => {
       const novo = { ...prev };
-      Object.entries(sugestaoLeituraUnica.itens).forEach(([id, status]) => {
-        if (prev[id] == null) novo[id] = status;
-      });
+      idsAplicados.forEach((id) => { novo[id] = sugestaoLeituraUnica.itens[id]; });
       return novo;
     });
-    setFontes((prev) => ({ ...prev, ...sugestaoLeituraUnica.fontes }));
+    setFontes((prev) => {
+      const novo = { ...prev };
+      idsAplicados.forEach((id) => { novo[id] = sugestaoLeituraUnica.fontes[id]; });
+      return novo;
+    });
     setAceites((prev) => {
       const novo = { ...prev };
-      Object.keys(sugestaoLeituraUnica.fontes).forEach((id) => { novo[id] = false; });
+      idsAplicados.forEach((id) => { novo[id] = false; });
       return novo;
     });
-    const total = Object.keys(sugestaoLeituraUnica.itens).length;
+    const total = idsAplicados.length;
+    const totalSugeridos = Object.keys(sugestaoLeituraUnica.itens).length;
     setObservacoes((prev: string) => {
-      const linha = `━━━ SUGESTÃO DA LEITURA ÚNICA (LIP+MAC) ━━━\n✅ Aplicada em ${new Date().toLocaleString("pt-BR")} | ${total} item(ns) sugerido(s)`;
+      const linha = `━━━ SUGESTÃO DA LEITURA ÚNICA (LIP+MAC) ━━━\n✅ Aplicada em ${new Date().toLocaleString("pt-BR")} | ${total} item(ns) preenchido(s) (de ${totalSugeridos} sugerido(s) — os demais já tinham resposta do analista e não foram tocados)`;
       return prev ? prev + "\n\n" + linha : linha;
     });
-    registrar({ modulo: "MAC", acao: "MAC_LEITURA_UNICA_APLICADA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
-    mostrarToast(`🤖 Sugestão da leitura única aplicada — ${total} item(ns).`);
+    registrar({ modulo: "MAC", acao: "MAC_LEITURA_UNICA_APLICADA", processo_codigo: codigo, origem: "IA", detalhe: { itens_preenchidos: total, itens_sugeridos: totalSugeridos } });
+    mostrarToast(`🤖 Sugestão da leitura única aplicada — ${total} item(ns) preenchido(s).`);
     fetch("/api/mac/leitura-unica", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codigo }),

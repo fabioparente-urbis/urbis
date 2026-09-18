@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { type GeminiModel } from "@/lib/constants";
 import { escolherModeloPorTamanho } from "@/lib/modeloGemini";
 import { createClient } from "@supabase/supabase-js";
-import { blocoPromptMarcoTemporal } from "@/lib/marcoTemporal";
+import { blocoPromptMarcoTemporal, marcoTemporalDoTipo } from "@/lib/marcoTemporal";
 import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
 import { blocoPromptCaixaRecarga } from "@/lib/caixaRecargaSlot1";
 import { blocoPromptCarimboAssunto } from "@/lib/carimboAssunto";
@@ -139,11 +139,25 @@ export async function POST(req: NextRequest) {
     // P3_MAC e pede os dois blocos numa resposta só. Qualquer falha aqui (interruptor desligado,
     // sem análise MAC ainda, prompt P3_MAC não cadastrado) cai no comportamento de sempre —
     // fail-safe, nunca bloqueia a leitura do LIP.
+    //
+    // Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md (18/09/2026): restrito a
+    // Regularização e Aceite — reaproveita `marcoTemporalDoTipo` (só reconhece esses dois
+    // prefixos) em vez de duplicar a checagem. Antes desta trava, o código só conferia se havia
+    // uma linha em `analises_mac` pro processo, sem olhar o slot — o Slot 5 nunca bateu essa
+    // condição na prática (usa outro mecanismo pra checklist), mas era coincidência, não
+    // garantia. Com o interruptor ligado, um processo do Slot 5 que por algum motivo tivesse
+    // linha em `analises_mac` entraria na leitura combinada por engano.
     let promptParaEnviar = promptFinal;
     let checklistCombinado: ChecklistItemMac[] | null = null;
-    if (typeof codigo === "string" && codigo) {
+    /** Bloco E: true assim que o interruptor está ligado e o slot é elegível — mesmo que a
+     * combinação acabe não acontecendo por falta de análise/checklist/prompt MAC. Diferencia
+     * "não tentou" (interruptor desligado ou slot fora do escopo) de "tentou e não achou o que
+     * precisava" pro texto que `lerLip` escreve em Observações. */
+    let tentouCombinar = false;
+    if (typeof codigo === "string" && codigo && marcoTemporalDoTipo(tipoProcesso) !== null) {
       try {
         if (await leituraUnicaLipMacAtiva()) {
+          tentouCombinar = true;
           const { data: analise } = await supabaseAdmin
             .from("analises_mac")
             .select("modelo_id")
@@ -204,7 +218,7 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY!;
 
     // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
-    processarJobBackground(jobId, { fileUri, promptFinal: promptParaEnviar, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo, checklistCombinado }).catch(
+    processarJobBackground(jobId, { fileUri, promptFinal: promptParaEnviar, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo, checklistCombinado, tentouCombinar }).catch(
       (e) => console.error("[S3-bg] erro não capturado:", e?.message)
     );
 
@@ -238,8 +252,11 @@ async function processarJobBackground(jobId: string, params: {
   modelo: GeminiModel;
   /** Fase 9B: presente = promptFinal é o prompt COMBINADO (pede `{lip, mac}`), não só o do LIP. */
   checklistCombinado?: ChecklistItemMac[] | null;
+  /** Bloco E: true = interruptor ligado + slot elegível — distingue "não tentou" de "tentou e
+   * não achou" quando `checklistCombinado` vem null. Ver comentário na chamada, mais acima. */
+  tentouCombinar?: boolean;
 }) {
-  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo, checklistCombinado } = params;
+  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo, checklistCombinado, tentouCombinar } = params;
   const tipoArquivo = params.tipoArquivo ?? "application/pdf";
   const t0 = Date.now();
   try {
@@ -390,6 +407,29 @@ async function processarJobBackground(jobId: string, params: {
     console.log(`[S3-bg] job=${jobId} concluido. ${preenchidos} campos preenchidos. resultado salvo.`);
     console.log(`[S3-bg] job=${jobId} amostra campos:`, JSON.stringify(Object.entries(campos).slice(0, 5)));
 
+    // Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md: estado da sugestão do
+    // MAC, pra `lerLip` (app/processo/ProcessoClient.tsx) registrar em Observações — nunca falha
+    // em silêncio. "gravada" só é setada de fato depois do `gravarSugestaoMac` abaixo, que pode
+    // ainda não ter rodado neste ponto: o valor aqui é o palpite antes de tentar, corrigido logo
+    // em seguida se a gravação acontecer ou falhar.
+    let macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" =
+      !tentouCombinar ? "desligado" : checklistCombinado && checklistCombinado.length ? "falhou" : "sem_analise_mac";
+
+    // Fase 9B — grava a sugestão do bloco MAC pra tela do MAC oferecer "aplicar" depois. Melhor
+    // esforço, depois do job do LIP já ter sido salvo com sucesso: uma falha aqui nunca pode
+    // fazer a leitura do LIP parecer que deu errado.
+    if (checklistCombinado && checklistCombinado.length && dadosMac && codigo) {
+      try {
+        const sugestao = interpretarRespostaMac(dadosMac, checklistCombinado);
+        await gravarSugestaoMac(codigo, sugestao);
+        macSugestao = "gravada";
+        console.log(`[S3-bg] job=${jobId} sugestão MAC gravada (${Object.keys(sugestao.itens).length} item(ns)).`);
+      } catch (e: any) {
+        macSugestao = "falhou";
+        console.error(`[S3-bg] job=${jobId} falha ao gravar sugestão MAC:`, e?.message);
+      }
+    }
+
     await supabaseAdmin.from("lip_jobs").update({
       status: "concluido",
       resultado: {
@@ -401,18 +441,10 @@ async function processarJobBackground(jobId: string, params: {
         // data limite; o veredito é do fiscal, o URBIS só repassa.
         marcoTemporal: dadosLip.marcoTemporal ?? null,
         tipoProcesso: tipoProcesso ?? null,
+        macSugestao,
       },
       atualizado_em: new Date().toISOString(),
     }).eq("id", jobId);
-
-    // Fase 9B — grava a sugestão do bloco MAC pra tela do MAC oferecer "aplicar" depois. Melhor
-    // esforço, depois do job do LIP já ter sido salvo com sucesso: uma falha aqui nunca pode
-    // fazer a leitura do LIP parecer que deu errado.
-    if (checklistCombinado && checklistCombinado.length && dadosMac && codigo) {
-      const sugestao = interpretarRespostaMac(dadosMac, checklistCombinado);
-      await gravarSugestaoMac(codigo, sugestao);
-      console.log(`[S3-bg] job=${jobId} sugestão MAC gravada (${Object.keys(sugestao.itens).length} item(ns)).`);
-    }
 
     // Auditoria
     if (codigo) {
