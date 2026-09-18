@@ -2610,7 +2610,25 @@ export default function MacPage() {
               🖨️ Re-imprimir Parecer {indeferimentoParaReimprimir.numeroParecer}
             </button>
           )}
-          <button onClick={async () => { setDataEmissao(new Date().toLocaleDateString("pt-BR")); await salvarSilencioso(); if (!(await confirmarSePendente("o indeferimento"))) return; setModalIndeferimento(true); }} disabled={salvando}
+          <button onClick={async () => {
+              setDataEmissao(new Date().toLocaleDateString("pt-BR"));
+              await salvarSilencioso();
+              if (!(await confirmarSePendente("o indeferimento"))) return;
+              /* Achado do Fábio (18/09/2026, com foto): a caixa "Observações adicionais" nasce
+               * vazia e SÓ recebe o que alguém digita/cola nela — nada no código a preenche
+               * sozinha. O problema é que "Cancelar" não limpava nada, então um texto digitado
+               * numa tentativa cancelada (ex.: colado como referência de outro processo) ficava
+               * PRESO em memória e reaparecia na próxima vez que "Indeferir" fosse aberto —
+               * inclusive noutro processo, inclusive dias depois. Risco real: justificativa
+               * errada indo pro indeferimento oficial de um processo diferente. Limpa tudo aqui,
+               * na ABERTURA do modal, que cobre qualquer caminho (Cancelar, fechar sem cancelar,
+               * etc.) — não só o de confirmar, que já limpava (linha ~3025). Só Slot 2: o Slot 1
+               * não foi auditado, ver docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md. */
+              setMotivosIndeferimento([]);
+              setObsIndeferimento("");
+              setFotosIndeferimento([]);
+              setModalIndeferimento(true);
+            }} disabled={salvando}
             className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
