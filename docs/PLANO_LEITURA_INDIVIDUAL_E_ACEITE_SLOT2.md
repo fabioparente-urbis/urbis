@@ -2,7 +2,7 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~38% concluído (Bloco A — interface: 2 campos criados; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento e comentário do laudo corrigidos, tabela do checklist pronta aguardando aprovação item a item) · ~62% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~45% concluído (Bloco A — interface: 2 campos criados; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento e comentário do laudo corrigidos, "pente fino" do checklist feito com 2 correções aplicadas + 1 dúvida resolvida, 6 itens ainda aguardando aprovação item a item) · ~55% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -307,7 +307,8 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
      "Edificação concluída após 19/10/1995 — não atende ao marco temporal do Alvará de Aceite
      (LC 314/2018, Título II)";
    - removida "Uso do solo não definido...";
-   - "mais de 7 pavimentos" **mantido sem mexer** — ainda pendente de confirmação do Fábio.
+   - "mais de 7 pavimentos" **mantido**, e a dúvida ficou **RESOLVIDA** no "pente fino" de
+     18/09 (achado abaixo): o próprio checklist do Aceite exige isso, confirmado.
    O Slot 1 (`analise-regularizacao` ~l.3234) **não foi tocado** (conferido: nenhuma linha mudou
    nesse arquivo neste bloco).
 2. ✅ **CONCLUÍDO em 18/09/2026 — Laudo do Aceite**
@@ -318,9 +319,36 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
    regra errada — corrigido para refletir D3 (ART exigível acima de 200 m²; caixa conferida se
    apresentada) e deixado explícito que a regra de EXIGIR/CONFERIR é da leitura (prompt), não
    deste gerador. **Nenhuma fórmula do template foi tocada.**
-3. **PENDENTE — decisão do Fábio, item a item.** Tabela "texto atual → proposta", a partir dos 12
-   itens ativos do checklist do Aceite (modelo `da29333d-...`) auditados em 18/09 — texto
-   completo de cada um já foi lido, não precisa reler o banco:
+3. **"Pente fino" pedido pelo Fábio em 18/09** ("olha a primeira aba... tem dezenas de itens
+   iguais") — feita uma auditoria completa dos 55 itens ativos do checklist do Aceite (todos os 8
+   grupos, texto integral lido). Dois achados corrigidos de imediato (baixo risco, sem impacto em
+   análise em andamento — conferido: nenhuma das 3 análises existentes do Aceite tinha marcação
+   nesses itens), registrados em
+   `supabase/correcoes/2026_09_18_aceite_checklist_apl_bombeiro.sql`:
+   - ✅ **Grupo "No Setor Central/APL: Art.15 LC 314/2018"** (a 1ª aba, a que o Fábio viu): 8
+     itens ativos repetindo o MESMO parágrafo de abertura (4 linhas) 8 vezes, cada um só
+     acrescentando 1 bullet — e 2 bullets eram **idênticos** ("índice paisagístico mínimo de
+     15%" 2x). Fábio confirmou que o grupo faz sentido no Aceite, só o conteúdo tinha bug.
+     Consolidado em 1 item (`20e6aac3`) com os 7 parâmetros em lista, sem repetir o parágrafo; os
+     outros 6 desativados (nunca apagados). O item dos templos religiosos (`8a9fb944`) é regra
+     distinta, intocado. **O mesmo bug existe também no Slot 1** (9 itens, mesmo padrão,
+     modelo `00000000-...`) — **não tocado**, fora do escopo autorizado.
+   - ✅ **Item `88e2317c`** (caixa de recarga, grupo Carimbo 1/2): tinha uma 2ª frase exigindo
+     "aprovação do projeto sob regramento do Corpo de Bombeiro" — Bombeiros já estava confirmado
+     como **fora do escopo do Aceite** nesta mesma sessão. Removida só essa frase; a frase sobre
+     memorial de cálculo da caixa fica, com "se a caixa for apresentada" explícito.
+   - ✅ **RESOLVIDO** (não precisou de SQL): a dúvida sobre "mais de 7 pavimentos"/APP-APM no
+     motivo de indeferimento (item 1 acima) — o item de checklist `72a48f6f` (grupo
+     Levantamento) já EXIGE isso no Aceite: "Para que o projeto seja passível de aprovação por
+     Alvará de Aceite: máximo de 7 pavimentos; altura máxima 21,00m; não obstruir/ocupar APM,
+     APP ou logradouro público". Mantido como estava, comentário do código atualizado.
+   - **Achado, NÃO corrigido (Slot 1, fora do escopo autorizado):** item `74877912` no checklist
+     do Slot 1 tem a data inexistente "041/03/2022" (mesmo tema do Aceite que já foi corrigido
+     ontem). **Já identificado por outra sessão** com SQL pronto, comentado, aguardando
+     autorização — `supabase/correcoes/2026_09_18_auditoria_consolidado.sql`, Parte B, item B2.
+     Não duplicado aqui.
+   - Continua **PENDENTE — decisão do Fábio, item a item** (tabela abaixo, dos itens restantes
+     que ainda copiam regra do Título I):
 
    | Item (8 primeiros dígitos) | Chave/Grupo | O que tem hoje | Proposta | Por quê |
    |---|---|---|---|---|
@@ -331,7 +359,6 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
    | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | **Desativar** | Uso do solo dispensado no Aceite |
    | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | **Manter — confirmar com o Fábio** | Corredor viário não está na tabela D3 (nem a favor nem contra); pode ser regra urbanística geral, não específica do Título I |
    | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | **Manter como está** — já é instrução de "como fazer certo", compatível com "se apresentar, tem que estar certo" | Sem conflito com D3 |
-   | `88e2317c` | — / Carimbo 1/2 | 2 frases: (a) memorial de cálculo é responsabilidade do RT da ART; (b) **"aprovação do projeto sob regramento do Corpo de Bombeiro"** | **Reescrever removendo só a frase (b)** | Bombeiros está **explicitamente fora do Aceite** (Fábio, 18/09, "pra mim não entram") — a frase (a) sobre a caixa fica |
 
    Depois do ok do Fábio: `UPDATE mac_checklist_itens SET ativo = false WHERE id = '...'` para
    desativar (nunca `DELETE`), e `UPDATE ... SET texto = '...'` para reescrever os 2 casos de

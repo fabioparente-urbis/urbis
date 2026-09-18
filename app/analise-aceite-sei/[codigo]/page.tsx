@@ -2949,8 +2949,11 @@ export default function MacPage() {
               //     LC 314/2018 Título II);
               //   - "Uso do solo não definido" REMOVIDO: no Aceite o uso do solo é dispensado
               //     (Art. 7º § 2º), não pode ser motivo de indeferimento.
-              // "mais de 7 pavimentos" mantido sem confirmação do Fábio — perguntar antes de
-              // mexer (pode ser regra geral da LC 314/2018, não só do Título I).
+              // "mais de 7 pavimentos" e "APP/APM": CONFIRMADO em 18/09/2026 que valem no
+              // Aceite — é o próprio checklist do Aceite que exige isso (item de checklist
+              // 72a48f6f, grupo "Levantamento": "Para que o projeto seja passível de aprovação
+              // por Alvará de Aceite: máximo de 7 pavimentos; altura máxima 21,00m; não
+              // obstruir/ocupar APM, APP ou logradouro público"). Mantidos sem mudança.
               "Edificação com mais de 7 pavimentos — vedada pela LC 314/2018",
               "Edificação concluída após 19/10/1995 — não atende ao marco temporal do Alvará de Aceite (LC 314/2018, Título II)",
               "Edificação em APP/APM — vedada pela legislação ambiental",
