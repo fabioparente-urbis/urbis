@@ -205,8 +205,8 @@ function makeHeader(logoData: Buffer | null) {
     : new TableCell({ borders, width: { size: 3600, type: WidthType.DXA }, children: [new Paragraph({ children: [txt("PREFEITURA DE GOIÂNIA", { bold: true })] })] });
   return new Header({ children: [
     new Table({ width: { size: CONTENT_W, type: WidthType.DXA }, columnWidths: [3600, CONTENT_W - 3600], borders: { top: nb, bottom: nb, left: nb, right: nb, insideHorizontal: nb, insideVertical: nb }, rows: [new TableRow({ children: [logoCell, new TableCell({ borders, width: { size: CONTENT_W - 3600, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER, children: [
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Secretaria Municipal de Planejamento Urbano e Habitação", { bold: true, underline: true, size: 17, color: "375623" })] }),
-      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Superintendência da Ordem Pública", { bold: true, underline: true, size: 17, color: "375623" })] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Secretaria Municipal de Eficiência", { bold: true, underline: true, size: 17, color: "375623" })] }),
+      new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 28 }, children: [txt("Superintendência de Análise e Licenciamento", { bold: true, underline: true, size: 17, color: "375623" })] }),
       new Paragraph({ alignment: AlignmentType.RIGHT, spacing: { before: 0, after: 0 }, children: [txt("Diretoria de Análise e Aprovação de Projetos", { bold: true, underline: true, size: 17, color: "375623" })] }),
     ] })] })] }),
     new Paragraph({ border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: "AAAAAA", space: 1 } }, spacing: { before: 80, after: 0 }, children: [txt("")] }),
@@ -395,11 +395,11 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`DESPACHO Nº   ${dados.numeroDespacho || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(new Paragraph({ spacing: { before: 0, after: 0 }, border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: "000000", space: 1 } }, children: [txt("AO INTERESSADO/AUTOR", { bold: true })] }));
   children.push(new Paragraph({ spacing: { before: 100, after: 80 }, children: [txt("OBSERVAÇÕES:", { bold: true })] }));
-  ["Análise de acordo com a LEI COMPLEMENTAR Nº 314, de 05/11/2018 que institui o Alvará de Regularização e INSTRUÇÃO NORMATIVA nº 04, de 16/05/2024 que regulamenta a LC nº 314;", "Texto da LC n°314/2018 alterado na LC n°368/2023;", "De acordo com o Decreto Nº 2559, DE 13 DE DEZEMBRO DE 2018, a análise documental foi feita pela CHEADV – CHEFIA DA ADVOCACIA SETORIAL DA SECRETARIA MUNICIPAL DE PLANEJAMENTO URBANO E HABITAÇÃO;"].forEach(b => {
+  ["Análise de acordo com a LEI COMPLEMENTAR Nº 314, de 05/11/2018 que institui o Alvará de Regularização e INSTRUÇÃO NORMATIVA nº 04, de 16/05/2024 que regulamenta a LC nº 314;", "Texto da LC n°314/2018 alterado na LC n°368/2023;", "DE ACORDO COM O DECRETO 2531/2024, A ANÁLISE DOCUMENTAL FOI REALIZADA PELA CHEADV – CHEFIA DA ADVOCACIA SETORIAL DA SEFIC;"].forEach(b => {
     children.push(new Paragraph({ alignment: AlignmentType.JUSTIFIED, spacing: { before: 0, after: 80, line: 260 }, indent: { left: 440, hanging: 280 }, keepLines: true, children: [txt("• ", { bold: true }), txt(b)] }));
   });
   children.push(vazio(120));
-  children.push(p([txt("A PARTIR DE 13/12/2018 ENTROU EM VIGOR O DECRETO N° 2559/2018, QUE DEFINE NOVOS PROCEDIMENTOS E AMPLIA AUTOMAÇÃO DE PROCESSOS DA ANÁLISE E APROVAÇÃO DE PROJETOS ARQUITETÔNICOS NO MUNICÍPIO DE GOIÂNIA. O MANUAL TAMBÉM DEFINE TODAS AS ETAPAS DE ANÁLISE. OS PROCESSOS AUTUADOS ANTERIORMENTE A ESSA DATA SERÃO ANALISADOS CONFORME AS NOVAS REGRAS VIGENTES.")], { after: 160 }));
+  children.push(p([txt("A PARTIR DE 01°/07/2024 VIGORA O DECRETO N° 2531/2024 QUE DEFINE NOVOS PROCEDIMENTOS E AMPLIA AUTOMAÇÃO DE PROCESSOS DA ANÁLISE E APROVAÇÃO DE PROJETOS ARQUITETÔNICOS NO MUNICÍPIO DE GOIÂNIA, BEM COMO DEFINE TODAS AS ETAPAS DE ANÁLISE. PROCESSOS AUTUADOS ANTES DESTA DATA SERÃO ANALISADOS CONFORME AS NOVAS REGRAS VIGENTES.")], { after: 160 }));
   dados.analises.forEach((a, idx) => {
     const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}`;
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
@@ -566,7 +566,13 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 0, after: 50, line: 240 }, indent: { left: 440, hanging: 280 }, keepLines: true, keepNext: i < arr.length - 1, children: [txt("• ", { bold: true }), txt(`${ordinal} análise: `, { bold: true }), txt(`realizada em ${a.data}`), txt(a.despacho ? `, por meio do Despacho nº ${a.despacho}.` : ".")] }));
   });
   children.push(vazio(140));
-  children.push(p([txt("O Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº 546, de 27 de fevereiro de 2015, define procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, §4º, Inciso II do Decreto nº. 2.559/2018.")], { after: 120 }));
+  /* Decreto nº 2.531, de 1º/07/2024 (em vigor; seu Art. 17 revogou o 2.559/2018). Mapeamento
+   * feito pelo texto oficial em 18/09/2026, autorizado pelo Fábio:
+   *   indeferir: Art. 8º §4º II (2.559) → Art. 8º § 7º (2.531), "o processo será indeferido";
+   *   recurso:   Art. 9º (2.559), 15 dias da publicação → Art. 9º (2.531), 15 dias ÚTEIS da EMISSÃO;
+   *   arquivar:  Art. 4 inciso 4.5 (2.559) não tem equivalente → Art. 9º (2.531), Seção "Do Recurso".
+   * Os modelos da chefia (INDEFERIMENTO/ARQUIVAMENTO regularização) ainda citam o 2.559. */
+  children.push(p([txt("O Decreto nº 2.531, de 1º de julho de 2024, que revogou o Decreto nº 2.559, de 13 de dezembro de 2018, institui procedimentos administrativos para análise e aprovação de projetos arquitetônicos no âmbito do Município de Goiânia. Por não cumprimento ao exigido nos despachos anteriormente listados, essa Diretoria de Análise e Aprovação de Projetos "), txt("INDEFERE", { bold: true }), txt(" o prosseguimento dos autos, nos termos do Artigo 8º, § 7º do Decreto nº 2.531/2024.")], { after: 120 }));
   if (dados.naoConformes?.length) {
     children.push(vazio(80));
     children.push(p([txt("Motivos do indeferimento:", { bold: true })], { after: 60 }));
@@ -595,7 +601,7 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
       }
     }
   }
-  children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias", { bold: true }), txt(", contados a partir da publicação deste parecer, conforme previsto no Artigo 9º do Decreto nº. 2.559/2018. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
+  children.push(p([txt("Informamos que o interessado/autor poderá apresentar recurso ou justificativa em até "), txt("15 (quinze) dias úteis", { bold: true }), txt(", contados a partir da data de emissão deste parecer, conforme previsto no Artigo 9º do Decreto nº 2.531/2024. Em caso de recurso julgado improcedente, deverá ser solicitada a abertura de novo processo.")], { after: 160 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
@@ -633,7 +639,7 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
   children.push(p([txt("AO ARQUIVO")], { align: AlignmentType.LEFT, after: 160 }));
-  children.push(p([txt("Conforme o Decreto n° 2.559, de 13 de dezembro de 2018, que revogou o Decreto nº. 546, de 27 de fevereiro de 2015, definem procedimentos administrativos para análise e aprovação de projetos arquitetônicos e licença no âmbito municipal, e por não cumprimento ao exigido nos despachos anteriormente listados, esta Diretoria comunica o "), txt("ARQUIVAMENTO DO PROCESSO", { bold: true }), txt(", nos termos do Art. 4, Inciso 4.5 e seguintes do Decreto citado, tendo sido o pedido de reconsideração "), txt("INDEFERIDO", { bold: true }), txt(" pela instância competente e exigirá para expectativa de futura aprovação a abertura de "), txt("NOVO PROCESSO", { bold: true }), txt(", mediante o pagamento das respectivas taxas.")], { after: 240 }));
+  children.push(p([txt("Conforme o Decreto nº 2.531, de 1º de julho de 2024, que revogou o Decreto nº 2.559, de 13 de dezembro de 2018, e institui procedimentos administrativos para análise e aprovação de projetos arquitetônicos no âmbito do Município de Goiânia, e por não cumprimento ao exigido nos despachos anteriormente listados, esta Diretoria comunica o "), txt("ARQUIVAMENTO DO PROCESSO", { bold: true }), txt(", nos termos do Art. 9º do Decreto citado, tendo sido o pedido de reconsideração "), txt("INDEFERIDO", { bold: true }), txt(" pela instância competente e exigirá para expectativa de futura aprovação a abertura de "), txt("NOVO PROCESSO", { bold: true }), txt(", mediante o pagamento das respectivas taxas.")], { after: 240 }));
   children.push(p([txt("Sem nada mais no momento.")], { align: AlignmentType.LEFT, after: 60 }));
   children.push(vazio(200));
 
