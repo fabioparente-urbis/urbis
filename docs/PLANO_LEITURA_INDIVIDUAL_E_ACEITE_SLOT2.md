@@ -2,7 +2,13 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~55% concluído (Bloco A — interface CONCLUÍDA, os 6 campos criados na tela; Bloco B — código completo, falta teste real do Fábio; Bloco D — motivos de indeferimento, comentário do laudo, "pente fino" do checklist com 3 correções aplicadas + 1 dúvida resolvida, 5 itens ainda aguardando aprovação item a item; todas as 5 correções e criações de campo já mescladas no `main`, PR #4) · ~45% restante. Atualizar no próprio commit de cada bloco, ver regra de % no fim.
+**Progresso:** ~90% concluído (**Blocos A, B, C e D — todos CONCLUÍDOS**: 6 campos criados;
+arquivos individuais testado em produção com sucesso; prompt v36 do Aceite escrito, aprovado e
+ATIVO; motivos de indeferimento, comentário do laudo e checklist auditado nos dois slots — mais
+2 achados fora do plano original corrigidos com autorização pontual: "despacho" sem ano e grupo
+Art.15/APL duplicado, nos dois slots; tudo publicado no `main`) · ~10% restante (**Bloco E — a
+ponte LIP→MAC, único bloco que falta**, pedido explícito do Fábio pros dois slots). Atualizar no
+próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -239,14 +245,36 @@ Ideia: juntar os arquivos escolhidos **num PDF só, no navegador**, e mandar pel
    confere 6 páginas no resultado, reabre o PDF final e confere de novo, e confere que um arquivo
    corrompido lança erro **nomeando o arquivo** (não passa em silêncio). Todos os casos passaram.
    `npx tsc --noEmit` limpo com as mudanças.
-9. **PENDENTE — só o Fábio pode fazer:** comparar, pela tela, o mesmo processo lido pelos dois
-   botões (LER PROCESSO × LER ARQUIVOS INDIVIDUAIS). Esperado: marco temporal aparecendo, sem os
-   "Não" falsos, número de campos parecido com o do Ler Processo. Isso gasta Gemini de verdade —
-   nenhuma sessão de IA deve rodar isso sozinha.
+9. ✅ **TESTADO EM PRODUÇÃO pelo Fábio em 18/09/2026, Slot 1** (processo `25.5.000061039-8`, 9
+   arquivos/33 páginas): sucesso. Confirma que a correção resolveu os dois problemas de raiz do
+   D1:
+   - **Marco temporal apareceu** — antes sumia sempre no VCP; saiu com veredito, trecho citado e
+     fonte;
+   - **Cruzamento entre documentos funcionando** — a leitura em conjunto achou uma divergência de
+     área real entre 3 documentos (`areaTotal`/`areaLaudo`/`areaArt` = 444,05 m² × `areaVistoria`
+     = 285,85 m²) e reportou em "Incompatibilidades" — o VCP antigo não tinha esse tipo de
+     cruzamento;
+   - 51 campos preenchidos, 12 documentos mapeados corretamente dentro do PDF juntado, 1:37 de
+     duração, sem erro;
+   - Cabeçalho da OBS saiu "ARQUIVOS INDIVIDUAIS" com os 9 nomes, como esperado.
+   Achado cosmético, não corrigido (fora de escopo — é o MODELO escrevendo, não o código, e é
+   prompt do Slot 1): a "fonte" do marco temporal saiu com o texto literal "SEI null" quando o
+   documento não tinha SEI (`"Fonte: Termo de Vistoria Fiscal, SEI null, página 31-32"`) — o
+   prompt pede pro modelo escrever o SEI, e ele escreveu a palavra "null" em vez de omitir.
+   **Bloco B está CONCLUÍDO.**
 
 ## Bloco C — Prompt do Aceite v36 + marco temporal do Aceite (só Slot 2)
 
-**C1. Rascunho do P2_EXTRACAO Aceite v36.**
+**C1. CONCLUÍDO em 18/09/2026 — v36 escrita, aprovada e ATIVA em produção.** Arquivo completo em
+`docs/prompts/ACEITE_P2_EXTRACAO_v36.md`. Cobre: os 7 campos novos do Bloco A; marco temporal
+reescrito (foto → 4 documentos → vistoria, sempre exigindo a vistoria também); ART/RRT com o
+corte de 200 m² (IN 7/2024, Anexo I, item 9); caixa de recarga procurada mesmo sem gatilho por
+área e conferida se apresentada; fim do "Não" automático em embargo/procuração/tombamento;
+despacho = último ato; inventário com data/emissor; cruzamento vistoria×fotos×RT. Fábio aprovou
+("TA OK... PODE ATIVAR") e a v36 foi ativada no banco (`lip_prompts.id=15`, `versao_anterior=35`,
+v35 desativada mas guardada em `conteudo_backup` — reversível a qualquer momento). **Bloco C está
+CONCLUÍDO.**
+
 Partir do texto do v35 (`lip_prompts.id = 14`), escrever em
 `docs/prompts/ACEITE_P2_EXTRACAO_v36.md` e mostrar ao Fábio. Mudanças:
 - **Campos novos do Bloco A** (processo físico, COMAER e os que o Fábio confirmar), com as regras de leitura do Bloco A, passo 2.
@@ -363,17 +391,23 @@ valer sozinha (ver `app/api/lip/cache-gemini/route.ts`).
      ontem). **Já identificado por outra sessão** com SQL pronto, comentado, aguardando
      autorização — `supabase/correcoes/2026_09_18_auditoria_consolidado.sql`, Parte B, item B2.
      Não duplicado aqui.
-   - Continua **PENDENTE — decisão do Fábio, item a item** (5 itens na tabela abaixo, dos itens restantes
-     que ainda copiam regra do Título I):
+   - **CONCLUÍDO em 18/09/2026 — os 5 itens restantes foram todos decididos pelo Fábio.**
+     Desativados 4 (`b1f69e47`, `522314ae`, `02589912`, `70f42389`) — nunca apagados, ver
+     `mac_checklist_itens.ativo`. Corredor viário (`c557f20f`, `83ec2c26`, `21c86749`)
+     **confirmado que vale no Aceite** ("Sim, vale no Aceite" — regra urbanística geral,
+     independente do imóvel ser antigo ou novo): mantido ativo, sem mudança. SQL em
+     `supabase/correcoes/2026_09_18_aceite_checklist_desativa_4_itens.sql`.
+     **O checklist do Aceite está com a auditoria de conteúdo fechada** (nada mais pendente de
+     decisão nesta rodada).
 
-   | Item (8 primeiros dígitos) | Chave/Grupo | O que tem hoje | Proposta | Por quê |
-   |---|---|---|---|---|
-   | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | **Desativar** | Uso do solo é dispensado no Aceite (D3); item parece colado do fluxo de aprovação de projeto |
-   | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | **Desativar** | 250 m² é a regra do Título I (Regularização, Art. 2º §4º); no Aceite a caixa não é exigida por padrão — vira condicional (só se apresentada), não requisito por metragem |
-   | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | **Desativar** (ou reescrever tirando "indispensável" e a citação do Art. 2º §4º, se o Fábio preferir manter como orientação condicional) | Cita literalmente o artigo do Título I; "indispensável" contradiz "não é cobrada por padrão" |
-   | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | **Desativar** | Uso do solo dispensado no Aceite |
-   | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | **Manter — confirmar com o Fábio** | Corredor viário não está na tabela D3 (nem a favor nem contra); pode ser regra urbanística geral, não específica do Título I |
-   | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | **Manter como está** — já é instrução de "como fazer certo", compatível com "se apresentar, tem que estar certo" | Sem conflito com D3 |
+   | Item (8 primeiros dígitos) | Chave/Grupo | O que tinha | Decisão do Fábio |
+   |---|---|---|---|
+   | `b1f69e47` | Carimbo 1/2 | Pede CNAE conforme "Uso do Solo Específico", cita Art.20/Art.11 §2 da IN nº 4 (linguagem de projeto NOVO/aprovação) | ✅ Desativado |
+   | `522314ae` | caixa / Levantamento | "Apresentar poço/caixa para edificações **acima de 250 m²**..." | ✅ Desativado |
+   | `02589912` | artCx / Documentação | "...será **indispensável**... –**Art.2º §4º**. Anexar ART/RRT..." | ✅ Desativado |
+   | `70f42389` | — / Documentação | "Rever Uso do Solo. A atividade TEM USO ESPECÍFICO" | ✅ Desativado |
+   | `c557f20f`, `83ec2c26`, `21c86749` | corredor / Corredor Viário | Regras de indicar faixa de corredor viário no carimbo/planta | ✅ Mantido ativo — vale no Aceite |
+   | `d27a06b0`, `375bdf3b`, `dd67da7e` | caixa / Levantamento | Como desenhar/locar a caixa corretamente (memorial, locação, sem detalhe de planta) | Mantido como estava (já era condicional, compatível com D3) |
 
    Depois do ok do Fábio: `UPDATE mac_checklist_itens SET ativo = false WHERE id = '...'` para
    desativar (nunca `DELETE`), e `UPDATE ... SET texto = '...'` para reescrever os 2 casos de
@@ -417,3 +451,37 @@ Ao terminar cada bloco:
   restante);
 - registrar no OBS COD;
 - resumo curto e simples para o Fábio.
+
+---
+
+## Fora do plano original, mesma sessão — "despacho" da CHEADV sem o ano
+
+**CONCLUÍDO em 18/09/2026.** Pedido direto do Fábio, cobrindo os DOIS slots explicitamente
+("rever os prompts", plural — descreveu o mesmo bug nos dois): o campo `despacho` (nº do ato da
+CHEADV/Uso do Solo) estava vindo só com o número ("1492"), sem o ano ("1492/2025"). Achado: os
+dois prompts P2_EXTRACAO (Regularização id=13 v22, Aceite id=14 v35) instruíam explicitamente
+"APENAS o número do ato" — com um exemplo que MOSTRAVA o documento como "DESPACHO Nº 1374/2024"
+mas pedia pro modelo devolver só "1374", cortando o ano de propósito. Corrigido nos dois: agora
+pede o número **com o ano**, exatamente como está escrito no documento.
+Conferido antes de mudar: `despacho` não é concatenado com ano em nenhum gerador de documento —
+sem risco de duplicar o ano em nenhum documento oficial.
+SQL em `supabase/correcoes/2026_09_18_despacho_cheadv_com_ano.sql`. **Slot 1 tocado com
+autorização explícita desta mensagem** (exceção pontual do plano — o resto do Slot 1 continua
+fora de escopo).
+
+## Fora do plano original, mesma sessão — checklist do Slot 1, grupo Art.15/APL duplicado
+
+**CONCLUÍDO em 18/09/2026.** Pedido direto do Fábio, com foto da tela do MAC do Slot 1 (aba "No
+Setor Central/APL: Art.15 LC 314/2018", a primeira aba) e foto do documento de referência da
+chefia mostrando o formato correto: o MESMO bug do checklist do Aceite (ver Bloco D) também
+existia no checklist do Slot 1 — 8 itens repetindo o mesmo parágrafo de abertura, com 2 bullets
+idênticos. Consolidado em 1 item (`92112534`), os outros 6 desativados (nunca apagados); o item
+dos templos religiosos (`1e7c1380`) é regra distinta, intocado.
+**Cuidado extra em relação ao Aceite:** 96 análises reais do Slot 1 têm marcação nesses itens
+(640 marcações). Conferido antes de aplicar: em TODAS elas, os 8 itens do grupo estavam sempre
+marcados com o MESMO status entre si (uso de "Todos Conformes"/"Todos N/A", nunca item a item) —
+manter o item sobrevivente com o status que já tinha preserva o resultado exibido em toda
+análise existente.
+SQL em `supabase/correcoes/2026_09_18_regularizacao_checklist_apl_duplicado.sql`. **Slot 1
+tocado com autorização explícita desta mensagem, escopo restrito a este único grupo do
+checklist** — nada mais do Slot 1 foi tocado.
