@@ -1,8 +1,9 @@
 # Rascunho — P2_EXTRACAO Aceite SEI, v36
 
-**Status: RASCUNHO, NÃO ATIVO.** Ainda vive só neste arquivo. A versão em produção continua sendo
-a v35 (`lip_prompts.id = 14`). Só vira v36 no banco depois do "ok" do Fábio — mudança de prompt é
-mudança de produção (regra do plano, item 5 de "Antes de começar").
+**Status: ATIVO em produção desde 18/09/2026** ("TA OK... PODE ATIVAR" — Fábio). `lip_prompts.id
+= 15`, `versao_anterior = 35`, `conteudo_backup` guarda a v35 inteira. A v35 (`id = 14`) foi
+desativada, não apagada — reversão é `update lip_prompts set ativo=true where id=14` +
+`update lip_prompts set ativo=false where id=15`.
 
 Bloco C do plano `docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md`.
 

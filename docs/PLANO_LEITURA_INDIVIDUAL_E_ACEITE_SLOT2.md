@@ -2,14 +2,13 @@
 
 **Criado em:** 18/09/2026, a partir de uma sessão de investigação (Opus) com o Fábio.
 **Execução:** outra sessão (Sonnet). Este documento é autossuficiente — não precisa da conversa original.
-**Progresso:** ~85% concluído (**Bloco A — CONCLUÍDO**, 6 campos criados; **Bloco B —
-CONCLUÍDO**, testado em produção pelo Fábio no Slot 1 com sucesso: marco temporal e cruzamento
-entre documentos funcionando; **Bloco D — CONCLUÍDO**: motivos de indeferimento, comentário do
-laudo, checklist todo auditado e decidido; **Bloco C — rascunho ESCRITO**
-(`docs/prompts/ACEITE_P2_EXTRACAO_v36.md`), aguardando o "ok" do Fábio pra ativar; tudo publicado
-no `main`, PRs #4 e #5) · ~15% restante (Bloco C — ativar depois do ok; Bloco E — ponte LIP→MAC,
-próximo passo, pedido explícito do Fábio pros dois slots). Atualizar no próprio commit de cada
-bloco, ver regra de % no fim.
+**Progresso:** ~90% concluído (**Blocos A, B, C e D — todos CONCLUÍDOS**: 6 campos criados;
+arquivos individuais testado em produção com sucesso; prompt v36 do Aceite escrito, aprovado e
+ATIVO; motivos de indeferimento, comentário do laudo e checklist auditado nos dois slots — mais
+2 achados fora do plano original corrigidos com autorização pontual: "despacho" sem ano e grupo
+Art.15/APL duplicado, nos dois slots; tudo publicado no `main`) · ~10% restante (**Bloco E — a
+ponte LIP→MAC, único bloco que falta**, pedido explícito do Fábio pros dois slots). Atualizar no
+próprio commit de cada bloco, ver regra de % no fim.
 
 ---
 
@@ -266,14 +265,15 @@ Ideia: juntar os arquivos escolhidos **num PDF só, no navegador**, e mandar pel
 
 ## Bloco C — Prompt do Aceite v36 + marco temporal do Aceite (só Slot 2)
 
-**C1. Rascunho do P2_EXTRACAO Aceite v36 — ESCRITO em 18/09/2026, aguardando o "ok" do Fábio
-antes de ativar.** Arquivo completo em `docs/prompts/ACEITE_P2_EXTRACAO_v36.md`, com um resumo
-das 9 mudanças no topo e um checklist de conferência no fim. Cobre: os 7 campos novos do Bloco A;
-marco temporal reescrito (foto → 4 documentos → vistoria, sempre exigindo a vistoria também);
-ART/RRT com o corte de 200 m² (IN 7/2024, Anexo I, item 9); caixa de recarga procurada mesmo sem
-gatilho por área e conferida se apresentada; fim do "Não" automático em embargo/procuração/
-tombamento; despacho = último ato; inventário com data/emissor; cruzamento vistoria×fotos×RT.
-Ainda **NÃO ativado no banco** — a v35 continua valendo em produção.
+**C1. CONCLUÍDO em 18/09/2026 — v36 escrita, aprovada e ATIVA em produção.** Arquivo completo em
+`docs/prompts/ACEITE_P2_EXTRACAO_v36.md`. Cobre: os 7 campos novos do Bloco A; marco temporal
+reescrito (foto → 4 documentos → vistoria, sempre exigindo a vistoria também); ART/RRT com o
+corte de 200 m² (IN 7/2024, Anexo I, item 9); caixa de recarga procurada mesmo sem gatilho por
+área e conferida se apresentada; fim do "Não" automático em embargo/procuração/tombamento;
+despacho = último ato; inventário com data/emissor; cruzamento vistoria×fotos×RT. Fábio aprovou
+("TA OK... PODE ATIVAR") e a v36 foi ativada no banco (`lip_prompts.id=15`, `versao_anterior=35`,
+v35 desativada mas guardada em `conteudo_backup` — reversível a qualquer momento). **Bloco C está
+CONCLUÍDO.**
 
 Partir do texto do v35 (`lip_prompts.id = 14`), escrever em
 `docs/prompts/ACEITE_P2_EXTRACAO_v36.md` e mostrar ao Fábio. Mudanças:
