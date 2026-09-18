@@ -40,11 +40,22 @@
 // regra, que é o que permite o Fábio ajustar o laudo sem mexer em
 // código.
 //
-// ── DECISÕES DE CONTEÚDO (Fábio, 17/09/2026) ──
+// ── DECISÕES DE CONTEÚDO (Fábio, 17/09/2026 — CORRIGIDO 18/09/2026) ──
 //
-// • Uso do Solo, caixa de recarga e ART/RRT não são exigíveis no
-//   Aceite. Os campos vão pro Painel quando existem (é fato a
-//   registrar), mas nada aqui transforma ausência em exigência.
+// • Uso do Solo: dispensado no Aceite (Art. 7º § 2º exclui o inciso I). Nunca exigível.
+// • ART/RRT: dispensada até 200 m² de área construída (só croqui cotado); ACIMA de 200 m² é
+//   EXIGÍVEL (projeto completo + ART/RRT). "Nunca exigível" (registrado em 17/09) estava
+//   ERRADO — corrigido pelo Fábio em 18/09: "tem casos que é, acima de 200m2". Ver
+//   docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md, D3.
+// • Caixa de recarga: não prevista no Título II, então não é COBRADA por padrão — mas se o
+//   requerente APRESENTAR, ela tem que estar correta (volume, memorial, ART da caixa). Também
+//   corrigido em 18/09: "se ele coloca, tem que colocar certo".
+// • Nenhum dos três pontos acima muda código deste gerador: ele só ESCREVE no Painel os valores
+//   primitivos que já vieram do LIP (ART/RRT e caixa inclusive, ver mapa de células mais abaixo)
+//   — nunca zera nem bloqueia campo por "não exigível". A regra de EXIGIR (ou não) e CONFERIR
+//   (se apresentada) é da LEITURA (prompt P2_EXTRACAO/P3_MAC do Aceite), não deste arquivo.
+//   Auditado em 18/09/2026: nenhum trecho deste gerador tratava ART/caixa como "nunca" — só o
+//   comentário acima (agora corrigido) descrevia a regra errado.
 // • "Tipo de Comprovação": a precedência é FOTO primeiro, documento só
 //   quando a foto não identifica ("se não puder ser identificado por
 //   falta de foto, aí documentação"). A fórmula do template faz o

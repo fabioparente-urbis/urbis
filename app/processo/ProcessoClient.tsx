@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
-import { avaliarMarcoTemporal, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
+import { avaliarMarcoTemporal, marcoTemporalDoTipo, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
+import { juntarArquivosComoFile } from "@/lib/documentosSei/juntarArquivosLeitura";
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
 import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
@@ -1334,7 +1335,19 @@ export default function ProcessoClient() {
     else lerLip(arquivos, "substituir");
   }
 
-  async function lerLip(arquivos: File[], modo: "substituir" | "sugerir" = "substituir") {
+  /**
+   * `origem`: Bloco B do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — quando
+   * "LER ARQUIVOS INDIVIDUAIS" (Slot 1/2) junta os arquivos num PDF só e chama esta MESMA função
+   * (em vez do pipeline separado de `processarVCP`), o cabeçalho da OBS precisa dizer que a
+   * origem foi arquivos individuais, não "LER PROCESSO" — e listar os nomes originais, já que
+   * `arquivos` aqui chega como 1 único File juntado. Sem `origem`, o texto sai idêntico ao de
+   * sempre (nenhum chamador existente passa esse parâmetro).
+   */
+  async function lerLip(
+    arquivos: File[],
+    modo: "substituir" | "sugerir" = "substituir",
+    origem?: { rotulo: string; arquivos: string[] },
+  ) {
     const _t0Leitura = Date.now();
     const _dataLeitura = new Date().toLocaleString("pt-BR");
     let _docsLeitura: any[] = [];
@@ -1346,7 +1359,12 @@ export default function ProcessoClient() {
       if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
       tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
       setProgresso(5);
-      mostrarToast(`📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`, "info");
+      mostrarToast(
+        origem
+          ? `📄 Iniciando leitura de ${origem.arquivos.length} arquivo(s) juntos...`
+          : `📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`,
+        "info",
+      );
 
       const resultados = [];
       for (const arquivo of arquivos) {
@@ -1555,8 +1573,11 @@ export default function ProcessoClient() {
             ...(_veredicto.leitura.trecho ? [`  • Trecho: "${_veredicto.leitura.trecho}"`] : []),
           ].join("\n")
         : "";
+      const _cabecalho = origem
+        ? `━━━ LEITURA DO PROCESSO (LIP) — ${origem.rotulo} ━━━\n📎 Arquivos: ${origem.arquivos.join(", ")}\n`
+        : `━━━ LEITURA DO PROCESSO (LIP) ━━━\n`;
       const _bloco =
-        `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
+        _cabecalho +
         `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modo.toUpperCase()} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) ${modo === "sugerir" ? "sugerido(s)" : "preenchido(s)"}\n` +
         `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
         `🔎 Incompatibilidades:\n${_linhasIncompat}` +
@@ -1575,8 +1596,11 @@ export default function ProcessoClient() {
       const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
       const _pctLido = typeof progresso === "number" ? progresso : 0;
+      const _cabecalhoErro = origem
+        ? `━━━ LEITURA DO PROCESSO (LIP) — ${origem.rotulo} ━━━\n📎 Arquivos: ${origem.arquivos.join(", ")}\n`
+        : `━━━ LEITURA DO PROCESSO (LIP) ━━━\n`;
       const _blocoErro =
-        `━━━ LEITURA DO PROCESSO (LIP) ━━━\n` +
+        _cabecalhoErro +
         `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_mm}:${_ss} | Progresso: ${_pctLido}%\n` +
         `⚠ Motivo: ${e.message}`;
       anexarObsLip(_blocoErro);
@@ -1610,8 +1634,47 @@ export default function ProcessoClient() {
     return m ? m[1] : null;
   }
 
+  /**
+   * Bloco B do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — Slot 1 (Regularização) e
+   * Slot 2 (Aceite) juntam os arquivos escolhidos num PDF só e leem pelo MESMO caminho de
+   * "LER PROCESSO" (`lerLip`), em vez do pipeline antigo (1 chamada por arquivo, isolado, mais
+   * abaixo em `processarVCP`). Corrige na raiz o "Não" que o modelo dá quando só não viu o
+   * documento — ver o cabeçalho de `juntarArquivosLeitura.ts`. Outros slots (ex.: Slot 5) NÃO
+   * usam este caminho: `marcoTemporalDoTipo` só reconhece "regularizacao*"/"aceite*", então
+   * qualquer outro `tipoUrl` cai direto no `processarVCP` de sempre, intocado.
+   */
+  async function processarVCPComoLeituraUnica() {
+    setVcpProcessando(true);
+    setModalVCP(false);
+    try {
+      const nomes = vcpArquivos.map((a) => a.name);
+      mostrarToast(`📎 Juntando ${vcpArquivos.length} arquivo(s) para ler como um só...`, "info");
+      const arquivoJuntado = await juntarArquivosComoFile(
+        vcpArquivos,
+        `${idUrl} - arquivos individuais (${vcpArquivos.length}).pdf`,
+      );
+      if (arquivoJuntado.size > LIMITE_BYTES_PLATAFORMA) {
+        throw new Error(
+          `Os ${vcpArquivos.length} arquivos somam ${(arquivoJuntado.size / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita numa leitura só. Leia em dois lotes menores.`,
+        );
+      }
+      // Mesma regra de modo que o VCP antigo usava: só pergunta substituir/sugerir quando já
+      // existe algo preenchido por IA/manual; processo vazio sempre substitui (nada a perder).
+      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido");
+      const modoFinal: "substituir" | "sugerir" = lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir";
+      await lerLip([arquivoJuntado], modoFinal, { rotulo: "ARQUIVOS INDIVIDUAIS", arquivos: nomes });
+      setVcpModo(null);
+      setVcpArquivos([]);
+    } catch (e: any) {
+      mostrarToast("❌ Erro ao juntar/ler arquivos: " + (e?.message ?? e), "erro");
+    } finally {
+      setVcpProcessando(false);
+    }
+  }
+
   async function processarVCP() {
     if (vcpArquivos.length === 0) return;
+    if (marcoTemporalDoTipo(tipoUrl) !== null) return processarVCPComoLeituraUnica();
     setVcpProcessando(true);
     setModalVCP(false);
     setTempoLeitura(0);

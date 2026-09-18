@@ -2610,7 +2610,25 @@ export default function MacPage() {
               🖨️ Re-imprimir Parecer {indeferimentoParaReimprimir.numeroParecer}
             </button>
           )}
-          <button onClick={async () => { setDataEmissao(new Date().toLocaleDateString("pt-BR")); await salvarSilencioso(); if (!(await confirmarSePendente("o indeferimento"))) return; setModalIndeferimento(true); }} disabled={salvando}
+          <button onClick={async () => {
+              setDataEmissao(new Date().toLocaleDateString("pt-BR"));
+              await salvarSilencioso();
+              if (!(await confirmarSePendente("o indeferimento"))) return;
+              /* Achado do Fábio (18/09/2026, com foto): a caixa "Observações adicionais" nasce
+               * vazia e SÓ recebe o que alguém digita/cola nela — nada no código a preenche
+               * sozinha. O problema é que "Cancelar" não limpava nada, então um texto digitado
+               * numa tentativa cancelada (ex.: colado como referência de outro processo) ficava
+               * PRESO em memória e reaparecia na próxima vez que "Indeferir" fosse aberto —
+               * inclusive noutro processo, inclusive dias depois. Risco real: justificativa
+               * errada indo pro indeferimento oficial de um processo diferente. Limpa tudo aqui,
+               * na ABERTURA do modal, que cobre qualquer caminho (Cancelar, fechar sem cancelar,
+               * etc.) — não só o de confirmar, que já limpava (linha ~3025). Só Slot 2: o Slot 1
+               * não foi auditado, ver docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md. */
+              setMotivosIndeferimento([]);
+              setObsIndeferimento("");
+              setFotosIndeferimento([]);
+              setModalIndeferimento(true);
+            }} disabled={salvando}
             className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
             ❌ Indeferir
           </button>
@@ -2942,9 +2960,20 @@ export default function MacPage() {
             <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento por Impossibilidade de Análise</h2>
             <p className="text-xs text-[var(--text-muted)] mb-3">Selecione o(s) motivo(s):</p>
             {[
-              "Uso do solo não definido — atividade sem classificação permitida para regularização",
+              // Bloco D do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — lista era
+              // cópia literal do Slot 1 (Regularização, ~l.3232), com data/ato errados pro Aceite.
+              // Corrigido em 18/09/2026:
+              //   - marco temporal: 04/03/2022 (Regularização) → 19/10/1995 (Aceite,
+              //     LC 314/2018 Título II);
+              //   - "Uso do solo não definido" REMOVIDO: no Aceite o uso do solo é dispensado
+              //     (Art. 7º § 2º), não pode ser motivo de indeferimento.
+              // "mais de 7 pavimentos" e "APP/APM": CONFIRMADO em 18/09/2026 que valem no
+              // Aceite — é o próprio checklist do Aceite que exige isso (item de checklist
+              // 72a48f6f, grupo "Levantamento": "Para que o projeto seja passível de aprovação
+              // por Alvará de Aceite: máximo de 7 pavimentos; altura máxima 21,00m; não
+              // obstruir/ocupar APM, APP ou logradouro público"). Mantidos sem mudança.
               "Edificação com mais de 7 pavimentos — vedada pela LC 314/2018",
-              "Reforma ou construção após 04/03/2022 — não elegível para regularização",
+              "Edificação concluída após 19/10/1995 — não atende ao marco temporal do Alvará de Aceite (LC 314/2018, Título II)",
               "Edificação em APP/APM — vedada pela legislação ambiental",
               "Processo sem documentação mínima para análise",
               MOTIVO_IMOVEL_DUPLICADO,
