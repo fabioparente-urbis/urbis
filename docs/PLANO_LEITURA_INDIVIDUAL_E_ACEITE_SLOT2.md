@@ -466,5 +466,22 @@ pede o número **com o ano**, exatamente como está escrito no documento.
 Conferido antes de mudar: `despacho` não é concatenado com ano em nenhum gerador de documento —
 sem risco de duplicar o ano em nenhum documento oficial.
 SQL em `supabase/correcoes/2026_09_18_despacho_cheadv_com_ano.sql`. **Slot 1 tocado com
-autorização explícita desta mensagem** (única exceção pontual do plano — o resto do Slot 1
-continua fora de escopo).
+autorização explícita desta mensagem** (exceção pontual do plano — o resto do Slot 1 continua
+fora de escopo).
+
+## Fora do plano original, mesma sessão — checklist do Slot 1, grupo Art.15/APL duplicado
+
+**CONCLUÍDO em 18/09/2026.** Pedido direto do Fábio, com foto da tela do MAC do Slot 1 (aba "No
+Setor Central/APL: Art.15 LC 314/2018", a primeira aba) e foto do documento de referência da
+chefia mostrando o formato correto: o MESMO bug do checklist do Aceite (ver Bloco D) também
+existia no checklist do Slot 1 — 8 itens repetindo o mesmo parágrafo de abertura, com 2 bullets
+idênticos. Consolidado em 1 item (`92112534`), os outros 6 desativados (nunca apagados); o item
+dos templos religiosos (`1e7c1380`) é regra distinta, intocado.
+**Cuidado extra em relação ao Aceite:** 96 análises reais do Slot 1 têm marcação nesses itens
+(640 marcações). Conferido antes de aplicar: em TODAS elas, os 8 itens do grupo estavam sempre
+marcados com o MESMO status entre si (uso de "Todos Conformes"/"Todos N/A", nunca item a item) —
+manter o item sobrevivente com o status que já tinha preserva o resultado exibido em toda
+análise existente.
+SQL em `supabase/correcoes/2026_09_18_regularizacao_checklist_apl_duplicado.sql`. **Slot 1
+tocado com autorização explícita desta mensagem, escopo restrito a este único grupo do
+checklist** — nada mais do Slot 1 foi tocado.
