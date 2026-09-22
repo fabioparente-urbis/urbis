@@ -213,11 +213,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Esforço/pendências do Radar (Fase 2 do plano Assessor Ativo, 07/09/2026): lê o retrato MAIS
-    // RECENTE de cada processo em urbi_radar_retratos — nenhum cálculo novo, a mesma fonte que já
-    // alimenta as perguntas da Pilha no chat (lib/urbi/perguntasPilha.ts) e o relatório do Motor
-    // de Produção. O Radar roda de fundo a cada ~1 min; processo nunca visitado ainda não tem
-    // retrato — mostra "ainda não avaliado", nunca um esforço inventado.
+    /**
+     * Esforço/pendências do Radar (Fase 2 do plano Assessor Ativo, 07/09/2026): nenhum cálculo
+     * novo, a mesma fonte que já alimenta as perguntas da Pilha no chat
+     * (lib/urbi/perguntasPilha.ts) e o relatório do Motor de Produção. Processo nunca visitado
+     * não tem retrato — mostra "ainda não avaliado", nunca um esforço inventado.
+     *
+     * Lê `vw_urbi_radar_vigente` (uma linha por processo, já com os campos escalares prontos), e
+     * não mais a tabela crua. Duas razões, das duas vezes que isto quebrou em 22/09/2026:
+     *
+     *   1. Ordenar por `versao` NÃO dá o retrato mais recente. Um laço no Radar criava "versão 1"
+     *      repetidamente (39.829 linhas de versão 1 para 89 processos), então as versões ALTAS
+     *      eram as ANTIGAS: a Pilha exibia esforço/pendências defasados em dias. A view ordena
+     *      por `criado_em`, que é o sinal de recência de verdade.
+     *   2. Trazer todas as linhas e escolher a primeira de cada processo no JavaScript esbarra no
+     *      teto de linhas do PostgREST (~1000) em silêncio — processo fora do teto simplesmente
+     *      some do mapa. A view devolve uma linha por processo, então não há o que truncar.
+     *
+     * Ver docs/URBIS_RADAR_DESLIGADO_22SET.md.
+     */
     const radarPorCodigo = new Map<string, {
       esforco: string | null; pendencias: number | null;
       temAcaoBloqueante: boolean; semPendenciasMotor: boolean;
@@ -226,22 +240,19 @@ export async function GET(req: NextRequest) {
     }>();
     if (codigos.length > 0) {
       const { data: linhasRadar } = await supabase
-        .from("urbi_radar_retratos")
-        .select("processo_codigo, versao, alertas, pendencias_mac")
-        .in("processo_codigo", codigos)
-        .order("versao", { ascending: false });
+        .from("vw_urbi_radar_vigente")
+        .select("processo_codigo, pendencias_mac, esforco, acao_tier, acao_texto, acao_motivo, acoes_total")
+        .in("processo_codigo", codigos);
       for (const linha of linhasRadar ?? []) {
         const l = linha as any;
-        if (radarPorCodigo.has(l.processo_codigo)) continue; // já viu a versão mais recente (ordenado desc)
-        const acoes = Array.isArray(l.alertas?.acoes) ? l.alertas.acoes : [];
         radarPorCodigo.set(l.processo_codigo, {
-          esforco: l.alertas?.esforco ?? null,
+          esforco: l.esforco ?? null,
           pendencias: typeof l.pendencias_mac === "number" ? l.pendencias_mac : null,
           // Fase 6 (Briefing do dia): tier 1 do Motor de Produção = pendência que impede
           // emissão/continuidade (item não conforme do MAC) — mesma prioridade fixa de
           // lib/urbi/motorProducao.ts, nunca recalculada aqui.
-          temAcaoBloqueante: acoes[0]?.tier === 1,
-          semPendenciasMotor: acoes.length === 0,
+          temAcaoBloqueante: l.acao_tier === 1,
+          semPendenciasMotor: l.acoes_total === 0,
           /**
            * O QUE é a ação e POR QUÊ — 08/09/2026, pedido do Fábio: "o certo seria ele explicar
            * por que tem ação bloqueante, qual ação é essa e por que tá pronto pra despachar".
@@ -249,8 +260,8 @@ export async function GET(req: NextRequest) {
            * retrato do Radar (`alertas.acoes[].texto/motivo`, escritos por
            * lib/urbi/motorProducao.ts) — só não eram devolvidos. Nada recalculado aqui.
            */
-          acaoTexto: acoes[0]?.tier === 1 ? (acoes[0]?.texto ?? null) : null,
-          acaoMotivo: acoes[0]?.tier === 1 ? (acoes[0]?.motivo ?? null) : null,
+          acaoTexto: l.acao_tier === 1 ? (l.acao_texto ?? null) : null,
+          acaoMotivo: l.acao_tier === 1 ? (l.acao_motivo ?? null) : null,
         });
       }
     }
