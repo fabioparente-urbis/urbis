@@ -213,6 +213,11 @@ Se o analista limpar o navegador ou trocar de computador antes de sincronizar, o
 fila some. Mitigação: o selo 🟡 fica visível e insistente, e há um botão "exportar pendências"
 para um arquivo, como garantia. **Não dá para eliminar esse risco, só reduzir.**
 
+> **DECIDIDO (22/09, Fábio):** selo 🟡 bem visível + **backup automático** das pendências num
+> arquivo a cada 30 min enquanto houver pendência offline. Nota técnica: o navegador pode pedir
+> permissão para downloads automáticos, ou para escrever numa pasta escolhida, na primeira vez.
+> Isso precisa ser testado no Chrome/Safari do Mac antes de prometer.
+
 ### 8.3 Gerador de documento no servidor
 Os geradores de .docx (`lib/geradores.ts`, `lib/geradores/aceiteSei/docxBase.ts`,
 `lib/mac-motor/slot5/gerarDespachoInterno.ts`) leem arquivos do disco do servidor (logo,
@@ -246,6 +251,7 @@ produção.
 | # | Risco | Decisão | Data |
 |---|---|---|---|
 | 1 | Número repetido ao emitir offline | Emite offline em qualquer PC, com aviso de cuidado na emissão | 22/09/2026 |
+| 3 | Pendência perdida antes de sincronizar | Selo visível + backup automático em arquivo a cada 30 min | 22/09/2026 |
 | 2 | Dois editando o mesmo campo | Não acontece (processo é de um analista só); sem coluna nova, só aviso se o valor mudou | 22/09/2026 |
 
 ## Histórico de versões
