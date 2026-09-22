@@ -239,8 +239,10 @@ você.**
 > - cópia local de algo **já sincronizado** é só apagada do Mac, porque o original está no
 >   servidor;
 > - tudo que **seria perdido de verdade** vai para a Lixeira do admin, numa aba nova "Offline",
->   restaurável: pendência vencida sem sincronizar, pendência recusada pelo servidor, valor
->   perdedor num aviso de conflito (Risco 2). Nada do offline é destruído.
+>   restaurável: pendência recusada pelo servidor e valor perdedor num aviso de conflito
+>   (Risco 2). Nada do offline é destruído.
+> - **Pendência não vence** (Fábio, 22/09: "a chance de ficar 180 dias sem conectar é zero"). Os
+>   180 dias valem só para a cópia de consulta; pendência não enviada fica até sincronizar.
 
 ### 8.5 Versão velha do sistema (Etapa 2)
 Se o service worker for mal feito, o analista pode ficar dias rodando uma versão antiga sem
