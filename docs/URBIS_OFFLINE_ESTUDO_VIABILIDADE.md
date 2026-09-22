@@ -229,6 +229,14 @@ A cópia local fica no navegador, sem senha além da do Windows/Mac. Hoje já é
 SEI (180 dias). Proposta: o mesmo teto de validade e limpeza ao fazer logout. **A confirmar com
 você.**
 
+> **DECIDIDO (22/09, Fábio):** 180 dias + apaga no logout, **mas mandando para a Lixeira do
+> admin** (`/admin/lixeira`, já existe). Interpretação registrada, sujeita a correção dele:
+> - cópia local de algo **já sincronizado** é só apagada do Mac, porque o original está no
+>   servidor;
+> - tudo que **seria perdido de verdade** vai para a Lixeira do admin, numa aba nova "Offline",
+>   restaurável: pendência vencida sem sincronizar, pendência recusada pelo servidor, valor
+>   perdedor num aviso de conflito (Risco 2). Nada do offline é destruído.
+
 ### 8.5 Versão velha do sistema (Etapa 2)
 Se o service worker for mal feito, o analista pode ficar dias rodando uma versão antiga sem
 saber. Precisa de aviso "nova versão disponível, recarregue" e de um teste disso antes de ir para
@@ -251,6 +259,7 @@ produção.
 | # | Risco | Decisão | Data |
 |---|---|---|---|
 | 1 | Número repetido ao emitir offline | Emite offline em qualquer PC, com aviso de cuidado na emissão | 22/09/2026 |
+| 4 | Dado sensível guardado no Mac | 180 dias + apaga no logout; o que seria perdido vai para a Lixeira do admin (aba Offline) | 22/09/2026 |
 | 3 | Pendência perdida antes de sincronizar | Selo visível + backup automático em arquivo a cada 30 min | 22/09/2026 |
 | 2 | Dois editando o mesmo campo | Não acontece (processo é de um analista só); sem coluna nova, só aviso se o valor mudou | 22/09/2026 |
 
