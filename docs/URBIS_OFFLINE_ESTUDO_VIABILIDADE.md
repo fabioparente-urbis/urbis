@@ -242,6 +242,9 @@ Se o service worker for mal feito, o analista pode ficar dias rodando uma versã
 saber. Precisa de aviso "nova versão disponível, recarregue" e de um teste disso antes de ir para
 produção.
 
+> **DECIDIDO (22/09, Fábio):** aviso "nova versão disponível" com botão Atualizar; se ele não
+> clicar, atualiza sozinho na próxima vez que abrir o URBIS. Nunca recarrega no meio do trabalho.
+
 ---
 
 ## 9. Decisões que são suas
@@ -259,6 +262,7 @@ produção.
 | # | Risco | Decisão | Data |
 |---|---|---|---|
 | 1 | Número repetido ao emitir offline | Emite offline em qualquer PC, com aviso de cuidado na emissão | 22/09/2026 |
+| 5 | Versão velha do sistema no Mac | Aviso + atualiza sozinho no próximo abrir, nunca no meio do trabalho | 22/09/2026 |
 | 4 | Dado sensível guardado no Mac | 180 dias + apaga no logout; o que seria perdido vai para a Lixeira do admin (aba Offline) | 22/09/2026 |
 | 3 | Pendência perdida antes de sincronizar | Selo visível + backup automático em arquivo a cada 30 min | 22/09/2026 |
 | 2 | Dois editando o mesmo campo | Não acontece (processo é de um analista só); sem coluna nova, só aviso se o valor mudou | 22/09/2026 |
