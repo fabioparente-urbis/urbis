@@ -203,6 +203,11 @@ Analista A edita offline, analista B edita online o mesmo processo. Na volta:
   Precisaria de uma coluna de data/versão em `lip`/`analises_mac`. **Mudança de banco, a
   confirmar.**
 
+> **DECIDIDO (22/09, Fábio):** não acontece aqui, porque cada processo é de um analista só.
+> **Sem coluna nova no banco.** Fica só uma proteção barata: a fila guarda o valor que o campo
+> tinha quando foi baixado e, na volta, se o servidor tiver outro valor, **avisa** em vez de
+> sobrescrever calado. Assim nada some em silêncio.
+
 ### 8.2 Fila perdida
 Se o analista limpar o navegador ou trocar de computador antes de sincronizar, o que estava na
 fila some. Mitigação: o selo 🟡 fica visível e insistente, e há um botão "exportar pendências"
@@ -241,6 +246,7 @@ produção.
 | # | Risco | Decisão | Data |
 |---|---|---|---|
 | 1 | Número repetido ao emitir offline | Emite offline em qualquer PC, com aviso de cuidado na emissão | 22/09/2026 |
+| 2 | Dois editando o mesmo campo | Não acontece (processo é de um analista só); sem coluna nova, só aviso se o valor mudou | 22/09/2026 |
 
 ## Histórico de versões
 
