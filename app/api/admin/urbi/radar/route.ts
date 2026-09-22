@@ -37,6 +37,10 @@ export async function GET(req: NextRequest) {
   try {
     const cobertura = await obterStatusRadar({ userId: ctx.userId, irrestrito: ctx.irrestrito, gerencia: ctx.gerencia });
     const estadoJob = await obterEstadoJobRadar();
+    // Liga/desliga real do agendamento (`cron.job`, jobid=1) — schema `cron` não é exposto pela
+    // API, por isso a função `urbi_radar_estado()` (SECURITY DEFINER, só service_role).
+    const { data: estadoCron } = await supabaseAdmin.rpc("urbi_radar_estado");
+    const cron = (estadoCron ?? [])[0] ?? null;
 
     const [{ data: filaPendente }, { data: errosRecentes }, { data: reanalisesRecentes }, { data: retratosParaEvidencia }] = await Promise.all([
       supabaseAdmin.from("urbi_radar_retratos")
@@ -80,6 +84,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       cobertura,
       estado_job: estadoJob,
+      agendamento: cron ? { schedule: cron.schedule, ativo: cron.active, ultima_execucao: cron.ultima_execucao } : null,
       cobertura_linha_evidencia: {
         com_linha_evidencia: comLinhaEvidencia,
         total_com_retrato: vistosEvidencia.size,
@@ -94,4 +99,38 @@ export async function GET(req: NextRequest) {
     console.error("[admin/urbi/radar]", e?.message ?? e);
     return NextResponse.json({ ok: false, erro: e?.message ?? "Falha ao carregar painel do Radar." }, { status: 500 });
   }
+}
+
+/**
+ * POST /api/admin/urbi/radar — liga/desliga o agendamento do Radar (`cron.job`, jobid=1).
+ * `{ ativo: boolean }`. Restrito a perfil irrestrito, mesmo padrão do GET. Usa
+ * `urbi_radar_definir_ativo` (SECURITY DEFINER) porque o schema `cron` não é exposto pela API —
+ * ver `supabase/migrations/2026_09_22_urbi_radar_funcoes_admin.sql`.
+ */
+export async function POST(req: NextRequest) {
+  const ctx = await autenticar(req);
+  if (ctx instanceof NextResponse) return ctx;
+  if (!ctx.irrestrito) {
+    return NextResponse.json({ ok: false, erro: "Acesso restrito a Administrador/Diretora." }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  if (typeof body?.ativo !== "boolean") {
+    return NextResponse.json({ ok: false, erro: "Corpo precisa de { ativo: boolean }." }, { status: 400 });
+  }
+
+  const { error } = await supabaseAdmin.rpc("urbi_radar_definir_ativo", { ativo: body.ativo });
+  if (error) {
+    console.error("[admin/urbi/radar] falha ao trocar ativo:", error.message);
+    return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+  }
+
+  // Trilha de auditoria — liga/desliga de um serviço de fundo não pode passar em branco.
+  await supabaseAdmin.from("auditoria_log").insert({
+    tabela: "cron.job",
+    operacao: body.ativo ? "URBI_RADAR_LIGADO" : "URBI_RADAR_DESLIGADO",
+    dados_depois: { jobid: 1, ativo: body.ativo, por: ctx.userId },
+  }).then(({ error: erroAuditoria }) => { if (erroAuditoria) console.error("[radar] auditoria falhou:", erroAuditoria.message); });
+
+  return NextResponse.json({ ok: true, ativo: body.ativo });
 }
