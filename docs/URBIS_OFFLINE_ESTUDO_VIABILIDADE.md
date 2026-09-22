@@ -1,6 +1,6 @@
 # URBIS OFFLINE — estudo de viabilidade
 
-**Versão:** 0.2 (estudo, nada implementado; decisões do Fábio sendo registradas na seção 10)
+**Versão:** 0.3 (estudo, nada implementado; 6 riscos decididos pelo Fábio, seção 10)
 **Data:** 22/09/2026
 **Pedido:** "crie o urbis off pra que eu possa trabalhar no urbis mesmo offline... mesmo se o
 Railway ou Supabase ou internet cair... assim que voltar sincroniza. Quero o projeto, o estudo da
@@ -179,7 +179,7 @@ Cada etapa funciona sozinha e pode parar ali.
   vem pronto e precisa ser testado com cuidado para não servir **versão velha** do sistema depois
   de um deploy, que é o erro clássico desse tipo de recurso.
 
-### Etapa 3 — "Emitir offline" (opcional, depende da sua decisão na seção 4)
+### Etapa 3 — "Emitir offline" — **FORA DO PLANO** (Risco 6: documentos só online)
 - Gerador de .docx rodando no navegador.
 - Numeração offline com trava de um computador por analista.
 - **Estimativa (não medida): 1 a 2 semanas**, mais o teste com numeração de verdade (feito por
@@ -224,6 +224,11 @@ Os geradores de .docx (`lib/geradores.ts`, `lib/geradores/aceiteSei/docxBase.ts`
 modelos) e, num caso, consultam a tabela `assuntos`. A biblioteca `docx` roda no navegador, mas
 cada gerador teria que ser adaptado. Só é necessário na Etapa 3.
 
+> **DECIDIDO (22/09, Fábio):** geração de documentos fica **só online**. Consequência: sem o
+> .docx não há emissão offline, então **a Etapa 3 sai do plano** e, na prática, o Risco 1 vira
+> "preparar offline, numerar e emitir na volta". O aviso de cuidado do Risco 1 só volta a valer
+> se um dia a geração offline for reaberta.
+
 ### 8.4 Dado sensível no computador
 A cópia local fica no navegador, sem senha além da do Windows/Mac. Hoje já é assim com o PDF do
 SEI (180 dias). Proposta: o mesmo teto de validade e limpeza ao fazer logout. **A confirmar com
@@ -262,6 +267,7 @@ produção.
 | # | Risco | Decisão | Data |
 |---|---|---|---|
 | 1 | Número repetido ao emitir offline | Emite offline em qualquer PC, com aviso de cuidado na emissão | 22/09/2026 |
+| 6 | Gerar .docx offline | Não: documentos só online, então a Etapa 3 sai e o Risco 1 vira "preparar offline, emitir online" | 22/09/2026 |
 | 5 | Versão velha do sistema no Mac | Aviso + atualiza sozinho no próximo abrir, nunca no meio do trabalho | 22/09/2026 |
 | 4 | Dado sensível guardado no Mac | 180 dias + apaga no logout; o que seria perdido vai para a Lixeira do admin (aba Offline) | 22/09/2026 |
 | 3 | Pendência perdida antes de sincronizar | Selo visível + backup automático em arquivo a cada 30 min | 22/09/2026 |
@@ -271,5 +277,6 @@ produção.
 
 | Versão | Data | O que mudou |
 |---|---|---|
+| 0.3 | 22/09/2026 | Riscos 2 a 6 decididos; Etapa 3 removida (documentos só online). |
 | 0.2 | 22/09/2026 | Risco 1 decidido (emitir offline com aviso); furo de sobreposição de faixa entre analistas registrado. |
 | 0.1 | 22/09/2026 | Estudo inicial. Corrige a avaliação da conversa anterior: a faixa de numeração é por analista, não disputada entre todos. |
