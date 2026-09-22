@@ -101,7 +101,7 @@ const ROTULO_POR_PAPEL: Record<string, string | undefined> = {
   processo_fisico: "PROCESSO FISICO",
   uso_solo: "USO SOLO",
   projeto: "PROJETO",
-  levantamento: "PROJETO",
+  levantamento: "LEVANTAMENTO",
   art_levantamento: "ART",
   art_caixa: "ART CAIXA",
   matricula: "CERTIDAO",
