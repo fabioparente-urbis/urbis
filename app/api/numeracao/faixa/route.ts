@@ -44,17 +44,27 @@ export async function POST(req: NextRequest) {
 
   const ano = new Date().getFullYear();
 
-  const { data: existentes } = await supabase
+  // Sobreposição conferida contra as faixas de TODOS os analistas, não só as do próprio (furo
+  // achado pelo Fábio em 22/09/2026): os números de despacho/parecer são do analista a quem foram
+  // atribuídos, fora do URBIS inclusive. Conferindo só as próprias, outro analista podia cadastrar
+  // a mesma faixa e os dois emitiriam o mesmo número sem aviso. A trava definitiva é a constraint
+  // `urbis_numeracao_faixas_sem_sobreposicao` (migration 2026_09_22) — esta checagem existe para
+  // devolver mensagem legível antes de o banco recusar.
+  const { data: existentes, error: erroExistentes } = await supabase
     .from("urbis_numeracao_faixas")
-    .select("numero_inicial, numero_final")
-    .eq("usuario_id", usuarioId)
+    .select("usuario_id, numero_inicial, numero_final")
     .eq("tipo", tipo)
     .eq("ano", ano);
 
-  if (existentes) {
-    for (const f of existentes) {
-      if (ni <= f.numero_final && nf >= f.numero_inicial)
-        return NextResponse.json({ ok: false, erro: `Faixa sobrepõe intervalo já cadastrado (${f.numero_inicial}–${f.numero_final})` }, { status: 400 });
+  if (erroExistentes) return NextResponse.json({ ok: false, erro: erroExistentes.message }, { status: 500 });
+
+  for (const f of existentes ?? []) {
+    if (ni <= f.numero_final && nf >= f.numero_inicial) {
+      // Faixa de outro analista: não expõe o intervalo dele, só recusa.
+      const erro = f.usuario_id === usuarioId
+        ? `Faixa sobrepõe intervalo já cadastrado (${f.numero_inicial}–${f.numero_final})`
+        : "Parte desta faixa já pertence a outro analista. Confira os números atribuídos a você.";
+      return NextResponse.json({ ok: false, erro }, { status: 400 });
     }
   }
 
@@ -64,6 +74,10 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
+  // 23P01 = exclusion_violation: duas gravações simultâneas passaram pela checagem acima e a
+  // constraint barrou a segunda.
+  if (error?.code === "23P01")
+    return NextResponse.json({ ok: false, erro: "Parte desta faixa já está cadastrada. Recarregue e confira." }, { status: 409 });
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, data });
 }
