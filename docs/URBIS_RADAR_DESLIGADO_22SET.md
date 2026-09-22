@@ -181,23 +181,51 @@ MAP, login. Nenhum fluxo de trabalho do analista depende do Radar.
 Religar como está reproduz o problema em dias — a poda de 22/09 comprou tempo, não consertou
 nada. O mínimo:
 
-1. **Eliminar o teto de linhas como fator.** É a causa-raiz (§2.1): qualquer consulta que dependa
-   de "trazer tudo e escolher no JavaScript" volta a quebrar em silêncio assim que a tabela
-   cresce. Pedir ao banco só o que se quer — `DISTINCT ON (processo_codigo)`, uma view, ou uma
-   coluna/flag de "retrato vigente".
-2. **Uma linha por processo, sobrescrita** (upsert), em vez de uma linha por passada. Mata a
-   classe inteira do problema: sem histórico acumulando, não há o que inchar nem teto pra estourar.
-   Decisão de direção do Fábio em 22/09 (ver §7).
-3. **Corrigir `/api/processos` junto.** A Pilha repete o mesmo padrão defeituoso e ainda pede a
-   coluna `alertas` (jsonb gorda) quando só precisa de esforço e nº de pendências.
-4. **Criar poda automática** — sem isso, qualquer correção volta a degradar.
-5. **Reduzir a cadência.** `* * * * *` (1.419 execuções/dia) é agressivo pra um serviço de fundo
-   que ninguém olha em tempo real. A cada 15 min corta a carga em 15x.
-6. ~~Limpar o que o próprio mecanismo acumula~~ — **FEITO em 22/09.** `net._http_response` já
-   tinha faxina própria (`pg_net.ttl = 6 hours`, config da extensão, não precisava de nada).
-   `cron.job_run_details` (15 MB → 1,5 MB nessa limpeza) não tinha: criado o job
-   `limpar_log_do_agendador` (jobid=2, `0 6 * * *`), que apaga sozinho registro com mais de 2 dias.
-   Log do agendador não volta a crescer sem controle.
+1. ~~Eliminar o teto de linhas como fator~~ — **FEITO em 22/09.** Ver §7.1: índice único em
+   `processo_codigo` + upsert no lugar de insert. Testado com 3 chamadas seguidas pro mesmo
+   processo → 1 linha só, versão avançando na mesma linha.
+2. ~~Uma linha por processo, sobrescrita~~ — **FEITO junto com o item 1**, mesma mudança.
+3. ~~Corrigir `/api/processos` junto~~ — **FEITO em 22/09** (commit `fix(pilha)`, PR #13): lê
+   `vw_urbi_radar_vigente` em vez da tabela crua, sem trazer `alertas` inteiro pela rede.
+4. ~~Criar poda automática~~ — **FEITO em 22/09** (§ anterior): job `limpar_log_do_agendador`.
+5. ~~Reduzir a cadência~~ — **FEITO em 22/09.** `* * * * *` → `*/15 * * * *` (§7.1). Cálculo
+   apresentado ao Fábio: Radar+consequências eram ~85% da CPU do banco; a 15 min isso cai pra
+   ~5,6% do que era — banco geral cai pra ~21% da carga do auge do incidente. Ir para 30 min
+   traria só +3 pontos de alívio (retornos decrescentes); Fábio escolheu 15 min.
+
+**Status em 22/09, fim do dia: todos os 5 pontos corrigidos e testados. Falta só religar
+(`select cron.alter_job(job_id := 1, active := true);`) — decisão do Fábio, não é automático.**
+
+## 7.1 O que foi corrigido no código (22/09/2026, depois da limpeza manual)
+
+A limpeza de dados (§2.2) resolveu o SINTOMA (banco de 128 MB → 416 kB); o código continuava com
+o defeito que reproduziria o problema assim que religado. Corrigido:
+
+- **Migration** `supabase/migrations/2026_09_22_urbi_radar_retratos_upsert.sql`: índice único
+  `urbi_radar_retratos_processo_codigo_uidx` em `processo_codigo`. Aplicada direto (não precisou
+  de intervenção manual do Fábio, ao contrário das outras operações neste incidente).
+- **`lib/urbi/radar.ts`, `detectarMudancas`**: o `.insert(...)` que criava uma linha nova a cada
+  detecção virou `.upsert(..., { onConflict: "processo_codigo" })`. Com o índice único, isso
+  reaproveita SEMPRE a mesma linha do processo — nunca mais cresce por passada.
+- **`lib/urbi/radar.ts`, `processarProximoPendente`**: removida a limpeza de "outro pendente
+  remanescente pro mesmo código" no fim do processamento — com o índice único, nunca existe outra
+  linha pra limpar; a query virou trabalho morto.
+- **Efeito colateral corrigido de graça**: `obterUltimosRetratosVisiveis` (alimenta
+  `lib/urbi/perguntasPilha.ts` — o URBI respondendo perguntas sobre a Pilha inteira) tinha o
+  MESMO padrão frágil da Pilha (`order by versao desc` + dedup em JS) — sofria do mesmo risco de
+  responder com dado velho. Não precisou de reescrita: o índice único garante 1 linha por
+  processo, então o padrão antigo passa a estar sempre certo por construção.
+- **Agendamento**: `select cron.alter_job(job_id := 1, schedule := '*/15 * * * *');` — de 1 em 1
+  minuto para 15 em 15.
+
+## 7.2 O que NÃO foi feito (decisão, não pendência)
+
+Rótulo separado de conteúdo em tabelas diferentes — considerado e descartado. Medição
+(22/09): cada campo pesado (`alertas`, `linha_evidencia`, `campos_consulta`) pesa **~1 KB em
+média** — o incidente nunca foi o tamanho do conteúdo, foi o número de cópias (já resolvido acima).
+Separar quebraria `perguntasPilha.ts` (que precisa do conteúdo de TODOS os processos pra responder
+perguntas sobre a Pilha inteira, não só do processo aberto) para economizar menos de 100 KB no
+total. Ver §7 (ideia original do Fábio) para o raciocínio completo.
 
 ## 7. Direção decidida pelo Fábio (22/09/2026) — "a embalagem dos potes"
 
