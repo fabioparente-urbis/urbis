@@ -160,6 +160,9 @@ export default function TelaFatiamento() {
   const [exportandoConfig, setExportandoConfig] = useState(false);
   const [importandoConfig, setImportandoConfig] = useState(false);
   const importConfigRef = useRef<HTMLInputElement>(null);
+  /** Mesmo botão "Importar configuração", segunda instância — a da tela inicial (sem PDF ainda)
+   * some assim que um PDF é lido, então a tela principal precisa do seu próprio input escondido. */
+  const importConfigDepoisRef = useRef<HTMLInputElement>(null);
   const [lendo, setLendo] = useState(false);
   const [progressoLeitura, setProgressoLeitura] = useState<{ mensagem: string; pct: number } | null>(null);
   const [resultadoLeitura, setResultadoLeitura] = useState<ResultadoLote | null>(null);
@@ -817,8 +820,14 @@ export default function TelaFatiamento() {
     }
   }
 
-  /** Importa um .zip exportado antes e devolve o fatiador exatamente àquele ponto. */
+  /**
+   * Importa um .zip exportado antes e devolve o fatiador exatamente àquele ponto.
+   * Confirma antes quando já há fatiamento em andamento (pedido do Fábio, 16/09/2026: passou a
+   * poder ser chamada depois de já ter lido um PDF, não só na tela inicial vazia — mesma guarda
+   * de `limparFatiador`, porque agora tem correção não exportada real pra perder).
+   */
   async function importarConfiguracaoArquivo(f: File) {
+    if (itens.length && !window.confirm("Importar esta configuração substitui o fatiamento atual. As correções ainda não exportadas se perdem. Continuar?")) return;
     setImportandoConfig(true);
     setErro(null);
     try {
@@ -1188,6 +1197,18 @@ export default function TelaFatiamento() {
               className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
               {exportandoConfig ? "⏳ Gerando..." : "💾 Exportar configuração (.zip)"}
             </button>
+            {/* Importar configuração aqui na tela principal — pedido do Fábio (16/09/2026): antes
+                só dava pra importar na tela inicial (sem PDF lido ainda); agora dá pra importar
+                mesmo depois de já ter lido um PDF nesta sessão. Mesma função de sempre
+                (importarConfiguracaoArquivo), que troca PDF + itens + cortes pelos do .zip — por
+                isso confirma antes quando já há fatiamento em andamento. */}
+            <button onClick={() => importConfigDepoisRef.current?.click()} disabled={importandoConfig}
+              title="Substitui o fatiamento atual pelo de um .zip exportado antes"
+              className="mt-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
+              {importandoConfig ? "⏳ Importando..." : "📂 Importar configuração (.zip)"}
+            </button>
+            <input ref={importConfigDepoisRef} type="file" accept=".zip" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importarConfiguracaoArquivo(f); e.target.value = ""; }} />
             <input ref={inputRef} type="file" accept="application/pdf" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) processar(f); e.target.value = ""; }} />
           </div>
