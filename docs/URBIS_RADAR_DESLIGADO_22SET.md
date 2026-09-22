@@ -193,9 +193,11 @@ nada. O mínimo:
 4. **Criar poda automática** — sem isso, qualquer correção volta a degradar.
 5. **Reduzir a cadência.** `* * * * *` (1.419 execuções/dia) é agressivo pra um serviço de fundo
    que ninguém olha em tempo real. A cada 15 min corta a carga em 15x.
-6. **Limpar o que o próprio mecanismo acumula:** `cron.job_run_details` (15 MB) e
-   `net._http_response` (12 MB) crescem sem poda — 27 MB de log puro, e o log do agendador já
-   consumia 5,7% da CPU do banco. **Ainda não foi feito em 22/09.**
+6. ~~Limpar o que o próprio mecanismo acumula~~ — **FEITO em 22/09.** `net._http_response` já
+   tinha faxina própria (`pg_net.ttl = 6 hours`, config da extensão, não precisava de nada).
+   `cron.job_run_details` (15 MB → 1,5 MB nessa limpeza) não tinha: criado o job
+   `limpar_log_do_agendador` (jobid=2, `0 6 * * *`), que apaga sozinho registro com mais de 2 dias.
+   Log do agendador não volta a crescer sem controle.
 
 ## 7. Direção decidida pelo Fábio (22/09/2026) — "a embalagem dos potes"
 
