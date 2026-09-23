@@ -964,12 +964,19 @@ export default function AnaliseAprovacaoProjeto() {
   const analiseRef = useRef<Analise | null>(null);
   const criandoAnalise = useRef<Promise<Analise> | null>(null);
 
-  async function garantirAnalise(itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>) {
-    // Ordem importa: o ref é quem muda na hora (síncrono); `analise` (state) só alcança no
-    // próximo render. Quem chama isto no MESMO evento que zera o ref (iniciarNovaAnalise) via
-    // `analise` velho da closure devolveria a análise ANTERIOR em vez de criar a nova.
-    const jaTem = analiseRef.current ?? analise;
-    if (jaTem) return jaTem;
+  async function garantirAnalise(
+    itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>,
+    opts?: { forcarNova?: boolean },
+  ) {
+    // `forcarNova` pula a checagem de "já tem" — existe só para iniciarNovaAnalise, que chama
+    // isto NO MESMO evento que zera analiseRef.current. Nesse instante `analise` (state) ainda é
+    // a análise ANTERIOR (React só atualiza no próximo render); `??` cai pro state velho e devolve
+    // a análise errada em silêncio, sem nunca chamar o servidor — foi medido em produção: zero
+    // POST chegando na rota, banco ficou só com a Análise 1 mesmo depois do clique na 2.
+    if (!opts?.forcarNova) {
+      const jaTem = analise ?? analiseRef.current;
+      if (jaTem) return jaTem;
+    }
     if (criandoAnalise.current) return criandoAnalise.current;
 
     criandoAnalise.current = (async () => {
@@ -1097,7 +1104,7 @@ export default function AnaliseAprovacaoProjeto() {
     // Slot 1, onde o autosave (dispara a qualquer troca de `itens`) grava a análise nova em
     // segundos. Sem isso o botão "copiar a anterior" (📄) só aparecia depois do primeiro
     // salvamento manual, diferente do que o analista já espera vindo do Slot 1.
-    void garantirAnalise(herdados, {}).catch((e) =>
+    void garantirAnalise(herdados, {}, { forcarNova: true }).catch((e) =>
       notificar(`Erro ao criar a Análise ${n}: ${e?.message ?? e}`));
   }
 
