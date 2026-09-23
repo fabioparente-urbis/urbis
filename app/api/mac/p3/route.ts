@@ -21,21 +21,32 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
 
-    // Recebe via multipart: file (PDF), codigo, checklistItens (JSON string), analiseId
+    // Recebe via multipart: file (PDF, modo 1 arquivo) OU files (vários, modo lote — ver
+    // abaixo), codigo, checklistItens (JSON string), analiseId
     const form = await req.formData();
     const file = form.get("file") as File | null;
+    /* "files" (plural, vários campos com o mesmo nome) = LER ARQUIVOS INDIVIDUAIS manda todos
+     * os documentos numa chamada só, em vez de uma chamada por arquivo. Existe desde 16/09/2026
+     * — antes disso cada arquivo virava uma chamada isolada e o modelo não enxergava os outros
+     * documentos ao mesmo tempo, o que gerava respostas divergentes entre arquivos pro mesmo
+     * item do checklist (ver auditoria da sessão: 15 itens divergentes em 24 arquivos, processo
+     * 25.5.000012012-9). "file" (singular) continua servindo LER PROCESSO e qualquer chamador
+     * que manda 1 arquivo só — comportamento intocado. */
+    const filesRaw = form.getAll("files");
+    const filesLote = filesRaw.filter((f): f is File => f instanceof File && f.size > 0);
+    const modoLote = filesLote.length > 0;
+    const arquivos: File[] = modoLote ? filesLote : file ? [file] : [];
     const codigo = (form.get("codigo") as string | null) ?? "";
     const analiseId = (form.get("analiseId") as string | null) ?? null;
     const checklistItensRaw = (form.get("checklistItens") as string | null) ?? "[]";
     const assunto_id = (form.get("assunto_id") as string | null) ?? null;
-    /* "documento_isolado" = este PDF é UM documento de um conjunto que está
-     * sendo lido em várias chamadas (botão LER ARQUIVOS INDIVIDUAIS). Muda o
-     * que o modelo deve fazer com o que ele NÃO vê — ver bloco abaixo. Ausente
-     * (botão LER PROCESSO, processo inteiro num PDF só) = comportamento antigo,
-     * intocado. */
-    const documentoIsolado = (form.get("modoLeitura") as string | null) === "documento_isolado";
+    /* "documento_isolado" = comportamento ANTIGO do botão LER ARQUIVOS INDIVIDUAIS (uma chamada
+     * por arquivo, sem ver os outros) — só existe hoje pra não quebrar quem ainda chama assim.
+     * O modo "files" (lote) não usa isto: os documentos vêm todos juntos, então não há nada
+     * "isolado" pra avisar o modelo. */
+    const documentoIsolado = !modoLote && (form.get("modoLeitura") as string | null) === "documento_isolado";
 
-    if (!file) {
+    if (arquivos.length === 0) {
       return NextResponse.json(
         { ok: false, erro: "Arquivo PDF nao informado" },
         { status: 400 }
@@ -105,42 +116,49 @@ export async function POST(req: NextRequest) {
     }
     console.log(`[P3_MAC] Prompt versao ${promptData.versao} carregado.`);
 
-    // 1) Upload do PDF ao Gemini Files API
-    const sizeMb = (file.size / 1024 / 1024).toFixed(2);
-    // Acima do teto do modelo padrão o checklist era simplesmente recusado pela tela. Desde a
-    // Fase 2 do plano de leitura de PDF, o tamanho escolhe o modelo — ver lib/modeloGemini.ts.
-    const modelo = escolherModeloPorTamanho(file.size);
-    console.log(`[P3_MAC] Upload PDF: ${file.name} (${sizeMb} MB) | modelo: ${modelo}`);
+    // 1) Upload dos PDF(s) ao Gemini Files API — em paralelo quando é lote.
+    // Modelo escolhido pelo MAIOR arquivo do lote, não pela soma — o teto de 50MB é do que o
+    // modelo padrão consegue processar de UM PDF por vez (ver lib/modeloGemini.ts), não do
+    // tamanho total da chamada. Escolher pela soma escalava lotes de muitos arquivos PEQUENOS
+    // pro modelo caro (5,2x) sem nenhum deles precisar — achado em auditoria de 16/09/2026,
+    // corrigido antes do primeiro teste real deste modo.
+    const tamanhoTotal = arquivos.reduce((soma, f) => soma + f.size, 0);
+    const maiorArquivo = Math.max(...arquivos.map((f) => f.size));
+    const modelo = escolherModeloPorTamanho(maiorArquivo);
+    console.log(`[P3_MAC] Upload: ${arquivos.length} arquivo(s), ${(tamanhoTotal / 1024 / 1024).toFixed(2)}MB total, maior ${(maiorArquivo / 1024 / 1024).toFixed(2)}MB | modelo: ${modelo}`);
     if (ehModeloDeArquivoGrande(modelo)) {
-      console.log(`[P3_MAC] Arquivo acima de ${LIMITE_BYTES_MODELO_PADRAO / 1024 / 1024}MB — leitura escalada para ${modelo}.`);
+      console.log(`[P3_MAC] Arquivo do lote acima de ${LIMITE_BYTES_MODELO_PADRAO / 1024 / 1024}MB — leitura escalada para ${modelo}.`);
     }
-    const uploadRes = await fetch(
-      `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/pdf",
-          "X-Goog-Upload-Command": "upload, finalize",
-          "X-Goog-Upload-Header-Content-Length": String(file.size),
-          "X-Goog-Upload-Header-Content-Type": "application/pdf",
-        },
-        body: Buffer.from(await file.arrayBuffer()),
+
+    async function uploadParaGemini(f: File): Promise<{ uri: string; nome: string }> {
+      const uploadRes = await fetch(
+        `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/pdf",
+            "X-Goog-Upload-Command": "upload, finalize",
+            "X-Goog-Upload-Header-Content-Length": String(f.size),
+            "X-Goog-Upload-Header-Content-Type": "application/pdf",
+          },
+          body: Buffer.from(await f.arrayBuffer()),
+        }
+      );
+      if (!uploadRes.ok) {
+        const err = await uploadRes.text();
+        throw new Error(`Upload Gemini falhou (${f.name}): ${err}`);
       }
-    );
-    if (!uploadRes.ok) {
-      const err = await uploadRes.text();
-      return NextResponse.json(
-        { ok: false, erro: `Upload Gemini falhou: ${err}` },
-        { status: 500 }
-      );
+      const uploadData = await uploadRes.json();
+      const uri = uploadData.file?.uri;
+      if (!uri) throw new Error(`Upload Gemini nao retornou fileUri (${f.name})`);
+      return { uri, nome: f.name };
     }
-    const uploadData = await uploadRes.json();
-    const fileUri = uploadData.file?.uri;
-    if (!fileUri) {
-      return NextResponse.json(
-        { ok: false, erro: "Upload Gemini nao retornou fileUri" },
-        { status: 500 }
-      );
+
+    let arquivosSubidos: { uri: string; nome: string }[];
+    try {
+      arquivosSubidos = await Promise.all(arquivos.map(uploadParaGemini));
+    } catch (e: any) {
+      return NextResponse.json({ ok: false, erro: e?.message || "Upload Gemini falhou" }, { status: 500 });
     }
 
     // 2) Monta prompt final com o checklist
@@ -187,8 +205,26 @@ Por isso:
    consegue constatar DENTRO deste documento.
 ---`
       : "";
-    const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado;
-    console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars${documentoIsolado ? " (documento isolado)" : ""}`);
+    /* Modo lote (16/09/2026): os documentos vêm TODOS juntos nesta mesma chamada — o modelo os
+     * vê ao mesmo tempo, então pode e deve cruzar informação entre eles. Substitui o bloco de
+     * isolamento acima, que existe só pro modo antigo (1 chamada por arquivo). */
+    const blocoLote = modoLote
+      ? `\n\n---\n===== LEITURA DE MÚLTIPLOS DOCUMENTOS — REGRA QUE VENCE AS ANTERIORES =====
+Você recebeu ${arquivosSubidos.length} arquivos PDF anexados nesta mesma mensagem, cada um sendo
+um documento distinto do mesmo processo: ${arquivosSubidos.map((a) => a.nome).join(", ")}.
+
+Por isso:
+1. Considere os arquivos EM CONJUNTO: se um documento não mostra algo mas outro mostra, a
+   informação existe no processo — cruze todos antes de decidir um item.
+2. Só responda "nao_conforme" quando a irregularidade estiver de fato demonstrada em algum dos
+   arquivos. Se nenhum dos arquivos anexados traz a prova (a favor ou contra) de um item, responda
+   null — não invente ausência.
+3. Ao listar em "documentos" ou "incompatibilidades", identifique de qual arquivo cada achado
+   veio (pelo nome do arquivo ou pelo nº SEI que ele contém).
+---`
+      : "";
+    const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado + blocoLote;
+    console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars${documentoIsolado ? " (documento isolado)" : ""}${modoLote ? ` (lote, ${arquivosSubidos.length} arquivos)` : ""}`);
 
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
     // Igual ao S3 do LIP (app/api/lip/s3/route.ts): sob sobrecarga o Gemini
@@ -216,7 +252,7 @@ Por isso:
               {
                 role: "user",
                 parts: [
-                  { fileData: { mimeType: "application/pdf", fileUri } },
+                  ...arquivosSubidos.map((a) => ({ fileData: { mimeType: "application/pdf", fileUri: a.uri } })),
                   { text: promptFinal },
                 ],
               },
@@ -258,7 +294,7 @@ Por isso:
     }
 
     if (!geminiOk) {
-      console.error("[P3_MAC] fileUri:", fileUri, "| modelo:", modelo);
+      console.error("[P3_MAC] fileUris:", arquivosSubidos.map((a) => a.uri).join(", "), "| modelo:", modelo);
       if (ultimoStatus === 429 || ultimoCorpo.toLowerCase().includes("resource_exhausted") || ultimoCorpo.toLowerCase().includes("quota")) {
         return NextResponse.json({ ok: false, erro: "LIMITE_DIARIO_GEMINI" }, { status: 429 });
       }
@@ -316,7 +352,7 @@ Por isso:
         operacao: "MAC_P3",
         dados_antes: null,
         dados_depois: {
-          arquivo: file.name,
+          arquivo: arquivos.length === 1 ? arquivos[0].name : `${arquivos.length} arquivos: ${arquivos.map((a) => a.name).join(", ")}`,
           itensPreenchidos: preenchidos,
           status: "OK",
         },

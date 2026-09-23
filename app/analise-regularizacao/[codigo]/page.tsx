@@ -1638,63 +1638,54 @@ export default function MacPage() {
       const fontesAcumuladas: Record<string, "p2"> = {};
       const documentosTodos: any[] = [];
       const incompatTodas: string[] = [];
-      /** Qual arquivo respondeu cada item — só para descrever conflito na OBS. */
-      const origemDoItem: Record<string, string> = {};
+      /** Mantido vazio: numa chamada só, com todos os documentos vistos juntos pelo modelo,
+       * não há mais como dois arquivos responderem o mesmo item de formas diferentes — o que
+       * causava conflito era cada arquivo ser lido isolado dos outros. Ver [[urbis_fatiador...]]
+       * e a auditoria de 16/09/2026 (15 conflitos em 24 arquivos, resolvida por este código). */
       const conflitos: string[] = [];
       let totalPreenchidos = 0;
 
-      for (let i = 0; i < arquivos.length; i++) {
-        const arquivo = arquivos[i];
-        // 50MB era teto do MODELO padrão, não do servidor: acima disso a leitura sobe sozinha
-        // para o modelo que suporta o arquivo (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
-        // o teto do servidor, e aí a saída é separar os documentos, não comprimir.
-        if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
-          throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita. Use o Organizador de PDF SEI para separar os documentos e leia por partes.`);
-        }
-        const avisoModelo = avisoModeloArquivoGrande(arquivo.size);
-        if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`);
-        setProgressoP2(Math.round((i / arquivos.length) * 90));
-        mostrarToast(`📎 Lendo ${arquivo.name} (${i + 1}/${arquivos.length})...`);
-
-        const fd = new FormData();
-        fd.append("file", arquivo);
-        fd.append("codigo", codigo);
-        fd.append("checklistItens", JSON.stringify(
-          checklistItens.map((it) => ({ id: it.id, texto: it.texto, grupo: it.grupo }))
-        ));
-        if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
-        if (assuntoId) fd.append("assunto_id", assuntoId);
-        // Diz ao P3 que este é UM documento de um conjunto — sem isto o modelo
-        // trata "não vejo aqui" como "ausente do processo". Ver a rota.
-        fd.append("modoLeitura", "documento_isolado");
-        const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
-        const json = await res.json().catch(() => null);
-        if (!res.ok || !json?.ok) {
-          // Mesmo achado do "LER PROCESSO" (08/09/2026, linha ~2388): Railway serve por HTTP/2,
-          // `res.statusText` vem sempre vazio — sem isso a mensagem virava "falha na leitura"
-          // genérico, escondendo se foi timeout de proxy (502/504) ou falha da própria rota.
-          throw new Error(`${arquivo.name}: ${json?.erro || `HTTP ${res.status}` || "falha na leitura"}`);
-        }
-
-        Object.entries(json.itens || {}).forEach(([id, status]) => {
-          if (status == null) return;
-          if (itensAcumulados[id] == null) {
-            itensAcumulados[id] = status as StatusItem;
-            fontesAcumuladas[id] = "p2";
-            origemDoItem[id] = arquivo.name;
-          } else if (itensAcumulados[id] !== status) {
-            /* Dois documentos responderam o MESMO item de formas diferentes.
-             * Fica com o primeiro (não há como saber qual tem a prova melhor),
-             * mas isso NÃO pode ser silencioso — vai para a OBS para o analista
-             * conferir os dois documentos. */
-            conflitos.push(
-              `item respondido como "${itensAcumulados[id]}" por ${origemDoItem[id]} e como "${status}" por ${arquivo.name}`
-            );
-          }
-        });
-        if (Array.isArray(json.documentos)) documentosTodos.push(...json.documentos);
-        if (Array.isArray(json.incompatibilidades)) incompatTodas.push(...json.incompatibilidades);
+      // Manda TODOS os arquivos marcados numa chamada só (`files`, plural) — desde 16/09/2026.
+      // Antes disso era 1 chamada por arquivo em fila, cada uma sem ver os outros documentos:
+      // além de lento (soma o tempo de todas), o modelo não conseguia cruzar informação entre
+      // arquivos, o que gerava respostas divergentes pro mesmo item. Ver app/api/mac/p3/route.ts.
+      const totalBytes = arquivos.reduce((soma, a) => soma + a.size, 0);
+      if (totalBytes > LIMITE_BYTES_PLATAFORMA) {
+        throw new Error(`Os ${arquivos.length} arquivos somam ${(totalBytes / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita numa leitura só. Leia em dois lotes menores.`);
       }
+      // Aviso de modelo caro segue o MAIOR arquivo, não a soma — tem que bater com o critério
+      // real usado pela rota (app/api/mac/p3/route.ts), senão o toast avisa custo que não
+      // vai acontecer (ou fica calado quando vai).
+      const maiorArquivo = Math.max(...arquivos.map((a) => a.size));
+      const avisoModelo = avisoModeloArquivoGrande(maiorArquivo);
+      if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`);
+      setProgressoP2(15);
+      mostrarToast(`📎 Lendo ${arquivos.length} arquivo(s) juntos...`);
+
+      const fd = new FormData();
+      arquivos.forEach((arquivo) => fd.append("files", arquivo));
+      fd.append("codigo", codigo);
+      fd.append("checklistItens", JSON.stringify(
+        checklistItens.map((it) => ({ id: it.id, texto: it.texto, grupo: it.grupo }))
+      ));
+      if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
+      if (assuntoId) fd.append("assunto_id", assuntoId);
+      const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        // Mesmo achado do "LER PROCESSO" (08/09/2026, linha ~2388): Railway serve por HTTP/2,
+        // `res.statusText` vem sempre vazio — sem isso a mensagem virava "falha na leitura"
+        // genérico, escondendo se foi timeout de proxy (502/504) ou falha da própria rota.
+        throw new Error(`${json?.erro || `HTTP ${res.status}` || "falha na leitura"}`);
+      }
+
+      Object.entries(json.itens || {}).forEach(([id, status]) => {
+        if (status == null) return;
+        itensAcumulados[id] = status as StatusItem;
+        fontesAcumuladas[id] = "p2";
+      });
+      if (Array.isArray(json.documentos)) documentosTodos.push(...json.documentos);
+      if (Array.isArray(json.incompatibilidades)) incompatTodas.push(...json.incompatibilidades);
 
       setProgressoP2(95);
       setItens((prev) => {
