@@ -2242,8 +2242,32 @@ export default function AnaliseAprovacaoProjeto() {
       if (!d || !d.ok) throw new Error(d?.erro ?? "falha na leitura");
       setProgressoPasta(100);
 
-      const novasMarcas = { ...estadoRef.current.marcas };
-      const novasFontes = { ...estadoRef.current.fontes };
+      /* Relê a análise do servidor antes de aplicar o resultado — a leitura leva 1-3min, e nesse
+       * intervalo o estado em memória pode já não bater com o banco (outra aba, outro
+       * dispositivo, ou uma correção direta no banco). Sem isto, o salvar() logo abaixo grava o
+       * resultado da IA por cima do `estadoRef` velho e desfaz em silêncio qualquer mudança feita
+       * por fora — foi o que aconteceu no processo 50724 em 22/09/2026: uma correção no banco
+       * (Análise 2 zerada de volta pro "nasce em branco") foi apagada pelo autosave desta função
+       * porque a aba não tinha sido recarregada. Mesmo motivo que já fez selecionarAnalise() reler
+       * do servidor em vez de confiar no state. */
+      let baseMarcas = estadoRef.current.marcas;
+      let baseFontes = estadoRef.current.fontes;
+      let baseObs = estadoRef.current.observacoes;
+      if (analise?.id) {
+        try {
+          const rFresco = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" });
+          const dFresco = await rFresco.json();
+          const fresca = dFresco?.ok ? (dFresco.data as Analise[]).find((a) => a.id === analise.id) : null;
+          if (fresca) {
+            baseMarcas = fresca.itens ?? {};
+            baseFontes = fresca.fontes ?? {};
+            baseObs = fresca.observacoes ?? "";
+          }
+        } catch { /* rede fora — segue com o que há em memória, igual antes desta correção */ }
+      }
+
+      const novasMarcas = { ...baseMarcas };
+      const novasFontes = { ...baseFontes };
       let aplicados = 0;
       for (const [id, st] of Object.entries(d.itens ?? {})) {
         if (novasMarcas[id]) continue;           // nunca sobrescreve resposta existente
@@ -2258,7 +2282,7 @@ export default function AnaliseAprovacaoProjeto() {
         `Arquivos na pasta: ${d.arquivosNaPasta} · modelo ${d.modelo} · prompt v${d.versaoPrompt}` +
         ((d.incompatibilidades ?? []).length
           ? `\nIncompatibilidades apontadas:\n${d.incompatibilidades.map((s: string) => `  ⚠ ${s}`).join("\n")}` : "");
-      const anterior = estadoRef.current.observacoes;
+      const anterior = baseObs;
       const novasObs = anterior ? `${bloco}\n\n${anterior}` : bloco;
 
       aplicarEstado({ marcas: novasMarcas, fontes: novasFontes, observacoes: novasObs });
