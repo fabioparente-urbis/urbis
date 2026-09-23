@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.24
-**Data:** 2026-09-08
+**Versão:** 1.25
+**Data:** 2026-09-22
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1224,6 +1224,7 @@ separada (fora do escopo desta mudança, que era só habilitar a reemissão).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.25 | 2026-09-22 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.18 do `MANUAL_SLOT5_MAC.md`): `garantirAnalise` ganhou `{ forcarNova: true }` pra criar a linha da análise no banco já ao clicar em "Análise N" (não só no 1º item marcado), e `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, evitando desfazer em silêncio uma correção feita fora da aba aberta. Tudo em `analises_mac` e na tela do MAC (`app/analise-aprovacao-projeto/[codigo]/page.tsx`); nenhum campo, prompt ou leitura do LIP tocado |
 | 1.24 | 2026-09-08 | Seção 24: reemissão do Despacho Interno dentro de 15 min no botão de `ProcessoClient.tsx` (compartilhado pelos três slots) — checa `mdp_registros.criado_em` via `GET /api/mdp`, reaproveita o número sem comitar a série se dentro da janela. Achado registrado, não corrigido: o commit deste botão não passa `documento=despacho_interno` nem `analise_id` — ver `MANUAL_SLOT5_MAC.md` v1.25 para a mesma mudança nas telas de MAC dos três slots |
 | 1.23 | 2026-09-06 | Seção 23: **Organizador de Documentos** novo, exclusivo do Slot 5 — `components/aprovacaoProjeto/OrganizadorSlot5.tsx`, painel só-leitura sobre o MHD (`GET /api/mhd?processo=`), sem fatiamento (o Slot 5 já recebe arquivos separados, ao contrário dos Slots 1/2). "Abrir na íntegra" reaproveita o visualizador `react-pdf` dos outros slots; imagem via `<img>`; outros tipos (DWG/RAR) só "Baixar" — arquivo nunca sai do navegador do analista. Grava 1 evento de auditoria no MHD por abertura (`POST /api/mac/slot-05/organizador-evento`, `tipo: documentos_organizados_slot5`), mesmo procedimento do Organizador de PDF SEI dos Slots 1/2. Nenhum fluxo existente (LER PASTA do LIP ou do MAC) foi tocado. tsc/build limpos; portão real (testar com processo real) pendente do Fábio. Ver `MANUAL_SLOT5_MAC.md` v1.24 |
 | 1.22 | 2026-09-05 | Seção "Infra reaproveitável": `lib/visao/quadroAreas.ts` ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, mapeando as 5 chaves escalares de área da receita pro catálogo semântico novo (`lib/urbi/catalogoSemantico.ts`, Fase AA) — só tipo/mapeamento, receita continua `ativa: false`, nenhum PDF processado. Achado real da mesma fase, fora do Slot 5 mas testado contra processo real do Slot 5 (48533, 118 cruzamentos): `cruzamento.ts` (lib/urbi/) parou de vazar UUID de item MAC no campo exibido ao analista/Gemini — ganhou campo `rotulo` (nome do item) separado da `chave` interna (id, só dedupe). tsc + build limpos, scripts/testar_catalogo_semantico.mts novo (22 asserções) e scripts/testar_visao.mts/testar_quadro_areas.mts re-rodados sem regressão. Ver `MANUAL_SLOT5_MAC.md` v1.23 |
