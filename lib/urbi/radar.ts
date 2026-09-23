@@ -197,10 +197,16 @@ export async function detectarMudancas(usuario: VisibilidadeUsuario, limite = 20
     if (!mudou) continue;
 
     const motivo = await motivoDaMudanca(codigo, watermarkRetrato, tipoPorCodigo.get(codigo) ?? null);
-    const { error } = await supabaseAdmin.from("urbi_radar_retratos").insert({
-      processo_codigo: codigo, tipo_processo: tipoPorCodigo.get(codigo) ?? null,
-      versao: (ultimo?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: motivo,
-    });
+    // UPSERT, não insert — achado real (22/09/2026): insert puro criava uma linha NOVA a cada
+    // detecção, pra sempre (nunca reaproveitava a linha do mesmo processo). Isso acumulou 40.995
+    // retratos pra 89 processos e derrubou o banco (docs/URBIS_RADAR_DESLIGADO_22SET.md). Índice
+    // único em `processo_codigo` (migration 2026_09_22_urbi_radar_retratos_upsert.sql) faz este
+    // upsert reaproveitar a MESMA linha sempre — nunca mais cresce por passada, só por processo.
+    const { error } = await supabaseAdmin.from("urbi_radar_retratos")
+      .upsert({
+        processo_codigo: codigo, tipo_processo: tipoPorCodigo.get(codigo) ?? null,
+        versao: (ultimo?.versao ?? 0) + 1, estado: "pendente", motivo_disparo: motivo,
+      }, { onConflict: "processo_codigo" });
     if (!error) enfileirados++;
     else console.error(`[radar] falha ao enfileirar ${codigo}:`, error.message);
   }
@@ -317,12 +323,9 @@ export async function processarProximoPendente(
       concluido_em: new Date().toISOString(),
     }).eq("id", alvo.id);
 
-    // Qualquer outro 'pendente' remanescente pro mesmo código (ex.: enfileirado de novo entre o
-    // início e o fim deste processamento) fica obsoleto — este retrato fresco já reflete o
-    // estado mais recente que dava pra capturar agora; a próxima detecção decide se mudou de novo.
-    await supabaseAdmin.from("urbi_radar_retratos").delete()
-      .eq("processo_codigo", codigo).eq("estado", "pendente").neq("id", alvo.id);
-
+    // Não precisa mais limpar "outro pendente remanescente pro mesmo código": desde o upsert por
+    // `processo_codigo` (22/09/2026, índice único), só existe UMA linha por processo — não tem
+    // como sobrar outra pra limpar.
     return { processado: true, codigo, estado: coberturaCompleta ? "atualizado" : "incompleto" };
   } catch (e: any) {
     await supabaseAdmin.from("urbi_radar_retratos").update({

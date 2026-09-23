@@ -11,7 +11,11 @@ export const META_BASE = 100;
 export type Porte = 'PP' | 'MP' | 'GP';
 /** Gerência do ANALISTA — vem do cadastro do usuário, nunca da obra. */
 export type Gerencia = 'GERECCO' | 'GERAED' | 'GERAGP';
-export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo';
+/** 'assinatura'/'atendimento' (09/09/2026, achado da auditoria do BDI): não são erro de
+ *  digitação — são categorias reais de "Lançado a partir da planilha de produção (serviço fora
+ *  do URBIS)", trabalho externo importado só pra manter a pontuação, sem passar pelo motor de
+ *  despacho interno. O tipo estava incompleto, não o dado. */
+export type TipoDespacho = 'despacho' | 'indeferimento' | 'arquivamento' | 'aceite' | 'interno' | 'laudo' | 'assinatura' | 'atendimento';
 export type StatusMRP = 'EXCELENTE' | 'OK' | 'RUIM';
 
 /** Faixas de área que definem o rótulo de porte (PP/MP/GP) — só classificação/estatística, não pontuação (ver lib/mrp-pontuacao.ts). */

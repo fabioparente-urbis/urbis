@@ -965,7 +965,10 @@ export default function AnaliseAprovacaoProjeto() {
   const criandoAnalise = useRef<Promise<Analise> | null>(null);
 
   async function garantirAnalise(itensIniciais?: Record<string, Status>, fontesIniciais?: Record<string, string>) {
-    const jaTem = analise ?? analiseRef.current;
+    // Ordem importa: o ref é quem muda na hora (síncrono); `analise` (state) só alcança no
+    // próximo render. Quem chama isto no MESMO evento que zera o ref (iniciarNovaAnalise) via
+    // `analise` velho da closure devolveria a análise ANTERIOR em vez de criar a nova.
+    const jaTem = analiseRef.current ?? analise;
     if (jaTem) return jaTem;
     if (criandoAnalise.current) return criandoAnalise.current;
 
@@ -1089,7 +1092,13 @@ export default function AnaliseAprovacaoProjeto() {
     setNumeroAnaliseNova(n);
     setAbaAtual(null);
     setListaFiltrada(null);
-    notificar(`Análise ${n} iniciada em branco (só os "não se aplica" foram herdados). Salve para gravar.`);
+    notificar(`Análise ${n} iniciada em branco (só os "não se aplica" foram herdados).`);
+    // Cria a linha no banco já aqui, sem esperar a primeira marcação de item — igual ao
+    // Slot 1, onde o autosave (dispara a qualquer troca de `itens`) grava a análise nova em
+    // segundos. Sem isso o botão "copiar a anterior" (📄) só aparecia depois do primeiro
+    // salvamento manual, diferente do que o analista já espera vindo do Slot 1.
+    void garantirAnalise(herdados, {}).catch((e) =>
+      notificar(`Erro ao criar a Análise ${n}: ${e?.message ?? e}`));
   }
 
   /**

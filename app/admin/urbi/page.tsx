@@ -1277,6 +1277,7 @@ type RadarPainel = {
     execucoes_recentes: { iniciado_em: string; concluido_em: string | null; estado: string; processados: number | null; falhas: number | null }[];
     em_execucao_agora: boolean;
   };
+  agendamento: { schedule: string; ativo: boolean; ultima_execucao: string | null } | null;
   cobertura_linha_evidencia: { com_linha_evidencia: number; total_com_retrato: number; sem_vinculo_estruturado: number; parcial: boolean };
   fila_pendente: { processo_codigo: string; tipo_processo: string | null; estado: string; motivo_disparo: string; criado_em: string; iniciado_em: string | null }[];
   erros_recentes: { processo_codigo: string; erro: string | null; concluido_em: string | null; versao: number }[];
@@ -1289,6 +1290,7 @@ function AbaPreAnaliseDaPilha() {
   const [erro, setErro] = useState<string | null>(null);
   const [codigoConsulta, setCodigoConsulta] = useState("");
   const [historico, setHistorico] = useState<any[] | null>(null);
+  const [trocandoAtivo, setTrocandoAtivo] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -1303,6 +1305,27 @@ function AbaPreAnaliseDaPilha() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  /** Liga/desliga o agendamento de verdade (`cron.job`, jobid=1) — pede confirmação antes de
+   *  ligar, porque volta a rodar em produção pra todo mundo, não só um teste. */
+  async function trocarAtivo(ligar: boolean) {
+    if (ligar && !window.confirm(
+      "Ligar o Radar volta a rodar a pré-análise de fundo a cada 15 minutos, em produção. Confirma?"
+    )) return;
+    if (!ligar && !window.confirm("Desligar o Radar para a atualização automática da Pilha. Confirma?")) return;
+    setTrocandoAtivo(true);
+    try {
+      const res = await fetch("/api/admin/urbi/radar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ativo: ligar }),
+      });
+      const json = await res.json();
+      if (!json.ok) { setErro(json.erro ?? "Falha ao trocar o estado do Radar."); return; }
+      await carregar();
+    } catch { setErro("Falha técnica ao trocar o estado do Radar."); }
+    finally { setTrocandoAtivo(false); }
+  }
+
   async function verHistorico() {
     if (!codigoConsulta.trim()) return;
     setHistorico(null);
@@ -1313,17 +1336,79 @@ function AbaPreAnaliseDaPilha() {
     } catch { setHistorico([]); }
   }
 
+  const ativo = dados?.agendamento?.ativo ?? false;
+
   return (
     <div>
-      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-4 py-3 text-xs leading-relaxed text-[var(--text-secondary)]">
-        Radar silencioso: pré-análise factual da Pilha, calculada em código a partir do MESMO dossiê
-        e Motor de Produção já usados no chat (lib/urbi/montarDossie.ts, lib/urbi/motorProducao.ts) —
-        <strong> nunca chama Gemini</strong>, nunca escreve em LIP/MAC/MDP/documento/despacho/numeração.
-        Detecção de mudança é por diff de timestamp (sem trigger novo em rota de escrita nenhuma).
-        Roda por agendamento no próprio banco (pg_cron + pg_net), com conta técnica — independente
-        de navegador ou sessão do analista. Pula só o processo que alguém tem aberto no momento
-        (atendimento ativo), nunca o Radar inteiro.
+      {/* Interruptor — bem visível, é a ação mais importante desta aba */}
+      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-bold text-[var(--text-primary)]">
+            Radar: {dados ? (ativo ? <span className="text-green-600">ligado</span> : <span className="text-[var(--error)]">desligado</span>) : "…"}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
+            {dados?.agendamento
+              ? `Agendamento: a cada ${dados.agendamento.schedule === "*/15 * * * *" ? "15 minutos" : dados.agendamento.schedule}. Última passada: ${dados.agendamento.ultima_execucao ? fmtData(dados.agendamento.ultima_execucao) : "nunca rodou"}.`
+              : "Não foi possível ler o agendamento agora."}
+          </p>
+        </div>
+        <button
+          onClick={() => trocarAtivo(!ativo)}
+          disabled={trocandoAtivo || !dados}
+          className={`shrink-0 rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-50 ${ativo ? "bg-[var(--error)] hover:opacity-90" : "bg-green-600 hover:opacity-90"}`}
+        >
+          {trocandoAtivo ? "Aplicando…" : ativo ? "Desligar o Radar" : "Ligar o Radar"}
+        </button>
       </div>
+
+      {/* Explicação em português simples — pra quem abre esta aba sem contexto técnico */}
+      <div className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--bg-card)] p-4 text-sm leading-relaxed text-[var(--text-secondary)]">
+        <p className="mb-2 font-bold text-[var(--text-primary)]">O que é o Radar, em poucas palavras</p>
+        <p className="mb-2">
+          Pensa nele como um funcionário invisível que fica passando por todos os processos da
+          Pilha, sozinho, sem ninguém pedir, e anota um resumo rápido de cada um: <em>"esse está
+          tranquilo"</em>, <em>"esse precisa de atenção"</em>, <em>"esse tem 3 pendências"</em>.
+          É esse resumo que aparece na tela da Pilha (o "esforço provável", o número de
+          pendências) sem o analista precisar abrir o processo pra descobrir.
+        </p>
+        <p className="mb-2">
+          Ele roda sozinho, agendado direto no banco de dados (não depende de ninguém estar com o
+          URBIS aberto no navegador). A cada passada, ele confere se algum processo mudou desde a
+          última vez — comparando datas de atualização, nunca reabrindo tudo do zero — e só
+          recalcula o resumo de quem de fato mudou.
+        </p>
+        <p className="mb-2 font-bold text-[var(--text-primary)]">O que ele NÃO faz</p>
+        <p className="mb-2">
+          Nunca chama o Gemini (custo zero de IA). Nunca decide nada sozinho. Nunca escreve ou
+          altera ficha do LIP, checklist do MAC, documento, despacho ou numeração — ele só LÊ o
+          que já existe e guarda um resumo à parte, num lugar próprio dele
+          (<code>urbi_radar_retratos</code>). Se ele ficar desligado, o único efeito é a Pilha
+          parar de atualizar esse resumo sozinha — abrir processo, preencher, emitir documento,
+          nada disso depende do Radar.
+        </p>
+        <p className="mb-2 font-bold text-[var(--text-primary)]">O incidente de 22/09/2026 (por que ele ficou desligado)</p>
+        <p className="mb-2">
+          O Radar tinha um defeito: toda vez que via que um processo mudou, em vez de atualizar a
+          anotação existente, ele escrevia uma anotação NOVA e guardava a velha junto. Um
+          processo que devia ter 1 anotação (a mais atual) chegou a acumular ~460 anotações
+          repetidas. Multiplicado pelos processos da Pilha, viraram <strong>~41 mil linhas</strong>{" "}
+          num banco que só precisava de <strong>89</strong> — isso encheu o banco de dados e
+          deixou o URBIS inteiro lento, com login falhando e telas travando.
+        </p>
+        <p className="mb-2">
+          <strong>Já corrigido</strong> (22/09/2026): o código agora sempre atualiza a MESMA
+          anotação por processo (nunca cria outra), com uma trava no próprio banco garantindo que
+          isso nunca mais aconteça. A frequência também caiu de 1 em 1 minuto para{" "}
+          <strong>15 em 15 minutos</strong> — suficiente pra manter o resumo atualizado, e bem
+          mais leve pro sistema. Detalhe técnico completo em{" "}
+          <code>docs/URBIS_RADAR_DESLIGADO_22SET.md</code>.
+        </p>
+        <p>
+          O botão acima liga e desliga o agendamento de verdade, na hora — sem precisar mexer em
+          SQL. Toda troca fica registrada na auditoria do sistema.
+        </p>
+      </div>
+
       {erro && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{erro}</div>}
       {carregando && !dados && <div className="text-sm text-[var(--text-muted)]">Carregando…</div>}
       {dados && (
@@ -1687,7 +1772,7 @@ export default function UrbiAdminPage() {
   if (!autorizado) return null;
 
   const ABAS: [AbaUrbi, string][] = [
-    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["radar", "Pré-análise da Pilha"], ["presenca", "Presença no URBIS"], ["config", "Configurações"],
+    ["visao", "Visão geral"], ["conversas", "Conversas"], ["sugestoes", "Sugestões"], ["uso", "Uso e custo"], ["catalogo", "Mudanças de catálogo"], ["recorrencia", "Recorrência"], ["profissionais", "Profissionais"], ["leitura-visual", "Leitura visual"], ["prontidao", "Prontidão para piloto"], ["radar", "Radar"], ["presenca", "Presença no URBIS"], ["config", "Configurações"],
   ];
 
   return (
