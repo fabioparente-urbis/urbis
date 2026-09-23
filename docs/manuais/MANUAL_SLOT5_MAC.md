@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.25
-**Data:** 2026-09-08
+**Versão:** 1.26
+**Data:** 2026-09-22
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1300,12 +1300,73 @@ impedir o clique, mas a função não confia só nisso.
 Slot 1 (`analise-regularizacao`), Slot 2 (`analise-aceite-sei`) e Slot 5 (este arquivo,
 `analise-aprovacao-projeto`) cada um com sua própria cópia do trecho.
 
+### 14.18 Análise nova cria a linha no banco já ao iniciar + LER PASTA (IA) relê o servidor antes de mesclar (22/09/2026)
+
+Primeira verificação **ao vivo em produção** do fluxo de análises do Slot 5 descrito na seção
+14.16 — a 14.16 registrava explicitamente "Slot 5 não pôde ser verificado visualmente". Esta
+sessão verificou, achou dois bugs reais e uma armadilha de workflow, todos no processo 50724.
+
+**Pedido do Fábio**: clicar em "Análise 2" deveria mostrar o botão 📄 "copiar a anterior" na hora,
+igual ao Slot 1 — lá o autosave cria a linha da análise nova no banco em segundos após qualquer
+mudança de estado. No Slot 5 a criação é preguiçosa (`garantirAnalise`, só no primeiro
+salvamento/item marcado) — até lá, o botão 📄 fica escondido porque a linha não existe.
+
+**1ª tentativa (não funcionou)**: `iniciarNovaAnalise(n)` passou a chamar `garantirAnalise(herdados,
+{})` direto ao iniciar. Medido em produção depois do deploy: **zero POST chegando na rota**, banco
+seguia só com a Análise 1. Causa: `garantirAnalise` decide se já existe análise com `analiseRef.current
+?? analise` (ou a ordem inversa — as duas erram aqui). `iniciarNovaAnalise` zera `analiseRef.current`
+e chama `garantirAnalise` **na mesma execução de função**: o `??` só cai pro segundo operando quando
+o primeiro é `null`/`undefined`, e como o ref acabou de ser zerado (`null`), cai pro `analise` — mas
+`analise` (state) é da mesma closure/render, então ainda é a Análise 1 antiga. A função devolve a
+Análise 1 em silêncio, sem nunca chamar o servidor.
+
+**Correção real**: `garantirAnalise` ganhou um terceiro parâmetro `{ forcarNova: true }`, que pula de
+vez a checagem de "já tem" — usado só por `iniciarNovaAnalise`, que já sabe com certeza (acabou de
+zerar tudo) que não existe análise nenhuma para reaproveitar. Verificado ao vivo: deploy no Railway
+conferido batendo no bundle JS servido em produção (`grep forcarNova`), linha da Análise 2 criada de
+fato (conferido direto no Supabase), botão 📄 aparecendo.
+
+**Armadilha de workflow encontrada em seguida (não é bug de código)**: o Fábio clicou no 📄 "copiar a
+Análise 1" — que já faz exatamente o que a seção 14.16 documenta, cópia integral deliberada — e na
+sequência rodou "LER PASTA (IA)" pra reavaliar contra a prancha corrigida. Como o LER PASTA nunca
+sobrescreve item já respondido (regra de não perder marca manual), ele só achou **1 item** ainda em
+branco pra avaliar — os outros 160 ficaram com o julgamento da Análise 1, nunca reexaminados contra
+o projeto novo. Combinar "copiar tudo" com "ler a pasta" não reavalia nada; se a intenção é
+reanálise de verdade, o certo é rodar o LER PASTA direto na análise recém-criada (nasce em branco,
+161 itens pendentes de verdade), sem passar pelo 📄 antes.
+
+**2º bug real, achado corrigindo o caso acima**: a Análise 2 do 50724 foi revertida pro estado "nasce
+em branco" direto no banco (script com `supabaseAdmin`, reproduzindo a mesma lógica do PUT da rota —
+itens/fontes/observações resetados, 161 linhas gravadas em `mac_historico`, evento
+`MAC_ANALISE_RESETADA_CORRECAO` em `auditoria_eventos`). A aba do MAC continuava aberta, sem reload.
+Ao rodar LER PASTA (IA) de novo, `lerPastaIA()` montou o resultado em cima de `estadoRef.current` —
+que ainda tinha o estado de ANTES da correção — e o `salvar()` no fim gravou tudo de volta por cima,
+**desfazendo a correção em silêncio**. Mesma classe de bug que já motivou `selecionarAnalise()` reler
+do servidor (seção 14.16: "não acompanha gravações feitas por outra aba, outro dispositivo ou
+correção direta no banco") — só que essa função nunca tinha ganhado a mesma proteção.
+
+**Correção**: `lerPastaIA()` agora relê `/api/mac/slot-05/analise` (mesma rota, mesmo padrão de
+`selecionarAnalise`) antes de montar `novasMarcas`/`novasFontes`/`novasObs`, e usa o resultado fresco
+como base do merge em vez do `estadoRef` em memória. Escopo deliberadamente restrito a esta função —
+é a que roda 1-3min (a chamada ao Gemini), a mais exposta à janela de divergência. As ~7 outras
+ocorrências do padrão `{...estadoRef.current.marcas}` no arquivo (aplicação de filtro/tema) rodam
+dentro da mesma renderização/clique e já se protegem pelo `estadoRef` síncrono — não mexidas.
+
+**Dado corrigido, não código**: a Análise 2 do 50724 foi resetada 2x (a 1ª vez desfeita pelo bug
+acima) até ficar estável no estado "nasce em branco" — nenhuma perda real, tudo rastreado em
+`mac_historico`/`auditoria_eventos`, registrado também no OBS COD.
+
+**Verificação**: `tsc --noEmit` limpo nas duas mudanças. As duas foram confirmadas **ao vivo em
+produção** — primeira vez que o fluxo de análises do Slot 5 desta seção (14.16-14.18) sai do "não
+pôde ser verificado" para verificado de fato, com processo real (50724).
+
 ---
 
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.26 | 2026-09-22 | Seção 14.18: `garantirAnalise` ganhou `{ forcarNova: true }` — `iniciarNovaAnalise` cria a linha da análise no banco já ao iniciar (não só no 1º item marcado), corrigindo um bug real em que a checagem `?? ` de "já tem análise" caía pro state antigo da mesma closure e nunca chamava o servidor. `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, mesmo padrão que `selecionarAnalise` já usava — sem isso, uma correção feita fora da aba aberta (outra aba, ou direto no banco) era desfeita em silêncio pelo autosave. Primeira verificação ao vivo em produção do fluxo de análises 1-5 do Slot 5 (processo 50724), inclusive uma armadilha de workflow (copiar a análise anterior + LER PASTA na sequência quase não reavalia nada, por desenho) |
 | 1.25 | 2026-09-08 | Seção 8.2: reemissão do Despacho Interno dentro de 15 min da emissão original — mesmo botão, mesma tela (`analise-aprovacao-projeto/[codigo]/page.tsx`, `abrirModalDI`/`gerarDespachoInterno`), checando `mdp_registros.criado_em` via `GET /api/mdp` antes de decidir entre reaproveitar o número ou pedir um novo. Não comita numeração na reemissão. `POST /api/mac/slot-05/despacho-interno` passou a fazer upsert no MDP por `(processo_codigo, tipo, numero)` em vez de insert cego, evitando linha duplicada. Mesma mudança feita em paralelo nos Slots 1 e 2 (rota compartilhada `/api/despacho-interno`) e na tela do LIP (`ProcessoClient.tsx`) — pedido explícito do Fábio, urgente, para reemitir o processo 24.5.000024350-0 (Slot 1) dentro da janela |
 | 1.24 | 2026-09-06 | Nenhuma mudança no motor/checklist do MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.23): painel novo **Organizador de Documentos** (lado LIP, `components/aprovacaoProjeto/OrganizadorSlot5.tsx`), só leitura sobre o MHD, sem fatiamento. A única peça que mora sob `/api/mac/slot-05/` é a rota nova `organizador-evento` — só grava 1 evento de auditoria (`mhd_eventos`) por abertura do painel, não toca `analises_mac`, checklist, nem a tela `app/analise-aprovacao-projeto/[codigo]/page.tsx` (o "LER PASTA (IA)" do MAC continua igual) |
 | 1.23 | 2026-09-05 | Nenhuma mudança no MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.22): `lib/visao/quadroAreas.ts` (lado LIP) ganhou `DOMINIO_SEMANTICO_POR_CHAVE`, ligando a receita ao catálogo semântico novo `lib/urbi/catalogoSemantico.ts` (Fase AA, transversal aos 3 slots). `comparadorQuadroCarimbo.ts` (motor MAC) intocado |
