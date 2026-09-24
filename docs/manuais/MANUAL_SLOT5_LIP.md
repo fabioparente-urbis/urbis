@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.25
-**Data:** 2026-09-22
+**Versão:** 1.26
+**Data:** 2026-09-24
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -609,8 +609,10 @@ conhecido, corrigir manual/ad-hoc.
 4. **`atendeAcessibilidade`**: o Fábio pediu valor padrão sempre "NÃO", virando "SIM" automaticamente
    só quando o laudo é emitido, nunca sobrescrevendo um "SIM" já existente. **Só a metade "NÃO" foi
    implementada** (`valor_padrao` do campo em `lip_campos`) — a metade "muda para SIM ao emitir o
-   laudo" não dá para fazer ainda: **o Slot 5 não tem geração de laudo construída** (ver
-   `MANUAL_SLOT5_MAC.md`).
+   laudo" **passou a ser possível em 24/09/2026** (o Laudo do Slot 5 existe — `MANUAL_SLOT5_MAC.md`,
+   seção 8.3), mas **continua não implementada**: exige escrita atômica em `processos.dados` (não
+   reler-e-regravar o objeto inteiro do LIP — esse padrão já apagou campos em produção) e decisão do Fábio sobre o
+   laudo mostrar SIM já na emissão. Por ora o laudo mostra o valor que o LIP tem.
 5. Ponte para `T.D.C.`/`Demolição`/`DECEA-AGA` com a lógica real (onerosa→TDC, casa averbada→
    demolição, zona aeroporto→COMAER) em vez do `NP` incondicional atual.
 6. **Campo de observação por item do LIP** (por aba, não por item) — decisão nunca fechada. *(O MAC
@@ -1220,10 +1222,33 @@ separada (fora do escopo desta mudança, que era só habilitar a reemissão).
 
 ---
 
+## 25. O LIP alimenta o Laudo (24/09/2026)
+
+O Laudo do Slot 5 (`MANUAL_SLOT5_MAC.md`, seção 8.3) lê **só o LIP**. As 120 linhas do `Painel` do
+Excel do Fábio (`PAINEL V39`) correspondem às chaves do LIP — a correspondência está em
+`PAINEL_LIP` (`lib/mac-motor/slot5/laudoSlot5.ts`). Consequências para quem edita o LIP:
+- **Mudar a chave ou o formato de um campo do LIP muda o laudo.** Formatos que o laudo espera:
+  números BR ("3.572,10"), `pav` numérico, `cheadvN` (os espaços em torno da barra são removidos),
+  `unidadeTerritorialDoUsoDoSolo` termina em "- SIGLA".
+- **`opcao2TotalExigidoAreaTerreno2` guarda o percentual** ("3,84%"); o laudo precisa da **área**
+  (m²) da área não permeável projetada — hoje não há campo para ela no LIP. Fica vazia com aviso.
+- **LIP velho gera laudo velho.** No 50724 o LIP foi lido em 17/08 e não foi relido depois da
+  Análise 2; o laudo gerado dele diverge do feito à mão em área privativa (3.167,10 × 3.572,10),
+  total a descontar (1.306,69 × 1.300,67), `atendeAcessibilidade` (NÃO × SIM) e vaga de idoso
+  exigida (2 × 1). Reler a pasta atualiza. Também faltam nele os campos calculados `ehTerreo`,
+  `temVagasExigidas` e `divergenciasChaves` (criados depois de 17/08), o que deixa 11 filtros do MAC
+  indecisos.
+- **`pag`** (página do despacho CHEADV, campo herdado do LIP antigo) não existe no laudo do Slot 5 e
+  nenhuma regra o usa, mas vazio conta como "LIP incompleto" na Pilha (`vw_bdi_campos_criticos`);
+  vazio nos 3 processos do Slot 5. Pendente decidir se sai da contagem para o Slot 5.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.26 | 2026-09-24 | Seção 25 nova + 8.5 item 4: o LIP passa a alimentar o **Laudo do Slot 5** (construído no MAC v1.27, seção 8.3). Nenhum campo do LIP mudou no código; documentado o mapa Painel→LIP, os formatos que o laudo espera, a lacuna da área não permeável projetada (LIP só tem o %) e o achado de LIP desatualizado do 50724. O "SIM ao emitir o laudo" de `atendeAcessibilidade` segue pendente. |
 | 1.25 | 2026-09-22 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.18 do `MANUAL_SLOT5_MAC.md`): `garantirAnalise` ganhou `{ forcarNova: true }` pra criar a linha da análise no banco já ao clicar em "Análise N" (não só no 1º item marcado), e `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, evitando desfazer em silêncio uma correção feita fora da aba aberta. Tudo em `analises_mac` e na tela do MAC (`app/analise-aprovacao-projeto/[codigo]/page.tsx`); nenhum campo, prompt ou leitura do LIP tocado |
 | 1.24 | 2026-09-08 | Seção 24: reemissão do Despacho Interno dentro de 15 min no botão de `ProcessoClient.tsx` (compartilhado pelos três slots) — checa `mdp_registros.criado_em` via `GET /api/mdp`, reaproveita o número sem comitar a série se dentro da janela. Achado registrado, não corrigido: o commit deste botão não passa `documento=despacho_interno` nem `analise_id` — ver `MANUAL_SLOT5_MAC.md` v1.25 para a mesma mudança nas telas de MAC dos três slots |
 | 1.23 | 2026-09-06 | Seção 23: **Organizador de Documentos** novo, exclusivo do Slot 5 — `components/aprovacaoProjeto/OrganizadorSlot5.tsx`, painel só-leitura sobre o MHD (`GET /api/mhd?processo=`), sem fatiamento (o Slot 5 já recebe arquivos separados, ao contrário dos Slots 1/2). "Abrir na íntegra" reaproveita o visualizador `react-pdf` dos outros slots; imagem via `<img>`; outros tipos (DWG/RAR) só "Baixar" — arquivo nunca sai do navegador do analista. Grava 1 evento de auditoria no MHD por abertura (`POST /api/mac/slot-05/organizador-evento`, `tipo: documentos_organizados_slot5`), mesmo procedimento do Organizador de PDF SEI dos Slots 1/2. Nenhum fluxo existente (LER PASTA do LIP ou do MAC) foi tocado. tsc/build limpos; portão real (testar com processo real) pendente do Fábio. Ver `MANUAL_SLOT5_MAC.md` v1.24 |

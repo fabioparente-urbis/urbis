@@ -524,6 +524,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [corpoDI, setCorpoDI] = useState("");
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
   const [gerandoDI, setGerandoDI] = useState(false);
+  const [gerandoLaudo, setGerandoLaudo] = useState(false);
   // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
   // (checado em abrirModalDI contra o mdp_registros.criado_em), senão pede
   // número novo. Mesma ideia do "reemitindo" do despacho ao interessado.
@@ -1411,6 +1412,71 @@ export default function AnaliseAprovacaoProjeto() {
       if (r.status === "rejected" || !r.value.ok) falhas.push(nomes[i]);
     });
     if (falhas.length) notificar(`⚠ Despacho emitido, mas falhou registrar em: ${falhas.join(", ")}.`);
+  }
+
+  /**
+   * Laudo do Slot 5 (.xlsx). Não consome número de faixa — o laudo não é despacho nem parecer.
+   * O arquivo sai do LIP (rota própria /api/mac/slot-05/laudo); depois de baixado, registra nos
+   * satélites como o Slot 1 faz: MRP, MAP e a tag "laudo" (é ela que a Pilha lê como Encerrado).
+   */
+  async function gerarLaudoSlot5Tela() {
+    if (gerandoLaudo) return;
+    setGerandoLaudo(true);
+    try {
+      const r = await fetch("/api/mac/slot-05/laudo", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ codigo }),
+      });
+      if (!r.ok) {
+        const erro = await r.json().catch(() => ({}));
+        throw new Error(erro?.erro ?? `falha ao gerar (HTTP ${r.status})`);
+      }
+      let avisos: string[] = [];
+      try { avisos = JSON.parse(decodeURIComponent(r.headers.get("X-Avisos") ?? "[]")); } catch { /* sem avisos */ }
+
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `LAUDO_${codigo}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      registrar({
+        modulo: "DESPACHO", acao: "LAUDO_EXCEL_GERADO", processo_codigo: codigo,
+        detalhe: { numero_analise: analise?.numero_analise ?? null, avisos: avisos.length },
+      });
+      const resultados = await Promise.allSettled([
+        fetch("/api/mrp/registros", {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            processo_codigo: codigo, tipo_despacho: "laudo",
+            numero_analise: analise?.numero_analise ?? null,
+            area_construida: areaParaNumero(processo?.areaTotal),
+            interessado: processo?.proprietario ?? null, bairro: processo?.bairro ?? null,
+            numero_sei: processo?.numeroSei ?? codigo,
+            assunto_id: ASSUNTO_ID_SLOT5, tipo_processo: TIPO_PROCESSO_SLOT5,
+            data_despacho: new Date().toISOString(), auto_gerado: true,
+          }),
+        }),
+        fetch("/api/processo/tag", {
+          method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            codigo,
+            tag: { tipo: "laudo", numero_analise: analise?.numero_analise, data: new Date().toLocaleDateString("pt-BR") },
+          }),
+        }),
+      ]);
+      const nomes = ["MRP", "tag do processo"];
+      const falhas = resultados.flatMap((x, i) => (x.status === "rejected" || !x.value.ok ? [nomes[i]] : []));
+      if (falhas.length) notificar(`⚠ Laudo gerado, mas falhou registrar em: ${falhas.join(", ")}.`);
+      else if (avisos.length) notificar(`📑 Laudo gerado — ${avisos.length} ponto(s) para completar/conferir na planilha:\n• ${avisos.join("\n• ")}`);
+      else notificar("📑 Laudo gerado.");
+    } catch (e: any) {
+      notificar(`Erro ao gerar o laudo: ${e?.message ?? e}`);
+    } finally {
+      setGerandoLaudo(false);
+    }
   }
 
   /** Espia o próximo número da faixa sem consumir, e abre o modal. */
@@ -3694,21 +3760,22 @@ export default function AnaliseAprovacaoProjeto() {
               : analise?.numero_despacho_interno ? `🔄 Despacho Interno nº ${analise.numero_despacho_interno}` : "📨 Despacho Interno"}
           </button>
 
-          {[
-            { rotulo: "📑 Laudo", cor: "#059669" },
-            { rotulo: "⛔ Indeferimento", cor: "#DC2626" },
-          ].map((b) => (
-            <button key={b.rotulo}
-              onClick={() => notificar(`"${b.rotulo.replace(/^\S+\s/, "")}" do Slot 5 ainda não foi construído.`)}
-              title="Ainda não construído para o Slot 5 — será rota própria, independente do Slot 1"
-              className="w-full font-bold py-2.5 rounded-lg text-sm border border-dashed hover:bg-[var(--bg-card-hover)] transition-colors"
-              style={{ borderColor: b.cor, color: b.cor }}>
-              {b.rotulo}
-            </button>
-          ))}
+          <button onClick={gerarLaudoSlot5Tela} disabled={gerandoLaudo}
+            title="Gera o Laudo (Excel) a partir do LIP — não consome número de faixa"
+            className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-50 border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            {gerandoLaudo ? "⏳ Gerando…" : "📑 Gerar Laudo (Excel)"}
+          </button>
+
+          <button
+            onClick={() => notificar('"Indeferimento" do Slot 5 ainda não foi construído.')}
+            title="Ainda não construído para o Slot 5 — será rota própria, independente do Slot 1"
+            className="w-full font-bold py-2.5 rounded-lg text-sm border border-dashed hover:bg-[var(--bg-card-hover)] transition-colors"
+            style={{ borderColor: "#DC2626", color: "#DC2626" }}>
+            ⛔ Indeferimento
+          </button>
 
           <p className="text-[10px] text-[var(--text-muted)] leading-snug mt-1">
-            Tracejado = ainda não gera documento. Cada um será rota própria do Slot 5,
+            Tracejado = ainda não gera documento. Cada um é rota própria do Slot 5,
             independente do Slot 1.
           </p>
 
