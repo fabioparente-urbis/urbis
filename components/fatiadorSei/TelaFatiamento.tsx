@@ -1140,8 +1140,8 @@ export default function TelaFatiamento() {
             </button>
             <button onClick={exportarConfirmados} disabled={exportandoConfirmados || !confirmados.length}
               title="Baixa num zip só todos os itens já confirmados (✓)"
-              className="mb-2 w-full text-xs px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--border-strong)] text-[var(--text-primary)] disabled:opacity-40">
-              {exportandoConfirmados ? "⏳ Gerando..." : `✓ Exportar confirmados (${confirmados.length})`}
+              className="mb-2 w-full text-xs font-semibold px-2 py-1.5 rounded bg-[var(--error-bg)] border border-[var(--error)] text-[var(--error)] disabled:opacity-40">
+              {exportandoConfirmados ? "⏳ Gerando..." : `Exportar Fatias (${confirmados.length})`}
             </button>
             <button onClick={analisarPendentes} disabled={analisandoPendentes || !paginasPendentes.length}
               title={paginasPendentes.length
