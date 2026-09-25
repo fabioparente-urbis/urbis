@@ -100,6 +100,48 @@ type ResultadoFatiamento = {
 const OPCOES_PAPEL = Object.entries(ROTULO_PAPEL_PECA)
   .sort((a, b) => a[1].localeCompare(b[1], "pt-BR"));
 
+/**
+ * Escolha do papel (tecla E) só com teclado, igual em qualquer sistema. Antes era um <select>
+ * nativo: no Mac a seta abre a lista, mas no Windows a seta troca o valor na hora — e o onChange
+ * já aplicava e fechava, então só o mouse permitia escolher. Aqui: digitar filtra, ↑/↓ move o
+ * destaque, Enter aplica, Esc cancela. Nada é aplicado antes do Enter (ou do clique).
+ */
+function SeletorPapel({ atual, onEscolher, onCancelar }: {
+  atual: string; onEscolher: (papel: string) => void; onCancelar: () => void;
+}) {
+  const [filtro, setFiltro] = useState("");
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const opcoes = OPCOES_PAPEL.filter(([, texto]) => norm(texto).includes(norm(filtro)));
+  const [destaque, setDestaque] = useState(() => Math.max(0, OPCOES_PAPEL.findIndex(([v]) => v === atual)));
+  const idx = Math.min(destaque, Math.max(0, opcoes.length - 1));
+  return (
+    <div className="relative flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+      <input
+        autoFocus value={filtro} placeholder="Digite pra filtrar · ↑↓ · Enter"
+        onChange={(e) => { setFiltro(e.target.value); setDestaque(0); }}
+        onBlur={onCancelar}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") { e.preventDefault(); setDestaque(Math.min(idx + 1, opcoes.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setDestaque(Math.max(idx - 1, 0)); }
+          else if (e.key === "Enter") { e.preventDefault(); if (opcoes[idx]) onEscolher(opcoes[idx][0]); }
+          else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onCancelar(); }
+        }}
+        className="w-full text-xs px-1.5 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--accent)] text-[var(--text-primary)]"
+      />
+      <ul className="absolute z-20 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded border border-[var(--border)] bg-[var(--bg-card)] shadow-lg">
+        {opcoes.map(([valor, texto], i) => (
+          <li
+            key={valor} ref={(el) => { if (el && i === idx) el.scrollIntoView({ block: "nearest" }); }}
+            onMouseDown={(e) => { e.preventDefault(); onEscolher(valor); }}
+            className={`px-2 py-1 text-xs cursor-pointer ${i === idx ? "bg-[var(--accent)]/20 text-[var(--text-primary)]" : "text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)]"}`}
+          >{texto}</li>
+        ))}
+        {!opcoes.length && <li className="px-2 py-1 text-xs text-[var(--text-muted)]">Nenhum tipo com esse nome</li>}
+      </ul>
+    </div>
+  );
+}
+
 const ROTULO_STATUS: Record<StatusEdicao, string> = {
   proposto: "proposto",
   confirmado: "✓ confirmado",
@@ -1016,15 +1058,11 @@ export default function TelaFatiamento() {
                     <span className="text-xs text-[var(--text-muted)] w-24 shrink-0">{item.idSei}</span>
                     {editandoClassificacaoId === item.id ? (
                       modoEdicaoClassificacao === "select" ? (
-                        <select
-                          autoFocus value={item.papel ?? "classificacao_pendente"} onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => aplicarPapel(item.id, e.target.value)}
-                          onBlur={() => setEditandoClassificacaoId(null)}
-                          onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEditandoClassificacaoId(null); } }}
-                          className="flex-1 min-w-0 text-xs px-1.5 py-1 rounded bg-[var(--bg-secondary)] border border-[var(--accent)] text-[var(--text-primary)]"
-                        >
-                          {OPCOES_PAPEL.map(([valor, texto]) => <option key={valor} value={valor}>{texto}</option>)}
-                        </select>
+                        <SeletorPapel
+                          atual={item.papel ?? "classificacao_pendente"}
+                          onEscolher={(papel) => aplicarPapel(item.id, papel)}
+                          onCancelar={() => setEditandoClassificacaoId(null)}
+                        />
                       ) : (
                         <input
                           autoFocus value={tituloEditando} onClick={(e) => e.stopPropagation()}
