@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.26
-**Data:** 2026-09-22
+**Versão:** 1.29
+**Data:** 2026-09-25
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -598,7 +598,8 @@ O item "Art. 6º — 180 dias sem movimentação" (grupo DOCUMENTAÇÃO) não ba
 com o Despacho Geral extraído — quase foi desativado por engano. **O Fábio corrigiu**: é regra de
 negócio real, com efeito concreto que ele quer implementado — todo processo com mais de 180 dias
 parado com o interessado deve (a) ficar **impedido de gerar laudo** e (b) **recomendar** o parecer
-de indeferimento. Fica ativo, não é para tocar. Bloqueado até a geração de laudo existir (seção 8) —
+de indeferimento. Fica ativo, não é para tocar. O laudo já existe (seção 8.3, 24/09/2026), mas a regra
+ainda não foi ligada a ele —
 precisa de um contador de "dias desde a última movimentação com o interessado" que não existe em
 nenhuma tabela hoje.
 
@@ -708,21 +709,56 @@ gravados em `mdp_registros.conteudo` para rastreabilidade. Bucket próprio por m
 `modulo=MAC&tipo_despacho=interno` aqui, `modulo=LIP&tipo_despacho=interno` no botão do LIP — os
 dois nunca compartilham a mesma lista de padrões, mesmo sendo o mesmo slot.
 
-### 8.3 Laudo e Indeferimento — não construídos
+### 8.3 Laudo (construído em 24/09/2026) e Indeferimento (não construído)
 
-Botões existem na tela (tracejados), geração nunca foi implementada — decisão consciente do Fábio
-("depois a gente cria"). **Atenção antes de construir**: no Slot 1, o Laudo sai em formato `.xlsm`
-(`lib/geradores/gerarLaudo.ts`, `/api/mac/gerar-laudo`), **não** `.docx` como o Despacho — não
-presumir que o Slot 5 replica o formato `.docx`, confirmar com o Fábio antes.
+**Laudo — em produção desde 24/09/2026.** Botão "📑 Gerar Laudo (Excel)" na tela do MAC
+(`analise-aprovacao-projeto/[codigo]/page.tsx`, `gerarLaudoSlot5Tela`) → `POST /api/mac/slot-05/laudo`.
+Sai em **`.xlsx`** (não `.xlsm`: os botões de macro do Excel ficam fora da área de impressão e não
+são reproduzidos; o arquivo não leva VBA) e **não consome número de faixa** — o Laudo não é
+despacho nem parecer.
 
-Consequências de não existir ainda:
-- A regra "Art. 6º — 180 dias" (seção 7.7) não pode ser implementada.
-- `atendeAcessibilidade` no LIP (ver `MANUAL_SLOT5_LIP.md`, seção 8.5) não pode virar SIM
-  automaticamente na emissão.
-- O vínculo BIP no texto do despacho (coluna "Lei/artigo (BIP)" no Excel, hoje só leitura — o
-  vínculo é do MODELO do checklist, não da análise de um processo específico) só entra no texto
-  gerado quando o Fábio revisar item a item e aprovar essa incorporação — decisão pendente,
-  registrada em memória separada, não construída.
+Origem do conteúdo: o **LIP** (`processos.dados`). O laudo do Fábio nasce no Excel `PAINEL V39`: a
+aba `Painel` (coluna F, linhas 2–121) recebe os dados e a aba `Laudo5` calcula por fórmula. O LIP do
+Slot 5 foi modelado sobre esse Painel, então cada linha do Painel corresponde a uma chave do LIP
+(`PAINEL_LIP` em `lib/mac-motor/slot5/laudoSlot5.ts`, conferido contra `lip_campos.label`); as
+fórmulas do `Laudo5` foram reescritas em TypeScript (`calcularLaudo`, função pura). Exceções ao
+padrão: linhas 17–32 do Painel (numeração das análises) não entram no laudo; linha 35 (área
+construída) lê `areaTotal`; linha 50 (unidade territorial) guarda só a sigla ("AAB") e o LIP guarda a
+frase do Uso do Solo — a sigla é extraída; linha 13 (CHEADV) tem os espaços em torno da barra
+removidos; linha 101 é a **área** não permeável em m² e o LIP guarda o percentual nesse campo — nesse
+caso a célula sai vazia com aviso, nunca com o percentual.
+
+Arquivos: molde `public/templates/laudo_slot5.xlsx` (gerado por `scripts/gerar_template_laudo_slot5.mts`
+a partir de um laudo já finalizado, com as células do processo esvaziadas), gerador
+`lib/geradores/gerarLaudoSlot5.ts` e comparador `scripts/comparar_laudo_slot5.mts`. **Isolado do
+Slot 1**: não importa `gerarLaudo.ts` nem `/api/mac/gerar-laudo`.
+
+**O que o LIP não dá, sai vazio e volta em `X-Avisos`** (a tela lista): recuos utilizados em projeto
+(`I58:L61`), alturas acumuladas (`H58:H61`), ocupação por pavimento (`I64:I86`) e vagas de uso
+habitacional (`C118:L122`) — o analista completa na planilha. Campo do LIP ausente também vira aviso,
+nunca "0" (o Excel trata célula vazia como 0, e 0 num "A ÁREA CONFERE?" parece resposta). Há uma
+conferência que o Excel não faz: volume da caixa de recarga menor que o exigido.
+
+Satélites (mesmo comportamento do Laudo do Slot 1): **MRP** (`tipo_despacho: "laudo"`, `auto_gerado`),
+**MAP** (`LAUDO_EXCEL_GERADO`) e a **tag `laudo`** no processo — é ela que a Pilha lê como
+"Encerrado". **MDP não recebe** (só registra despacho e parecer). **MHD não se aplica** (é memória
+do que ENTROU). Verificado contra o processo real 50724: o laudo gerado do LIP dele bate 670 células
+com o feito à mão; as ~34 divergentes são LIP desatualizado (o LIP foi lido em 17/08, antes da
+correção da Análise 2 — área privativa, total a descontar, atende acessibilidade, vaga idoso
+exigida), o nº do Uso do Solo (LIP tem 92202842, o laudo à mão diz "SN – emitido em 22/4/24") e o
+nome do interessado (caixa alta no LIP).
+
+**Pendente, não construído:**
+- `atendeAcessibilidade` virar SIM no LIP na emissão (ver `MANUAL_SLOT5_LIP.md`, seção 8.5): agora
+  possível, mas exige escrita atômica em `processos.dados` (reler e regravar o objeto inteiro do LIP já apagou
+  campos em produção — não repetir esse padrão).
+- Regra dos 180 dias (seção 7.7) — falta o contador de dias parado com o interessado.
+- Pontuação do MRP para "laudo" no Slot 5 segue a mesma tabela dos demais — confirmar se é a regra
+  que o Fábio quer.
+
+**Indeferimento — não construído.** O botão existe (tracejado), a geração não. Molde previsto: aba
+`Indeferimento` do `PAINEL V39` (22 fórmulas, todas lendo o `Painel`). Usa a série única de parecer
+(`/api/numeracao/proximo`), consumida só com o documento pronto e por clique do analista.
 
 ### 8.4 Excel export/import do MAC do Slot 5
 
@@ -741,6 +777,23 @@ desativou — descartadas corretamente no Excel e no despacho, mas ainda inflam 
 Limpeza pendente, nunca pedida explicitamente.
 
 ---
+
+### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026)
+
+Regra copiada do Slot 1 a pedido do Fábio: "MAC só finaliza com a exportação de documento". Em
+`emitirDespacho()` (`analise-aprovacao-projeto/[codigo]/page.tsx`), logo depois que o `.docx` do
+Despacho ao Interessado é baixado, a tela baixa também o Excel da **análise aberta**
+(`GET /api/mac/slot-05/exportar?codigo=…&analise=N`, o mesmo do botão "Exportar Excel"), com 800 ms de
+respiro porque o navegador costuma engolir o segundo download simultâneo. Automático, sem
+confirmação. Não muda numeração (o commit do número segue depois do documento pronto) nem nenhum
+satélite. Fora desta regra por ora: Despacho Interno e Laudo; e o aviso do URBI de "backup LIP+MAC"
+do Slot 1 não foi copiado.
+
+### 8.6 Laudo emitido marca o LIP como finalizado (25/09/2026)
+
+`POST /api/mac/slot-05/laudo` passou a gravar `processos.lip_finalizado = true` (+ `lip_finalizado_em`,
+sem sobrescrever data existente) ao gerar o Laudo — regra do Fábio válida em todos os slots (as rotas
+dos Slots 1 e 2 fazem o mesmo). Não consome número de faixa. Ver `MANUAL_SLOT5_LIP.md` seção 27.
 
 ## 9. LER PASTA (IA) do MAC — motor próprio, distinto do LIP
 
@@ -819,7 +872,7 @@ Fábio).
    `MANUAL_SLOT5_LIP.md`, seção 8.3). Sem script de detecção geral — se o mesmo padrão aparecer em
    outro processo, ninguém pega automaticamente.
 4. **`outorgaOnerosa` depende do bug 3** — segue valendo (seção 4.3).
-5. **Documentos do Slot 5 não geram** (Laudo, Indeferimento) — segue valendo (seção 8.3).
+5. **Indeferimento não gera** — segue valendo (seção 8.3). O **Laudo passou a gerar em 24/09/2026**.
 6. **Regra "180 dias sem movimentação" travada no item 5** — segue valendo (seção 7.7).
 7. **Filtro "MÉDIO PORTE" sem alvo definido** — a condição (`grandePorte`) já existe no código;
    ninguém definiu ainda quais grupos do checklist esse filtro deve atingir.
@@ -1366,6 +1419,9 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.29 | 2026-09-25 | Seção 8.6: gerar o Laudo do Slot 5 marca o LIP como finalizado. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.28. |
+| 1.28 | 2026-09-25 | Seção 8.5: ao emitir o Despacho ao Interessado, a tela baixa também o Excel do MAC da análise aberta (regra do Slot 1 copiada). Lado LIP conferido no mesmo dia: botão Finalizar LIP agora vale no Slot 5 (`MANUAL_SLOT5_LIP.md` v1.27). |
+| 1.27 | 2026-09-24 | Seção 8.3: **Laudo do Slot 5 construído** — `POST /api/mac/slot-05/laudo`, `.xlsx` a partir do LIP (Painel V39 → LIP, fórmulas do `Laudo5` reescritas em `lib/mac-motor/slot5/laudoSlot5.ts`), botão "📑 Gerar Laudo (Excel)" na tela, satélites MRP/MAP/tag `laudo`, sem número de faixa. Molde em `public/templates/laudo_slot5.xlsx`; comparador `scripts/comparar_laudo_slot5.mts` (50724: 670 células iguais, ~34 divergentes por LIP desatualizado). PDF e Indeferimento seguem pendentes. |
 | 1.26 | 2026-09-22 | Seção 14.18: `garantirAnalise` ganhou `{ forcarNova: true }` — `iniciarNovaAnalise` cria a linha da análise no banco já ao iniciar (não só no 1º item marcado), corrigindo um bug real em que a checagem `?? ` de "já tem análise" caía pro state antigo da mesma closure e nunca chamava o servidor. `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, mesmo padrão que `selecionarAnalise` já usava — sem isso, uma correção feita fora da aba aberta (outra aba, ou direto no banco) era desfeita em silêncio pelo autosave. Primeira verificação ao vivo em produção do fluxo de análises 1-5 do Slot 5 (processo 50724), inclusive uma armadilha de workflow (copiar a análise anterior + LER PASTA na sequência quase não reavalia nada, por desenho) |
 | 1.25 | 2026-09-08 | Seção 8.2: reemissão do Despacho Interno dentro de 15 min da emissão original — mesmo botão, mesma tela (`analise-aprovacao-projeto/[codigo]/page.tsx`, `abrirModalDI`/`gerarDespachoInterno`), checando `mdp_registros.criado_em` via `GET /api/mdp` antes de decidir entre reaproveitar o número ou pedir um novo. Não comita numeração na reemissão. `POST /api/mac/slot-05/despacho-interno` passou a fazer upsert no MDP por `(processo_codigo, tipo, numero)` em vez de insert cego, evitando linha duplicada. Mesma mudança feita em paralelo nos Slots 1 e 2 (rota compartilhada `/api/despacho-interno`) e na tela do LIP (`ProcessoClient.tsx`) — pedido explícito do Fábio, urgente, para reemitir o processo 24.5.000024350-0 (Slot 1) dentro da janela |
 | 1.24 | 2026-09-06 | Nenhuma mudança no motor/checklist do MAC — conferido contra o LIP da mesma data (`MANUAL_SLOT5_LIP.md` v1.23): painel novo **Organizador de Documentos** (lado LIP, `components/aprovacaoProjeto/OrganizadorSlot5.tsx`), só leitura sobre o MHD, sem fatiamento. A única peça que mora sob `/api/mac/slot-05/` é a rota nova `organizador-evento` — só grava 1 evento de auditoria (`mhd_eventos`) por abertura do painel, não toca `analises_mac`, checklist, nem a tela `app/analise-aprovacao-projeto/[codigo]/page.tsx` (o "LER PASTA (IA)" do MAC continua igual) |
