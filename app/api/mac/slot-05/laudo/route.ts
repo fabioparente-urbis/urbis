@@ -43,6 +43,15 @@ export async function POST(req: NextRequest) {
 
     const { buffer, avisos } = await gerarLaudoSlot5({ dados, assinatura });
 
+    // Laudo emitido = LIP concluído (regra do Fábio, 25/09/2026, vale em qualquer slot). Mesmo
+    // efeito do botão "Finalizar LIP"; idempotente, não sobrescreve a data de quem já finalizou.
+    await supabaseAdmin
+      .from("processos")
+      .update({ lip_finalizado: true, lip_finalizado_em: new Date().toISOString() })
+      .eq("codigo", codigo)
+      .eq("tipo_processo", "slot_05")
+      .or("lip_finalizado.is.null,lip_finalizado.eq.false");
+
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

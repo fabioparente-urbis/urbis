@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.26
-**Data:** 2026-09-24
+**Versão:** 1.28
+**Data:** 2026-09-25
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1244,10 +1244,33 @@ Excel do Fábio (`PAINEL V39`) correspondem às chaves do LIP — a correspondê
 
 ---
 
+## 26. Botão "Finalizar LIP" no Slot 5 (25/09/2026)
+
+Pedido do Fábio: copiar para o Slot 5 a regra do Slot 1. O botão **🏁 Finalizar LIP**, já existente
+em `ProcessoClient.tsx` para `regularizacao` e `aceite_sei`, passou a aparecer também para
+`slot_05` (desvio por `tipo_processo`, sem alterar o caminho dos demais).
+
+Ao clicar: `PUT /api/processos` com `lip_finalizado: true` (grava também `lip_finalizado_em`) e, em
+seguida, baixa o Excel do LIP por `GET /api/processo/exportar-lip?codigo=…&tipo=slot_05` — o mesmo
+link do botão "Exportar Excel". Vale mesmo com o LIP incompleto ("parei por aqui e sigo pro MAC");
+é independente de "LIP não concluído", os dois podem estar marcados. A Pilha já lia
+`lip_finalizado` para todos os slots (✓ ao lado da situação do LIP). Nenhum campo, prompt ou leitura
+do LIP foi tocado.
+
+## 27. Laudo emitido marca o LIP como finalizado (25/09/2026)
+
+Regra do Fábio, válida em **qualquer slot**: emitir o Laudo equivale a clicar em "Finalizar LIP".
+As três rotas de laudo (`/api/mac/gerar-laudo` Slot 1, `/api/mac/aceite-sei/gerar-laudo` Slot 2,
+`/api/mac/slot-05/laudo` Slot 5) gravam `processos.lip_finalizado = true` e `lip_finalizado_em` ao
+gerar a planilha. Idempotente: quem já estava finalizado mantém a data original. Só marca; não baixa
+o Excel do LIP (isso continua sendo do botão). Nenhum campo do LIP mudou.
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.28 | 2026-09-25 | Seção 27: emitir o Laudo (qualquer slot, inclusive o Slot 5) marca `lip_finalizado` no processo. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.29. |
+| 1.27 | 2026-09-25 | Seção 26: botão **Finalizar LIP** (marca `lip_finalizado` + baixa o Excel do LIP) passou a valer também no Slot 5, copiando a regra do Slot 1. Lado MAC no mesmo dia: despacho emitido baixa o Excel do MAC (`MANUAL_SLOT5_MAC.md` v1.28). |
 | 1.26 | 2026-09-24 | Seção 25 nova + 8.5 item 4: o LIP passa a alimentar o **Laudo do Slot 5** (construído no MAC v1.27, seção 8.3). Nenhum campo do LIP mudou no código; documentado o mapa Painel→LIP, os formatos que o laudo espera, a lacuna da área não permeável projetada (LIP só tem o %) e o achado de LIP desatualizado do 50724. O "SIM ao emitir o laudo" de `atendeAcessibilidade` segue pendente. |
 | 1.25 | 2026-09-22 | Nenhuma mudança no LIP — conferido contra o MAC da mesma data (seção 14.18 do `MANUAL_SLOT5_MAC.md`): `garantirAnalise` ganhou `{ forcarNova: true }` pra criar a linha da análise no banco já ao clicar em "Análise N" (não só no 1º item marcado), e `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, evitando desfazer em silêncio uma correção feita fora da aba aberta. Tudo em `analises_mac` e na tela do MAC (`app/analise-aprovacao-projeto/[codigo]/page.tsx`); nenhum campo, prompt ou leitura do LIP tocado |
 | 1.24 | 2026-09-08 | Seção 24: reemissão do Despacho Interno dentro de 15 min no botão de `ProcessoClient.tsx` (compartilhado pelos três slots) — checa `mdp_registros.criado_em` via `GET /api/mdp`, reaproveita o número sem comitar a série se dentro da janela. Achado registrado, não corrigido: o commit deste botão não passa `documento=despacho_interno` nem `analise_id` — ver `MANUAL_SLOT5_MAC.md` v1.25 para a mesma mudança nas telas de MAC dos três slots |

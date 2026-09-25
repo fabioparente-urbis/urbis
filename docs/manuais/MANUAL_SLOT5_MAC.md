@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.27
-**Data:** 2026-09-24
+**Versão:** 1.29
+**Data:** 2026-09-25
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -778,6 +778,23 @@ Limpeza pendente, nunca pedida explicitamente.
 
 ---
 
+### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026)
+
+Regra copiada do Slot 1 a pedido do Fábio: "MAC só finaliza com a exportação de documento". Em
+`emitirDespacho()` (`analise-aprovacao-projeto/[codigo]/page.tsx`), logo depois que o `.docx` do
+Despacho ao Interessado é baixado, a tela baixa também o Excel da **análise aberta**
+(`GET /api/mac/slot-05/exportar?codigo=…&analise=N`, o mesmo do botão "Exportar Excel"), com 800 ms de
+respiro porque o navegador costuma engolir o segundo download simultâneo. Automático, sem
+confirmação. Não muda numeração (o commit do número segue depois do documento pronto) nem nenhum
+satélite. Fora desta regra por ora: Despacho Interno e Laudo; e o aviso do URBI de "backup LIP+MAC"
+do Slot 1 não foi copiado.
+
+### 8.6 Laudo emitido marca o LIP como finalizado (25/09/2026)
+
+`POST /api/mac/slot-05/laudo` passou a gravar `processos.lip_finalizado = true` (+ `lip_finalizado_em`,
+sem sobrescrever data existente) ao gerar o Laudo — regra do Fábio válida em todos os slots (as rotas
+dos Slots 1 e 2 fazem o mesmo). Não consome número de faixa. Ver `MANUAL_SLOT5_LIP.md` seção 27.
+
 ## 9. LER PASTA (IA) do MAC — motor próprio, distinto do LIP
 
 **Não confundir com o LER PASTA do LIP** (`MANUAL_SLOT5_LIP.md`, seção 3) — são mecanismos
@@ -1402,6 +1419,8 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.29 | 2026-09-25 | Seção 8.6: gerar o Laudo do Slot 5 marca o LIP como finalizado. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.28. |
+| 1.28 | 2026-09-25 | Seção 8.5: ao emitir o Despacho ao Interessado, a tela baixa também o Excel do MAC da análise aberta (regra do Slot 1 copiada). Lado LIP conferido no mesmo dia: botão Finalizar LIP agora vale no Slot 5 (`MANUAL_SLOT5_LIP.md` v1.27). |
 | 1.27 | 2026-09-24 | Seção 8.3: **Laudo do Slot 5 construído** — `POST /api/mac/slot-05/laudo`, `.xlsx` a partir do LIP (Painel V39 → LIP, fórmulas do `Laudo5` reescritas em `lib/mac-motor/slot5/laudoSlot5.ts`), botão "📑 Gerar Laudo (Excel)" na tela, satélites MRP/MAP/tag `laudo`, sem número de faixa. Molde em `public/templates/laudo_slot5.xlsx`; comparador `scripts/comparar_laudo_slot5.mts` (50724: 670 células iguais, ~34 divergentes por LIP desatualizado). PDF e Indeferimento seguem pendentes. |
 | 1.26 | 2026-09-22 | Seção 14.18: `garantirAnalise` ganhou `{ forcarNova: true }` — `iniciarNovaAnalise` cria a linha da análise no banco já ao iniciar (não só no 1º item marcado), corrigindo um bug real em que a checagem `?? ` de "já tem análise" caía pro state antigo da mesma closure e nunca chamava o servidor. `lerPastaIA()` passou a reler `/api/mac/slot-05/analise` antes de mesclar o resultado, mesmo padrão que `selecionarAnalise` já usava — sem isso, uma correção feita fora da aba aberta (outra aba, ou direto no banco) era desfeita em silêncio pelo autosave. Primeira verificação ao vivo em produção do fluxo de análises 1-5 do Slot 5 (processo 50724), inclusive uma armadilha de workflow (copiar a análise anterior + LER PASTA na sequência quase não reavalia nada, por desenho) |
 | 1.25 | 2026-09-08 | Seção 8.2: reemissão do Despacho Interno dentro de 15 min da emissão original — mesmo botão, mesma tela (`analise-aprovacao-projeto/[codigo]/page.tsx`, `abrirModalDI`/`gerarDespachoInterno`), checando `mdp_registros.criado_em` via `GET /api/mdp` antes de decidir entre reaproveitar o número ou pedir um novo. Não comita numeração na reemissão. `POST /api/mac/slot-05/despacho-interno` passou a fazer upsert no MDP por `(processo_codigo, tipo, numero)` em vez de insert cego, evitando linha duplicada. Mesma mudança feita em paralelo nos Slots 1 e 2 (rota compartilhada `/api/despacho-interno`) e na tela do LIP (`ProcessoClient.tsx`) — pedido explícito do Fábio, urgente, para reemitir o processo 24.5.000024350-0 (Slot 1) dentro da janela |

@@ -1544,6 +1544,20 @@ export default function AnaliseAprovacaoProjeto() {
       a.click();
       URL.revokeObjectURL(url);
 
+      // "MAC só finaliza com a exportação de documento": depois do despacho, baixa também o
+      // Excel do MAC (mesma regra do Slot 1, pedido do Fábio em 25/09/2026). Só a análise
+      // aberta, igual ao botão "Exportar Excel". Respiro de 800ms porque o navegador costuma
+      // engolir um segundo download disparado no mesmo instante do primeiro.
+      const numAnaliseExport = analise.numero_analise;
+      setTimeout(() => {
+        const ax = document.createElement("a");
+        ax.href = `/api/mac/slot-05/exportar?codigo=${encodeURIComponent(codigo)}&analise=${numAnaliseExport}`;
+        ax.download = "";
+        document.body.appendChild(ax);
+        ax.click();
+        ax.remove();
+      }, 800);
+
       // Documento na mão: agora sim consome o número e grava data/número na análise — MAS NUNCA na
       // reemissão, onde o número já foi consumido na primeira vez (mesma regra do Slot 1).
       let dc: { ok: boolean; numero?: number; detalhe?: string; motivo?: string } | null = null;

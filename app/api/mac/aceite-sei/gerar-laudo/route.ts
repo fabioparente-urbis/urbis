@@ -149,6 +149,14 @@ export async function POST(req: NextRequest) {
       .eq("codigo", processoId)
       .is("analise_concluida_em", null);
 
+    // Laudo emitido = LIP concluído (regra do Fábio, 25/09/2026, vale em qualquer slot). Mesmo
+    // efeito do botão "Finalizar LIP"; idempotente, não sobrescreve a data de quem já finalizou.
+    await supabase
+      .from("processos")
+      .update({ lip_finalizado: true, lip_finalizado_em: new Date().toISOString() })
+      .eq("codigo", processoId)
+      .or("lip_finalizado.is.null,lip_finalizado.eq.false");
+
     const cookieHeader = req.headers.get("cookie") ?? "";
     const interessado = (dados["proprietario"]?.valor as string | undefined) ?? null;
 

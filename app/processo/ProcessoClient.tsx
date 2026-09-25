@@ -3108,9 +3108,10 @@ export default function ProcessoClient() {
             {lipIncompleto ? "🔴 LIP não concluído" : "⚪ Marcar LIP não concluído"}
           </button>
           {/* Só Slot 1 (regularizacao) e Slot 2 (aceite_sei) — pedido explícito do Fábio,
-              08/09/2026. Desvio por tipo_processo dentro do arquivo compartilhado do LIP, sem
+              08/09/2026 — e Slot 5 (slot_05), pedido dele em 25/09/2026: mesma regra, mesmo
+              botão. Desvio por tipo_processo dentro do arquivo compartilhado do LIP, sem
               alterar o caminho dos demais slots (regra do CLAUDE.md). */}
-          {(tipoUrl === "regularizacao" || tipoUrl === "aceite_sei") && (
+          {(tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || tipoUrl === "slot_05") && (
             <button
               type="button"
               onClick={finalizarLip}
