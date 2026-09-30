@@ -135,6 +135,7 @@ export async function POST(req: NextRequest) {
       naoConformes,
       corpoPersonalizado,
       datasEtapas,
+      numeroAnalise: Number((alvo as any).numero_analise) || undefined,
       assinante: {
         nome: (membro as any)?.nome || "—",
         cargo: (membro as any)?.cargo || null,

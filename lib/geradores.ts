@@ -376,6 +376,20 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
   });
 }
 
+/**
+ * Aviso da 4ª análise (pedido do Fábio, 30/09/2026): o despacho da 4ª é o PENÚLTIMO — a 5ª e última
+ * análise vai acompanhada do indeferimento. Sai em letra pequena logo abaixo da lista de análises,
+ * só quando o despacho sendo emitido é o da 4ª (a última da lista). Vale para todos os slots; cada
+ * slot tem o seu gerador e reproduz o texto, sem importar do outro.
+ */
+function paragrafoObsPenultimaAnalise(analises: { numero: number }[]): Paragraph | null {
+  if (!Array.isArray(analises) || analises[analises.length - 1]?.numero !== 4) return null;
+  return new Paragraph({
+    alignment: AlignmentType.LEFT, spacing: { before: 60, after: 120 }, keepLines: true,
+    children: [txt("*OBS: penúltimo despacho, sendo que a última análise vai acompanhada do indeferimento;", { size: 16 })],
+  });
+}
+
 export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
@@ -405,6 +419,8 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  const obsPenultima = paragrafoObsPenultimaAnalise(dados.analises);
+  if (obsPenultima) children.push(obsPenultima);
   children.push(vazio(120));
   // "AVISOS:" só no despacho de Regularização SEI — o texto "a/b" abaixo
   // (LC 314/2018, vistoria fiscal) fala só dela; esta função é
@@ -484,6 +500,8 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  const obsPenultima = paragrafoObsPenultimaAnalise(dados.analises);
+  if (obsPenultima) children.push(obsPenultima);
   const temItensChecklist =
     (dados.naoConformesAgrupados && dados.naoConformesAgrupados.length > 0) ||
     (dados.naoConformes && dados.naoConformes.length > 0);

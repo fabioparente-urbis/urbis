@@ -54,6 +54,8 @@ export type DadosDespacho = {
   corpoPersonalizado?: string;
   /** Uma posição por etapa (1ª análise, reanálises 1-4). `null` = etapa ainda não emitida. */
   datasEtapas: (string | null)[];
+  /** Número da análise que está sendo emitida. Na 4ª, o despacho leva o aviso de penúltimo. */
+  numeroAnalise?: number;
   assinante: { nome: string; cargo?: string | null; registro?: string | null };
 };
 
@@ -286,6 +288,20 @@ export async function gerarDespachoAprovacaoProjeto(dados: DadosDespacho): Promi
   let doc = await zip.file("word/document.xml")!.async("string");
 
   doc = trocarDatasEtapas(doc, dados.datasEtapas);
+
+  // Aviso da 4ª análise (pedido do Fábio, 30/09/2026, vale para todos os slots): o despacho da 4ª é
+  // o PENÚLTIMO — a última análise vai acompanhada do indeferimento. Letra pequena, logo abaixo da
+  // tabela de Controle de Etapas (a única tabela do modelo).
+  if (dados.numeroAnalise === 4) {
+    const fimTabela = doc.indexOf("</w:tbl>");
+    if (fimTabela !== -1) {
+      const aviso = `<w:p><w:pPr><w:pStyle w:val="Corpodetexto"/><w:spacing w:before="60" w:after="120" w:line="240" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr>`
+        + `<w:r><w:rPr><w:rFonts w:eastAsia="Batang" w:cs="Arial"/><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr>`
+        + `<w:t xml:space="preserve">${esc("*OBS: penúltimo despacho, sendo que a última análise vai acompanhada do indeferimento;")}</w:t></w:r></w:p>`;
+      const pos = fimTabela + "</w:tbl>".length;
+      doc = doc.slice(0, pos) + aviso + doc.slice(pos);
+    }
+  }
 
   // O número da CHEADV mora num run só (" ____/2025"), separado do "Nº" que vem antes — por isso
   // a troca mira esse run, não a frase inteira. O valor do LIP já traz o ano ("1.577 / 2026").
