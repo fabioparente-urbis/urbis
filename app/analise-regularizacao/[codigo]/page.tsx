@@ -1504,6 +1504,13 @@ export default function MacPage() {
     }
   }
 
+  // Laudo já emitido (tag "laudo" em processos.tags) — pedido do Fábio, 30/09/2026, depois de um
+  // laudo emitido por engano: o MAC mostra que o laudo saiu e pergunta antes de emitir de novo.
+  const laudoEmitido = (() => {
+    const t = (tagsProcesso ?? []).filter((x: any) => x && typeof x === "object" && x.tipo === "laudo").pop();
+    return t ? { data: String(t.data || new Date(t.criado_em).toLocaleDateString("pt-BR")), numero_analise: t.numero_analise as number | undefined } : null;
+  })();
+
   // Análise em andamento: a já gravada, ou a que acabou de ser iniciada.
   const numeroAnaliseEmAndamento = analiseAtual?.numero_analise ?? numeroAnaliseNova;
 
@@ -2086,6 +2093,11 @@ export default function MacPage() {
     </p>
   );
 })()}
+{laudoEmitido && (
+  <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+    📊 Laudo emitido em {laudoEmitido.data}{laudoEmitido.numero_analise ? ` (Análise ${laudoEmitido.numero_analise})` : ""}
+  </p>
+)}
 {modeloSelecionado && (
   <p className="text-[var(--text-muted)] text-xs mt-0.5">📋 {modeloSelecionado.nome}</p>
 )}
@@ -2928,12 +2940,14 @@ export default function MacPage() {
                 processoId={codigo}
                 onAntesDeGerar={() => confirmarSePendente("o laudo")}
                 mrpData={{ assuntoNome, interessado: dadosLip?.proprietario?.valor ?? null, areaConstruida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0, bairro: dadosLip?.bairro?.valor ?? null, numeroSei: dadosLip?.processo?.valor ?? codigo, numeroFisico: dadosLip?.processoFisico?.valor ?? null }}
-                onSuccess={() =>
+                laudoJaEmitidoEm={laudoEmitido?.data}
+                onSuccess={() => {
+                  setTagsProcesso((prev: any) => [...(prev ?? []), { tipo: "laudo", data: new Date().toLocaleDateString("pt-BR"), numero_analise: analiseAtual?.numero_analise }]);
                   void gravarTag({
                     tipo: "laudo",
                     numero_analise: analiseAtual?.numero_analise,
-                  })
-                }
+                  });
+                }}
               />
             </div>
 
