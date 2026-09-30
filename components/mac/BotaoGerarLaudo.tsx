@@ -17,9 +17,12 @@ interface Props {
   // desistir da emissão. Opcional de propósito: quem não passa (Slot 2)
   // continua com o comportamento antigo, sem pergunta nenhuma.
   onAntesDeGerar?: () => Promise<boolean>;
+  // Data do laudo já emitido neste processo (Slot 1, 30/09/2026). Quando vem, pede confirmação
+  // antes de emitir de novo. Opcional: quem não passa (Slot 2) segue sem pergunta.
+  laudoJaEmitidoEm?: string;
 }
 
-export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData, onAntesDeGerar }: Props) {
+export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData, onAntesDeGerar, laudoJaEmitidoEm }: Props) {
   const [gerando, setGerando] = useState(false);
   // Só é preenchido quando o backend recusa gerar (409) por área
   // divergente — Slot 1 (Regularização SEI). Ver lib/compatibilidadeArea.ts.
@@ -29,6 +32,8 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData, onAn
     if (!processoId || gerando) return;
     // Só na primeira tentativa: `confirmarDivergenciaArea` marca o retorno
     // depois do alerta de área, e aí a pendência já foi perguntada.
+    if (!confirmarDivergenciaArea && laudoJaEmitidoEm &&
+        !window.confirm(`O laudo deste processo já foi emitido em ${laudoJaEmitidoEm}.\n\nEmitir de novo?`)) return;
     if (!confirmarDivergenciaArea && onAntesDeGerar && !(await onAntesDeGerar())) return;
     setGerando(true);
     try {

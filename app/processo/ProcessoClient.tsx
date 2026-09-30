@@ -328,6 +328,9 @@ export default function ProcessoClient() {
   const [lipIncompleto, setLipIncompleto] = useState(false);
   const [salvandoLipIncompleto, setSalvandoLipIncompleto] = useState(false);
   const [lipFinalizado, setLipFinalizado] = useState(false);
+  // Laudo já emitido (tag "laudo" em processos.tags) — pedido do Fábio, 30/09/2026: o LIP tem que
+  // avisar que o laudo já saiu. Só Regularização por enquanto (desvio por tipo_processo).
+  const [laudoEmitido, setLaudoEmitido] = useState<{ data: string; numero_analise?: number } | null>(null);
   const [finalizandoLip, setFinalizandoLip] = useState(false);
   const [laudoOcultos, setLaudoOcultos] = useState<string[]>([]);
   // Busca de coordenada no Mapa Fácil pelo IPTU (ver `buscarCoordenadas`).
@@ -465,6 +468,12 @@ export default function ProcessoClient() {
       setProcessoDbId(json.data.id ?? null);
       setLipIncompleto(json.data.lip_incompleto === true);
       setLipFinalizado(json.data.lip_finalizado === true);
+      {
+        const tagLaudo = (Array.isArray(json.data.tags) ? json.data.tags : [])
+          .filter((t: any) => t && typeof t === "object" && t.tipo === "laudo")
+          .pop();
+        setLaudoEmitido(tagLaudo ? { data: String(tagLaudo.data || new Date(tagLaudo.criado_em).toLocaleDateString("pt-BR")), numero_analise: tagLaudo.numero_analise } : null);
+      }
       setLaudoOcultos(Array.isArray(json.data.laudo_campos_ocultos) ? json.data.laudo_campos_ocultos : []);
       const dadosSalvos = json.data.dados;
       setD((prev) => {
@@ -3150,6 +3159,11 @@ export default function ProcessoClient() {
                 </p>
               );
             })()}
+            {tipoUrl === "regularizacao" && laudoEmitido && (
+              <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+                📊 Laudo emitido em {laudoEmitido.data}{laudoEmitido.numero_analise ? ` (Análise ${laudoEmitido.numero_analise})` : ""}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
