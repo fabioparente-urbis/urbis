@@ -65,6 +65,27 @@ export type ResumoCamposLip = {
   campos_totais: number;
 };
 
+/**
+ * `pag` ("Pág. do SEI (Busca Arq.)") só existe como campo na tela do Slot 1 e do Slot 2. O LIP cria a
+ * chave vazia em TODO processo, então num processo do Slot 5 ela vira um "campo vazio" que o analista
+ * não enxerga nem consegue preencher — MVO 50724 ficou vermelho na Pilha por causa dela (30/09/2026).
+ * A view `vw_bdi_campos_criticos` conta toda chave de `dados`; aqui se desconta só essa, só no Slot 5.
+ */
+export function descontarCampoFantasmaSlot5(
+  campos: ResumoCamposLip | null,
+  tipoProcesso: string | null | undefined,
+  dados: Record<string, any> | null | undefined,
+): ResumoCamposLip | null {
+  if (!campos || String(tipoProcesso ?? "").toLowerCase() !== "slot_05") return campos;
+  const pag = dados?.pag;
+  if (!pag || typeof pag !== "object" || String(pag.valor ?? "").trim() !== "") return campos;
+  return {
+    ...campos,
+    campos_vazios: Math.max(0, campos.campos_vazios - 1),
+    campos_totais: Math.max(0, campos.campos_totais - 1),
+  };
+}
+
 /** A passada mais recente do processo em `analises_mac`, se existir. */
 export type UltimaPassadaMac = {
   numero_analise: number;

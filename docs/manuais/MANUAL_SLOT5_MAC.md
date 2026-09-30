@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.29
-**Data:** 2026-09-25
+**Versão:** 1.30
+**Data:** 2026-09-30
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -795,6 +795,14 @@ do Slot 1 não foi copiado.
 sem sobrescrever data existente) ao gerar o Laudo — regra do Fábio válida em todos os slots (as rotas
 dos Slots 1 e 2 fazem o mesmo). Não consome número de faixa. Ver `MANUAL_SLOT5_LIP.md` seção 27.
 
+
+### 8.7 Barra de pendências do LIP não lista mais `pag` (30/09/2026)
+
+A barra vermelha "⚠ LIP: …" do topo do MAC listava a chave `pag`, campo que só existe nas telas do
+Slot 1 e do Slot 2 e que o analista do Slot 5 não vê nem preenche. A rota
+`/api/mac/slot-05/analise` agora ignora `pag` ao montar `pendenciasLip`. O mesmo ajuste tira o
+MVO 50724 do vermelho na Pilha (ver `MANUAL_SLOT5_LIP.md`, seção 28). Nada mais mudou na barra:
+campo vazio, em rascunho ou "x" continua sendo listado.
 ## 9. LER PASTA (IA) do MAC — motor próprio, distinto do LIP
 
 **Não confundir com o LER PASTA do LIP** (`MANUAL_SLOT5_LIP.md`, seção 3) — são mecanismos
@@ -1419,6 +1427,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.30 | 2026-09-30 | Seção 8.7: a barra de pendências do LIP deixa de listar `pag` no Slot 5. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.29. |
 | 1.29 | 2026-09-25 | Seção 8.6: gerar o Laudo do Slot 5 marca o LIP como finalizado. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.28. |
 | 1.28 | 2026-09-25 | Seção 8.5: ao emitir o Despacho ao Interessado, a tela baixa também o Excel do MAC da análise aberta (regra do Slot 1 copiada). Lado LIP conferido no mesmo dia: botão Finalizar LIP agora vale no Slot 5 (`MANUAL_SLOT5_LIP.md` v1.27). |
 | 1.27 | 2026-09-24 | Seção 8.3: **Laudo do Slot 5 construído** — `POST /api/mac/slot-05/laudo`, `.xlsx` a partir do LIP (Painel V39 → LIP, fórmulas do `Laudo5` reescritas em `lib/mac-motor/slot5/laudoSlot5.ts`), botão "📑 Gerar Laudo (Excel)" na tela, satélites MRP/MAP/tag `laudo`, sem número de faixa. Molde em `public/templates/laudo_slot5.xlsx`; comparador `scripts/comparar_laudo_slot5.mts` (50724: 670 células iguais, ~34 divergentes por LIP desatualizado). PDF e Indeferimento seguem pendentes. |

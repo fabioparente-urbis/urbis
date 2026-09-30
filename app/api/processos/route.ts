@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -278,7 +278,7 @@ export async function GET(req: NextRequest) {
         retrabalho: retrabalhoPorCodigo.get(p.codigo) ?? { trocas_totais: 0, virou_nao_conforme: 0 },
       };
       const tags: TagProcesso[] = Array.isArray(p.tags) ? p.tags.filter((t: any) => t && typeof t === "object") : [];
-      const campos = camposPorCodigo.get(p.codigo) ?? null;
+      const campos = descontarCampoFantasmaSlot5(camposPorCodigo.get(p.codigo) ?? null, p.tipo_processo, p.dados);
       const ultimaPassada = ultimaPassadaPorCodigo.get(p.codigo) ?? null;
       // As 3 situações (lib/bdi/situacao.ts) — LIP e MAC separadas, mais a
       // geral (que já é composta das duas). Mesma lógica, sem recalcular
