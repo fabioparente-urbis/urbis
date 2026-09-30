@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import { montarAvisos, triar, resumirCampos, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { descontarCampoFantasmaSlot5, situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 // ============================================================
 // BDI — Co-Analista por evidência (02/09/2026)
@@ -224,7 +224,7 @@ export async function GET(req: NextRequest) {
     const tipo = (p.tipo_processo || "").toLowerCase();
     const dados = (p.dados ?? {}) as Record<string, any>;
     const tags: TagProcesso[] = Array.isArray(p.tags) ? (p.tags as any[]).filter((t) => t && typeof t === "object") : [];
-    const campos = camposPorCodigo.get(codigo) ?? null;
+    const campos = descontarCampoFantasmaSlot5(camposPorCodigo.get(codigo) ?? null, tipo, dados);
     const ultimaPassada = ultimaPassadaPorCodigo.get(codigo) ?? null;
 
     // --- as 3 situações (lib/bdi/situacao.ts), idênticas às da Pilha

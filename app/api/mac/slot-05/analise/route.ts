@@ -71,7 +71,8 @@ export async function GET(req: NextRequest) {
       // Campos do LIP em rascunho/vazios/"x" — alimentam a barra de pendências,
       // mesma leitura que a tela do Slot 1 faz sobre processos.dados.
       pendenciasLip: Object.entries(dados)
-        .filter(([, campo]: [string, any]) =>
+        .filter(([chave, campo]: [string, any]) =>
+          chave !== "pag" && // campo só do Slot 1/2; no Slot 5 não existe na tela (MVO 50724)
           campo && typeof campo === "object" &&
           (!campo.valor || campo.status === "rascunho" || String(campo.valor).toLowerCase() === "x"))
         .map(([chave]) => chave),

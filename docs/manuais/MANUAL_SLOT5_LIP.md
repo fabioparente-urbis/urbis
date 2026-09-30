@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.28
-**Data:** 2026-09-25
+**Versão:** 1.29
+**Data:** 2026-09-30
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1239,8 +1239,8 @@ Excel do Fábio (`PAINEL V39`) correspondem às chaves do LIP — a correspondê
   `temVagasExigidas` e `divergenciasChaves` (criados depois de 17/08), o que deixa 11 filtros do MAC
   indecisos.
 - **`pag`** (página do despacho CHEADV, campo herdado do LIP antigo) não existe no laudo do Slot 5 e
-  nenhuma regra o usa, mas vazio conta como "LIP incompleto" na Pilha (`vw_bdi_campos_criticos`);
-  vazio nos 3 processos do Slot 5. Pendente decidir se sai da contagem para o Slot 5.
+  nenhuma regra o usa, mas vazio contava como "LIP incompleto" na Pilha (`vw_bdi_campos_criticos`).
+  **Resolvido em 30/09/2026 (seção 28):** sai da contagem no Slot 5.
 
 ---
 
@@ -1265,10 +1265,24 @@ As três rotas de laudo (`/api/mac/gerar-laudo` Slot 1, `/api/mac/aceite-sei/ger
 gerar a planilha. Idempotente: quem já estava finalizado mantém a data original. Só marca; não baixa
 o Excel do LIP (isso continua sendo do botão). Nenhum campo do LIP mudou.
 
+## 28. `pag` não conta como campo vazio no Slot 5 (30/09/2026)
+
+Achado no MVO 50724: laudo emitido à mão e registrado, mas a linha da Pilha seguia vermelha
+("LIP: Incompleto") por **1 campo vazio em 118** — a chave `pag` ("Pág. do SEI (Busca Arq.)"), que só
+está cadastrada nas abas do Slot 1 e do Slot 2. O LIP criava essa chave vazia em todo processo, então
+no Slot 5 ela contava como pendência que o analista não enxerga nem consegue preencher.
+
+Correções, só para `slot_05`: (1) o LIP deixa de criar a chave `pag` ao abrir um processo do Slot 5
+(`ProcessoClient.tsx`, desvio por `tipoUrl`); (2) a Pilha e o BDI descontam o `pag` vazio da contagem
+de campos vazios (`descontarCampoFantasmaSlot5`, em `lib/bdi/situacao.ts`), para os processos que já
+o tinham gravado; (3) a barra de pendências do MAC deixa de listar `pag`. A view do banco não mudou.
+Slot 1 e Slot 2 seguem como estavam: lá o campo existe na tela e continua valendo.
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.29 | 2026-09-30 | Seção 28: `pag` deixa de contar como campo vazio do LIP no Slot 5 (MVO 50724 ficava vermelho por ele). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.30. |
 | 1.28 | 2026-09-25 | Seção 27: emitir o Laudo (qualquer slot, inclusive o Slot 5) marca `lip_finalizado` no processo. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.29. |
 | 1.27 | 2026-09-25 | Seção 26: botão **Finalizar LIP** (marca `lip_finalizado` + baixa o Excel do LIP) passou a valer também no Slot 5, copiando a regra do Slot 1. Lado MAC no mesmo dia: despacho emitido baixa o Excel do MAC (`MANUAL_SLOT5_MAC.md` v1.28). |
 | 1.26 | 2026-09-24 | Seção 25 nova + 8.5 item 4: o LIP passa a alimentar o **Laudo do Slot 5** (construído no MAC v1.27, seção 8.3). Nenhum campo do LIP mudou no código; documentado o mapa Painel→LIP, os formatos que o laudo espera, a lacuna da área não permeável projetada (LIP só tem o %) e o achado de LIP desatualizado do 50724. O "SIM ao emitir o laudo" de `atendeAcessibilidade` segue pendente. |

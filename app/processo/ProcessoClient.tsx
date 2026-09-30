@@ -429,7 +429,7 @@ export default function ProcessoClient() {
           }
         }
         estadoInicial["processo"] = base();
-        estadoInicial["pag"] = base();
+        if (tipoUrl !== "slot_05") estadoInicial["pag"] = base(); // campo só do Slot 1/2
         setD(estadoInicial);
         snapRef.current = estadoInicial;
       }
