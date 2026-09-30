@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.29
+**Versão:** 1.30
 **Data:** 2026-09-30
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1282,6 +1282,7 @@ Slot 1 e Slot 2 seguem como estavam: lá o campo existe na tela e continua valen
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.30 | 2026-09-30 | Conferido: o despacho da 4ª análise passou a levar o aviso de penúltimo (mudança do MAC, ver `MANUAL_SLOT5_MAC.md` v1.31, seção 8.8). Nenhuma mudança no LIP. |
 | 1.29 | 2026-09-30 | Seção 28: `pag` deixa de contar como campo vazio do LIP no Slot 5 (MVO 50724 ficava vermelho por ele). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.30. |
 | 1.28 | 2026-09-25 | Seção 27: emitir o Laudo (qualquer slot, inclusive o Slot 5) marca `lip_finalizado` no processo. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.29. |
 | 1.27 | 2026-09-25 | Seção 26: botão **Finalizar LIP** (marca `lip_finalizado` + baixa o Excel do LIP) passou a valer também no Slot 5, copiando a regra do Slot 1. Lado MAC no mesmo dia: despacho emitido baixa o Excel do MAC (`MANUAL_SLOT5_MAC.md` v1.28). |

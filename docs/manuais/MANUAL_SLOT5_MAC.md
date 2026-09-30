@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.30
+**Versão:** 1.31
 **Data:** 2026-09-30
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -803,6 +803,15 @@ Slot 1 e do Slot 2 e que o analista do Slot 5 não vê nem preenche. A rota
 `/api/mac/slot-05/analise` agora ignora `pag` ao montar `pendenciasLip`. O mesmo ajuste tira o
 MVO 50724 do vermelho na Pilha (ver `MANUAL_SLOT5_LIP.md`, seção 28). Nada mais mudou na barra:
 campo vazio, em rascunho ou "x" continua sendo listado.
+
+### 8.8 Despacho da 4ª análise leva o aviso de penúltimo (30/09/2026)
+
+Pedido do Fábio, válido em todos os slots: o despacho da **4ª análise** é o penúltimo — a 5ª e última
+vai acompanhada do indeferimento. Por isso, só quando a análise emitida é a 4ª, sai logo abaixo da
+tabela de Controle de Etapas, em letra pequena: *"\*OBS: penúltimo despacho, sendo que a última
+análise vai acompanhada do indeferimento;"*. Na 1ª, 2ª, 3ª e 5ª análise nada muda. A rota
+`/api/mac/slot-05/despacho` passa o número da análise ao gerador (`numeroAnalise`); o texto é
+reproduzido no gerador do Slot 5, sem importar do Slot 1. Testado gerando o .docx na 3ª, 4ª e 5ª.
 ## 9. LER PASTA (IA) do MAC — motor próprio, distinto do LIP
 
 **Não confundir com o LER PASTA do LIP** (`MANUAL_SLOT5_LIP.md`, seção 3) — são mecanismos
@@ -1427,6 +1436,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.31 | 2026-09-30 | Seção 8.8: despacho da 4ª análise leva o aviso "*OBS: penúltimo despacho…". Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.30 (sem mudança na tela do LIP). |
 | 1.30 | 2026-09-30 | Seção 8.7: a barra de pendências do LIP deixa de listar `pag` no Slot 5. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.29. |
 | 1.29 | 2026-09-25 | Seção 8.6: gerar o Laudo do Slot 5 marca o LIP como finalizado. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.28. |
 | 1.28 | 2026-09-25 | Seção 8.5: ao emitir o Despacho ao Interessado, a tela baixa também o Excel do MAC da análise aberta (regra do Slot 1 copiada). Lado LIP conferido no mesmo dia: botão Finalizar LIP agora vale no Slot 5 (`MANUAL_SLOT5_LIP.md` v1.27). |
