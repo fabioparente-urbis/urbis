@@ -21,10 +21,14 @@ import type {
 } from "@/lib/mac-motor/slot5/contraConferencia";
 import { useAuditoria } from "@/hooks/useAuditoria";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
+import { MOTIVOS_INDEFERIMENTO_SLOT5 } from "@/lib/mac-motor/slot5/motivosIndeferimento";
 import {
   avaliarCargaDescarga, avaliarEstudos, comoNumero, fmt, vereditoDoEstudo,
   type DadosEstudos,
 } from "@/lib/mac-motor/slot5/estudosExigencias";
+
+/** Foto anexa ao parecer de indeferimento — legenda sugerida pela IA, sempre editável. */
+type FotoAnexo = { id: string; dataUrl: string; tipo: "png" | "jpg"; legenda: string; gerandoLegenda: boolean };
 
 type Status = "conforme" | "nao_conforme" | "nao_aplica";
 type Item = { id: string; texto: string; grupo: string; ordem: number; ref?: string | null };
@@ -510,6 +514,17 @@ export default function AnaliseAprovacaoProjeto() {
   const [dataDespacho, setDataDespacho] = useState(() => new Date().toLocaleDateString("pt-BR"));
   const [numeracaoBloqueio, setNumeracaoBloqueio] = useState<string | null>(null);
   const [emitindoDespacho, setEmitindoDespacho] = useState(false);
+
+  /* Indeferimento — mesma mecânica do Slot 1: modal (motivos, observações, fotos, data) → análise vai a
+     "indeferido" → botão "Baixar Indeferimento" (aí sim consome o nº de PARECER, série única) → "Re-imprimir". */
+  const [modalIndef, setModalIndef] = useState(false);
+  const [motivosIndef, setMotivosIndef] = useState<string[]>([]);
+  const [obsIndef, setObsIndef] = useState("");
+  const [fotosIndef, setFotosIndef] = useState<FotoAnexo[]>([]);
+  const [dataIndef, setDataIndef] = useState(() => new Date().toLocaleDateString("pt-BR"));
+  const [indefPendente, setIndefPendente] = useState<{ motivos: string[]; obs: string; fotos: FotoAnexo[]; data: string } | null>(null);
+  const [indefReimprimir, setIndefReimprimir] = useState<{ motivos: string[]; obs: string; fotos: FotoAnexo[]; data: string; numeroParecer: string } | null>(null);
+  const [emitindoIndef, setEmitindoIndef] = useState(false);
   /* Reemissão: mesma regra do Slot 1 — reaproveita o número já gravado na análise, sem consultar a
    * série nem consumir número novo. `analise.numero_despacho` já é a fonte de verdade disso. */
   const [reemitindo, setReemitindo] = useState(false);
@@ -1480,6 +1495,189 @@ export default function AnaliseAprovacaoProjeto() {
   }
 
   /** Espia o próximo número da faixa sem consumir, e abre o modal. */
+  /* ─────────────── Indeferimento (parecer) ───────────────
+   * Mesma mecânica do Slot 1, reproduzida por leitura. O nº de PARECER vem da mesma série única
+   * (/api/numeracao/proximo?tipo=parecer): espiado antes, consumido SÓ depois do documento pronto. */
+  const mascararDataBR = (v: string) => {
+    const d = v.replace(/\D/g, "").slice(0, 8);
+    return d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+  };
+
+  async function abrirModalIndeferimento() {
+    if (!analise) { notificar("Salve a análise antes de indeferir."); return; }
+    await salvar(undefined, undefined, undefined, true);
+    setDataIndef(new Date().toLocaleDateString("pt-BR"));
+    setModalIndef(true);
+  }
+
+  /** Adiciona fotos e pede ao URBIS a legenda de cada uma — o analista sempre pode editar antes de gerar. */
+  async function adicionarFotosIndef(arquivos: FileList | null) {
+    if (!arquivos?.length) return;
+    for (const arquivo of Array.from(arquivos)) {
+      if (!arquivo.type.startsWith("image/")) continue;
+      const tipo: "png" | "jpg" = arquivo.type.includes("png") ? "png" : "jpg";
+      const dataUrl = await new Promise<string>((res) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.readAsDataURL(arquivo);
+      });
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setFotosIndef((prev) => [...prev, { id, dataUrl, tipo, legenda: "", gerandoLegenda: true }]);
+      try {
+        const r = await fetch("/api/lip/legenda-foto", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imagemBase64: dataUrl.split(",")[1], mimeType: arquivo.type, processo: codigo }),
+        });
+        const d = await r.json();
+        setFotosIndef((prev) => prev.map((f) => f.id === id ? { ...f, legenda: d.ok ? d.legenda : "", gerandoLegenda: false } : f));
+      } catch {
+        setFotosIndef((prev) => prev.map((f) => f.id === id ? { ...f, gerandoLegenda: false } : f));
+      }
+    }
+  }
+
+  /** "Confirmar Indeferimento" do modal: guarda o que foi escolhido e marca a análise como indeferida. */
+  async function confirmarIndeferimento() {
+    if (!analise) return;
+    setIndefPendente({ motivos: [...motivosIndef], obs: obsIndef, fotos: [...fotosIndef], data: dataIndef });
+    setModalIndef(false);
+    setMotivosIndef([]); setObsIndef(""); setFotosIndef([]);
+    try {
+      const r = await fetch("/api/mac/slot-05/analise", {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: analise.id, status: "indeferido" }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      setAnalise({ ...analise, status: "indeferido" });
+      setAnalises((prev) => prev.map((x) => (x.id === analise.id ? { ...x, status: "indeferido" } : x)));
+    } catch (e: any) {
+      notificar(`Erro ao marcar a análise como indeferida: ${e?.message ?? e}`);
+    }
+  }
+
+  const corpoIndeferimento = (d: { motivos: string[]; obs: string; fotos: FotoAnexo[]; data: string }, numeroParecer: string) => JSON.stringify({
+    codigo, numeroParecer, dataEmissao: d.data, motivos: d.motivos, observacoes: d.obs, analiseId: analise?.id,
+    fotos: d.fotos.map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
+  });
+  const baixarDocx = async (res: Response, nome: string) => {
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url; a.download = nome; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /** Gera o .docx PRIMEIRO; só depois consome o nº de parecer e avisa os satélites. */
+  async function emitirIndeferimento() {
+    if (!analise || !indefPendente || emitindoIndef) return;
+    const pend = indefPendente;
+    setEmitindoIndef(true);
+    try {
+      const rp = await fetch(`/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=peek`, { credentials: "include" });
+      const jp = await rp.json();
+      if (!jp.ok) {
+        notificar(jp.esgotado
+          ? "❌ Faixa de pareceres esgotada. Acesse Configurações → Numeração para cadastrar nova faixa."
+          : "❌ Nenhuma faixa de parecer cadastrada. Acesse Configurações → Numeração.");
+        return;
+      }
+      const numeroParecer = String(jp.numero).padStart(3, "0");
+
+      const res = await fetch("/api/mac/slot-05/indeferimento", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: corpoIndeferimento(pend, numeroParecer),
+      });
+      if (!res.ok) {
+        const erro = await res.json().catch(() => ({}));
+        throw new Error(erro?.erro ?? `falha ao gerar (HTTP ${res.status})`);
+      }
+      await baixarDocx(res, `indeferimento_${codigo}_${numeroParecer}.docx`);
+      setIndefPendente(null);
+      setIndefReimprimir({ ...pend, numeroParecer });
+
+      // Documento na mão: agora sim consome o número (3 tentativas — um buraco na faixa não se desfaz).
+      let commitOk = false;
+      for (let t = 1; t <= 3 && !commitOk; t++) {
+        try {
+          const rc = await fetch(
+            `/api/numeracao/proximo?tipo=parecer&processo=${encodeURIComponent(codigo)}&modo=commit`
+            + `&numero=${encodeURIComponent(parseInt(numeroParecer, 10))}&data=${encodeURIComponent(pend.data)}`
+            + `&analise_id=${encodeURIComponent(analise.id)}&analise_numero=${analise.numero_analise}`,
+            { credentials: "include" },
+          );
+          if (rc.ok || rc.status === 409) commitOk = true;
+        } catch { /* rede — tenta de novo */ }
+        if (!commitOk && t < 3) await new Promise((r) => setTimeout(r, t * 800));
+      }
+      if (commitOk) {
+        setAnalise((prev) => (prev ? { ...prev, numero_parecer: numeroParecer } as Analise : prev));
+        // Conclusão da passagem — a rota relê o parecer commitado no banco antes de gravar.
+        try {
+          const rc = await fetch("/api/mac/slot-05/concluir-analise", {
+            method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ codigo, numero_analise: analise.numero_analise, tipo: "indeferimento" }),
+          });
+          if (!rc.ok) notificar("⚠ Indeferimento emitido, mas não consegui registrar a conclusão da análise.");
+        } catch { notificar("⚠ Indeferimento emitido, mas não consegui registrar a conclusão da análise."); }
+      }
+
+      // Satélites (best-effort, falha nunca em silêncio): MAP, MRP, MDP e a tag que a Pilha lê.
+      registrar({
+        modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo,
+        detalhe: { tipo: "indeferimento", numero: numeroParecer, numero_analise: analise.numero_analise },
+      });
+      const post = (url: string, body: unknown) => fetch(url, {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const resultados = await Promise.allSettled([
+        post("/api/mrp/registros", {
+          processo_codigo: codigo, tipo_despacho: "indeferimento", numero_despacho: numeroParecer,
+          numero_analise: analise.numero_analise, area_construida: areaParaNumero(processo?.areaTotal),
+          interessado: processo?.proprietario ?? null, bairro: processo?.bairro ?? null,
+          numero_sei: processo?.numeroSei ?? codigo, assunto_id: ASSUNTO_ID_SLOT5, tipo_processo: TIPO_PROCESSO_SLOT5,
+          data_despacho: dataBRparaISO(pend.data), auto_gerado: true,
+        }),
+        post("/api/mdp", {
+          processo_codigo: codigo, assunto_id: ASSUNTO_ID_SLOT5, tipo: "indeferimento", numero: numeroParecer,
+          destinatario: null, data_despacho: pend.data, conteudo: { motivos: pend.motivos, observacoes: pend.obs || "" },
+        }),
+        post("/api/processo/tag", {
+          codigo, tag: { tipo: "indeferimento", numero_analise: analise.numero_analise, numero_despacho: numeroParecer, data: pend.data },
+        }),
+      ]);
+      const nomes = ["MRP", "MDP", "tag do processo"];
+      const falhas = resultados.flatMap((x, i) => (x.status === "rejected" || !x.value.ok ? [nomes[i]] : []));
+      notificar(
+        `Indeferimento (parecer nº ${numeroParecer}) baixado.`
+        + (falhas.length ? ` ⚠ Falhou registrar em: ${falhas.join(", ")}.` : "")
+        + (!commitOk ? " ⚠ A numeração de parecer NÃO foi confirmada — confira antes de gerar o próximo." : ""),
+      );
+    } catch (e: any) {
+      notificar(`Erro ao emitir o indeferimento: ${e?.message ?? e}`);
+    } finally {
+      setEmitindoIndef(false);
+    }
+  }
+
+  /** Re-imprime o parecer já emitido: mesmo número, nada é consumido nem registrado de novo. */
+  async function reimprimirIndeferimento() {
+    if (!indefReimprimir || emitindoIndef) return;
+    setEmitindoIndef(true);
+    try {
+      const res = await fetch("/api/mac/slot-05/indeferimento", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: corpoIndeferimento(indefReimprimir, indefReimprimir.numeroParecer),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await baixarDocx(res, `indeferimento_${codigo}_${indefReimprimir.numeroParecer}.docx`);
+      notificar("Parecer re-impresso.");
+    } catch (e: any) {
+      notificar(`Falha ao re-imprimir o parecer: ${e?.message ?? e}`);
+    } finally {
+      setEmitindoIndef(false);
+    }
+  }
+
   async function abrirModalDespacho() {
     if (!analise) { notificar("Salve a análise antes de emitir o despacho."); return; }
     setNumeracaoBloqueio(null);
@@ -3780,12 +3978,22 @@ export default function AnaliseAprovacaoProjeto() {
             {gerandoLaudo ? "⏳ Gerando…" : "📑 Gerar Laudo (Excel)"}
           </button>
 
-          <button
-            onClick={() => notificar('"Indeferimento" do Slot 5 ainda não foi construído.')}
-            title="Ainda não construído para o Slot 5 — será rota própria, independente do Slot 1"
-            className="w-full font-bold py-2.5 rounded-lg text-sm border border-dashed hover:bg-[var(--bg-card-hover)] transition-colors"
-            style={{ borderColor: "#DC2626", color: "#DC2626" }}>
-            ⛔ Indeferimento
+          {indefPendente && (
+            <button onClick={emitirIndeferimento} disabled={emitindoIndef}
+              className="w-full bg-[#EA580C] hover:bg-[#C2410C] disabled:opacity-50 border border-[#EA580C] text-white font-bold py-2.5 rounded-lg text-sm">
+              {emitindoIndef ? "⏳ Gerando…" : "📄 Baixar Indeferimento"}
+            </button>
+          )}
+          {!indefPendente && indefReimprimir && (
+            <button onClick={reimprimirIndeferimento} disabled={emitindoIndef}
+              className="w-full bg-[var(--bg-secondary)] hover:bg-[#FFF7ED] disabled:opacity-50 border border-[#EA580C] text-[#EA580C] font-medium py-2 rounded-lg text-sm transition-colors">
+              🖨️ Re-imprimir Parecer {indefReimprimir.numeroParecer}
+            </button>
+          )}
+          <button onClick={abrirModalIndeferimento} disabled={salvando}
+            title="Indeferimento do processo — consome um número da série de pareceres, só depois do documento pronto"
+            className="w-full bg-[#FEF2F2] hover:bg-[#DC2626] hover:text-white disabled:opacity-50 border border-[#DC2626] text-[#DC2626] font-bold py-2.5 rounded-lg text-sm transition-colors">
+            ❌ Indeferir
           </button>
 
           <p className="text-[10px] text-[var(--text-muted)] leading-snug mt-1">
@@ -3995,6 +4203,67 @@ export default function AnaliseAprovacaoProjeto() {
               <button onClick={() => setModalDespacho(false)} disabled={emitindoDespacho}
                 className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalIndef && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-red-700 rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-red-400 mb-4">❌ Indeferimento — Aprovação de Projeto</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-3">Selecione o(s) motivo(s):</p>
+            {MOTIVOS_INDEFERIMENTO_SLOT5.map((motivo) => (
+              <label key={motivo} className="flex items-start gap-2 mb-2 cursor-pointer">
+                <input type="checkbox" className="mt-1" checked={motivosIndef.includes(motivo)}
+                  onChange={(e) => setMotivosIndef((p) => (e.target.checked ? [...p, motivo] : p.filter((m) => m !== motivo)))} />
+                <span className="text-sm text-[var(--text-secondary)]">{motivo}</span>
+              </label>
+            ))}
+            <textarea value={obsIndef} onChange={(e) => setObsIndef(e.target.value)}
+              placeholder="Observações adicionais (opcional)..."
+              className="w-full mt-3 bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded p-2 text-sm text-[var(--text-primary)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none h-20" />
+
+            <div className="mt-3">
+              <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">
+                Fotos anexas (opcional) — prints de imagem histórica, sistemas externos, etc.
+              </label>
+              <label className="mt-1 flex items-center justify-center gap-2 border border-dashed border-[var(--border-strong)] rounded p-2 text-xs text-[var(--text-muted)] cursor-pointer hover:bg-[var(--bg-secondary)]">
+                📷 Clique para anexar foto(s)
+                <input type="file" accept="image/*" multiple className="hidden"
+                  onChange={(e) => { void adicionarFotosIndef(e.target.files); e.target.value = ""; }} />
+              </label>
+              {fotosIndef.map((foto) => (
+                <div key={foto.id} className="flex gap-2 items-start mt-2 bg-[var(--bg-secondary)] rounded p-2">
+                  <img src={foto.dataUrl} alt="" className="w-20 h-20 object-cover rounded shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <textarea value={foto.gerandoLegenda ? "Gerando legenda com o URBIS..." : foto.legenda}
+                      disabled={foto.gerandoLegenda}
+                      onChange={(e) => setFotosIndef((prev) => prev.map((f) => (f.id === foto.id ? { ...f, legenda: e.target.value } : f)))}
+                      placeholder="Legenda da foto..."
+                      className="w-full bg-[var(--bg-primary)] border border-[var(--border-strong)] rounded p-1.5 text-xs text-[var(--text-primary)] resize-none h-14 disabled:opacity-60" />
+                  </div>
+                  <button onClick={() => setFotosIndef((prev) => prev.filter((f) => f.id !== foto.id))}
+                    className="text-[var(--text-muted)] hover:text-red-400 text-xs shrink-0">✕</button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-col gap-1 mt-3">
+              <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data de emissão do parecer</label>
+              <input type="text" inputMode="numeric" value={dataIndef}
+                onChange={(e) => setDataIndef(mascararDataBR(e.target.value))} placeholder="dd/mm/aaaa"
+                className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-2 text-sm font-bold text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-red-500" />
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button onClick={() => setModalIndef(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button disabled={salvando || !/^\d{2}\/\d{2}\/\d{4}$/.test(dataIndef)} onClick={() => void confirmarIndeferimento()}
+                className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-bold py-2 rounded-lg text-sm">
+                Confirmar Indeferimento
               </button>
             </div>
           </div>

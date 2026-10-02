@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.39
+**Versão:** 1.41
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -709,7 +709,7 @@ gravados em `mdp_registros.conteudo` para rastreabilidade. Bucket próprio por m
 `modulo=MAC&tipo_despacho=interno` aqui, `modulo=LIP&tipo_despacho=interno` no botão do LIP — os
 dois nunca compartilham a mesma lista de padrões, mesmo sendo o mesmo slot.
 
-### 8.3 Laudo (construído em 24/09/2026) e Indeferimento (não construído)
+### 8.3 Laudo (construído em 24/09/2026) e Indeferimento (construído em 02/10/2026)
 
 **Laudo — em produção desde 24/09/2026.** Botão "📑 Gerar Laudo (Excel)" na tela do MAC
 (`analise-aprovacao-projeto/[codigo]/page.tsx`, `gerarLaudoSlot5Tela`) → `POST /api/mac/slot-05/laudo`.
@@ -766,9 +766,22 @@ nome do interessado (caixa alta no LIP).
 - Pontuação do MRP para "laudo" no Slot 5 segue a mesma tabela dos demais — confirmar se é a regra
   que o Fábio quer.
 
-**Indeferimento — não construído.** O botão existe (tracejado), a geração não. Molde previsto: aba
-`Indeferimento` do `PAINEL V39` (22 fórmulas, todas lendo o `Painel`). Usa a série única de parecer
-(`/api/numeracao/proximo`), consumida só com o documento pronto e por clique do analista.
+**Indeferimento — construído em 02/10/2026**, idêntico ao do Slot 1 em mecânica e tela, com o assunto Aprovação de Projeto:
+- **Tela:** botão "❌ Indeferir" → modal (motivos, observações, fotos com legenda sugerida pelo URBIS, data) →
+  "Confirmar Indeferimento" marca a análise como `indeferido` → botão "📄 Baixar Indeferimento" → depois "🖨️ Re-imprimir Parecer nº".
+- **Rota própria** `POST /api/mac/slot-05/indeferimento` (`lib/mac-motor/slot5/gerarIndeferimento.ts`, cópia isolada da peça do Slot 1;
+  nada importado de `lib/geradores.ts`). Assinatura = usuário logado; gerente e diretora lidos do cadastro; lista de análises com data e nº
+  de cada despacho; endereço do LIP.
+- **Número de parecer:** série única (`/api/numeracao/proximo?tipo=parecer`) — espiado antes, **consumido só depois do .docx pronto**
+  (3 tentativas), pelo clique do analista. Nada consome número sem o documento.
+- **Satélites ao emitir:** MAP, MRP (`tipo_despacho: indeferimento`), MDP (`indeferimento`), tag `indeferimento` (Pilha) e conclusão da
+  passagem (`concluir-analise` com `tipo: "indeferimento"`, que relê o `numero_parecer` do banco).
+- **Diferenças deliberadas em relação ao Slot 1:** (1) os motivos marcados na tela **saem impressos** no parecer (no Slot 1 a rota os recebe e
+  não os repassa ao documento); (2) a rota **não regrava `processos.dados`** (o Slot 1 faz `{...dados, ultimo_documento}`, padrão que apagou
+  campos do LIP em 15-16/09/2026); (3) o parecer imprime o endereço do LIP, não o código do processo.
+- **Motivos disponíveis** (`lib/mac-motor/slot5/motivosIndeferimento.ts`, definidos pelo Fábio em 02/10/2026): 180 dias parado com o interessado; desistência do interessado; cinco análises concluídas. A lista do Slot 1 é de Regularização e não se aplica. O parágrafo de fundamento do parecer é o mesmo do Slot 1 para qualquer motivo ("Por não cumprimento ao exigido nos despachos anteriormente listados…") — não se ajusta ao motivo marcado.
+- **Não testado ao vivo** na data: a rota gera o .docx corretamente com dados reais (conferido o texto), mas o fluxo da tela inteiro, com
+  consumo de número, ainda não foi exercitado.
 
 ### 8.4 Excel export/import do MAC do Slot 5
 
@@ -899,7 +912,7 @@ Fábio).
    `MANUAL_SLOT5_LIP.md`, seção 8.3). Sem script de detecção geral — se o mesmo padrão aparecer em
    outro processo, ninguém pega automaticamente.
 4. **`outorgaOnerosa` depende do bug 3** — segue valendo (seção 4.3).
-5. **Indeferimento não gera** — segue valendo (seção 8.3). O **Laudo passou a gerar em 24/09/2026**.
+5. **Indeferimento** passou a gerar em 02/10/2026 (seção 8.3), assim como o **Laudo** em 24/09/2026.
 6. **Regra "180 dias sem movimentação" travada no item 5** — segue valendo (seção 7.7).
 7. **Filtro "MÉDIO PORTE" sem alvo definido** — a condição (`grandePorte`) já existe no código;
    ninguém definiu ainda quais grupos do checklist esse filtro deve atingir.
@@ -1446,6 +1459,8 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
+| 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Motivos: 180 dias, desistência, cinco análises. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
 | 1.39 | 2026-10-02 | Seção 8.3: a emissão do laudo passa a gravar no MDP (satélite que faltava). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.38. |
 | 1.38 | 2026-10-02 | Seção 8.3: a emissão do laudo grava `atendeAcessibilidade` = SIM no LIP (campo único, função `lip_gravar_campo`; migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.37. |
 | 1.37 | 2026-10-02 | Seção 8.3: botão "Laudo TESTE" removido; "Atende acessibilidade" do laudo sai sempre SIM. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.36. |
