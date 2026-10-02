@@ -52,6 +52,17 @@ export async function POST(req: NextRequest) {
       .eq("tipo_processo", "slot_05")
       .or("lip_finalizado.is.null,lip_finalizado.eq.false");
 
+    // Laudo emitido = projeto atende à acessibilidade (regra do Fábio, 02/10/2026). Grava só esse campo,
+    // atômico (lip_gravar_campo — migration 2026_10_02); não reescreve a ficha. Se a função ainda não
+    // existe no banco, o laudo sai igual (a célula já vai SIM) e o aviso fica no log.
+    if ((dados as any).atendeAcessibilidade?.valor !== "SIM") {
+      const { error: errCampo } = await supabaseAdmin.rpc("lip_gravar_campo", {
+        p_codigo: codigo, p_tipo_processo: "slot_05", p_chave: "atendeAcessibilidade",
+        p_valor: { valor: "SIM", origem: "urbis", fonte: "laudo emitido — atende à acessibilidade" },
+      });
+      if (errCampo) console.warn("[MAC/slot-05/laudo] atendeAcessibilidade não gravada no LIP:", errCampo.message);
+    }
+
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

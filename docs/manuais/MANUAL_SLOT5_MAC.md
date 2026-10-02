@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.31
-**Data:** 2026-09-30
+**Versão:** 1.38
+**Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -716,6 +716,14 @@ dois nunca compartilham a mesma lista de padrões, mesmo sendo o mesmo slot.
 Sai em **`.xlsx`** (não `.xlsm`: os botões de macro do Excel ficam fora da área de impressão e não
 são reproduzidos; o arquivo não leva VBA) e **não consome número de faixa** — o Laudo não é
 despacho nem parecer.
+
+**Acessibilidade (02/10/2026):** laudo emitido = projeto atende à acessibilidade. A célula L140 ("Atende acessibilidade?") sai sempre **SIM** no laudo, mesmo que o LIP ainda diga NÃO. Ao emitir, a rota grava também `atendeAcessibilidade` = SIM no LIP, só esse campo, pela função `lip_gravar_campo` (migration `2026_10_02_lip_gravar_campo.sql`, **ainda não aplicada em produção na data**: sem ela a rota só registra aviso no log e o laudo sai igual).
+
+**Sem faixa de pendência (02/10/2026):** o laudo não leva mais o texto vermelho "PENDENCIA: VER PREENCHIMENTO DO LAUDO" em B1; o que falta aparece só no aviso da tela.
+
+**Estética do laudo igualada ao feito à mão (02/10/2026).** O template `public/templates/laudo_slot5.xlsx` saía com cores erradas (cinza virava roxo, azul no lugar do branco) e com uma caixa de comentário vazia em D6 por cima do laudo: o template guardava cores por índice de paleta e o exceljs não grava a paleta. `scripts/corrigir_estetica_template_laudo_slot5.mts` regrava fundo, bordas e negrito/cor da fonte em RGB explícito, célula a célula, a partir do `.xls` do Fábio (`scripts/ler_xls_estilos.mts` lê os estilos do .xls). Conferido: 0 diferenças de estética, mesmas 390 mesclagens, mesmas linhas ocultas (41-53, 60-88, 99-105, 115-123) e mesma configuração de impressão. Na comparação de conteúdo com o 50724 (669 células iguais), o que sobra vem do LIP: área total privativa (3.167,10 no LIP × 3.572,10), volume da caixa de recarga (2,26 × 22,6), vagas de idoso, atende acessibilidade, e os campos sem origem no LIP (recuos/alturas, área não permeável em m²).
+
+**Botão "Laudo TESTE" (provisório) — removido em 02/10/2026**, depois de validar o laudo do 50724 contra o feito à mão. O laudo volta a ter um só botão, que emite de verdade.
 
 Origem do conteúdo: o **LIP** (`processos.dados`). O laudo do Fábio nasce no Excel `PAINEL V39`: a
 aba `Painel` (coluna F, linhas 2–121) recebe os dados e a aba `Laudo5` calcula por fórmula. O LIP do
@@ -1436,6 +1444,13 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.38 | 2026-10-02 | Seção 8.3: a emissão do laudo grava `atendeAcessibilidade` = SIM no LIP (campo único, função `lip_gravar_campo`; migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.37. |
+| 1.37 | 2026-10-02 | Seção 8.3: botão "Laudo TESTE" removido; "Atende acessibilidade" do laudo sai sempre SIM. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.36. |
+| 1.36 | 2026-10-02 | Seção 8.3: a faixa vermelha "PENDENCIA: VER PREENCHIMENTO DO LAUDO" (B1) deixa de sair no laudo; as pendências ficam só na tela (X-Avisos). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.35. |
+| 1.35 | 2026-10-02 | Seção 8.3: estética do template do laudo igualada ao laudo feito à mão (paleta de cores e comentário vazio em D6). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.34. |
+| 1.34 | 2026-10-02 | Seção 8.3: botão provisório "Laudo TESTE" (modo `teste` da rota do laudo), que não registra em LIP/MAC/MRP/MAP/Pilha. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.33. |
+| 1.33 | 2026-10-01 | Conferido: o LIP passou a propor o veredito de "dimensões do lote × certidão" (ver `MANUAL_SLOT5_LIP.md` v1.32, seção 29). Nenhuma mudança na tela do MAC. |
+| 1.32 | 2026-10-01 | Conferido: a leitura da pasta (LIP) passou a ler pranchas giradas e mais campos do carimbo (ver `MANUAL_SLOT5_LIP.md` v1.31); conferências do MAC que dependem de área, volume da caixa e índice paisagístico deixam de cair em "sem dado" nesses processos. Nenhuma mudança na tela do MAC. |
 | 1.31 | 2026-09-30 | Seção 8.8: despacho da 4ª análise leva o aviso "*OBS: penúltimo despacho…". Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.30 (sem mudança na tela do LIP). |
 | 1.30 | 2026-09-30 | Seção 8.7: a barra de pendências do LIP deixa de listar `pag` no Slot 5. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.29. |
 | 1.29 | 2026-09-25 | Seção 8.6: gerar o Laudo do Slot 5 marca o LIP como finalizado. Lado LIP conferido: `MANUAL_SLOT5_LIP.md` v1.28. |

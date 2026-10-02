@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.30
-**Data:** 2026-09-30
+**Versão:** 1.37
+**Data:** 2026-10-02
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1278,10 +1278,47 @@ de campos vazios (`descontarCampoFantasmaSlot5`, em `lib/bdi/situacao.ts`), para
 o tinham gravado; (3) a barra de pendências do MAC deixa de listar `pag`. A view do banco não mudou.
 Slot 1 e Slot 2 seguem como estavam: lá o campo existe na tela e continua valendo.
 
+## 29. Dimensões do lote × certidão de matrícula (01/10/2026)
+
+O campo **"Dimensões do lote conferem com a certidão de matrícula?"** (`dimensoesDoLoteConferemComA`)
+deixou de ser digitado à mão: a leitura da pasta agora **propõe** SIM ou NÃO, e o analista confirma
+(sai como INFERIDO, em laranja).
+
+Como decide (`lib/visao/conferirLote.ts`, função pura, testada em `scripts/testar_conferir_lote.mts`):
+
+- Lê, por visão, a descrição do imóvel na **certidão** (lote, quadra, área, frente, laterais, fundos —
+  a certidão é imagem escaneada) e, na **planta de situação** da prancha, a área e a menor e a maior
+  cota do **lote destacado**. Compara com o que o texto já tem do carimbo (área do terreno) e do Uso
+  do Solo (lote e quadra).
+- **SIM**: todo par comparável confere (área com tolerância de 0,5% ou 0,5 m²; cotas com 0,10 m), há
+  ao menos 2 pares e ao menos 1 vem da planta de situação.
+- **NÃO**: algum par diverge. A evidência diz qual (ex.: "certidão 437,50 m² × 360,00 m²").
+- **Sem veredito**: pouco dado (planta ilegível, visão desligada). O campo fica pendente — nunca
+  estimado. Lote irregular (menos de 4 lados explícitos na certidão) compara só área, lote e quadra.
+- Também aparece na lista de conferências da leitura ("Dimensões do lote conferem com a certidão de
+  matrícula?").
+
+**Atenção — depende da visão:** a visão (Gemini) é controlada por `urbis_config.visao_ligada`, que
+estava **desligada em produção** quando isto foi entregue. Desligada, o campo continua como antes
+(pendente, analista confere a olho). Ligar é decisão do Fábio (custo ≈ US$ 0,002 por leitura de pasta,
+com cache por conteúdo e teto de 40 chamadas/h por processo).
+
+Medido em 01/10/2026 com o modelo real: 47737 → SIM (12×30, 360 m², lote 07, quadra 03); Tecna 28268
+→ NÃO (certidão 437,50 m² × mapa 360,00 m²); Guarany 26286 → sem veredito (certidão de lote irregular,
+desmembramento). As chaves `certidao*` e `situacao*` são auxiliares: a rota as descarta e só o
+veredito chega à ficha.
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.37 | 2026-10-02 | Campo `atendeAcessibilidade` passa a ser gravado como SIM (origem `urbis`) quando o laudo é emitido, por escrita atômica de um campo (`lip_gravar_campo`, migration pendente de aplicar). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.38. |
+| 1.36 | 2026-10-02 | Conferido: o LIP não mudou. O laudo passa a sair com "atende acessibilidade" = SIM independentemente do campo `atendeAcessibilidade` do LIP (que só deveria virar SIM na emissão — gravação no LIP pendente). Ver `MANUAL_SLOT5_MAC.md` v1.37. |
+| 1.35 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o laudo deixou de levar a faixa vermelha de pendência. Ver `MANUAL_SLOT5_MAC.md` v1.36. |
+| 1.34 | 2026-10-02 | Conferido: o LIP não mudou. Comparando o laudo gerado do 50724 com o feito à mão, divergem por dado do LIP: área total privativa (3.167,10 × 3.572,10), volume da caixa de recarga (2,26 × 22,6), vagas de idoso e atende acessibilidade. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.35. |
+| 1.33 | 2026-10-02 | Conferido: o LIP não mudou. Novo no MAC: botão provisório "Laudo TESTE" lê o LIP e baixa o laudo sem marcar `lip_finalizado` nem registrar nada (o laudo normal continua marcando LIP concluído). Ver `MANUAL_SLOT5_MAC.md` v1.34. |
+| 1.32 | 2026-10-01 | Seção 29: "dimensões do lote × certidão" passa a ter veredito proposto pela leitura da pasta (visão: certidão e planta de situação × carimbo), como INFERIDO. Depende de `urbis_config.visao_ligada` (desligada em produção na data). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.33. |
+| 1.31 | 2026-10-01 | Leitura da pasta (carimbo da prancha): prancha com rotação de página (/Rotate 90/180/270) passa a ser lida na orientação certa — antes área do terreno, área construída, permeável, ICCAP e nº de caixas saíam vazios ou trocados (processo 47737; 137 pranchas reais do acervo conferidas). Também lê CREA/engenheiro no formato "ENGENHEIRO CIVIL - NOME - CREA nº", nº de pavimentos, nº de unidades sem rótulo, data de pagamento da taxa quebrada em duas linhas, "54,07²" sem o "m" e "Área do terreno: X" no mesmo item. Nº de caixas: frases explícitas primeiro; sem frase, fica vazio em vez de pegar número solto. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.32. |
 | 1.30 | 2026-09-30 | Conferido: o despacho da 4ª análise passou a levar o aviso de penúltimo (mudança do MAC, ver `MANUAL_SLOT5_MAC.md` v1.31, seção 8.8). Nenhuma mudança no LIP. |
 | 1.29 | 2026-09-30 | Seção 28: `pag` deixa de contar como campo vazio do LIP no Slot 5 (MVO 50724 ficava vermelho por ele). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.30. |
 | 1.28 | 2026-09-25 | Seção 27: emitir o Laudo (qualquer slot, inclusive o Slot 5) marca `lip_finalizado` no processo. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.29. |
