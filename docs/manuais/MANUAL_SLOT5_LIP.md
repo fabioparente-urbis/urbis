@@ -1312,6 +1312,7 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.43 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o administrador pode classificar cada item do checklist em um filtro (ou em nenhum) pelo botão 🏷️ — otimiza os filtros que usam campos do LIP sem tocar o LIP. Ver `MANUAL_SLOT5_MAC.md` v1.44. |
 | 1.41 | 2026-10-02 | Conferido: o LIP não mudou. O MAC ganhou o botão "Marcados pelo LIP", que lista os itens do checklist resolvidos pelos campos do LIP. Ver `MANUAL_SLOT5_MAC.md` v1.42. |
 | 1.40 | 2026-10-02 | Conferido: o LIP não mudou. Os motivos do indeferimento do Slot 5 foram definidos (ver `MANUAL_SLOT5_MAC.md` v1.41). |
 | 1.39 | 2026-10-02 | Conferido: o LIP não mudou. O indeferimento do Slot 5 lê o LIP só para cabeçalho (interessado, endereço) e não grava nenhum campo. Com ele registrado no MDP, os campos de parecer de indeferimento do LIP (`lipDocumentosEmitidos`) passam a se preencher. Ver `MANUAL_SLOT5_MAC.md` v1.40. |

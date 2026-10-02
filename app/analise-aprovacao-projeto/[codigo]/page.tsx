@@ -472,14 +472,19 @@ function extrairRestauracao(fonte: string | undefined): { status: Status; fonte:
   } catch { return null; }
 }
 
-function itensDoTema(itens: Item[], f: FiltroTema) {
-  if (f.idsExplicitos) {
-    const alvo = new Set(f.idsExplicitos);
-    return itens.filter((it) => alvo.has(it.id));
-  }
-  const extras = new Set(f.idsExtras ?? []);
-  return itens.filter((it) =>
-    extras.has(it.id) || f.termos.some((termo) => itemCitaTermo(it.texto, termo)));
+/** `manual` = classificação item → filtro feita pelo administrador (botão 🏷️). VENCE a regra: o item
+ *  classificado em outro filtro (ou em "nenhum") sai deste tema; o classificado neste entra mesmo sem casar. */
+function itensDoTema(itens: Item[], f: FiltroTema, manual: Record<string, string> = {}) {
+  const meu = `tema:${f.id}`;
+  const base = (() => {
+    if (f.idsExplicitos) {
+      const alvo = new Set(f.idsExplicitos);
+      return (it: Item) => alvo.has(it.id);
+    }
+    const extras = new Set(f.idsExtras ?? []);
+    return (it: Item) => extras.has(it.id) || f.termos.some((termo) => itemCitaTermo(it.texto, termo));
+  })();
+  return itens.filter((it) => (manual[it.id] ? manual[it.id] === meu : base(it)));
 }
 
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
@@ -632,6 +637,15 @@ export default function AnaliseAprovacaoProjeto() {
   const [ccDecisoes, setCcDecisoes] = useState<Record<string, "aceito" | "recusado">>({});
 
   const [proposta, setProposta] = useState<Proposta | null>(null);
+
+  /* Classificação manual item → filtro (botão 🏷️, só administrador). Vale para as PRÓXIMAS aplicações de
+     filtro; análises já marcadas não mudam. Ver migration 2026_10_02_mac_slot5_item_filtro.sql. */
+  const [manualFiltro, setManualFiltro] = useState<Record<string, string>>({});
+  const [filtrosBanco, setFiltrosBanco] = useState<{ id: string; nome: string }[]>([]);
+  const [podeClassificar, setPodeClassificar] = useState(false);
+  const [itemClassificando, setItemClassificando] = useState<Item | null>(null);
+  const [buscaClassificar, setBuscaClassificar] = useState("");
+  const [salvandoClassif, setSalvandoClassif] = useState(false);
   // "fechar" apenas ESCONDE o painel — a proposta continua em memória e volta pelo botão
   // "Ver filtros". Descartar de vez obrigaria a reavaliar tudo de novo.
   // Começa recolhido: abrir a tela não deve empurrar a lista de itens pra baixo.
@@ -668,6 +682,18 @@ export default function AnaliseAprovacaoProjeto() {
     }, 1500);
   }, []);
   useEffect(() => () => { if (obsTimer.current) clearTimeout(obsTimer.current); }, []);
+
+  useEffect(() => {
+    fetch("/api/mac/slot-05/item-filtro", { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d?.ok) return;
+        setManualFiltro(d.overrides ?? {});
+        setFiltrosBanco(d.filtrosBanco ?? []);
+        setPodeClassificar(!!d.podeEditar);
+      })
+      .catch(() => { /* sem o botão, a tela segue como antes */ });
+  }, []);
 
   useEffect(() => {
     if (!modalDI) return;
@@ -2148,9 +2174,9 @@ export default function AnaliseAprovacaoProjeto() {
         const f = FILTROS_TEMA.find((x) => x.id === id);
         if (!f) continue;
         const outro = id === "eit" ? FILTROS_TEMA.find((x) => x.id === "eiv") : FILTROS_TEMA.find((x) => x.id === "eit");
-        const doOutro = new Set((outro ? itensDoTema(itensChecklist, outro) : []).map((i) => i.id));
+        const doOutro = new Set((outro ? itensDoTema(itensChecklist, outro, manualFiltro) : []).map((i) => i.id));
         const vOutro = id === "eit" ? eiv : eit;
-        const meus = itensDoTema(itensChecklist, f)
+        const meus = itensDoTema(itensChecklist, f, manualFiltro)
           .filter((it) => !doOutro.has(it.id) || vOutro.veredito === "dispensado");
         if (!meus.length) continue;
 
@@ -2185,7 +2211,7 @@ export default function AnaliseAprovacaoProjeto() {
    * descarga", reaproveitado pelo painel da conta. */
   const itensCarga = useMemo(() => {
     const f = FILTROS_TEMA.find((x) => x.id === "carga");
-    return f ? itensDoTema(itensChecklist, f) : [];
+    return f ? itensDoTema(itensChecklist, f, manualFiltro) : [];
   }, [itensChecklist]);
 
   /** Leva o veredito de carga e descarga para o checklist: dispensado retira os itens (com a
@@ -2293,7 +2319,7 @@ export default function AnaliseAprovacaoProjeto() {
   const alcanceTemas = useMemo(() => {
     const m: Record<string, { itens: Item[]; pendentes: number; aplicado: boolean }> = {};
     for (const f of FILTROS_TEMA) {
-      const itens = itensDoTema(itensChecklist, f);
+      const itens = itensDoTema(itensChecklist, f, manualFiltro);
       m[f.id] = {
         itens,
         pendentes: itens.filter((it) => !marcas[it.id]).length,
@@ -2301,7 +2327,52 @@ export default function AnaliseAprovacaoProjeto() {
       };
     }
     return m;
-  }, [itensChecklist, marcas, fontes]);
+  }, [itensChecklist, marcas, fontes, manualFiltro]);
+
+  /** Nome legível do valor guardado em `manualFiltro` ("banco:<uuid>" | "tema:<id>" | "nenhum"). */
+  function nomeDoFiltroManual(valor: string): string {
+    if (valor === "nenhum") return "Nenhum filtro";
+    if (valor.startsWith("tema:")) return FILTROS_TEMA.find((f) => f.id === valor.slice(5))?.rotulo ?? valor;
+    if (valor.startsWith("banco:")) return filtrosBanco.find((f) => f.id === valor.slice(6))?.nome ?? "filtro removido";
+    return valor;
+  }
+
+  /** A qual filtro o item pertence HOJE: a classificação manual se houver; senão o que a regra automática
+   *  alcança (filtros de tema daqui + filtros do banco que a última leitura propôs). */
+  function filtroDoItem(it: Item): { rotulo: string; manual: boolean } | null {
+    const m = manualFiltro[it.id];
+    if (m) return m === "nenhum" ? { rotulo: "sem filtro", manual: true } : { rotulo: nomeDoFiltroManual(m), manual: true };
+    const tema = FILTROS_TEMA.find((f) => alcanceTemas[f.id]?.itens.some((x) => x.id === it.id));
+    if (tema) return { rotulo: tema.rotulo, manual: false };
+    const banco = proposta?.filtros.find((f) => f.itensIds.includes(it.id));
+    return banco ? { rotulo: banco.nome, manual: false } : null;
+  }
+
+  async function classificarItem(it: Item, filtro: string) {
+    if (salvandoClassif) return;
+    setSalvandoClassif(true);
+    try {
+      const r = await fetch("/api/mac/slot-05/item-filtro", {
+        method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_id: it.id, filtro }),
+      });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      setManualFiltro((prev) => {
+        const novo = { ...prev };
+        if (filtro === "auto") delete novo[it.id]; else novo[it.id] = filtro;
+        return novo;
+      });
+      setItemClassificando(null);
+      notificar(
+        filtro === "auto" ? "Item voltou à regra automática."
+          : `Item classificado: ${nomeDoFiltroManual(filtro)}. Vale para as próximas aplicações de filtro.`);
+    } catch (e: any) {
+      notificar(`Não consegui classificar o item: ${e?.message ?? e}`);
+    } finally {
+      setSalvandoClassif(false);
+    }
+  }
 
   /** Marca como Não se Aplica tudo que fala do tema. Mesma regra dos outros filtros: não passa por
    * cima de item já respondido e a fonte fica gravada para o "Desfazer" reconhecer. */
@@ -3704,8 +3775,24 @@ export default function AnaliseAprovacaoProjeto() {
                       <div className="flex-1 min-w-0">
                         {/* Numeração do sub item dentro do ÍTEM aberto — o analista cita o item pelo
                           * número na hora de conversar sobre o processo. */}
-                        <p className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wide mb-0.5">
-                          {grupos.indexOf(abaAtual) + 1}.{iSub + 1}
+                        <p className="text-[10px] text-[var(--text-muted)] font-mono uppercase tracking-wide mb-0.5 flex items-center gap-1.5">
+                          <span>{grupos.indexOf(abaAtual) + 1}.{iSub + 1}</span>
+                          {podeClassificar && (
+                            <button type="button" onClick={() => { setBuscaClassificar(""); setItemClassificando(it); }}
+                              title="A qual filtro este item pertence? (só administrador)"
+                              className="w-5 h-5 rounded border border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[11px] leading-none normal-case">
+                              🏷️
+                            </button>
+                          )}
+                          {(() => {
+                            const fi = filtroDoItem(it);
+                            return fi ? (
+                              <span title={fi.manual ? "Classificado por você" : "Pela regra automática do filtro"}
+                                className={`normal-case font-sans text-[10px] rounded px-1.5 py-px border ${fi.manual ? "border-[#0EA5E9] text-[#0369A1] bg-[#F0F9FF] font-bold" : "border-[var(--border)] text-[var(--text-muted)]"}`}>
+                                {fi.rotulo}{fi.manual ? " ✓" : ""}
+                              </span>
+                            ) : null;
+                          })()}
                         </p>
                         <p className="text-xs whitespace-pre-wrap">{destacarBusca(it.texto, busca)}</p>
                         {origem && (
@@ -4283,6 +4370,65 @@ export default function AnaliseAprovacaoProjeto() {
                 Confirmar Indeferimento
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {itemClassificando && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setItemClassificando(null)}>
+          <div className="bg-[var(--bg-card)] border border-[#0EA5E9] rounded-xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-[#0369A1] font-bold text-base mb-1">🏷️ A qual filtro este item pertence?</h2>
+            <p className="text-xs text-[var(--text-secondary)] mb-1 whitespace-pre-wrap line-clamp-4">{itemClassificando.texto}</p>
+            <p className="text-[10px] text-[var(--text-muted)] mb-3">
+              Hoje: <b>{filtroDoItem(itemClassificando)?.rotulo ?? "nenhum filtro"}</b>
+              {manualFiltro[itemClassificando.id] ? " (classificação manual)" : " (regra automática)"} ·
+              vale para as próximas aplicações de filtro.
+            </p>
+            <input value={buscaClassificar} onChange={(e) => setBuscaClassificar(e.target.value)} autoFocus
+              placeholder="Buscar filtro…"
+              className="w-full mb-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#0EA5E9]" />
+            <div className="overflow-y-auto flex-1 -mx-1 px-1">
+              {(() => {
+                const atual = manualFiltro[itemClassificando.id];
+                const q = buscaClassificar.trim().toLowerCase();
+                const casa = (n: string) => !q || n.toLowerCase().includes(q);
+                const opcoes: { valor: string; nome: string; grupo: string }[] = [
+                  { valor: "nenhum", nome: "Nenhum filtro", grupo: "" },
+                  ...FILTROS_TEMA.map((f) => ({ valor: `tema:${f.id}`, nome: f.rotulo, grupo: "Filtros de tema" })),
+                  ...filtrosBanco.map((f) => ({ valor: `banco:${f.id}`, nome: f.nome, grupo: "Filtros do LIP / documentos" })),
+                ].filter((o) => casa(o.nome));
+                let ultimoGrupo = "";
+                return (
+                  <>
+                    {atual && (
+                      <button type="button" disabled={salvandoClassif} onClick={() => void classificarItem(itemClassificando, "auto")}
+                        className="w-full text-left text-sm px-3 py-2 rounded-lg border border-dashed border-[var(--border-strong)] hover:bg-[var(--bg-card-hover)] mb-2">
+                        ↩ Voltar à regra automática
+                      </button>
+                    )}
+                    {opcoes.map((o) => {
+                      const cab = o.grupo && o.grupo !== ultimoGrupo ? o.grupo : "";
+                      if (o.grupo) ultimoGrupo = o.grupo;
+                      return (
+                        <div key={o.valor}>
+                          {cab && <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--text-muted)] mt-2 mb-1">{cab}</p>}
+                          <button type="button" disabled={salvandoClassif} onClick={() => void classificarItem(itemClassificando, o.valor)}
+                            className={`w-full text-left text-sm px-3 py-1.5 rounded-lg border mb-1 transition-colors ${atual === o.valor ? "border-[#0EA5E9] bg-[#F0F9FF] font-bold text-[#0369A1]" : "border-[var(--border)] hover:bg-[var(--bg-card-hover)]"}`}>
+                            {atual === o.valor ? "✓ " : ""}{o.nome}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {!opcoes.length && <p className="text-xs text-[var(--text-muted)] py-3">Nenhum filtro com esse nome.</p>}
+                  </>
+                );
+              })()}
+            </div>
+            <button type="button" onClick={() => setItemClassificando(null)}
+              className="mt-3 w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+              Fechar
+            </button>
           </div>
         </div>
       )}

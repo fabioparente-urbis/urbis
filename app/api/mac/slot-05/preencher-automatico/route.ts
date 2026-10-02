@@ -91,14 +91,28 @@ async function propostaPorFiltrosDoBanco(
     .select("id, grupo, texto").eq("modelo_id", modeloId).eq("ativo", true).limit(2000);
   const catalogo = (catalogoBruto ?? []) as { id: string; grupo: string; texto: string }[];
 
+  // Classificação manual item → filtro (botão 🏷️ do MAC; migration 2026_10_02). VENCE a regra automática:
+  // o item classificado em outro filtro ou em "nenhum" sai deste; o classificado neste entra mesmo sem casar
+  // regra. Tabela ausente = sem classificação manual (a tela segue como antes).
+  const manual = new Map<string, string>();
+  {
+    const { data: linhas, error } = await supabaseAdmin
+      .from("mac_slot5_item_filtro").select("item_id, filtro").limit(5000);
+    if (!error) for (const l of (linhas ?? []) as any[]) manual.set(l.item_id, l.filtro);
+  }
+
   const itensDoFiltro = (nome: string) => {
     const f = porNome.get(nome);
     if (!f) return [] as typeof catalogo;
     const grupos = new Set(f.grupos ?? []);
     const avulsos = new Set(f.itens_ids ?? []);
     const termos = f.termos_item ?? [];
-    return catalogo.filter((it) =>
-      grupos.has(it.grupo) || avulsos.has(it.id) || !!textoCitaAlgum(it.texto ?? "", termos));
+    const meu = `banco:${f.id}`;
+    return catalogo.filter((it) => {
+      const m = manual.get(it.id);
+      if (m) return m === meu;
+      return grupos.has(it.grupo) || avulsos.has(it.id) || !!textoCitaAlgum(it.texto ?? "", termos);
+    });
   };
 
   const montar = (nome: string, justificativa: string, recomendado: boolean) => {
