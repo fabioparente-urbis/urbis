@@ -157,6 +157,20 @@ aplica o mesmo tratamento do EIT/EIV: **dispensado** retira os itens de carga e 
 com a conta na fonte; **exigido** só escreve a conta (e se o pátio desenhado atende o mínimo) na
 observação de cada item — a decisão continua sendo do analista.
 
+#### 3.4.1 Classificação manual item → filtro (botão 🏷️, 02/10/2026)
+
+Cada item do checklist tem um botão 🏷️ pequeno, **só para o perfil Administrador** (Diretor/a não vê). Abre uma caixa com todos os filtros
+(de tema, da tela, e os do banco, `mac_slot5_filtros`), com busca: o administrador escolhe **a qual filtro o item pertence**, ou **"Nenhum
+filtro"**, ou **"Voltar à regra automática"**. É o jeito de ir otimizando os filtros aos poucos, item a item, enquanto analisa.
+
+- **A classificação manual vence a regra automática** (grupos, `termos_item`, `itens_ids`, termos, `idsExplicitos`/`idsExtras`): o item classificado
+  em outro filtro ou em "nenhum" **sai** do filtro que o pegava por regra; o classificado em um filtro **entra** nele mesmo sem casar regra.
+- **Persistência:** tabela `mac_slot5_item_filtro` (migration `2026_10_02_mac_slot5_item_filtro.sql`; só `service_role` lê/escreve), rota
+  `/api/mac/slot-05/item-filtro` (GET para todos, PUT só Administrador). Sem a tabela, o botão some e a tela segue como antes.
+- **Onde vale:** filtros de tema (`itensDoTema`, na tela) e filtros do banco (`preencher-automatico`, no servidor). **Só nas próximas aplicações de
+  filtro** — análises já marcadas não mudam.
+- **Na tela:** ao lado da numeração do item aparece o filtro a que ele pertence hoje (borda azul + ✓ = classificado à mão; cinza = regra automática).
+
 ### 3.5 Filtro de Unidade Territorial
 
 Campo no topo do índice, com a sigla escolhida pelo analista. **Histórico de idas e vindas nessa
@@ -1461,6 +1475,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.44 | 2026-10-02 | Seção 3.4.1: botão 🏷️ por item (só Administrador) para classificar o item em um filtro ou em nenhum; vence a regra automática; tabela `mac_slot5_item_filtro` (migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.43. |
 | 1.42 | 2026-10-02 | Painel de números do MAC: botão "Marcados pelo LIP" ao lado de "Marcados por você". Lado LIP: `MANUAL_SLOT5_LIP.md` v1.41. |
 | 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
 | 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Motivos: 180 dias, desistência, cinco análises. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
