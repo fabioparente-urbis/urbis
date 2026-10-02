@@ -417,6 +417,15 @@ const FILTROS_TEMA: FiltroTema[] = [
   },
 ];
 
+/** A fonte de uma marca é de FILTRO DO LIP (`mac_slot5_filtros`, calculado dos campos do LIP) quando
+ *  vem como `Filtro "RÓTULO"` e o rótulo NÃO é um filtro de tema decidido na tela. É a mesma regra
+ *  que o monitor "do LIP" usa para contar — o botão "Do LIP" e o anel mostram os mesmos itens. */
+const ROTULOS_TEMA = new Set<string>([...FILTROS_TEMA.map((f) => f.rotulo), "UNIDADE TERRITORIAL"]);
+function fonteEhDoLip(f: string): boolean {
+  const nome = f.match(/^Filtro "([^"]+)"/)?.[1];
+  return !!nome && !ROTULOS_TEMA.has(nome);
+}
+
 /** Destaca no texto do item onde a busca bateu — compara sem acento/caixa (igual ao filtro dos
  * grupos), mas devolve o texto ORIGINAL com só o trecho achado em fundo amarelo. */
 function destacarBusca(texto: string, queryBruta: string): ReactNode {
@@ -931,16 +940,11 @@ export default function AnaliseAprovacaoProjeto() {
      *     "APRO DE PROJ", "S/ SUBSOLO"). Saem sozinhos ao abrir a tela, sem ninguém decidir.
      * A separação diz quanto do checklist o LIP resolve sem intervenção — que é o que mostra se
      * a leitura está rendendo. Reconhecidos pelo RÓTULO gravado na fonte, não por emoji. */
-    const rotulosDeTema = new Set<string>([
-      ...FILTROS_TEMA.map((f) => f.rotulo),
-      "UNIDADE TERRITORIAL",   // filtro da sigla, também decidido na tela
-    ]);
     let porFiltro = 0, porLip = 0, porIA = 0, porAnalista = 0;
     for (const i of itensChecklist) {
       if (!marcas[i.id]) continue;
       const f = fontes[i.id] ?? "";
-      const nome = f.match(/^Filtro "([^"]+)"/)?.[1];
-      if (nome) { if (rotulosDeTema.has(nome)) porFiltro++; else porLip++; }
+      if (/^Filtro "[^"]+"/.test(f)) { if (fonteEhDoLip(f)) porLip++; else porFiltro++; }
       else if (f.startsWith("IA")) porIA++;
       else porAnalista++;
     }
@@ -3002,6 +3006,19 @@ export default function AnaliseAprovacaoProjeto() {
               <div className="leading-tight text-left">
                 <p className="text-base font-bold text-[#7C3AED]">{origemDasRespostas.porAnalista}</p>
                 <p className="text-[10px] text-[var(--text-muted)]">Marcados por você</p>
+              </div>
+            </button>
+
+            <button type="button"
+              onClick={() => abrirLista("Marcados pelo LIP", (i) => !!marcas[i.id] && fonteEhDoLip(fontes[i.id] ?? ""))}
+              title="Itens que saíram sozinhos pelos campos do LIP (filtros calculados), sem ninguém decidir"
+              className="flex items-center gap-2 rounded-lg -m-1 p-1 hover:bg-[var(--bg-card-hover)] transition-colors">
+              <span className="w-7 h-7 rounded-lg border border-[#0EA5E9] bg-[#F0F9FF] flex items-center justify-center text-sm shrink-0">
+                📋
+              </span>
+              <div className="leading-tight text-left">
+                <p className="text-base font-bold text-[#0EA5E9]">{origemDasRespostas.porLip}</p>
+                <p className="text-[10px] text-[var(--text-muted)]">Marcados pelo LIP</p>
               </div>
             </button>
 

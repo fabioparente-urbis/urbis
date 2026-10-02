@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.41
+**Versão:** 1.42
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -783,6 +783,8 @@ nome do interessado (caixa alta no LIP).
 - **Não testado ao vivo** na data: a rota gera o .docx corretamente com dados reais (conferido o texto), mas o fluxo da tela inteiro, com
   consumo de número, ainda não foi exercitado.
 
+**Botão "Marcados pelo LIP" (02/10/2026).** No painel de números do MAC, ao lado de "Marcados por você": conta e lista os itens que saíram sozinhos pelos campos do LIP (filtros calculados de `mac_slot5_filtros`, fonte `Filtro "RÓTULO"` com rótulo que não é filtro de tema). É a mesma regra do anel "do LIP" do monitor de preenchimento (`fonteEhDoLip`), então o número do botão e o do anel conferem. Não muda nenhuma marca, só mostra.
+
 ### 8.4 Excel export/import do MAC do Slot 5
 
 Formato `slot5-mac-2` (compatível com `-1` da planilha antiga — a importação aceita os dois).
@@ -1459,6 +1461,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.42 | 2026-10-02 | Painel de números do MAC: botão "Marcados pelo LIP" ao lado de "Marcados por você". Lado LIP: `MANUAL_SLOT5_LIP.md` v1.41. |
 | 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
 | 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Motivos: 180 dias, desistência, cinco análises. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
 | 1.39 | 2026-10-02 | Seção 8.3: a emissão do laudo passa a gravar no MDP (satélite que faltava). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.38. |
