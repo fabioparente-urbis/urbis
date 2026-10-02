@@ -487,6 +487,16 @@ function itensDoTema(itens: Item[], f: FiltroTema, manual: Record<string, string
   return itens.filter((it) => (manual[it.id] ? manual[it.id] === meu : base(it)));
 }
 
+/** Funil do filtro do Excel — o ícone do botão que classifica o item em um filtro. */
+function IconeFunil({ tamanho = 13 }: { tamanho?: number }) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 16 16" aria-hidden="true" className="inline-block">
+      <path d="M1.5 2h13a.5.5 0 0 1 .38.82L10 8.6V14a.5.5 0 0 1-.76.43l-2.5-1.5A.5.5 0 0 1 6.5 12.5V8.6L1.12 2.82A.5.5 0 0 1 1.5 2z"
+        fill="currentColor" />
+    </svg>
+  );
+}
+
 /** Ícone de origem da resposta — mesma ideia do 🤖/✏️ do MAC do Slot 1, com um a mais (🎛️ filtro). */
 function origemDoItem(fonte: string | undefined): { icone: string; rotulo: string } | null {
   if (!fonte) return null;
@@ -3780,8 +3790,8 @@ export default function AnaliseAprovacaoProjeto() {
                           {podeClassificar && (
                             <button type="button" onClick={() => { setBuscaClassificar(""); setItemClassificando(it); }}
                               title="A qual filtro este item pertence? (só administrador)"
-                              className="w-5 h-5 rounded border border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[11px] leading-none normal-case">
-                              🏷️
+                              className="w-5 h-5 rounded border border-[var(--border-strong)] bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[#0369A1] flex items-center justify-center normal-case">
+                              <IconeFunil tamanho={11} />
                             </button>
                           )}
                           {(() => {
@@ -4378,7 +4388,7 @@ export default function AnaliseAprovacaoProjeto() {
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setItemClassificando(null)}>
           <div className="bg-[var(--bg-card)] border border-[#0EA5E9] rounded-xl p-5 w-full max-w-md max-h-[85vh] flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-[#0369A1] font-bold text-base mb-1">🏷️ A qual filtro este item pertence?</h2>
+            <h2 className="text-[#0369A1] font-bold text-base mb-1 flex items-center gap-1.5"><IconeFunil tamanho={15} /> A qual filtro este item pertence?</h2>
             <p className="text-xs text-[var(--text-secondary)] mb-1 whitespace-pre-wrap line-clamp-4">{itemClassificando.texto}</p>
             <p className="text-[10px] text-[var(--text-muted)] mb-3">
               Hoje: <b>{filtroDoItem(itemClassificando)?.rotulo ?? "nenhum filtro"}</b>
