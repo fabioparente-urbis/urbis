@@ -146,11 +146,31 @@ export function situacaoLip(
    * emitido): só o que o Fábio decidiu.
    */
   macArquivadoOuIndeferido?: boolean,
+  /**
+   * Pedido do Fábio, 27/09/2026 (processo 25.5.000066009-3: clicou "Finalizar LIP", o processo
+   * já tinha laudo emitido, e o card continuava vermelho porque a marca manual "LIP não concluído"
+   * seguia ligada). Amplia a regra de 10/09 acima: laudo emitido (MAC "Encerrado") e o botão
+   * "Finalizar LIP" (processos.lip_finalizado) também encerram a pendência do LIP — vencem tanto
+   * campo vazio quanto a marca manual. A marca manual continua gravada; só deixa de pintar o card.
+   */
+  encerramento?: { laudoEmitido?: boolean; lipFinalizado?: boolean },
 ): ClassificacaoComMotivo<SituacaoLip> {
   if (macArquivadoOuIndeferido) {
     return {
       classe: "Completo",
       motivo: "Processo arquivado/indeferido no MAC — LIP pendente deixa de contar como pendência, mesmo com campo vazio (processos.tags).",
+    };
+  }
+  if (encerramento?.laudoEmitido) {
+    return {
+      classe: "Completo",
+      motivo: "Laudo já emitido no MAC — LIP pendente deixa de contar como pendência, mesmo com campo vazio ou marcado \"não concluído\".",
+    };
+  }
+  if (encerramento?.lipFinalizado) {
+    return {
+      classe: "Completo",
+      motivo: "Analista clicou \"Finalizar LIP\" — decidiu seguir com o que tem; vale mesmo com campo vazio ou marcado \"não concluído\" (processos.lip_finalizado).",
     };
   }
   if (!campos || campos.campos_totais === 0) {
