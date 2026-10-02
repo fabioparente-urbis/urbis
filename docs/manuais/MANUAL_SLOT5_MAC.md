@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.42
+**Versão:** 1.43
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -43,6 +43,8 @@ do checklist contra a planilha real do Fábio, geração de documentos e o backl
 tabela `mac_checklist_itens` (que guarda, na mesma tabela, os itens dos 3 modelos existentes — Slot
 5 + Regularização + Aceite — sempre filtrar por `modelo_id`, nunca confiar em filtro por nome de
 grupo sozinho, ver seção 5.9 "armadilha grave").
+
+**Item removido do checklist (02/10/2026):** grupo PLANTA DE SITUAÇÃO, item 7 — *"Retirar a largura de ilhas e calçada, deixar apenas a largura do lougradouro de 45m;"* (`id 4a415e40-3c1d-44aa-b7f7-07c39db8ec4d`). Desativado (`ativo=false`, não apagado) a pedido do Fábio, porque cita um valor fixo de 45 m que não vale para todo lote. Antes de desativar, conferido: nenhuma análise tinha esse item como não conforme (3 análises com marca: 2 "não se aplica" e 1 "conforme"), então nenhuma exigência some de despacho. Contagem viva depois: **538 ativos**. Reativar = `ativo=true`.
 
 **Contagem ao vivo nesta sessão (25/08/2026, consultado direto no banco)**: **774 itens totais**
 no modelo do Slot 5, dos quais **538 ativos**. Este número mudou várias vezes ao longo do trabalho
@@ -1461,6 +1463,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.43 | 2026-10-02 | Checklist: item 7 de PLANTA DE SITUAÇÃO (logradouro de 45 m) desativado; 538 ativos. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.42. |
 | 1.42 | 2026-10-02 | Painel de números do MAC: botão "Marcados pelo LIP" ao lado de "Marcados por você". Lado LIP: `MANUAL_SLOT5_LIP.md` v1.41. |
 | 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
 | 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Motivos: 180 dias, desistência, cinco análises. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
