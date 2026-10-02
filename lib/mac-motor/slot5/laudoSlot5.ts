@@ -143,6 +143,9 @@ export function calcularLaudo(
       c[coord] = v;
     }
   }
+  // Laudo emitido = projeto atende à acessibilidade (regra do Fábio, 02/10/2026): quem não atende não
+  // chega ao laudo, vai para exigência ou indeferimento. Vale mesmo que o LIP ainda diga NÃO.
+  c.L140 = "SIM";
   c.D6 = `${P[2] ?? ""} , Q.${P[7] ?? ""} , L.${P[8] ?? ""} ; `;
 
   const A = n(P[90]);            // D28 — área do lote
@@ -233,8 +236,9 @@ export function calcularLaudo(
 
   c.M144 = opts.dataEmissao.toISOString().slice(0, 10);   // o gerador converte para data
 
-  // Faixa "PENDENCIA" do modelo: só quando falta dado que o LIP deveria ter dado.
-  c.B1 = avisos.length > 0 ? "PENDENCIA: VER PREENCHIMENTO DO LAUDO" : "";
+  // B1 era a faixa vermelha "PENDENCIA" do modelo. Não sai mais no laudo (pedido do Fábio, 02/10/2026):
+  // as pendências voltam só no cabeçalho X-Avisos e aparecem na tela do MAC.
+  c.B1 = "";
 
   // ── O que o LIP não tem: fica pro analista ──────────────────────────────────────────
   avisos.push("Recuos utilizados em projeto (I58:L61) e alturas acumuladas (H58:H61) não vêm do LIP — preencher na planilha");
