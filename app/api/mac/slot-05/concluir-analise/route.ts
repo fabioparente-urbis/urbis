@@ -41,7 +41,10 @@ export async function POST(req: NextRequest) {
     const usuario = await usuarioDaRequisicao(req);
     if (!usuario) return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
 
-    const { codigo, numero_analise } = await req.json().catch(() => ({}));
+    const { codigo, numero_analise, tipo } = await req.json().catch(() => ({}));
+    // `tipo` só ESCOLHE qual número conferir no banco (despacho ou parecer de indeferimento); o número e o
+    // tipo gravados no evento vêm sempre da releitura, nunca do corpo.
+    const indeferimento = tipo === "indeferimento";
     if (!codigo || !numero_analise) {
       return NextResponse.json({ ok: false, erro: "codigo e numero_analise obrigatórios" }, { status: 400 });
     }
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
     // requisição — só daqui.
     const { data: analise, error: erroAnalise } = await supabaseAdmin
       .from("analises_mac")
-      .select("numero_analise, numero_despacho")
+      .select("numero_analise, numero_despacho, numero_parecer")
       .eq("processo_codigo", codigo)
       .eq("tipo_processo", TIPO_PROCESSO_SLOT5)
       .eq("numero_analise", numero_analise)
@@ -66,8 +69,14 @@ export async function POST(req: NextRequest) {
     if (!analise) {
       return NextResponse.json({ ok: false, erro: "análise não encontrada para este processo no Slot 5" }, { status: 404 });
     }
-    if (!analise.numero_despacho) {
-      return NextResponse.json({ ok: false, erro: "esta análise ainda não tem despacho commitado — nada para concluir" }, { status: 400 });
+    const numeroDocumento = indeferimento ? (analise as any).numero_parecer : analise.numero_despacho;
+    if (!numeroDocumento) {
+      return NextResponse.json({
+        ok: false,
+        erro: indeferimento
+          ? "esta análise ainda não tem parecer de indeferimento commitado — nada para concluir"
+          : "esta análise ainda não tem despacho commitado — nada para concluir",
+      }, { status: 400 });
     }
 
     const agora = new Date().toISOString();
@@ -91,8 +100,8 @@ export async function POST(req: NextRequest) {
       assunto_id: ASSUNTO_ID_SLOT5,
       detalhe: {
         numero_analise: analise.numero_analise,
-        tipo_documento: "despacho",
-        numero_documento: analise.numero_despacho,
+        tipo_documento: indeferimento ? "indeferimento" : "despacho",
+        numero_documento: numeroDocumento,
         slot: TIPO_PROCESSO_SLOT5,
       },
       origem: "SISTEMA",
