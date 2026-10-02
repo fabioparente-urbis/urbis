@@ -1475,6 +1475,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.45 | 2026-10-02 | Tela do MAC: o contador "N/M respondidos" dentro de cada ÍTEM (aba) passa a letra maior, vermelha e em negrito (pedido do Fábio). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.44. |
 | 1.44 | 2026-10-02 | Seção 3.4.1: botão 🏷️ por item (só Administrador) para classificar o item em um filtro ou em nenhum; vence a regra automática; tabela `mac_slot5_item_filtro` (migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.43. |
 | 1.42 | 2026-10-02 | Painel de números do MAC: botão "Marcados pelo LIP" ao lado de "Marcados por você". Lado LIP: `MANUAL_SLOT5_LIP.md` v1.41. |
 | 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
