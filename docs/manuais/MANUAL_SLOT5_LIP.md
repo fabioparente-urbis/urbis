@@ -1312,6 +1312,7 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.45 | 2026-10-02 | Conferido: o LIP não mudou. O botão de classificar item em filtro no MAC trocou o ícone para o funil do Excel. Ver `MANUAL_SLOT5_MAC.md` v1.46. |
 | 1.44 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o contador "respondidos" de cada ÍTEM ganhou destaque (vermelho, negrito). Ver `MANUAL_SLOT5_MAC.md` v1.45. |
 | 1.43 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o administrador pode classificar cada item do checklist em um filtro (ou em nenhum) pelo botão 🏷️ — otimiza os filtros que usam campos do LIP sem tocar o LIP. Ver `MANUAL_SLOT5_MAC.md` v1.44. |
 | 1.41 | 2026-10-02 | Conferido: o LIP não mudou. O MAC ganhou o botão "Marcados pelo LIP", que lista os itens do checklist resolvidos pelos campos do LIP. Ver `MANUAL_SLOT5_MAC.md` v1.42. |

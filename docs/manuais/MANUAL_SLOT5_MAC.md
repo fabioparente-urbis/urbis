@@ -157,9 +157,9 @@ aplica o mesmo tratamento do EIT/EIV: **dispensado** retira os itens de carga e 
 com a conta na fonte; **exigido** só escreve a conta (e se o pátio desenhado atende o mínimo) na
 observação de cada item — a decisão continua sendo do analista.
 
-#### 3.4.1 Classificação manual item → filtro (botão 🏷️, 02/10/2026)
+#### 3.4.1 Classificação manual item → filtro (botão de funil, 02/10/2026)
 
-Cada item do checklist tem um botão 🏷️ pequeno, **só para o perfil Administrador** (Diretor/a não vê). Abre uma caixa com todos os filtros
+Cada item do checklist tem um botão pequeno com o ícone de funil (o do filtro do Excel), **só para o perfil Administrador** (Diretor/a não vê). Abre uma caixa com todos os filtros
 (de tema, da tela, e os do banco, `mac_slot5_filtros`), com busca: o administrador escolhe **a qual filtro o item pertence**, ou **"Nenhum
 filtro"**, ou **"Voltar à regra automática"**. É o jeito de ir otimizando os filtros aos poucos, item a item, enquanto analisa.
 
@@ -1475,6 +1475,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.46 | 2026-10-02 | Seção 3.4.1: o botão de classificar item em filtro passa a usar o ícone de funil do filtro do Excel (antes 🏷️), a pedido do Fábio. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.45. |
 | 1.45 | 2026-10-02 | Tela do MAC: o contador "N/M respondidos" dentro de cada ÍTEM (aba) passa a letra maior, vermelha e em negrito (pedido do Fábio). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.44. |
 | 1.44 | 2026-10-02 | Seção 3.4.1: botão 🏷️ por item (só Administrador) para classificar o item em um filtro ou em nenhum; vence a regra automática; tabela `mac_slot5_item_filtro` (migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.43. |
 | 1.42 | 2026-10-02 | Painel de números do MAC: botão "Marcados pelo LIP" ao lado de "Marcados por você". Lado LIP: `MANUAL_SLOT5_LIP.md` v1.41. |
