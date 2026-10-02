@@ -3760,7 +3760,7 @@ export default function AnaliseAprovacaoProjeto() {
                   className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                   🧹 Limpar Aba
                 </button>
-                <span className="text-xs text-[var(--text-muted)] self-center">
+                <span className="text-base font-bold text-[#DC2626] self-center">
                   {stats[abaAtual]?.respondidos ?? 0}/{stats[abaAtual]?.total ?? 0} respondidos
                 </span>
               </div>
