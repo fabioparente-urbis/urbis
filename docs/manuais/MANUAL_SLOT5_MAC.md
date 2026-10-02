@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.38
+**Versão:** 1.39
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -718,6 +718,8 @@ são reproduzidos; o arquivo não leva VBA) e **não consome número de faixa** 
 despacho nem parecer.
 
 **Acessibilidade (02/10/2026):** laudo emitido = projeto atende à acessibilidade. A célula L140 ("Atende acessibilidade?") sai sempre **SIM** no laudo, mesmo que o LIP ainda diga NÃO. Ao emitir, a rota grava também `atendeAcessibilidade` = SIM no LIP, só esse campo, pela função `lip_gravar_campo` (migration `2026_10_02_lip_gravar_campo.sql`, **ainda não aplicada em produção na data**: sem ela a rota só registra aviso no log e o laudo sai igual).
+
+**MDP (02/10/2026):** o teste de emissão no 50724 mostrou que a rota do laudo nunca gravava no MDP (só MRP, MAP e tag, pelo cliente). Agora a rota grava `mdp_registros` tipo `laudo` pela `gravarRegistroMDPLaudo` (a mesma do Slot 1 e do Slot 2), com a análise mais recente do processo; reemitir a mesma análise atualiza a linha em vez de duplicar. Falha silenciosa: o laudo não quebra se o MDP estiver fora.
 
 **Sem faixa de pendência (02/10/2026):** o laudo não leva mais o texto vermelho "PENDENCIA: VER PREENCHIMENTO DO LAUDO" em B1; o que falta aparece só no aviso da tela.
 
@@ -1444,6 +1446,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.39 | 2026-10-02 | Seção 8.3: a emissão do laudo passa a gravar no MDP (satélite que faltava). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.38. |
 | 1.38 | 2026-10-02 | Seção 8.3: a emissão do laudo grava `atendeAcessibilidade` = SIM no LIP (campo único, função `lip_gravar_campo`; migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.37. |
 | 1.37 | 2026-10-02 | Seção 8.3: botão "Laudo TESTE" removido; "Atende acessibilidade" do laudo sai sempre SIM. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.36. |
 | 1.36 | 2026-10-02 | Seção 8.3: a faixa vermelha "PENDENCIA: VER PREENCHIMENTO DO LAUDO" (B1) deixa de sair no laudo; as pendências ficam só na tela (X-Avisos). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.35. |

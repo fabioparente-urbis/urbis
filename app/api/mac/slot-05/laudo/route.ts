@@ -15,6 +15,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { gerarLaudoSlot5 } from "@/lib/geradores/gerarLaudoSlot5";
+import { valorPainel } from "@/lib/mac-motor/slot5/laudoSlot5";
+import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
 
 export const runtime = "nodejs";
 
@@ -51,6 +53,27 @@ export async function POST(req: NextRequest) {
       .eq("codigo", codigo)
       .eq("tipo_processo", "slot_05")
       .or("lip_finalizado.is.null,lip_finalizado.eq.false");
+
+    // MDP: o laudo é documento emitido e precisa constar no registro do que SAIU (regra dos satélites do
+    // CLAUDE.md; achado no teste de 02/10/2026 — este slot nunca gravava). Falha silenciosa: o laudo não
+    // quebra se o MDP estiver fora. Reemissão da mesma análise atualiza a linha, não duplica.
+    try {
+      const { data: ultima } = await supabaseAdmin
+        .from("analises_mac").select("numero_analise")
+        .eq("processo_codigo", codigo).eq("tipo_processo", TIPO_PROCESSO_SLOT5)
+        .order("numero_analise", { ascending: false }).limit(1).maybeSingle();
+      const { gravarRegistroMDPLaudo } = await import("@/lib/mdpGravar");
+      const r = await gravarRegistroMDPLaudo({
+        processo_codigo: codigo,
+        assunto_id: ASSUNTO_ID_SLOT5,
+        numero_analise: (ultima as any)?.numero_analise ?? null,
+        interessado: valorPainel(dados, 10) ?? null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+      if (!r.ok) console.warn("[MAC/slot-05/laudo] MDP não gravado:", r.motivo);
+    } catch (e: any) {
+      console.warn("[MAC/slot-05/laudo] falha ao gravar no MDP:", e?.message);
+    }
 
     // Laudo emitido = projeto atende à acessibilidade (regra do Fábio, 02/10/2026). Grava só esse campo,
     // atômico (lip_gravar_campo — migration 2026_10_02); não reescreve a ficha. Se a função ainda não
