@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.37
+**Versão:** 1.38
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -717,7 +717,7 @@ Sai em **`.xlsx`** (não `.xlsm`: os botões de macro do Excel ficam fora da ár
 são reproduzidos; o arquivo não leva VBA) e **não consome número de faixa** — o Laudo não é
 despacho nem parecer.
 
-**Acessibilidade (02/10/2026):** laudo emitido = projeto atende à acessibilidade. A célula L140 ("Atende acessibilidade?") sai sempre **SIM** no laudo, mesmo que o LIP ainda diga NÃO. Gravar o SIM de volta no LIP exige escrita atômica de um campo só (ainda não existe) — pendente.
+**Acessibilidade (02/10/2026):** laudo emitido = projeto atende à acessibilidade. A célula L140 ("Atende acessibilidade?") sai sempre **SIM** no laudo, mesmo que o LIP ainda diga NÃO. Ao emitir, a rota grava também `atendeAcessibilidade` = SIM no LIP, só esse campo, pela função `lip_gravar_campo` (migration `2026_10_02_lip_gravar_campo.sql`, **ainda não aplicada em produção na data**: sem ela a rota só registra aviso no log e o laudo sai igual).
 
 **Sem faixa de pendência (02/10/2026):** o laudo não leva mais o texto vermelho "PENDENCIA: VER PREENCHIMENTO DO LAUDO" em B1; o que falta aparece só no aviso da tela.
 
@@ -1444,6 +1444,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.38 | 2026-10-02 | Seção 8.3: a emissão do laudo grava `atendeAcessibilidade` = SIM no LIP (campo único, função `lip_gravar_campo`; migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.37. |
 | 1.37 | 2026-10-02 | Seção 8.3: botão "Laudo TESTE" removido; "Atende acessibilidade" do laudo sai sempre SIM. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.36. |
 | 1.36 | 2026-10-02 | Seção 8.3: a faixa vermelha "PENDENCIA: VER PREENCHIMENTO DO LAUDO" (B1) deixa de sair no laudo; as pendências ficam só na tela (X-Avisos). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.35. |
 | 1.35 | 2026-10-02 | Seção 8.3: estética do template do laudo igualada ao laudo feito à mão (paleta de cores e comentário vazio em D6). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.34. |

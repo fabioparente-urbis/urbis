@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.36
+**Versão:** 1.37
 **Data:** 2026-10-02
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1312,6 +1312,7 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.37 | 2026-10-02 | Campo `atendeAcessibilidade` passa a ser gravado como SIM (origem `urbis`) quando o laudo é emitido, por escrita atômica de um campo (`lip_gravar_campo`, migration pendente de aplicar). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.38. |
 | 1.36 | 2026-10-02 | Conferido: o LIP não mudou. O laudo passa a sair com "atende acessibilidade" = SIM independentemente do campo `atendeAcessibilidade` do LIP (que só deveria virar SIM na emissão — gravação no LIP pendente). Ver `MANUAL_SLOT5_MAC.md` v1.37. |
 | 1.35 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o laudo deixou de levar a faixa vermelha de pendência. Ver `MANUAL_SLOT5_MAC.md` v1.36. |
 | 1.34 | 2026-10-02 | Conferido: o LIP não mudou. Comparando o laudo gerado do 50724 com o feito à mão, divergem por dado do LIP: área total privativa (3.167,10 × 3.572,10), volume da caixa de recarga (2,26 × 22,6), vagas de idoso e atende acessibilidade. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.35. |
