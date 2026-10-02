@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.40
+**Versão:** 1.41
 **Data:** 2026-10-02
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -779,8 +779,7 @@ nome do interessado (caixa alta no LIP).
 - **Diferenças deliberadas em relação ao Slot 1:** (1) os motivos marcados na tela **saem impressos** no parecer (no Slot 1 a rota os recebe e
   não os repassa ao documento); (2) a rota **não regrava `processos.dados`** (o Slot 1 faz `{...dados, ultimo_documento}`, padrão que apagou
   campos do LIP em 15-16/09/2026); (3) o parecer imprime o endereço do LIP, não o código do processo.
-- **Motivos disponíveis** (`lib/mac-motor/slot5/motivosIndeferimento.ts`): **rascunho** com 2 itens (exigências não atendidas — art. 8º, § 7º do
-  Decreto nº 2.531/2024; falta de documentação mínima). A lista do Slot 1 é de Regularização e não se aplica; falta o Fábio revisar/completar.
+- **Motivos disponíveis** (`lib/mac-motor/slot5/motivosIndeferimento.ts`, definidos pelo Fábio em 02/10/2026): 180 dias parado com o interessado; desistência do interessado; cinco análises concluídas. A lista do Slot 1 é de Regularização e não se aplica. O parágrafo de fundamento do parecer é o mesmo do Slot 1 para qualquer motivo ("Por não cumprimento ao exigido nos despachos anteriormente listados…") — não se ajusta ao motivo marcado.
 - **Não testado ao vivo** na data: a rota gera o .docx corretamente com dados reais (conferido o texto), mas o fluxo da tela inteiro, com
   consumo de número, ainda não foi exercitado.
 
@@ -1460,7 +1459,8 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
-| 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Lista de motivos é rascunho. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
+| 1.41 | 2026-10-02 | Seção 8.3: lista de motivos do indeferimento definida pelo Fábio (180 dias parado, desistência, cinco análises concluídas). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.40. |
+| 1.40 | 2026-10-02 | Seção 8.3: **Indeferimento do Slot 5 construído** (rota e gerador próprios, tela idêntica à do Slot 1, número de parecer da série única só depois do documento, satélites MAP/MRP/MDP/tag/conclusão). Motivos: 180 dias, desistência, cinco análises. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.39. |
 | 1.39 | 2026-10-02 | Seção 8.3: a emissão do laudo passa a gravar no MDP (satélite que faltava). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.38. |
 | 1.38 | 2026-10-02 | Seção 8.3: a emissão do laudo grava `atendeAcessibilidade` = SIM no LIP (campo único, função `lip_gravar_campo`; migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.37. |
 | 1.37 | 2026-10-02 | Seção 8.3: botão "Laudo TESTE" removido; "Atende acessibilidade" do laudo sai sempre SIM. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.36. |
