@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.38
+**Versão:** 1.41
 **Data:** 2026-10-02
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1312,6 +1312,9 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.41 | 2026-10-02 | Conferido: o LIP não mudou. O MAC ganhou o botão "Marcados pelo LIP", que lista os itens do checklist resolvidos pelos campos do LIP. Ver `MANUAL_SLOT5_MAC.md` v1.42. |
+| 1.40 | 2026-10-02 | Conferido: o LIP não mudou. Os motivos do indeferimento do Slot 5 foram definidos (ver `MANUAL_SLOT5_MAC.md` v1.41). |
+| 1.39 | 2026-10-02 | Conferido: o LIP não mudou. O indeferimento do Slot 5 lê o LIP só para cabeçalho (interessado, endereço) e não grava nenhum campo. Com ele registrado no MDP, os campos de parecer de indeferimento do LIP (`lipDocumentosEmitidos`) passam a se preencher. Ver `MANUAL_SLOT5_MAC.md` v1.40. |
 | 1.38 | 2026-10-02 | Conferido: o LIP não mudou. Com o laudo registrado no MDP, os campos de documento emitido do LIP (`lipDocumentosEmitidos`) passam a enxergar o laudo do Slot 5. Ver `MANUAL_SLOT5_MAC.md` v1.39. |
 | 1.37 | 2026-10-02 | Campo `atendeAcessibilidade` passa a ser gravado como SIM (origem `urbis`) quando o laudo é emitido, por escrita atômica de um campo (`lip_gravar_campo`, migration pendente de aplicar). Lado MAC: `MANUAL_SLOT5_MAC.md` v1.38. |
 | 1.36 | 2026-10-02 | Conferido: o LIP não mudou. O laudo passa a sair com "atende acessibilidade" = SIM independentemente do campo `atendeAcessibilidade` do LIP (que só deveria virar SIM na emissão — gravação no LIP pendente). Ver `MANUAL_SLOT5_MAC.md` v1.37. |
