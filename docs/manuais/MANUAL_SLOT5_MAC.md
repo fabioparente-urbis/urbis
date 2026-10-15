@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.42
-**Data:** 2026-10-02
+**Versão:** 1.47
+**Data:** 2026-10-15
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -739,6 +739,8 @@ despacho nem parecer.
 
 **Estética do laudo igualada ao feito à mão (02/10/2026).** O template `public/templates/laudo_slot5.xlsx` saía com cores erradas (cinza virava roxo, azul no lugar do branco) e com uma caixa de comentário vazia em D6 por cima do laudo: o template guardava cores por índice de paleta e o exceljs não grava a paleta. `scripts/corrigir_estetica_template_laudo_slot5.mts` regrava fundo, bordas e negrito/cor da fonte em RGB explícito, célula a célula, a partir do `.xls` do Fábio (`scripts/ler_xls_estilos.mts` lê os estilos do .xls). Conferido: 0 diferenças de estética, mesmas 390 mesclagens, mesmas linhas ocultas (41-53, 60-88, 99-105, 115-123) e mesma configuração de impressão. Na comparação de conteúdo com o 50724 (669 células iguais), o que sobra vem do LIP: área total privativa (3.167,10 no LIP × 3.572,10), volume da caixa de recarga (2,26 × 22,6), vagas de idoso, atende acessibilidade, e os campos sem origem no LIP (recuos/alturas, área não permeável em m²).
 
+**Reemissão do Laudo (15/10/2026).** Quando o processo já tem a tag `laudo`, o botão vira "🔄 Reemitir Laudo (Excel)" e pergunta "O laudo deste processo já foi emitido em <data>. Reemitir?" antes de gerar de novo (a tela lê a tag por `GET /api/processo/tag`). O laudo não consome número, então reemitir não mexe na faixa. Para a reemissão não somar pontos duas vezes, `POST /api/mrp/registros` passou a reconhecer o laudo por (analista, processo, análise) e **atualiza** a linha do MRP em vez de inserir outra; a tag (já deduplicada por tipo+análise) e o MDP (idem, `gravarRegistroMDPLaudo`) já se comportavam assim. O mesmo vale para o Slot 1 e o Slot 2 (botões próprios de cada um).
+
 **Botão "Laudo TESTE" (provisório) — removido em 02/10/2026**, depois de validar o laudo do 50724 contra o feito à mão. O laudo volta a ter um só botão, que emite de verdade.
 
 Origem do conteúdo: o **LIP** (`processos.dados`). O laudo do Fábio nasce no Excel `PAINEL V39`: a
@@ -1475,6 +1477,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.47 | 2026-10-15 | Seção 8.3: reemissão do Laudo — botão "Reemitir" com confirmação quando já há tag `laudo`; MRP do laudo deixa de duplicar na reemissão. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.46. |
 | 1.46 | 2026-10-02 | Seção 3.4.1: o botão de classificar item em filtro passa a usar o ícone de funil do filtro do Excel (antes 🏷️), a pedido do Fábio. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.45. |
 | 1.45 | 2026-10-02 | Tela do MAC: o contador "N/M respondidos" dentro de cada ÍTEM (aba) passa a letra maior, vermelha e em negrito (pedido do Fábio). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.44. |
 | 1.44 | 2026-10-02 | Seção 3.4.1: botão 🏷️ por item (só Administrador) para classificar o item em um filtro ou em nenhum; vence a regra automática; tabela `mac_slot5_item_filtro` (migration pendente de aplicar). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.43. |

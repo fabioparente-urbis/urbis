@@ -564,6 +564,20 @@ export default function AnaliseAprovacaoProjeto() {
   const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
   const [gerandoDI, setGerandoDI] = useState(false);
   const [gerandoLaudo, setGerandoLaudo] = useState(false);
+  // Data do laudo já emitido (tag "laudo" em processos.tags): o botão vira "Reemitir" e pergunta antes.
+  const [laudoEmitidoEm, setLaudoEmitidoEm] = useState<string | null>(null);
+  useEffect(() => {
+    if (!codigo) return;
+    let vivo = true;
+    fetch(`/api/processo/tag?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((j) => {
+        const t = (j?.tags ?? []).filter((x: any) => x && typeof x === "object" && x.tipo === "laudo").pop();
+        if (vivo && t) setLaudoEmitidoEm(String(t.data || new Date(t.criado_em).toLocaleDateString("pt-BR")));
+      })
+      .catch(() => { /* sem tag = botão segue como "Gerar" */ });
+    return () => { vivo = false; };
+  }, [codigo]);
   // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
   // (checado em abrirModalDI contra o mdp_registros.criado_em), senão pede
   // número novo. Mesma ideia do "reemitindo" do despacho ao interessado.
@@ -1476,6 +1490,7 @@ export default function AnaliseAprovacaoProjeto() {
    */
   async function gerarLaudoSlot5Tela() {
     if (gerandoLaudo) return;
+    if (laudoEmitidoEm && !window.confirm(`O laudo deste processo já foi emitido em ${laudoEmitidoEm}.\n\nReemitir?`)) return;
     setGerandoLaudo(true);
     try {
       const r = await fetch("/api/mac/slot-05/laudo", {
@@ -1522,6 +1537,7 @@ export default function AnaliseAprovacaoProjeto() {
           }),
         }),
       ]);
+      setLaudoEmitidoEm(new Date().toLocaleDateString("pt-BR"));
       const nomes = ["MRP", "tag do processo"];
       const falhas = resultados.flatMap((x, i) => (x.status === "rejected" || !x.value.ok ? [nomes[i]] : []));
       if (falhas.length) notificar(`⚠ Laudo gerado, mas falhou registrar em: ${falhas.join(", ")}.`);
@@ -4089,7 +4105,7 @@ export default function AnaliseAprovacaoProjeto() {
           <button onClick={gerarLaudoSlot5Tela} disabled={gerandoLaudo}
             title="Gera o Laudo (Excel) a partir do LIP — não consome número de faixa"
             className="w-full bg-[#ECFDF5] hover:bg-[#059669] hover:text-white disabled:opacity-50 border border-[#059669] text-[#059669] font-bold py-2.5 rounded-lg text-sm transition-colors">
-            {gerandoLaudo ? "⏳ Gerando…" : "📑 Gerar Laudo (Excel)"}
+            {gerandoLaudo ? "⏳ Gerando…" : laudoEmitidoEm ? "🔄 Reemitir Laudo (Excel)" : "📑 Gerar Laudo (Excel)"}
           </button>
 
           {indefPendente && (

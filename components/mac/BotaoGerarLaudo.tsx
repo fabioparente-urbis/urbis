@@ -111,7 +111,7 @@ export function BotaoGerarLaudo({ processoId, disabled, onSuccess, mrpData, onAn
         {gerando
           ? <Loader2 className="h-4 w-4 animate-spin" />
           : <FileSpreadsheet className="h-4 w-4" />}
-        {gerando ? "⏳ Gerando..." : "📊 Gerar Laudo Excel"}
+        {gerando ? "⏳ Gerando..." : laudoJaEmitidoEm ? "🔄 Reemitir Laudo Excel" : "📊 Gerar Laudo Excel"}
       </button>
 
       {alertaArea && (

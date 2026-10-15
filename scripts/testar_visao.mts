@@ -221,6 +221,12 @@ secao("8 · a matriz continua coerente com a receita");
   // virar `ativa: true`. Ver seção "0" de scripts/testar_quadro_areas.mts pro isolamento dela.
   for (const r of RECEITAS.filter((r) => r.ativa)) {
     const campos = matriz("LIP", "slot_05")!.campos!;
+    if (r.auxiliar) {
+      // chaves de insumo: não são campos do LIP e a rota as descarta — o que NÃO pode acontecer é
+      // uma delas coincidir com um campo real e sobrescrevê-lo na ficha
+      for (const chave of r.chaves) t(`${chave} (auxiliar) não colide com campo do LIP`, !campos.some((x) => x.chave === chave));
+      continue;
+    }
     for (const chave of r.chaves) {
       const c = campos.find((x) => x.chave === chave);
       t(`${chave} existe na matriz`, !!c);

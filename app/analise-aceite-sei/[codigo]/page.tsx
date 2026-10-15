@@ -2662,13 +2662,18 @@ export default function MacPage() {
               <BotaoGerarLaudoAceiteSei
                 processoId={codigo}
                 onAntesDeGerar={() => confirmarSePendente("o laudo")}
+                laudoJaEmitidoEm={(() => {
+                  const t = (tagsProcesso ?? []).filter((x: any) => x && typeof x === "object" && x.tipo === "laudo").pop();
+                  return t ? String(t.data || new Date(t.criado_em).toLocaleDateString("pt-BR")) : undefined;
+                })()}
                 mrpData={{ assuntoNome, interessado: dadosLip?.proprietario?.valor ?? null, areaConstruida: Number((dadosLip?.areaTotal?.valor ?? "0").toString().replace(",", ".")) || 0, bairro: dadosLip?.bairro?.valor ?? null, numeroSei: dadosLip?.processo?.valor ?? codigo, numeroFisico: dadosLip?.processoFisico?.valor ?? null }}
-                onSuccess={() =>
+                onSuccess={() => {
+                  setTagsProcesso((prev: any) => [...(prev ?? []), { tipo: "laudo", data: new Date().toLocaleDateString("pt-BR"), numero_analise: analiseAtual?.numero_analise }]);
                   void gravarTag({
                     tipo: "laudo",
                     numero_analise: analiseAtual?.numero_analise,
-                  })
-                }
+                  });
+                }}
               />
             </div>
 
