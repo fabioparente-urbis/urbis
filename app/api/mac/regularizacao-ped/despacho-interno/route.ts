@@ -1,0 +1,216 @@
+// ============================================================
+// SLOT 3 — REGULARIZAÇÃO PED. CÓPIA POR LEITURA de app/api/despacho-interno/route.ts (Slot 1),
+// feita em 16/10/2026 a pedido do Fábio ("o Slot 3 começa copiando 100% o Slot 1"). Comportamento idêntico
+// ao original na data da cópia; daqui em diante os dois arquivos são independentes.
+// Trocas feitas: '|| "regularizacao"' → '|| "slot_03"'; 'await import("@/lib/geradores")' → 'await import("@/lib/geradores/regularizacaoPed/geradores")'; '"[despacho-interno]' → '"[despacho-interno/slot3]'; '"[MRP] ' → '"[MRP/slot3] '
+// ============================================================
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { enviarEmail } from "@/lib/email";
+import { normalizarBusca } from "@/lib/texto";
+import { resolverUsuarioIdPorCookie } from "@/lib/auth";
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+
+const APP_URL =
+  process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+  "https://urbis-production.up.railway.app";
+
+function escapeHtml(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo, numero_analise } = body;
+    const { data: proc } = await supabase
+      .from("processos")
+      .select("dados, analista_id, tipo_processo, assunto_id")
+      .eq("codigo", codigo)
+      .maybeSingle();
+    const dadosProc = (proc as any)?.dados || {};
+    const interessado = dadosProc?.nome_proprietario?.valor || dadosProc?.proprietario?.valor || codigo;
+    // No documento o código serve de fallback; no MDP não — ali `interessado`
+    // é coluna de nome e alimenta a busca. Sem nome real, fica nulo.
+    const interessadoMdp: string | null = interessado === codigo ? null : interessado;
+
+    let assinante: { nome: string; matricula?: string; cargo?: string; registro?: string } | undefined;
+    let analistaEmail: string | null = null;
+    let analistaNome: string | null = null;
+    if ((proc as any)?.analista_id) {
+      const { data: membro } = await supabase
+        .from("usuarios")
+        .select("nome, email, matricula, cargo, cau_crea")
+        .eq("id", (proc as any).analista_id)
+        .maybeSingle();
+      if ((membro as any)?.nome) {
+        assinante = {
+          nome: (membro as any).nome,
+          matricula: (membro as any).matricula || undefined,
+          cargo: (membro as any).cargo || undefined,
+          registro: (membro as any).cau_crea || undefined,
+        };
+        analistaNome = (membro as any).nome || null;
+        analistaEmail = (membro as any).email || null;
+      }
+    }
+
+    // Resolve nome legível do assunto (ex.: "regularizacao" → "Alvará de Regularização")
+    let assuntoNome: string = tipoProcesso || "slot_03";
+    try {
+      const { data: assunto } = await supabase
+        .from("assuntos")
+        .select("nome")
+        .eq("slug", String(tipoProcesso || "slot_03"))
+        .maybeSingle();
+      if ((assunto as any)?.nome) assuntoNome = (assunto as any).nome;
+    } catch { /* usa slug como fallback */ }
+
+    const { gerarDespachoInterno } = await import("@/lib/geradores/regularizacaoPed/geradores");
+    const buffer = await gerarDespachoInterno({
+      processo: codigo,
+      interessado,
+      numeroDespacho,
+      data,
+      tipoProcesso: assuntoNome,
+      destino,
+      corpo,
+      assinante,
+    });
+
+    // ── E-mail ao analista responsável (item 4 Cowork). Best-effort:
+    //    qualquer falha é apenas logada; o docx continua sendo devolvido
+    //    e o fluxo do front segue normalmente. ────────────────────────
+    if (analistaEmail) {
+      try {
+        const tipoProcessoNorm = String(tipoProcesso || (proc as any)?.tipo_processo || "");
+        const slugTipo = tipoProcessoNorm || "slot_03";
+        const linkProcesso = `${APP_URL}/processo/${encodeURIComponent(codigo)}?tipo=${encodeURIComponent(slugTipo)}`;
+        const subject = `[URBIS] Despacho interno Nº ${numeroDespacho} — processo ${codigo}`;
+        const corpoHtml = escapeHtml(String(corpo || "")).replace(/\n/g, "<br>");
+        const html = `
+          <p>Olá${analistaNome ? `, <strong>${escapeHtml(analistaNome)}</strong>` : ""},</p>
+          <p>Foi registrado um <strong>despacho interno</strong> no processo sob sua responsabilidade:</p>
+          <table cellpadding="6" cellspacing="0" style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px">
+            <tr><td style="color:#555">Processo</td><td><strong>${escapeHtml(codigo)}</strong></td></tr>
+            <tr><td style="color:#555">Tipo</td><td>${escapeHtml(tipoProcessoNorm || "—")}</td></tr>
+            <tr><td style="color:#555">Despacho Nº</td><td>${escapeHtml(String(numeroDespacho || "—"))}</td></tr>
+            <tr><td style="color:#555">Data</td><td>${escapeHtml(String(data || "—"))}</td></tr>
+            <tr><td style="color:#555" valign="top">Texto</td><td>${corpoHtml || "—"}</td></tr>
+          </table>
+          <p style="margin-top:16px">
+            <a href="${linkProcesso}" style="background:#1d4ed8;color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-family:Arial,sans-serif;font-size:13px">
+              Abrir processo no URBIS
+            </a>
+          </p>
+          <p style="color:#666;font-size:12px">Esta é uma notificação automática do sistema URBIS — Prefeitura de Goiânia.</p>
+        `;
+        const text =
+          `Despacho interno Nº ${numeroDespacho} — processo ${codigo}\n` +
+          `Tipo: ${tipoProcessoNorm || "—"}\nData: ${data || "—"}\n\n` +
+          `${corpo || ""}\n\nAbrir processo: ${linkProcesso}\n`;
+        await enviarEmail({ to: analistaEmail, subject, html, text });
+      } catch (mailErr) {
+        console.warn("[despacho-interno/slot3] e-mail falhou (best-effort):", mailErr);
+      }
+    }
+
+    // ── MDP: registra o despacho interno (falha silenciosa) ──
+    // Reemissão: mesmo (processo, tipo=interno, número) é o MESMO documento —
+    // atualiza a linha existente em vez de inserir uma segunda (mesma trava
+    // de dedupe do POST /api/mdp). Sem isso, reemitir dentro dos 15 min
+    // duplicava o despacho interno na listagem do MDP.
+    try {
+      const usuarioId = await resolverUsuarioIdPorCookie(req.headers.get("cookie") ?? "");
+      if (usuarioId) {
+        const payloadMdp = {
+          processo_codigo: codigo,
+          // Fallback para o assunto do próprio processo: a tela do LIP não
+          // envia assunto_id, e sem isso o MDP não sabe de qual slot é o
+          // despacho (14/14 registros estavam órfãos antes desta correção).
+          assunto_id: (body.assunto_id as string | null) || (proc as any)?.assunto_id || null,
+          interessado: interessadoMdp,
+          busca_norm: normalizarBusca(interessadoMdp, codigo),
+          tipo: "interno",
+          numero: String(numeroDespacho ?? ""),
+          destinatario: destino || null,
+          data_despacho: data || null,
+          conteudo: {
+            corpo: corpo || "",
+            pendencias_lip: Array.isArray(body.pendencias_lip) ? body.pendencias_lip : [],
+            padrao_id: (body.padrao_id as string | null) || null,
+            padrao_titulo: (body.padrao_titulo as string | null) || null,
+          },
+          usuario_id: usuarioId,
+        };
+        const { data: existenteMdp } = await supabase
+          .from("mdp_registros")
+          .select("id")
+          .eq("processo_codigo", codigo)
+          .eq("tipo", "interno")
+          .eq("numero", payloadMdp.numero)
+          .maybeSingle();
+        if (existenteMdp?.id) {
+          await supabase.from("mdp_registros").update(payloadMdp).eq("id", existenteMdp.id);
+        } else {
+          await supabase.from("mdp_registros").insert(payloadMdp);
+        }
+      }
+    } catch (_) {}
+
+    // ── TAG no processo: rótulo visível na lista de processos ──
+    try {
+      const novaTag = {
+        tipo: "despacho_interno",
+        numero_despacho: String(numeroDespacho ?? ""),
+        // Despacho Interno nasce de uma análise — a tag precisa dizer de qual.
+        ...(Number.isInteger(Number(numero_analise)) ? { numero_analise: Number(numero_analise) } : {}),
+        // Mesmo formato das demais tags (gravarTag no MAC) — a lista de
+        // processos exibe o valor direto, sem reformatar.
+        data: new Date().toLocaleDateString("pt-BR"),
+      };
+      const { data: procAtual } = await supabase
+        .from("processos")
+        .select("tags")
+        .eq("codigo", codigo)
+        .maybeSingle();
+      const tagsAtuais: any[] = Array.isArray((procAtual as any)?.tags) ? (procAtual as any).tags : [];
+      await supabase
+        .from("processos")
+        .update({ tags: [...tagsAtuais, novaTag] })
+        .eq("codigo", codigo);
+    } catch (_) {}
+
+    // ── MRP: grava o despacho interno automaticamente (falha silenciosa) ──
+    try {
+      const { gravarRegistroMRP } = await import("@/lib/mrpGravar");
+      const tipoProc = String(tipoProcesso || (proc as any)?.tipo_processo || "slot_03");
+      await gravarRegistroMRP({
+        processo_codigo: codigo,
+        tipo_processo: tipoProc,
+        tipo_despacho: "interno",
+        numero_despacho: String(numeroDespacho ?? ""),
+        analise_id: null,
+        numero_revisao: null,
+        cookie_header: req.headers.get("cookie") ?? "",
+      });
+    } catch (mrpErr) {
+      console.warn("[MRP/slot3] falha ao gravar despacho interno:", mrpErr);
+    }
+
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": `attachment; filename="DespachoInterno_${codigo}_${numeroDespacho}.docx"`,
+      },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  }
+}

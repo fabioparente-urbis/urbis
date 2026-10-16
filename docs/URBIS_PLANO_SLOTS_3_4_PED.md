@@ -1,7 +1,7 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 1 → **20% concluído, 80% restante.**
+**Progresso:** Fase 2 → **45% concluído, 55% restante.**
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -30,6 +30,30 @@
     ProcessoClient). Até lá, o comportamento do sistema não muda em nada.
   - O texto dos prompts manteve "nº SEI" como referência de número de documento, igual ao
     Slot 1. Se o processo PED não usa número SEI, ajustar só nestes arquivos.
+- **Fase 2 (16/10/2026):** rotas de API e geradores de documento próprios, cópia por leitura.
+  - Slot 3: `/api/analise-regularizacao-ped` (+ `documentos-sei`, `analisar-pendentes`),
+    `/api/despacho-regularizacao-ped`, `/api/mac/regularizacao-ped/despacho-interno`,
+    `/api/mac/regularizacao-ped/gerar-laudo`; geradores em `lib/geradores/regularizacaoPed/`;
+    planilha `public/templates/laudo_regularizacao_ped.xlsm`.
+  - Slot 4: `/api/analise-aceite-ped` (+ `documentos-sei`, `analisar-pendentes`),
+    `/api/despacho-aceite-ped`, `/api/mac/aceite-ped/despacho-interno`,
+    `/api/mac/aceite-ped/gerar-laudo`; geradores em `lib/geradores/aceitePed/` (incluindo cópia
+    própria de `assuntoParaDocumento`, que o Slot 2 importa dos geradores do Slot 1); planilha
+    `public/templates/laudo_aceite_ped.xlsm`.
+  - Interruptores da aba Documentos: `documentosVivosRegularizacaoPedAtivo` /
+    `documentosVivosAceitePedAtivo` acrescentados em `lib/documentosSei/config.ts`, ao lado dos
+    do Slot 1/2, no padrão daquele arquivo. Nenhuma função existente mudou.
+  - Toda emissão continua gravando MRP e MDP com o tipo do próprio slot (`slot_03`/`slot_04`).
+  - Do gerador do Slot 1 saiu `gerarDespachoAceite`: não tinha uso e é documento do Aceite.
+  - Prova: `scripts/testar_geradores_slots_3_4_ped.mts` passa 51/51. Os documentos do Slot 3/4
+    saem **byte a byte iguais** aos do Slot 1/2: despacho (com e sem padrão), indeferimento
+    (com e sem foto), arquivamento, despacho interno e laudo. Os originais foram conferidos como
+    determinísticos antes da comparação. O teste também confirma que nenhuma rota ou gerador
+    novo chama código do Slot 1/2. `tsc` limpo.
+  - Ainda **ninguém chama** essas rotas: as telas são da Fase 3. O sistema não muda.
+  - **Pergunta aberta:** os documentos do Slot 3/4 trazem "SEI:" no cabeçalho e citam "SEI nº"
+    na base legal, igual ao Slot 1/2. Se o processo PED não usa número SEI, ajustar só nos
+    geradores PED.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.
