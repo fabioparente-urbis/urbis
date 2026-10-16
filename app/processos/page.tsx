@@ -542,7 +542,13 @@ function ProcessosConteudo() {
         .then(r => r.json())
         .then(({ preenchido }) => {
           if (preenchido) {
-            router.push(`/analise-regularizacao/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
+            // Slots 3 e 4 (PED, 16/10/2026) vão para a tela do MAC PRÓPRIA. Os demais seguem
+            // exatamente como antes (achado à parte: Slot 2 e 5 também caem aqui na tela da
+            // Regularização — não corrigido, sem pedido para esses slots).
+            const telaMac = tipoNorm === "slot_03" ? "/analise-regularizacao-ped"
+              : tipoNorm === "slot_04" ? "/analise-aceite-ped"
+              : "/analise-regularizacao";
+            router.push(`${telaMac}/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
           } else {
             setAvisoLipVazio(true);
           }

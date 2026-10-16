@@ -89,12 +89,12 @@ export function calcularFaixaArea(area: number | null): string | null {
   return "acima_1000";
 }
 
-const CHAVE_BAIRRO: Record<Slot, string> = { regularizacao: "bairro", aceite_sei: "bairro", slot_05: "bairro" };
-const CHAVE_ONEROSA: Record<Slot, string> = { regularizacao: "onerosa", aceite_sei: "onerosa", slot_05: "outorgaOnerosa" };
-const CHAVE_PAVIMENTOS: Record<Slot, string> = { regularizacao: "pav", aceite_sei: "pav", slot_05: "pav" };
+const CHAVE_BAIRRO: Record<Slot, string> = { regularizacao: "bairro", aceite_sei: "bairro", slot_03: "bairro", slot_04: "bairro", slot_05: "bairro" };
+const CHAVE_ONEROSA: Record<Slot, string> = { regularizacao: "onerosa", aceite_sei: "onerosa", slot_03: "onerosa", slot_04: "onerosa", slot_05: "outorgaOnerosa" };
+const CHAVE_PAVIMENTOS: Record<Slot, string> = { regularizacao: "pav", aceite_sei: "pav", slot_03: "pav", slot_04: "pav", slot_05: "pav" };
 
 function ehSlotConhecido(tipo: string | null | undefined): tipo is Slot {
-  return tipo === "regularizacao" || tipo === "aceite_sei" || tipo === "slot_05";
+  return tipo === "regularizacao" || tipo === "aceite_sei" || tipo === "slot_03" || tipo === "slot_04" || tipo === "slot_05";
 }
 
 /**

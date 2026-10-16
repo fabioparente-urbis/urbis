@@ -42,7 +42,10 @@
  * (acharIncoerencias) pros consumidores reais.
  */
 
-export type Slot = "regularizacao" | "aceite_sei" | "slot_05";
+// slot_03 (Regularização PED) e slot_04 (Aceite PED) entram em 16/10/2026, cada um com as
+// PRÓPRIAS linhas abaixo (cópia das do Slot 1 e do Slot 2 — o LIP deles foi clonado campo a
+// campo nesse dia). Mudar uma linha de um slot não muda a do outro.
+export type Slot = "regularizacao" | "aceite_sei" | "slot_03" | "slot_04" | "slot_05";
 
 export type DominioSemantico =
   | "area_terreno"
@@ -78,7 +81,9 @@ export type CampoSemantico = {
 export const CATALOGO_SEMANTICO: CampoSemantico[] = [
   // ---- área do terreno — ESTÁVEL: mesma chave nos 3 slots ----
   { slot: "regularizacao", chave: "areaTerreno", rotuloHumano: "Área do Terreno", dominio: "area_terreno", unidade: "m2" },
+  { slot: "slot_03", chave: "areaTerreno", rotuloHumano: "Área do Terreno", dominio: "area_terreno", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaTerreno", rotuloHumano: "Área do Terreno", dominio: "area_terreno", unidade: "m2" },
+  { slot: "slot_04", chave: "areaTerreno", rotuloHumano: "Área do Terreno", dominio: "area_terreno", unidade: "m2" },
   { slot: "slot_05", chave: "areaTerreno", rotuloHumano: "Área do lote", dominio: "area_terreno", unidade: "m2" },
 
   // ---- área construída total — só existe como domínio de verdade no Slot 5. Em Regularização
@@ -95,7 +100,9 @@ export const CATALOGO_SEMANTICO: CampoSemantico[] = [
 
   // ---- área impermeável — mesmo domínio, chave MUDA entre slots ----
   { slot: "regularizacao", chave: "areaImpermeavel", rotuloHumano: "Área Impermeável", dominio: "area_impermeavel", unidade: "m2" },
+  { slot: "slot_03", chave: "areaImpermeavel", rotuloHumano: "Área Impermeável", dominio: "area_impermeavel", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaImpermeavel", rotuloHumano: "Área Impermeável", dominio: "area_impermeavel", unidade: "m2" },
+  { slot: "slot_04", chave: "areaImpermeavel", rotuloHumano: "Área Impermeável", dominio: "area_impermeavel", unidade: "m2" },
   { slot: "slot_05", chave: "areaImpermeabilizada", rotuloHumano: "Área Impermeabilizada do Terreno", dominio: "area_impermeavel", unidade: "m2" },
 
   // ---- área permeável — LACUNA em Regularização/Aceite (não têm este campo na LIP; a
@@ -104,7 +111,9 @@ export const CATALOGO_SEMANTICO: CampoSemantico[] = [
 
   // ---- área aprovada/existente — mesmo domínio, chave e rótulo mudam ----
   { slot: "regularizacao", chave: "areaAprovada", rotuloHumano: "Área Aprovada (se existir)", dominio: "area_aprovada_existente", unidade: "m2" },
+  { slot: "slot_03", chave: "areaAprovada", rotuloHumano: "Área Aprovada (se existir)", dominio: "area_aprovada_existente", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaExistente", rotuloHumano: "Área Existente Aprovada (m²)", dominio: "area_aprovada_existente", unidade: "m2" },
+  { slot: "slot_04", chave: "areaExistente", rotuloHumano: "Área Existente Aprovada (m²)", dominio: "area_aprovada_existente", unidade: "m2" },
   // Slot 5: sem campo equivalente na LIP hoje (projeto novo, não tem "existente aprovada" prévia
   // como conceito central) — lacuna real, não inventada.
 
@@ -112,28 +121,39 @@ export const CATALOGO_SEMANTICO: CampoSemantico[] = [
   // tem (é aprovação de projeto novo, não regularização de algo já construído). "areaTotal" de
   // Regularização e "areaAceite" de Aceite SEI são este domínio, NUNCA área construída total.
   { slot: "regularizacao", chave: "areaTotal", rotuloHumano: "Área a ser Regularizada TOTAL", dominio: "area_a_regularizar", unidade: "m2" },
+  { slot: "slot_03", chave: "areaTotal", rotuloHumano: "Área a ser Regularizada TOTAL", dominio: "area_a_regularizar", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaAceite", rotuloHumano: "Á. do Aceite (TOTAL)", dominio: "area_a_regularizar", unidade: "m2" },
+  { slot: "slot_04", chave: "areaAceite", rotuloHumano: "Á. do Aceite (TOTAL)", dominio: "area_a_regularizar", unidade: "m2" },
 
   // ---- recuo — granularidade bem diferente entre slots (nenhuma correspondência 1:1 real);
   // catalogado mesmo assim porque cada chave, isoladamente, é uma medida real e nomeada.
   { slot: "regularizacao", chave: "areaRecuo", rotuloHumano: "Área Construída em Recuo Frontal", dominio: "area_recuo", unidade: "m2" },
+  { slot: "slot_03", chave: "areaRecuo", rotuloHumano: "Área Construída em Recuo Frontal", dominio: "area_recuo", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaNaoVerticalRecuo", rotuloHumano: "Á. não Vertical no Recuo", dominio: "area_recuo", unidade: "m2" },
+  { slot: "slot_04", chave: "areaNaoVerticalRecuo", rotuloHumano: "Á. não Vertical no Recuo", dominio: "area_recuo", unidade: "m2" },
   { slot: "aceite_sei", chave: "areaVerticalRecuo", rotuloHumano: "Á. em Ed. Vertical no Recuo", dominio: "area_recuo", unidade: "m2" },
+  { slot: "slot_04", chave: "areaVerticalRecuo", rotuloHumano: "Á. em Ed. Vertical no Recuo", dominio: "area_recuo", unidade: "m2" },
   // Slot 5: sem campo de área de recuo identificado na LIP (auditoria de 05/09/2026) — lacuna
   // real; pode existir só na leitura de planta (fora do LIP estruturado).
 
   // ---- altura — dois formatos incompatíveis, nunca comparáveis diretamente ----
   { slot: "regularizacao", chave: "vistoriaMais12m", rotuloHumano: "Mais de 12m de altura?", dominio: "altura_edificacao_booleano", unidade: "booleano" },
+  { slot: "slot_03", chave: "vistoriaMais12m", rotuloHumano: "Mais de 12m de altura?", dominio: "altura_edificacao_booleano", unidade: "booleano" },
   { slot: "aceite_sei", chave: "vistoriaMais12m", rotuloHumano: "Mais de 12m de altura?", dominio: "altura_edificacao_booleano", unidade: "booleano" },
+  { slot: "slot_04", chave: "vistoriaMais12m", rotuloHumano: "Mais de 12m de altura?", dominio: "altura_edificacao_booleano", unidade: "booleano" },
   { slot: "slot_05", chave: "alturaDaEdificacao", rotuloHumano: "Altura da edificação — térreo à laje de cobertura (m)", dominio: "altura_edificacao_metros", unidade: "metros" },
 
   // ---- caixa de recarga — 3 sub-domínios reais, nunca tratados como um só ----
   { slot: "regularizacao", chave: "volMin", rotuloHumano: "Vol. Mínimo da Caixa", dominio: "volume_minimo_exigido_caixa", unidade: "m3" },
+  { slot: "slot_03", chave: "volMin", rotuloHumano: "Vol. Mínimo da Caixa", dominio: "volume_minimo_exigido_caixa", unidade: "m3" },
   { slot: "aceite_sei", chave: "volMin", rotuloHumano: "Vol. Mínimo da Caixa", dominio: "volume_minimo_exigido_caixa", unidade: "m3" },
+  { slot: "slot_04", chave: "volMin", rotuloHumano: "Vol. Mínimo da Caixa", dominio: "volume_minimo_exigido_caixa", unidade: "m3" },
   { slot: "slot_05", chave: "volumeExigidoDaCaixa", rotuloHumano: "Volume Exigido da Caixa — ICCAP (m³)", dominio: "volume_minimo_exigido_caixa", unidade: "m3" },
 
   { slot: "regularizacao", chave: "volAt", rotuloHumano: "Vol. Atendido da Caixa", dominio: "volume_atendido_caixa", unidade: "m3" },
+  { slot: "slot_03", chave: "volAt", rotuloHumano: "Vol. Atendido da Caixa", dominio: "volume_atendido_caixa", unidade: "m3" },
   { slot: "aceite_sei", chave: "volAt", rotuloHumano: "Vol. Atendido da Caixa", dominio: "volume_atendido_caixa", unidade: "m3" },
+  { slot: "slot_04", chave: "volAt", rotuloHumano: "Vol. Atendido da Caixa", dominio: "volume_atendido_caixa", unidade: "m3" },
   { slot: "slot_05", chave: "volumeDaCaixaDeRecarga", rotuloHumano: "Volume da Caixa de Recarga", dominio: "volume_atendido_caixa", unidade: "m3" },
 
   { slot: "slot_05", chave: "volumeNaArtDeCaixa", rotuloHumano: "Volume Declarado na ART de Caixa (m³)", dominio: "volume_declarado_art_caixa", unidade: "m3" },

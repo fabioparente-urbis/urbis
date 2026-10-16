@@ -1,0 +1,270 @@
+// ============================================================
+// SLOT 4 — ACEITE PED · rota PRÓPRIA do slot. CÓPIA POR LEITURA de app/api/lip/s4/route.ts,
+// 16/10/2026 (Etapa 2 do plano docs/URBIS_PLANO_SLOTS_3_4_PED.md — "5 programas
+// independentes"). Diferença: sem a verificação de caixa de recarga, como no Slot 2.
+// ============================================================
+import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth";
+
+export const maxDuration = 30;
+
+function get(campos: Record<string, any>, chave: string): string {
+  return (campos[chave]?.valor ?? "").toString().trim();
+}
+
+function hasVal(campos: Record<string, any>, chave: string): boolean {
+  const v = get(campos, chave);
+  return v !== "" && v !== "NP" && v !== "null";
+}
+
+function sim(campos: Record<string, any>, chave: string): boolean {
+  return get(campos, chave).toLowerCase() === "sim";
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (auth instanceof NextResponse) return auth;
+
+  try {
+    const { arquivos, tipoProcesso } = await req.json();
+    if (!arquivos || arquivos.length === 0)
+      return NextResponse.json({ ok: false, erro: "Nenhum arquivo informado" }, { status: 400 });
+
+    // Montar mapa tipo → campos
+    const porTipo: Record<string, Record<string, any>> = {};
+    for (const a of arquivos) {
+      porTipo[a.tipo] = a.campos ?? {};
+    }
+
+    // Campos mesclados (todos os documentos juntos)
+    const mesclado: Record<string, any> = {};
+    for (const a of arquivos) {
+      for (const [k, v] of Object.entries(a.campos ?? {})) {
+        if (!mesclado[k] && (v as any)?.valor && (v as any).valor !== "NP") mesclado[k] = v;
+      }
+    }
+
+    const inc: { tipo: string; campo: string; descricao: string; docs: string[] }[] = [];
+
+    // 1. PROPRIETÁRIO/INTERESSADO — compara entre documentos
+    const TIPOS_CONFIAVEL_PROPRIETARIO = ["ART", "CERTIDAO", "CHEADV", "USO_SOLO", "VISTORIA", "PROCURACAO", "LAUDO"];
+    const nomes: { tipo: string; nome: string }[] = [];
+    for (const a of arquivos) {
+      if (!TIPOS_CONFIAVEL_PROPRIETARIO.includes(a.tipo)) continue;
+      const n = get(a.campos, "interessado") || get(a.campos, "proprietario");
+      if (n) nomes.push({ tipo: a.tipo, nome: n.toUpperCase() });
+    }
+    if (nomes.length >= 2) {
+      const base = nomes[0].nome;
+      for (const n of nomes.slice(1)) {
+        if (!n.nome.includes(base.split(" ")[0]) && !base.includes(n.nome.split(" ")[0])) {
+          inc.push({ tipo: "DIVERGÊNCIA", campo: "interessado/proprietário", descricao: `Nome divergente: "${nomes[0].nome}" (${nomes[0].tipo}) vs "${n.nome}" (${n.tipo})`, docs: [nomes[0].tipo, n.tipo] });
+          break;
+        }
+      }
+    }
+
+    // 2. ENDEREÇO — quadra e lote iguais em todos
+    const enderecos: { tipo: string; quadra: string; lote: string }[] = [];
+    for (const a of arquivos) {
+      const q = get(a.campos, "quadra");
+      const l = get(a.campos, "lote");
+      if (q || l) enderecos.push({ tipo: a.tipo, quadra: q, lote: l });
+    }
+    if (enderecos.length >= 2) {
+      const base = enderecos[0];
+      for (const e of enderecos.slice(1)) {
+        if ((e.quadra && base.quadra && e.quadra !== base.quadra) ||
+            (e.lote && base.lote && e.lote !== base.lote)) {
+          inc.push({ tipo: "DIVERGÊNCIA", campo: "endereço (quadra/lote)", descricao: `Quadra/Lote divergente: QD${base.quadra}/LT${base.lote} (${base.tipo}) vs QD${e.quadra}/LT${e.lote} (${e.tipo})`, docs: [base.tipo, e.tipo] });
+          break;
+        }
+      }
+    }
+
+    // 3. VERTICALIZAÇÃO — vistoriaMais12m=Sim → areaVertical preenchido
+    if (sim(mesclado, "vistoriaMais12m") && !hasVal(mesclado, "areaVertical")) {
+      inc.push({ tipo: "ALERTA", campo: "areaVertical", descricao: "Vistoria indica altura > 12m mas campo Área Vertical não está preenchido.", docs: ["VISTORIA", "PROJETO"] });
+    }
+
+    // 4. RECUO — vistoriaOcupaRecuo=Sim → areaRecuo > 0
+    if (sim(mesclado, "vistoriaOcupaRecuo") && !hasVal(mesclado, "areaRecuo")) {
+      inc.push({ tipo: "ALERTA", campo: "areaRecuo", descricao: "Vistoria indica ocupação de recuo frontal mas Área em Recuo não está preenchida.", docs: ["VISTORIA", "PROJETO"] });
+    }
+
+    // 5. ONEROSA — onerosa=Sim → SEI da onerosa preenchido
+    if (sim(mesclado, "onerosa") && !hasVal(mesclado, "numero_do_sei_da_onerosa")) {
+      inc.push({ tipo: "ALERTA", campo: "numero_do_sei_da_onerosa", descricao: "Onerosa marcada como Sim mas SEI do documento de onerosa não encontrado.", docs: ["PROJETO"] });
+    }
+
+    // 6. EMBARGO — embargo=Sim → documento EMBARGO presente
+    if (sim(mesclado, "embargo") && !porTipo["EMBARGO"]) {
+      inc.push({ tipo: "ERRO", campo: "embargo", descricao: "Embargo marcado como Sim mas nenhum documento de embargo foi carregado.", docs: ["PROCESSO"] });
+    }
+
+    // 7. PROCURAÇÃO — procuracao=Sim → SEI preenchido
+    if (sim(mesclado, "procuracao") && !hasVal(mesclado, "seiProcuracao")) {
+      inc.push({ tipo: "ALERTA", campo: "seiProcuracao", descricao: "Procuração marcada como Sim mas SEI da procuração não encontrado.", docs: ["PROCURACAO"] });
+    }
+
+    // 8. OUTRO PROCESSO — outro=Sim → qualOutro preenchido
+    if (sim(mesclado, "outro") && !hasVal(mesclado, "qualOutro")) {
+      inc.push({ tipo: "ALERTA", campo: "qualOutro", descricao: "Campo 'Existe outro processo' marcado Sim mas número do outro processo não identificado.", docs: ["BUSCA"] });
+    }
+
+    // 9. CAIXA DE RECARGA — caixa=Sim → volMin/volAt/caixas preenchidos
+    if (sim(mesclado, "caixa")) {
+      if (!hasVal(mesclado, "volMin")) inc.push({ tipo: "ALERTA", campo: "volMin", descricao: "Caixa de recarga marcada Sim mas volume mínimo não encontrado.", docs: ["PROJETO"] });
+      if (!hasVal(mesclado, "volAt"))  inc.push({ tipo: "ALERTA", campo: "volAt",  descricao: "Caixa de recarga marcada Sim mas volume atendido não encontrado.", docs: ["PROJETO"] });
+      if (!hasVal(mesclado, "caixas")) inc.push({ tipo: "ALERTA", campo: "caixas", descricao: "Caixa de recarga marcada Sim mas número de caixas não encontrado.", docs: ["PROJETO"] });
+    }
+
+    // 10. CORREDOR VIÁRIO — corredor=Sim → faixa preenchida
+    if (sim(mesclado, "corredor") && !hasVal(mesclado, "faixa")) {
+      inc.push({ tipo: "ALERTA", campo: "faixa", descricao: "Corredor viário marcado Sim mas faixa de ampliação não encontrada.", docs: ["USO_SOLO"] });
+    }
+
+    // 11. RT ARQ — nome sem CAU
+    if (hasVal(mesclado, "nomeResponsavelArq") && !hasVal(mesclado, "cau")) {
+      inc.push({ tipo: "ALERTA", campo: "cau", descricao: "Nome do responsável técnico (ARQ) preenchido mas CAU não encontrado.", docs: ["PROJETO"] });
+    }
+
+    // 12. ÁREAS — somatório (se areaTotal preenchido)
+    // Parser de área robusto — mesmo tratamento de lib/mrp.ts: aceita
+    // "1.234,56" (PT-BR c/ milhar), "1234,56", "1234.56" (EN) e sufixo "m²".
+    const toNum = (k: string) => {
+      let s = get(mesclado, k).replace(/m²|m2|\s/gi, "");
+      if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+      const n = Number(s);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const total = toNum("areaTotal");
+    if (total > 0) {
+      const soma = toNum("areaForaFrontal") + toNum("areaRecuo") + toNum("areaVertical");
+      const diff = Math.abs(total - soma);
+      if (diff > 0.5) {
+        inc.push({ tipo: "DIVERGÊNCIA", campo: "somatório de áreas", descricao: `Área Total (${total}m²) ≠ ForaFrontal(${toNum("areaForaFrontal")}) + Recuo(${toNum("areaRecuo")}) + Vertical(${toNum("areaVertical")}) = ${soma.toFixed(2)}m². Diferença: ${diff.toFixed(2)}m².`, docs: ["PROJETO"] });
+      }
+    }
+
+    // 13. CAIXA DE RECARGA × 250m² — SÓ Regularização SEI (Slot 1).
+    // LC 314/2018, Art. 2º §4º: a caixa só é obrigatória acima de 250m² de
+    // área construída e desde que a edificação não tenha ocupado a totalidade
+    // do lote. É comparação numérica — decidida aqui, nunca pela IA. Os demais
+    // slots não entram: o Slot 5 tem lei e regra próprias (proporcional à área
+    // impermeabilizada), e sem tipo informado nada roda.
+    // Cada slot com a sua regra: Slot 1 pelo lib/caixaRecargaSlot1, Slot 3 pelo próprio arquivo.
+    // Rota do Slot 4: o Aceite não tem a verificação de caixa por área (igual ao Slot 2, onde ela
+    // nunca rodava — só valia para a Regularização).
+    void tipoProcesso;
+    const regraCaixa = null as null | { avaliar: (l: any) => any; limite: number };
+    if (regraCaixa) {
+      const vCaixa = regraCaixa.avaliar({
+        areaTotal: mesclado["areaTotal"],
+        areaAprovada: mesclado["areaAprovada"],
+      });
+      const caixaSim = sim(mesclado, "caixa");
+      const caixaNao = get(mesclado, "caixa").toLowerCase() === "não" || get(mesclado, "caixa").toLowerCase() === "nao";
+
+      if (vCaixa.dispensadaPorArea === true && caixaSim) {
+        inc.push({
+          tipo: "ALERTA", campo: "caixa",
+          descricao: `${vCaixa.mensagem} O projeto apresenta caixa mesmo assim — registrar como fato, sem transformar em exigência.`,
+          docs: ["PROJETO"],
+        });
+      }
+      if (vCaixa.dispensadaPorArea === false && caixaNao) {
+        inc.push({
+          tipo: "ALERTA", campo: "caixa",
+          descricao: `${vCaixa.mensagem} O projeto não apresenta caixa — conferir se cabe exigência.`,
+          docs: ["PROJETO"],
+        });
+      }
+      if (vCaixa.situacao === "INDETERMINADA") {
+        inc.push({
+          tipo: "ALERTA", campo: "areaTotal",
+          descricao: `Área construída não lida — sem ela o limite de ${regraCaixa.limite}m² da caixa de recarga (LC 314/2018, Art. 2º §4º) não pode ser conferido.`,
+          docs: ["PROJETO"],
+        });
+      }
+    }
+
+    // Mapeamento campo -> aba do LIP
+    const campoAba: Record<string, string> = {
+      "interessado/proprietário": "Aba 1 - Identificação",
+      "proprietario": "Aba 1 - Identificação",
+      "endereço (quadra/lote)": "Aba 1 - Identificação",
+      "quadra": "Aba 1 - Identificação",
+      "lote": "Aba 1 - Identificação",
+      "cau": "Aba 1 - Identificação",
+      "areaTotal": "Aba 2 - Áreas",
+      "areaForaFrontal": "Aba 2 - Áreas",
+      "areaRecuo": "Aba 2 - Áreas",
+      "areaVertical": "Aba 2 - Áreas",
+      "somatório de áreas": "Aba 2 - Áreas",
+      "usoSolo": "Aba 3 - Uso do Solo",
+      "faixa": "Aba 3 - Uso do Solo",
+      "corredor": "Aba 3 - Uso do Solo",
+      "caixa": "Aba 4 - Urbanístico",
+      "volMin": "Aba 4 - Urbanístico",
+      "volAt": "Aba 4 - Urbanístico",
+      "caixas": "Aba 4 - Urbanístico",
+      "onerosa": "Aba 6 - Processo",
+      "numero_do_sei_da_onerosa": "Aba 6 - Processo",
+      "embargo": "Aba 6 - Processo",
+      "seiProcuracao": "Aba 7 - Documentos",
+      "procuracao": "Aba 7 - Documentos",
+      "seiEmbargo": "Aba 7 - Documentos",
+    };
+
+    // Montar sugestões VCP para o frontend (campo -> [opcao1, opcao2])
+    const sugestoesVCP: Record<string, { opcoes: string[]; descricao: string }> = {};
+    for (const i of inc) {
+      if (i.tipo === "DIVERGÊNCIA") {
+        if (i.campo === "interessado/proprietário") {
+          const vals = [...new Set(nomes.map(n => n.nome))];
+          // Coloca o valor divergente (não-base) primeiro
+          const valsOrdenados = vals.length > 1 ? [vals[vals.length - 1], ...vals.slice(0, vals.length - 1)] : vals;
+          sugestoesVCP["proprietario"] = { opcoes: valsOrdenados, descricao: i.descricao };
+        }
+        if (i.campo === "endereço (quadra/lote)") {
+          const qVals = [...new Set(enderecos.map(e => e.quadra).filter(Boolean))];
+          const lVals = [...new Set(enderecos.map(e => e.lote).filter(Boolean))];
+          if (qVals.length > 1) sugestoesVCP["quadra"] = { opcoes: qVals, descricao: i.descricao };
+          if (lVals.length > 1) sugestoesVCP["lote"] = { opcoes: lVals, descricao: i.descricao };
+        }
+      }
+    }
+
+    // Montar texto OBS
+    const data = new Date().toLocaleDateString("pt-BR");
+    const linhas: string[] = [];
+    linhas.push(`=== VCP — VERIFICAÇÃO CRUZADA DE PDFs (${data}) ===`);
+    linhas.push(`Documentos: ${arquivos.map((a: any) => `${a.tipo}(${a.sei ?? "sem SEI"})`).join(", ")}`);
+    linhas.push("");
+
+    if (inc.length > 0) {
+      linhas.push(`⚠️ ${inc.length} inconsistência(s) encontrada(s):`);
+      for (const i of inc) {
+        const icone = i.tipo === "ERRO" ? "❌" : i.tipo === "DIVERGÊNCIA" ? "⚠️" : "ℹ️";
+        const aba = campoAba[i.campo] ?? "";
+        linhas.push(`${icone} [${i.tipo}] ${i.campo}${aba ? " (" + aba + ")" : ""}: ${i.descricao}`);
+        if (i.docs?.length) linhas.push(`   Docs: ${i.docs.join(", ")}`);
+      }
+    } else {
+      linhas.push("✅ Nenhuma inconsistência encontrada.");
+    }
+
+    return NextResponse.json({
+      ok: true,
+      obsTexto: linhas.join("\n"),
+      inconsistencias: inc,
+      sugestoesVCP,
+      total: inc.length,
+    });
+
+  } catch (e: any) {
+    console.error("[S4]", e?.message);
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+  }
+}

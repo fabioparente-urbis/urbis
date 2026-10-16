@@ -32,6 +32,16 @@ export async function documentosVivosAceiteSeiAtivo(): Promise<boolean> {
   return lerInterruptor("documentos_vivos_aceite_sei_ativo");
 }
 
+/** Slot 3 — Regularização PED. Coluna própria (migration 2026_10_16): ligar o Slot 1 não liga este. */
+export async function documentosVivosRegularizacaoPedAtivo(): Promise<boolean> {
+  return lerInterruptor("documentos_vivos_slot_03_ativo");
+}
+
+/** Slot 4 — Aceite PED. Coluna própria (migration 2026_10_16): ligar o Slot 2 não liga este. */
+export async function documentosVivosAceitePedAtivo(): Promise<boolean> {
+  return lerInterruptor("documentos_vivos_slot_04_ativo");
+}
+
 /**
  * Fase 8 (§6 do plano) — "Analisar páginas ambíguas (Gemini)". Interruptor PRÓPRIO, separado dos
  * dois acima: ligar o Organizador (Fase 2) não liga o Gemini da Fase 8, e vice-versa — a Fase 8

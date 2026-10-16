@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { montarAvisos, triar, acharImovelConflitante, type EntradaVigia, type Aviso, type CandidatoImovel } from "@/lib/bdi/vigia";
-import { lerRegrasBloqueio } from "@/lib/urbi/regrasBloqueio";
+import { lerRegrasBloqueio, lerRegrasBloqueioDoSlot, temRegrasProprias } from "@/lib/urbi/regrasBloqueio";
 
 /** "DD/MM/AAAA" (formato usado em mdp_registros.data_despacho) → Date, ou null se ilegível. */
 function parseDataBR(v: string | null | undefined): Date | null {
@@ -66,7 +66,9 @@ export async function GET(req: NextRequest) {
   // As 8 condições bloqueantes do URBI só servem para Regularização/Aceite SEI (Slot 1/2, e
   // futuramente Slot 3/4 PED — mesmo prefixo) — pedido do Fábio, 10/09/2026: "esses 8 passos não
   // servem para o slot 5... que é um assunto que atende outra legislação". Slot 5 não entra aqui.
-  const aplicaCondicoesBloqueio = !!tipo && (tipo.startsWith("regularizacao") || tipo.startsWith("aceite"));
+  // Slots 3 e 4 (PED, 16/10/2026) entram pelo slug EXATO, com liga/desliga próprio (abaixo).
+  const ehSlotPed = temRegrasProprias(tipo);
+  const aplicaCondicoesBloqueio = !!tipo && (tipo.startsWith("regularizacao") || tipo.startsWith("aceite") || ehSlotPed);
   let exigenciasRecorrentes: any[] = [];
   if (tipo) {
     const { data } = await supabase
@@ -109,7 +111,8 @@ export async function GET(req: NextRequest) {
     .eq("usuario_id", ctx.userId);
 
   // --- condições que impedem a análise (Fase A, 08/09/2026) ---------------
-  const regras = await lerRegrasBloqueio();
+  // Slot 1/2: interruptores de sempre. Slot 3/4: os PRÓPRIOS de cada um — ligar no 1 não liga no 3.
+  const regras = ehSlotPed ? await lerRegrasBloqueioDoSlot(tipo as "slot_03" | "slot_04") : await lerRegrasBloqueio();
 
   const avisosExtras: Aviso[] = [];
   let marcoTemporalReprovado = false;
@@ -186,7 +189,8 @@ export async function GET(req: NextRequest) {
     const { data: candidatos } = await supabase
       .from("processos")
       .select("codigo, tipo_processo, status, dados")
-      .in("tipo_processo", ["regularizacao", "aceite_sei"])
+      // Slot 1/2 procuram entre si, como sempre; Slot 3/4 procuram entre si (espelho do 1/2).
+      .in("tipo_processo", ehSlotPed ? ["slot_03", "slot_04"] : ["regularizacao", "aceite_sei"])
       .neq("codigo", codigo)
       .is("excluido_em", null)
       .limit(5000);

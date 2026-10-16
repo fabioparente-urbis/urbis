@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     .map((e) => e?.message)
     .filter((m): m is string => Boolean(m));
 
-  const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_05: "Aprovação de Projeto" };
+  const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_03: "Regularização PED", slot_04: "Aceite PED", slot_05: "Aprovação de Projeto" };
   const tipoPorCodigo = new Map((processosVivos ?? []).map((p: any) => [p.codigo, p.tipo_processo as string]));
 
   const totalPorSlot = new Map<string, number>();

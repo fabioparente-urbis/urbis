@@ -25,7 +25,7 @@ import { autenticar } from "@/lib/auth";
  * do checklist, nunca sobre quem marcou.
  */
 const LIMIAR_MINIMO_PROCESSOS = 5;
-const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_05: "Aprovação de Projeto" };
+const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_03: "Regularização PED", slot_04: "Aceite PED", slot_05: "Aprovação de Projeto" };
 
 export async function GET(req: NextRequest) {
   const ctx = await autenticar(req);
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
   // "se não houver massa, registre a lacuna, não publique ranking enganoso"). Limiar aqui é
   // arbitrário (>= 3 itens distintos com evento) só pra distinguir "zero/quase zero" de "tem
   // alguma coisa mas pouco" — nenhuma conclusão jurídica depende disso.
-  const massaPorSlot = ["regularizacao", "aceite_sei", "slot_05"].map((slot) => {
+  const massaPorSlot = ["regularizacao", "aceite_sei", "slot_03", "slot_04", "slot_05"].map((slot) => {
     const itensDistintos = itensDistintosPorSlot.get(slot)?.size ?? 0;
     return {
       slot,
