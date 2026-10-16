@@ -207,5 +207,44 @@ secao("3 · isolamento de import");
   t("nenhum arquivo do Slot 1/2/5 importa do Slot 3/4", true);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+secao("4 · Vigia — condições bloqueantes do Slot 3/4 espelham as do Slot 1/2");
+{
+  // regrasBloqueio cria o cliente do Supabase ao ser importado; o teste não chama o banco, então
+  // basta um endereço fictício para o import não falhar quando rodado sem .env.local.
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||= "http://banco-ficticio.invalid";
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||= "chave-ficticia";
+  const { montarAvisos } = await import("../lib/bdi/vigia");
+  const { temRegrasProprias } = await import("../lib/urbi/regrasBloqueio");
+  const LIGADAS = Object.fromEntries([
+    "COND_180_DIAS", "COND_FISCAL_DIVERGE", "COND_MARCO_TEMPORAL", "COND_USO_SOLO",
+    "COND_BUSCA_ENDERECO", "COND_ASSUNTO_ERRADO", "COND_CHEADV_APTO", "COND_IMOVEL_DUPLICADO",
+  ].map((k) => [k, { ativo: true, parametros: k === "COND_180_DIAS" ? { diasBloqueio: 180, diasAviso: 170 } : {} }]));
+  const v = (valor: string) => ({ valor });
+  // Dados que disparam todas as condições ao mesmo tempo.
+  const dados = {
+    vistoriaLevante: v("Não"), areaTotal: v("100,00"), areaVistoria: v("90,00"), carimboTipoProjeto: v("APROVAÇÃO"),
+    cheadvAprovado: v("Não"), qualquer: v("x"),
+  };
+  const comum = {
+    regras: LIGADAS as any, marcoTemporalReprovado: true, marcoTemporalEvidencia: { marco: "4 de março de 2022", trecho: "obra" },
+    diasSemUltimaEmissao: 200,
+  };
+  const ids = (tipo: string, conflitoTipo: string) =>
+    montarAvisos({ processo: { codigo: "X", tipo_processo: tipo, dados }, ...comum,
+      imovelConflito: { codigo: "Y", tipoProcesso: conflitoTipo, status: "aprovado", criterio: "iptu" } as any })
+      .filter((a) => a.id.startsWith("cond_")).map((a) => `${a.id}|${a.titulo}|${a.bloqueante}`);
+  const a1 = ids(S1, S2), a3 = ids(S3, S4), a2 = ids(S2, S1), a4 = ids(S4, S3), a5 = ids(S5, S1);
+  t("Slot 1 dispara condições (controle)", a1.length >= 8, a1.join(", "));
+  t("Slot 3 dispara as MESMAS condições do Slot 1", JSON.stringify(a3) === JSON.stringify(a1), `1: ${a1.join(", ")}\n           3: ${a3.join(", ")}`);
+  t("Slot 4 dispara as MESMAS condições do Slot 2", JSON.stringify(a4) === JSON.stringify(a2), `2: ${a2.join(", ")}\n           4: ${a4.join(", ")}`);
+  t("Slot 5 continua fora das condições", a5.length === 0, a5.join(", "));
+  const semRegras = montarAvisos({ processo: { codigo: "X", tipo_processo: S3, dados }, ...comum, regras: {} })
+    .filter((a) => a.id.startsWith("cond_"));
+  t("Slot 3 com interruptores desligados não dispara nada", semRegras.length === 0);
+  t("temRegrasProprias: só slot_03 e slot_04", temRegrasProprias(S3) && temRegrasProprias(S4)
+    && ![S1, S2, S5, "regularizacao_ped", "", null].some((x) => temRegrasProprias(x)));
+}
+
 console.log(`\n${total - falhas}/${total} ok` + (falhas ? ` — ${falhas} FALHA(S)` : ""));
 process.exitCode = falhas ? 1 : 0;
