@@ -22,7 +22,9 @@ export default function AlertaFluxo({ codigo, tipoProcesso }: { codigo: string; 
     let vivo = true;
     setAlerta(null);
     setCarregado(false);
-    if (tipoProcesso !== "regularizacao" && tipoProcesso !== "aceite_sei") { setCarregado(true); return; }
+    // Slots 3 e 4 (PED, 16/10/2026) entram como cópia do Slot 1 e do Slot 2.
+    if (tipoProcesso !== "regularizacao" && tipoProcesso !== "aceite_sei"
+      && tipoProcesso !== "slot_03" && tipoProcesso !== "slot_04") { setCarregado(true); return; }
     fetch(`/api/lip/alerta-fluxo?codigo=${encodeURIComponent(codigo)}`)
       .then((r) => r.json())
       .then((j) => { if (vivo && j.ok) setAlerta(j.alerta ?? null); })

@@ -1,7 +1,7 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 3 → **70% concluído, 30% restante.**
+**Progresso:** Fase 4 → **85% concluído, 15% restante.**
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -71,6 +71,36 @@
   - **Não verificado no navegador:** as telas ainda não têm entrada pela ficha do LIP (Fase 4),
     e abrir com processo real exigiria login e dado de produção. A verificação visual fica para
     a Fase 6, com processo de teste.
+- **Fase 4 (16/10/2026):** desvios nos arquivos compartilhados — só acréscimo; para Slot 1/2/5
+  todo caminho continua o mesmo.
+  - `ProcessoClient.tsx`: rota da análise, marco temporal (`marcoTemporalDoSlot` /
+    `avaliarMarcoTemporalDoSlot`), leitura única dos arquivos individuais, despacho interno pela
+    rota própria, destaque do Laudo, nota da caixa (Slot 3), "Finalizar LIP", aviso de laudo
+    emitido (Slot 3), Mapa Fácil, rótulo do slot. Os 3 ternários idênticos de rota do MAC viraram
+    `rotaMacDoSlot()`, que devolve o mesmo destino de antes para Slot 1/2/5.
+  - `/api/lip/s3`: soma os blocos de prompt do Slot 3/4 aos do Slot 1/2. Cada bloco devolve ""
+    fora do próprio slot, então o prompt do Slot 1/2/5 sai idêntico. Leitura única LIP+MAC
+    elegível para 3/4.
+  - `/api/lip/s4`: caixa de recarga do Slot 3 pela regra própria.
+  - `/api/processo/salvar`: dispensas do Slot 3 (caixa) e do Slot 4 (Uso do Solo, caixa, ART),
+    pela regra própria, nas mesmas chaves de resposta.
+  - Alerta de fluxo (rota + componente), Fatiador (`/fatiador-sei`, opções Slot 3 e Slot 4 com
+    rota própria), Pilha (atalho para o MAC), indeferimento por imóvel duplicado (rotas por slug
+    exato), admin de padrões de despacho, fila de vínculos LIP/BIP.
+  - O **Organizador SEI não aparece na ficha** de nenhum slot desde 11/09 (foi trocado pelo
+    `/fatiador-sei`). As cópias do Slot 3/4 existem, sem uso, como as do Slot 1/2.
+  - Prova: `tsc` limpo; testes 189/189 e 57/57 (a seção 2 do teste de regras prova que todo
+    bloco e regra do Slot 3/4 é vazio para `regularizacao`, `aceite_sei` e `slot_05`).
+  - Não verificado no navegador: precisa de login e de processo de teste (Fase 6).
+- **⚠️ Decisões abertas da Fase 4:**
+  1. **Condições bloqueantes do URBI (Vigia) NÃO foram ligadas no Slot 3/4.** A tabela
+     `urbi_regras_bloqueio` tem um interruptor por condição, sem slot, e os Slots 1 e 2 já dividem
+     os mesmos. Ligar o 3/4 ali faria "ligar no Slot 1 = ligar no Slot 3". Proposta: interruptor
+     por slot (chave + slug), só para o 3 e o 4, sem mexer no 1 e no 2. Até decidir, o Vigia não
+     aplica as 8 condições ao Slot 3/4.
+  2. **Defeito antigo na Pilha:** o atalho "ir para o MAC" (`?destino=mac`) leva processo do
+     Slot 2 e do Slot 5 para a tela do MAC da **Regularização**. Não corrigido, porque não há
+     pedido para esses slots. O Slot 3/4 já vai para a tela certa.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.

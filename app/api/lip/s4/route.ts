@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth";
 import { avaliarCaixaRecarga, LIMITE_AREA_CAIXA_M2 } from "@/lib/caixaRecargaSlot1";
 import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
+// Slot 3 (Regularização PED, 16/10/2026): mesma verificação, pela regra do PRÓPRIO arquivo.
+import * as caixaSlot3 from "@/lib/regularizacaoPed/caixaRecarga";
+import { ehRegularizacaoPed } from "@/lib/regularizacaoPed/identidade";
 
 export const maxDuration = 30;
 
@@ -150,8 +153,14 @@ export async function POST(req: NextRequest) {
     // do lote. É comparação numérica — decidida aqui, nunca pela IA. Os demais
     // slots não entram: o Slot 5 tem lei e regra próprias (proporcional à área
     // impermeabilizada), e sem tipo informado nada roda.
-    if (ehRegularizacaoSei(tipoProcesso)) {
-      const vCaixa = avaliarCaixaRecarga({
+    // Cada slot com a sua regra: Slot 1 pelo lib/caixaRecargaSlot1, Slot 3 pelo próprio arquivo.
+    const regraCaixa = ehRegularizacaoSei(tipoProcesso)
+      ? { avaliar: avaliarCaixaRecarga, limite: LIMITE_AREA_CAIXA_M2 }
+      : ehRegularizacaoPed(tipoProcesso)
+        ? { avaliar: caixaSlot3.avaliarCaixaRecarga, limite: caixaSlot3.LIMITE_AREA_CAIXA_M2 }
+        : null;
+    if (regraCaixa) {
+      const vCaixa = regraCaixa.avaliar({
         areaTotal: mesclado["areaTotal"],
         areaAprovada: mesclado["areaAprovada"],
       });
@@ -175,7 +184,7 @@ export async function POST(req: NextRequest) {
       if (vCaixa.situacao === "INDETERMINADA") {
         inc.push({
           tipo: "ALERTA", campo: "areaTotal",
-          descricao: `Área construída não lida — sem ela o limite de ${LIMITE_AREA_CAIXA_M2}m² da caixa de recarga (LC 314/2018, Art. 2º §4º) não pode ser conferido.`,
+          descricao: `Área construída não lida — sem ela o limite de ${regraCaixa.limite}m² da caixa de recarga (LC 314/2018, Art. 2º §4º) não pode ser conferido.`,
           docs: ["PROJETO"],
         });
       }

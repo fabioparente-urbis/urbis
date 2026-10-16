@@ -5,6 +5,9 @@ import { extrairMetricasProcesso } from "@/lib/mrp";
 import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
 import { chavesCaixaDispensadasSlot1 } from "@/lib/caixaRecargaSlot1";
 import { chavesDispensadasAceiteSei } from "@/lib/aceiteSeiDispensas";
+// Slots 3 e 4 (PED, 16/10/2026): dispensas pela regra do PRÓPRIO slot.
+import { chavesCaixaDispensadasSlot3 } from "@/lib/regularizacaoPed/caixaRecarga";
+import { chavesDispensadasAceitePed } from "@/lib/aceitePed/dispensas";
 import { sincronizarProfissionaisDoLip, precisaResincronizarProfissionais } from "@/lib/profissionais/sincronizar";
 
 /**
@@ -272,6 +275,35 @@ export async function POST(req: NextRequest) {
           console.info(
             `[LIP/slot2] ${id}: sem pré-marcação automática de ${removidas.join(", ")}. ` +
             dispensaAceite.motivos.join(" "),
+          );
+        }
+      }
+
+      /* Slot 3 (Regularização PED) e Slot 4 (Aceite PED) — 16/10/2026. Mesma semântica dos
+       * blocos do Slot 1 e do Slot 2 acima (só deixa de PRÉ-MARCAR; nada some do checklist),
+       * pela regra de cada um no próprio arquivo. Cada função devolve lista vazia para
+       * processo de outro slot, então os blocos acima e estes nunca agem no mesmo processo. */
+      const dispensaCaixaSlot3 = chavesCaixaDispensadasSlot3(tipoProcesso, dados);
+      if (dispensaCaixaSlot3.chaves.length > 0) {
+        const removidas = chavesProblema.filter((c) => dispensaCaixaSlot3.chaves.includes(c));
+        if (removidas.length > 0) {
+          chavesProblema = chavesProblema.filter((c) => !dispensaCaixaSlot3.chaves.includes(c));
+          respostaCaixaRecarga = { mensagem: dispensaCaixaSlot3.veredicto!.mensagem, chaves: removidas };
+          console.info(
+            `[LIP/slot3] ${id}: caixa de recarga (${dispensaCaixaSlot3.veredicto!.situacao}) — sem ` +
+            `pré-marcação automática de ${removidas.join(", ")}. ${dispensaCaixaSlot3.veredicto!.mensagem}`,
+          );
+        }
+      }
+      const dispensaSlot4 = chavesDispensadasAceitePed(tipoProcesso, dados);
+      if (dispensaSlot4.chaves.length > 0) {
+        const removidas = chavesProblema.filter((c) => dispensaSlot4.chaves.includes(c));
+        if (removidas.length > 0) {
+          chavesProblema = chavesProblema.filter((c) => !dispensaSlot4.chaves.includes(c));
+          respostaDispensasAceite = { motivos: dispensaSlot4.motivos, chaves: removidas };
+          console.info(
+            `[LIP/slot4] ${id}: sem pré-marcação automática de ${removidas.join(", ")}. ` +
+            dispensaSlot4.motivos.join(" "),
           );
         }
       }

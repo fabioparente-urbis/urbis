@@ -7,6 +7,17 @@ import { blocoPromptCompatibilidadeArea } from "@/lib/compatibilidadeArea";
 import { blocoPromptCaixaRecarga } from "@/lib/caixaRecargaSlot1";
 import { blocoPromptCarimboAssunto } from "@/lib/carimboAssunto";
 import { blocoPromptCheadvAprovado } from "@/lib/cheadvAprovado";
+// Slots 3 e 4 (PED, 16/10/2026): blocos do PRÓPRIO slot. Cada bloco devolve "" para processo
+// de outro slot, então somar os três (Slot 1/2, 3, 4) dá exatamente um bloco por processo —
+// e para Slot 1/2/5 o prompt sai idêntico ao de antes.
+import * as marcoSlot3 from "@/lib/regularizacaoPed/marcoTemporal";
+import * as areaSlot3 from "@/lib/regularizacaoPed/compatibilidadeArea";
+import * as caixaSlot3 from "@/lib/regularizacaoPed/caixaRecarga";
+import * as carimboSlot3 from "@/lib/regularizacaoPed/carimboAssunto";
+import * as cheadvSlot3 from "@/lib/regularizacaoPed/cheadvAprovado";
+import * as marcoSlot4 from "@/lib/aceitePed/marcoTemporal";
+import * as carimboSlot4 from "@/lib/aceitePed/carimboAssunto";
+import * as cheadvSlot4 from "@/lib/aceitePed/cheadvAprovado";
 import { aplicarMarcadores } from "@/lib/promptCampos";
 import { registrarChamadaIA } from "@/lib/iaUso";
 import {
@@ -113,17 +124,22 @@ export async function POST(req: NextRequest) {
     const ctxDocs = documentos?.length
       ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
       : "";
-    const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
-    const blocoArea = blocoPromptCompatibilidadeArea(tipoProcesso);
+    const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso)
+      + marcoSlot3.blocoPromptMarcoTemporal(tipoProcesso) + marcoSlot4.blocoPromptMarcoTemporal(tipoProcesso);
+    const blocoArea = blocoPromptCompatibilidadeArea(tipoProcesso)
+      + areaSlot3.blocoPromptCompatibilidadeArea(tipoProcesso);
     // Caixa de recarga (só Regularização SEI): impede que o modelo responda
     // "caixa: Sim" por dedução da área. O corte de 250m² da LC 314/2018 é
     // comparação numérica feita pelo sistema — do modelo se quer só o fato
     // que está no carimbo. Ver lib/caixaRecargaSlot1.ts.
-    const blocoCaixa = blocoPromptCaixaRecarga(tipoProcesso);
+    const blocoCaixa = blocoPromptCaixaRecarga(tipoProcesso)
+      + caixaSlot3.blocoPromptCaixaRecarga(tipoProcesso);
     // Condições bloqueantes #6 e #7 do URBI (pedido do Fábio, 08/09/2026): mesma técnica
     // aditiva acima, cada uma acrescenta 1 campo novo dentro de "campos".
-    const blocoCarimbo = blocoPromptCarimboAssunto(tipoProcesso);
-    const blocoCheadvAprovado = blocoPromptCheadvAprovado(tipoProcesso);
+    const blocoCarimbo = blocoPromptCarimboAssunto(tipoProcesso)
+      + carimboSlot3.blocoPromptCarimboAssunto(tipoProcesso) + carimboSlot4.blocoPromptCarimboAssunto(tipoProcesso);
+    const blocoCheadvAprovado = blocoPromptCheadvAprovado(tipoProcesso)
+      + cheadvSlot3.blocoPromptCheadvAprovado(tipoProcesso) + cheadvSlot4.blocoPromptCheadvAprovado(tipoProcesso);
 
     // Marcadores resolvidos pelo banco ({{CAMPOS_DO_ASSUNTO}},
     // {{ESQUELETO_JSON}}, {{CAMPOS_VAZIOS}}). Prompt sem marcador passa
@@ -154,7 +170,11 @@ export async function POST(req: NextRequest) {
      * "não tentou" (interruptor desligado ou slot fora do escopo) de "tentou e não achou o que
      * precisava" pro texto que `lerLip` escreve em Observações. */
     let tentouCombinar = false;
-    if (typeof codigo === "string" && codigo && marcoTemporalDoTipo(tipoProcesso) !== null) {
+    // Slots 3/4 (PED) entram pelo marco do PRÓPRIO arquivo — mesma elegibilidade do Slot 1/2.
+    const temMarcoNoSlot = marcoTemporalDoTipo(tipoProcesso) !== null
+      || marcoSlot3.marcoTemporalDoTipo(tipoProcesso) !== null
+      || marcoSlot4.marcoTemporalDoTipo(tipoProcesso) !== null;
+    if (typeof codigo === "string" && codigo && temMarcoNoSlot) {
       try {
         if (await leituraUnicaLipMacAtiva()) {
           tentouCombinar = true;

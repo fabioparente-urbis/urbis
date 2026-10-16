@@ -68,15 +68,20 @@ import { useHistoricoReducer } from "@/hooks/useHistoricoReducer";
 import { useAtalhosTeclado } from "@/hooks/useAtalhosTeclado";
 import { rotuloAtalho, type Atalho } from "@/lib/documentosSei/atalhosTeclado";
 
-type Slot = "regularizacao" | "aceite_sei";
+type Slot = "regularizacao" | "aceite_sei" | "slot_03" | "slot_04";
 
 const ROTA_POR_SLOT: Record<Slot, string> = {
   regularizacao: "/api/analise-regularizacao/documentos-sei",
   aceite_sei: "/api/analise-aceite-sei/documentos-sei",
+  // Slots 3 e 4 (PED, 16/10/2026): rota PRÓPRIA de cada um.
+  slot_03: "/api/analise-regularizacao-ped/documentos-sei",
+  slot_04: "/api/analise-aceite-ped/documentos-sei",
 };
 const NOME_SLOT: Record<Slot, string> = {
   regularizacao: "Regularização (Slot 1)",
   aceite_sei: "Aceite SEI (Slot 2)",
+  slot_03: "Regularização PED (Slot 3)",
+  slot_04: "Aceite PED (Slot 4)",
 };
 
 type EventoSei = {
@@ -910,6 +915,8 @@ export default function TelaFatiamento() {
                 className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-2 py-1.5 text-sm">
                 <option value="regularizacao">{NOME_SLOT.regularizacao}</option>
                 <option value="aceite_sei">{NOME_SLOT.aceite_sei}</option>
+                <option value="slot_03">{NOME_SLOT.slot_03}</option>
+                <option value="slot_04">{NOME_SLOT.slot_04}</option>
               </select>
             </label>
             <label className="flex flex-col gap-1">

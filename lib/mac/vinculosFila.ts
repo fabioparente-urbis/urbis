@@ -27,7 +27,7 @@ export function escaparValorFiltroOr(valor: string): string {
 
 /** Únicos assuntos autorizados para esta fila — Slot 5 já tem seu próprio mecanismo
  *  (app/api/mac/slot-05/bip-vinculos), não usa esta fila. */
-export const ASSUNTOS_PERMITIDOS_NA_FILA = ["regularizacao", "aceite_sei"] as const;
+export const ASSUNTOS_PERMITIDOS_NA_FILA = ["regularizacao", "aceite_sei", "slot_03", "slot_04"] as const;
 export type AssuntoPermitidoNaFila = (typeof ASSUNTOS_PERMITIDOS_NA_FILA)[number];
 
 export type ItemDoEscopo = {
