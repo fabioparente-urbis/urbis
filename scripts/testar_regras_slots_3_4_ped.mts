@@ -246,5 +246,42 @@ secao("4 · Vigia — condições bloqueantes do Slot 3/4 espelham as do Slot 1/
     && ![S1, S2, S5, "regularizacao_ped", "", null].some((x) => temRegrasProprias(x)));
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+secao("5 · URBI — navegação, catálogo semântico, nome e dossiê do Slot 3/4");
+{
+  const { interpretar } = await import("../lib/urbi/navegacao");
+  const { dominioDoCampo, rotuloDoCampo } = await import("../lib/urbi/catalogoSemantico");
+  const { nomeHumanoDoSlot } = await import("../lib/urbi/contratoResposta");
+  const { montarDossieTecnico } = await import("../lib/urbi/adaptadores");
+  const tipoDe = (f: string) => (interpretar(f) as any)?.filtros?.tipo ?? null;
+  const frases: [string, string][] = [
+    ["processos de regularização", S1], ["processos de regularização PED", S3], ["processos do slot 3", S3],
+    ["processos de aceite", S2], ["processos de aceite SEI", S2], ["processos de aceite PED", S4],
+    ["processos do slot 4", S4], ["processos de aprovação de projeto", S5],
+  ];
+  for (const [f, esperado] of frases) t(`voz: "${f}" → ${esperado}`, tipoDe(f) === esperado, `veio ${tipoDe(f)}`);
+
+  for (const chave of ["areaTerreno", "areaImpermeavel", "areaAprovada", "areaTotal", "areaRecuo", "vistoriaMais12m", "volMin", "volAt"]) {
+    t(`catálogo: ${chave} do Slot 3 = do Slot 1`,
+      dominioDoCampo("slot_03", chave) === dominioDoCampo("regularizacao", chave) && rotuloDoCampo("slot_03", chave) === rotuloDoCampo("regularizacao", chave));
+  }
+  for (const chave of ["areaTerreno", "areaImpermeavel", "areaExistente", "areaAceite", "areaNaoVerticalRecuo", "areaVerticalRecuo", "vistoriaMais12m", "volMin", "volAt"]) {
+    t(`catálogo: ${chave} do Slot 4 = do Slot 2`,
+      dominioDoCampo("slot_04", chave) === dominioDoCampo("aceite_sei", chave) && rotuloDoCampo("slot_04", chave) === rotuloDoCampo("aceite_sei", chave));
+  }
+  t("nome humano do Slot 3/4", nomeHumanoDoSlot(S3) === "Regularização PED" && nomeHumanoDoSlot(S4) === "Aceite PED");
+
+  const entrada: any = {
+    historicoMac: [], itemAtualPorId: new Map(), itensAtivosNoModelo: 60, resultadosDocumento: [], erroResultadosDocumento: null,
+    itensComVinculoBipAprovado: 0, erroCoberturaBip: null, mdpRegistros: [], mrpRegistros: [], eventosCatalogo: [],
+  };
+  const d3 = montarDossieTecnico(S3, entrada), d4 = montarDossieTecnico(S4, entrada), d1 = montarDossieTecnico(S1, entrada);
+  t("dossiê do Slot 3 é do Slot 3", d3?.slot === S3 && d3?.nome_slot === "Regularização PED");
+  t("dossiê do Slot 4 é do Slot 4", d4?.slot === S4 && d4?.nome_slot === "Aceite PED");
+  t("dossiê do Slot 1 continua do Slot 1", d1?.slot === S1 && d1?.nome_slot === "Regularização SEI");
+  t("dossiê do Slot 3/4 não repete auditoria do Slot 1/2",
+    ![...(d3?.observacoes_do_slot ?? []), ...(d4?.observacoes_do_slot ?? [])].some((o) => o.includes("auditoria de 03/09")));
+}
+
 console.log(`\n${total - falhas}/${total} ok` + (falhas ? ` — ${falhas} FALHA(S)` : ""));
 process.exitCode = falhas ? 1 : 0;

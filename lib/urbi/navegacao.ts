@@ -136,6 +136,10 @@ const ROTAS: { chaves: string[]; rota: string; resposta: string }[] = [
 // ------------------------------------------------------------------ filtros
 
 const TIPOS: { chaves: string[]; valor: string; rotulo: string }[] = [
+  // Slots 3 e 4 (PED, 16/10/2026) ANTES do Slot 1/2: a busca pega o primeiro que casar, e
+  // "regularizacao ped" também contém "regularizacao". "regularizacao" sozinha segue no Slot 1.
+  { chaves: ["regularizacao ped", "slot 3", "slot tres", "slot 03"], valor: "slot_03", rotulo: "Regularização PED" },
+  { chaves: ["aceite ped", "slot 4", "slot quatro", "slot 04"], valor: "slot_04", rotulo: "Aceite PED" },
   { chaves: ["regularizacao"], valor: "regularizacao", rotulo: "Regularização" },
   { chaves: ["aceite sei", "aceite"], valor: "aceite_sei", rotulo: "Aceite SEI" },
   { chaves: ["aprovacao de projeto", "aprovacao", "slot 5", "slot cinco", "slot 05"], valor: "slot_05", rotulo: "Aprovação de Projeto" },

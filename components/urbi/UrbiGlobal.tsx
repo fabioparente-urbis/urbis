@@ -190,7 +190,7 @@ export default function UrbiGlobal() {
   }, [estadoFinal, processoCodigo, registrar]);
 
   useEffect(() => {
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     processoIdRef.current = codigo;
     // Mesmo valor do ref, mas em state — é o que vira prop de UrbiChat (ref não
@@ -208,6 +208,8 @@ export default function UrbiGlobal() {
     if (/^\/processo\//.test(pathname)) return "LIP";
     if (/^\/analise-regularizacao\//.test(pathname)) return "MAC — Regularização SEI";
     if (/^\/analise-aceite-sei\//.test(pathname)) return "MAC — Aceite SEI";
+    if (/^\/analise-regularizacao-ped\//.test(pathname)) return "MAC — Regularização PED";
+    if (/^\/analise-aceite-ped\//.test(pathname)) return "MAC — Aceite PED";
     if (/^\/analise-aprovacao-projeto\//.test(pathname)) return "MAC — Aprovação de Projeto";
     if (/^\/processos\/?$/.test(pathname)) return "Pilha";
     if (/^\/mdp\/?/.test(pathname)) return "MDP — Despachos e Pareceres";
@@ -337,7 +339,7 @@ export default function UrbiGlobal() {
     // Slot 5, assuntoId nunca era resolvido (ficava null), mesmo processoCodigo (regex abaixo,
     // idêntico ao de derivação de processoCodigo) estando correto. Corrigido pra cobrir os
     // mesmos 4 padrões de rota.
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     if (!codigo) { setAssuntoId(null); return; }
     fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)

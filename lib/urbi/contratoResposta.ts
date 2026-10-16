@@ -21,6 +21,8 @@ export function nomeHumanoDoSlot(tipoProcesso: string | null | undefined): strin
   switch (tipoProcesso) {
     case "regularizacao": return "Regularização SEI";
     case "aceite_sei": return "Aceite SEI";
+    case "slot_03": return "Regularização PED";
+    case "slot_04": return "Aceite PED";
     case "slot_05": return "Aprovação de Projeto";
     default: return "slot não identificado";
   }

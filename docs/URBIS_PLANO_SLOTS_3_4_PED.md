@@ -1,7 +1,7 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 4 → **85% concluído, 15% restante.**
+**Progresso:** Fase 5 → **92% concluído, 8% restante.**
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -101,6 +101,41 @@
   2. **Defeito antigo na Pilha:** o atalho "ir para o MAC" (`?destino=mac`) leva processo do
      Slot 2 e do Slot 5 para a tela do MAC da **Regularização**. Não corrigido, porque não há
      pedido para esses slots. O Slot 3/4 já vai para a tela certa.
+- **Decisão do Fábio (16/10/2026) — condições bloqueantes:** liga/desliga PRÓPRIO por slot, só
+  para o 3 e o 4. Feito:
+  - Tabela nova `urbi_regras_bloqueio_slot` (PK slot+chave, só `slot_03`/`slot_04`, RLS ligada,
+    só service_role). Começa como **cópia do estado atual do Slot 1/2** (em 16/10/2026 as 8
+    condições estavam ligadas). Migration `2026_10_16b_urbi_regras_bloqueio_slots_3_4.sql`:
+    **o Fábio roda no SQL Editor**. Até lá, a leitura falha e o Slot 3/4 fica com tudo desligado
+    (fail-safe).
+  - Ligar/desligar por SQL, igual ao Slot 1/2 (não existe tela para nenhum dos dois):
+    `UPDATE urbi_regras_bloqueio_slot SET ativo = false, atualizado_em = now() WHERE slot = 'slot_03' AND chave = 'COND_180_DIAS';`
+  - Vigia: Slot 3 espelha o Slot 1 (inclusive compatibilidade de área e Uso do Solo, pela regra
+    do próprio arquivo), Slot 4 espelha o Slot 2. Imóvel duplicado: o 3/4 procura entre si, como
+    o 1/2 procura entre si. **Pergunta aberta:** um imóvel com Regularização SEI e outra PED deve
+    contar como duplicado? Hoje não conta.
+  - Slots 1 e 2: mesma tabela de sempre (`urbi_regras_bloqueio`), mesma leitura, sem mudança.
+  - Tabela incluída no backup do admin.
+- **Fase 5 (16/10/2026):** URBI e satélites.
+  - URBI: adaptadores de dossiê próprios (`lib/urbi/adaptadores/regularizacaoPed.ts`,
+    `aceitePed.ts`), com notas de calibração **reescritas**: as do Slot 1/2 citavam auditoria do
+    histórico deles, que não vale para slot novo. Também: catálogo semântico (linhas próprias,
+    cópia das do 1/2), consulta da Pilha, nome do slot, navegação por voz ("regularização ped",
+    "aceite ped", "slot 3/4"; antes, "regularização ped" caía no Slot 1), explicação de tag, chat
+    (rota do MAC), widget global (reconhece as telas de MAC PED) e painéis de admin (URBI e BDI).
+  - Satélites: MRP pontua por tipo de despacho e faixa de área, não por slot, então o 3/4 pontua
+    como o 1/2 sem código novo. MDP, MHD, MAP e tags gravam o `assunto_id`/tipo do próprio
+    processo. Nenhum precisou de mudança.
+  - Prova: `testar_regras_slots_3_4_ped.mts` 225/225 (seções 4 e 5 novas: Vigia espelhado e
+    URBI); `testar_geradores` 57/57; testes existentes `testar_catalogo_semantico`,
+    `testar_fase11_contrato_slot` e `testar_fase_ab_contrato` passam; `tsc` limpo.
+  - `testar_perguntas_pilha` e `testar_linha_evidencia` falharam 1 caso cada, os dois em
+    `processarProximoPendente` devolvendo `processado: false`. Essa etapa não passa por arquivo
+    alterado aqui, e as verificações seguintes passaram. **Atenção:** esses dois testes gravam em
+    `urbi_radar_retratos` (põem itens na fila do Radar e processam). Rodei sem perceber isso
+    antes. Conferido depois: 0 itens pendentes no banco. **Observação não explicada:** os 3
+    itens que o teste pôs na fila foram processados por outro processo, apesar de o Radar estar
+    pausado.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.
