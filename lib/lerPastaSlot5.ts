@@ -215,10 +215,18 @@ export async function extrairPdf(buffer: Uint8Array): Promise<DocTexto> {
     const page = await doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
+    /* PRANCHA GIRADA — 01/10/2026, processo 47737.
+     *
+     * `i.transform` está no espaço do PDF ANTES da rotação da página. A prancha do 47737 vem com
+     * /Rotate 270 (o AutoCAD plota em retrato e gira): sem aplicar a rotação, "abaixo do rótulo"
+     * virava "ao lado", nenhum valor do carimbo casava e a ficha chegava sem área do terreno,
+     * permeável, ICCAP, CREA e pavimentos — com o texto todo lá. `vp.transform` já inclui rotação
+     * e a inversão do y; em página sem rotação o resultado é o mesmo de antes. */
     for (const i of tc.items as any[]) {
       const t = (i.str || "").trim();
       if (!t) continue;
-      itens.push({ t, x: i.transform[4], y: vp.height - i.transform[5], h: i.height || 8, pagina: p });
+      const [, , , , x, y] = pdfjs.Util.transform(vp.transform, i.transform);
+      itens.push({ t, x, y, h: i.height || 8, pagina: p });
     }
   }
 
@@ -268,12 +276,21 @@ function valorPerto(doc: DocTexto, rotulo: string, padrao: RegExp, raio = 40): s
   const alvo = norm(rotulo);
   const rot = doc.itens.filter((i) => norm(i.t).startsWith(alvo));
   for (const r of rot) {
+    /* Rótulo e valor no MESMO item ("Área do terreno: 437,50m²", processo 28268). Sem isto o valor
+     * próprio era ignorado e o leitor pegava a linha de baixo — a área impermeabilizada. */
+    const proprio = r.t.slice(rotulo.length).replace(/^[\s:=]+/, "");
+    if (proprio && /^\d/.test(proprio) && padrao.test(proprio)) return proprio;
     const candidatos = doc.itens
       .filter((i) => i !== r && i.pagina === r.pagina && padrao.test(i.t))
       .map((i) => {
         const abaixo = i.y > r.y && i.y - r.y < raio && Math.abs(i.x - r.x) < 200;
         const direita = Math.abs(i.y - r.y) < 4 && i.x > r.x;
         if (!abaixo && !direita) return null;
+        /* Valor que já tem DONO na própria linha não é do rótulo de cima. No 47737 a
+         * "FORRAÇÃO VEGETAL NÃO PERMEÁVEL:" está em branco, e o "54,07²" logo abaixo é do
+         * "ÍNDICE TOTAL:" à esquerda dele — sem isto o não permeável herdava o índice total. */
+        if (abaixo && !direita && doc.itens.some((j) => j !== r && j.pagina === i.pagina
+            && Math.abs(j.y - i.y) < 4 && j.x < i.x && j.x >= r.x - 5 && /:\s*$/.test(j.t))) return null;
         return { i, dist: direita ? i.x - r.x : (i.y - r.y) * 3 + Math.abs(i.x - r.x) };
       })
       .filter(Boolean) as { i: ItemTexto; dist: number }[];
@@ -555,7 +572,10 @@ function lerPrancha(doc: DocTexto) {
       const v = valorPerto(doc, r, P_AREA);
       if (!v) continue;
       return {
-        area: num(v.match(new RegExp(`(?<!\\d)((?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2})\\s*${U_AREA}`, "i"))?.[1]),
+        // "54,07²(15,02%)" — o projetista do 47737 esqueceu o "m"; o "²" sozinho ainda é área
+        // `(?<![\d,.])`: em "247,86,00M²" (erro de digitação, 28268) o "86,00" não é área — antes
+        // virava 86 m²; agora o campo fica sem valor e o analista vê o carimbo
+        area: num(v.match(new RegExp(`(?<![\\d,.])((?:\\d{1,3}(?:\\.\\d{3})+|\\d+),\\d{2})\\s*(?:${U_AREA}|²)`, "i"))?.[1]),
         pct: num(v.match(/(\d+,\d+)\s*%/)?.[1]),
         rotuloUsado: r,
       };
@@ -640,9 +660,16 @@ function lerPrancha(doc: DocTexto) {
   if (d.iccapExigido == null) d.carimboFaltando.push("ICCAP — EXIGIDO (o modelo pede EXIGIDO e ATENDIDO)");
   d.iccapBruto = iccap;
 
+  /* Frases explícitas primeiro: com a prancha girada lida na ordem certa, números soltos do desenho
+   * ficam colados antes de "CAIXAS" ("16 CAIXAS") e o padrão genérico lá embaixo os pegava. */
   d.numeroCaixas = (t.match(/N[úu]mero de caixas:\s*(\d+)/i) || [])[1]
+    || (t.match(/N[ÚU]MERO DE CAIXAS\s*=\s*(\d+)/i) || [])[1]
+    || (t.match(/QUANTIDADE DE CAIXAS[^:\d]{0,30}:\s*(\d+)/i) || [])[1]
+    || (t.match(/\b(\d{1,2})\s+Caixas?\s+(?:de\s+)?(?:infiltra\S*|recarga)\s+com\b/i) || [])[1]
+    || (t.match(/Total:\s*(\d{1,2})\s+caixas?\s+com\b/i) || [])[1]
     || cxs?.[1]
-    || (t.match(/\b(\d{1,2})\s*CAIXAS?\b/i) || [])[1]
+    // genérico só dentro de UM item de texto: no texto corrido, número solto do desenho colava em "CAIXAS"
+    || (doc.itens.map((i) => i.t.match(/^(\d{1,2})\s*CAIXAS?\b/i)?.[1]).find(Boolean) ?? null)
     || null;
   d.revisao = (t.match(/\bREV\s?(\d{2})\b/i) || [])[0]?.replace(/\s/g, "") || null;
 
@@ -656,7 +683,10 @@ function lerPrancha(doc: DocTexto) {
   d.folha = valorPerto(doc, "FOLHA:", /^\d+\s*\/\s*\d+$|^\d+$/);
   d.desenho = valorPerto(doc, "DESENHO:", /\S/);
 
-  d.pavimentos = (t.match(/(\d{2})\s*PAVIMENTO/i) || [])[1] || null;
+  // "Número de Pavimentos 01" no quadro de áreas (47737) — rótulo antes do número
+  d.pavimentos = (t.match(/(\d{2})\s*PAVIMENTO/i) || [])[1]
+    || valorPerto(doc, "NÚMERO DE PAVIMENTOS", /^\d{1,2}$/)
+    || (t.match(/N[úu]mero de Pavimentos:?\s*(\d{1,2})\b/i) || [])[1] || null;
   d.terreo = /PAVIMENTO\s*_?\s*T[ÉE]RREO/i.test(t);
   d.iptu = (t.match(/IT?U\s*([\d.]{14,20})/i) || [])[1] || null;
   d.usoDoSoloN = (t.match(/USO DO SOLO N[ºO°]:\s*(\S+)/i) || [])[1] || null;
@@ -669,7 +699,10 @@ function lerPrancha(doc: DocTexto) {
     || t.match(/ARQUITET[OA](?:\s+E\s+URBANISTA)?\s*[-–—:]\s*([A-ZÀ-Ú][A-ZÀ-Ú\s.]+?)\s*[-–—]\s*CAU[-\s:]*[A-Z]{0,2}\s*(\S+)/i);
   d.arquiteto = arq?.[1]?.trim() || null;
   d.cau = arq?.[2] || null;
-  const eng = t.match(/ENG\.?\s*CIVIL\s*([A-ZÀ-Ú\s]+?)\s*CREA:\s*(\S+)/i);
+  /* Segunda grafia, igual à do arquiteto (47737, 01/10/2026):
+   * "ENGENHEIRO CIVIL - ELIÉZER ISAIAS DA SILVA - CREA 1015182968D/GO". */
+  const eng = t.match(/ENG\.?\s*CIVIL\s*([A-ZÀ-Ú\s]+?)\s*CREA:\s*(\S+)/i)
+    || t.match(/ENGENHEIR[OA](?:\s+CIVIL)?\s*[-–—:]\s*([A-ZÀ-Ú][A-ZÀ-Ú\s.]+?)\s*[-–—]\s*CREA[-\s:]*(\d\S*)/i);
   d.engenheiro = eng?.[1]?.trim() || null;
   d.crea = eng?.[2] || null;
 
@@ -678,7 +711,9 @@ function lerPrancha(doc: DocTexto) {
    * omitiu, o campo fecha em NAO_ENCONTRADO e a pendência aparece como descumprimento da norma.
    * Não é conteúdo rasterizado — verificado na camada de texto em 29/07/2026. */
   const unidades = valorPerto(doc, "Nº DE UNIDADES", /^\d{1,4}$/)
-    ?? ((t.match(/N[ºO°.]?\s*DE\s*UNIDADES[^\d]{0,20}(\d{1,4})/i) || [])[1] || null);
+    ?? ((t.match(/N[ºO°.]?\s*DE\s*UNIDADES[^\d]{0,20}(\d{1,4})/i) || [])[1] || null)
+    // "01 UNIDADE / TERREO" ao lado da atividade, sem rótulo (47737)
+    ?? ((t.match(/\b(\d{1,4})\s+UNIDADES?\b/i) || [])[1] || null);
   // "COMÉRCIO SEM USO DEFINIDO" é o rótulo mais comum no carimbo — achado real (processo 48533,
   // 26/08/2026): o regex só reconhecia "COMERCIAL" e nunca batia com "COMÉRCIO", então
   // unidComerciais nunca fechava sozinho num carimbo comercial, por mais óbvio que fosse.
@@ -850,8 +885,11 @@ function lerAtendimento(doc: DocTexto) {
   d.vagasExigidas = vagas("Exigidas");
   d.vagasAtendidas = vagas("Atendidas");
 
+  /* Terceira grafia (47737, 01/10/2026): a tela quebra o rótulo em duas linhas —
+   * "Data Pagamento Taxa 02/12/2025" e "Inicial" embaixo —, então a data fica ENTRE as palavras. */
   d.dataPagtoTaxa = (t.match(/Data\s+Pagamento\s+Taxa\s+Inicial\s+(\d{2}\/\d{2}\/\d{4})/i) || [])[1]
-    || (t.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,40}Data\s+Pagamento\s+Taxa/i) || [])[1] || null;
+    || (t.match(/(\d{2}\/\d{2}\/\d{4})[\s\S]{0,40}Data\s+Pagamento\s+Taxa/i) || [])[1]
+    || (t.match(/Data\s+Pagamento\s+Taxa\s+(\d{2}\/\d{2}\/\d{4})\s+Inicial/i) || [])[1] || null;
 
   /* O endereço do ATENDIMENTO vem inteiro numa linha só —
    * "R RB11 Quadra 07 Lote 22 Setor SET ALTO DO VALE" — e é a única fonte que traz QUADRA e LOTE

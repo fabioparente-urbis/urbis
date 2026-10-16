@@ -142,13 +142,139 @@ const ICCAP: Receita = {
   },
 };
 
+
+/** Metros ou m² com vírgula decimal, dentro de uma faixa plausível para lote urbano. */
+const medidaEntre = (min: number, max: number, unidade: string) => (bruto: string) => {
+  const v = (bruto ?? "").trim();
+  if (!v) return { ok: false, motivo: "campo ausente na resposta" };
+  // aceita "360,00", "4.876,59" (milhar com ponto) e as 3 casas que matrículas antigas usam ("59,960")
+  if (!/^(?:\d{1,3}(?:\.\d{3})+|\d{1,6})(?:,\d{1,3})?$/.test(v)) return { ok: false, motivo: `"${v}" não é uma medida em ${unidade} com vírgula decimal` };
+  const n = Number(v.replace(/\./g, "").replace(",", "."));
+  if (n < min || n > max) return { ok: false, motivo: `${n} ${unidade} está fora da faixa plausível` };
+  return { ok: true };
+};
+const identificador = (bruto: string) => {
+  const v = (bruto ?? "").trim();
+  return /^[A-Za-z0-9\-\/]{1,8}$/.test(v) ? { ok: true } : { ok: false, motivo: `"${v}" não parece número de lote/quadra` };
+};
+
+/**
+ * Descrição do imóvel na CERTIDÃO DE MATRÍCULA (imagem escaneada — não há camada de texto).
+ * Alimenta a conferência "dimensões do lote × certidão" (lib/visao/conferirLote.ts). As chaves
+ * começam por `certidao` porque NÃO são campos do LIP: a rota as consome e descarta.
+ */
+const CERTIDAO_IMOVEL: Receita = {
+  id: "certidao.descricao_imovel",
+  versao: 1,
+  chaves: ["certidaoLote", "certidaoQuadra", "certidaoArea", "certidaoFrente",
+    "certidaoLateralDireita", "certidaoLateralEsquerda", "certidaoFundos"],
+  estrategia: "VARREDURA_VISUAL",
+  papel: "certidao_matricula",
+  ativa: true,
+  auxiliar: true,
+  localizacao: {
+    alvo: "o parágrafo da matrícula iniciado por \"IMÓVEL:\", que descreve o lote (número do lote, "
+      + "quadra, loteamento, área total e as medidas de frente, lados e fundos com os confrontantes)",
+    varreduraPx: 1400, alvoPx: 1800, margem: 0.02,
+  },
+  modelo: GEMINI_MODEL,
+  prompt: [
+    "Você está lendo um RECORTE de uma certidão de matrícula de imóvel brasileira (Registro de Imóveis).",
+    "Procure o parágrafo que começa com \"IMÓVEL:\" — a descrição do lote — e extraia:",
+    "",
+    "1. certidaoLote — o número do lote (ex.: \"Lote 07\" → \"07\").",
+    "2. certidaoQuadra — o número ou letra da quadra (ex.: \"Quadra 03\" → \"03\").",
+    "3. certidaoArea — a área total do lote em m² (ex.: \"área total de 360,00m²\" → \"360,00\").",
+    "4. certidaoFrente — a medida de FRENTE em metros (ex.: \"12,00 metros de frente\" → \"12,00\").",
+    "5. certidaoLateralDireita — a medida do lado DIREITO em metros.",
+    "6. certidaoLateralEsquerda — a medida do lado ESQUERDO em metros.",
+    "7. certidaoFundos — a medida dos FUNDOS em metros.",
+    "",
+    "Devolva cada número como está escrito, com vírgula decimal e SEM a unidade.",
+    "Se o lote tiver chanfro, curva, mais de quatro lados ou qualquer medida que o texto não",
+    "traga de forma explícita, ABSTENHA-SE nos campos de lado que não estiverem claros.",
+    "Se o parágrafo não estiver visível neste recorte, ou o número estiver ilegível, ABSTENHA-SE.",
+    "Responder um número plausível que você não leu com clareza é PIOR do que se abster.",
+    "",
+    "Responda SOMENTE com JSON, sem cercas de código:",
+    '{"campos": {"certidaoLote": {"valor": "07", "confianca": 0.95}, "certidaoArea": {"valor": "360,00", "confianca": 0.95}}}',
+    "e, para um campo que você não conseguiu ler:",
+    '{"campos": {"certidaoFundos": {"abstencao": true, "motivo": "medida dos fundos não consta"}}}',
+  ].join("\n"),
+  validadores: {
+    certidaoLote: identificador,
+    certidaoQuadra: identificador,
+    certidaoArea: medidaEntre(1, 100_000, "m²"),
+    certidaoFrente: medidaEntre(0.5, 2_000, "m"),
+    certidaoLateralDireita: medidaEntre(0.5, 2_000, "m"),
+    certidaoLateralEsquerda: medidaEntre(0.5, 2_000, "m"),
+    certidaoFundos: medidaEntre(0.5, 2_000, "m"),
+  },
+};
+
+/**
+ * Lote do projeto na PLANTA DE SITUAÇÃO da prancha: a área e as cotas do lote destacado.
+ * A planta não diz qual cota é a frente, por isso se pede a MENOR e a MAIOR — a comparação com a
+ * certidão é feita nessa forma (ver conferirLote.ts).
+ */
+const SITUACAO_LOTE: Receita = {
+  id: "prancha.planta_situacao",
+  versao: 1,
+  chaves: ["situacaoArea", "situacaoMenorCota", "situacaoMaiorCota"],
+  estrategia: "VARREDURA_VISUAL",
+  papel: "projeto",
+  ativa: true,
+  auxiliar: true,
+  localizacao: {
+    alvo: "a PLANTA DE SITUAÇÃO: um MAPA URBANO denso, com dezenas de lotes e quadras desenhados em "
+      + "linhas finas, nomes de ruas ao longo das vias e uma seta de norte; um dos lotes aparece "
+      + "destacado (hachurado ou em vermelho). O título \"SITUAÇÃO\" fica logo abaixo do mapa. NÃO é "
+      + "a planta baixa do edifício, nem tabela, nem corte ou fachada",
+    varreduraPx: 2000, alvoPx: 2400, margem: 0.01,
+  },
+  modelo: GEMINI_MODEL,
+  prompt: [
+    "Você está lendo um RECORTE de uma prancha de projeto arquitetônico brasileira. Ele mostra a",
+    "PLANTA DE SITUAÇÃO: um mapa de lotes com a área (\"360,00m²\") escrita dentro de cada lote e as",
+    "medidas dos lados (\"12.00\", \"30.00\") escritas ao longo das divisas. O mapa pode estar girado.",
+    "",
+    "Identifique o lote DESTACADO (hachurado, preenchido ou com contorno diferente dos demais).",
+    "É o único lote que interessa — ignore todos os outros.",
+    "",
+    "1. situacaoArea — a área em m² escrita DENTRO do lote destacado.",
+    "2. situacaoMenorCota — a MENOR medida de lado (em metros) escrita ao longo das divisas do lote destacado.",
+    "3. situacaoMaiorCota — a MAIOR medida de lado (em metros) escrita ao longo das divisas do lote destacado.",
+    "",
+    "Devolva os números com vírgula decimal e SEM unidade (\"12.00\" → \"12,00\").",
+    "Se não houver lote destacado, ou você não conseguir ler a medida DAQUELE lote com clareza",
+    "(lotes vizinhos têm medidas parecidas — não troque), ABSTENHA-SE no campo.",
+    "Responder um número plausível que você não leu com clareza é PIOR do que se abster.",
+    "",
+    "Responda SOMENTE com JSON, sem cercas de código:",
+    '{"campos": {"situacaoArea": {"valor": "360,00", "confianca": 0.9}, "situacaoMenorCota": {"valor": "12,00", "confianca": 0.8}, "situacaoMaiorCota": {"valor": "30,00", "confianca": 0.8}}}',
+    "e, para um campo que você não conseguiu ler:",
+    '{"campos": {"situacaoMenorCota": {"abstencao": true, "motivo": "cotas do lote destacado ilegíveis"}}}',
+  ].join("\n"),
+  validadores: {
+    situacaoArea: medidaEntre(1, 100_000, "m²"),
+    situacaoMenorCota: medidaEntre(0.5, 2_000, "m"),
+    situacaoMaiorCota: medidaEntre(0.5, 2_000, "m"),
+  },
+  coerencia: (v) => {
+    const mn = Number((v.situacaoMenorCota ?? "").replace(",", ".")), mx = Number((v.situacaoMaiorCota ?? "").replace(",", "."));
+    return Number.isFinite(mn) && Number.isFinite(mx) && mn > mx
+      ? { ok: false, motivo: `menor cota (${v.situacaoMenorCota}) maior que a maior (${v.situacaoMaiorCota})` }
+      : { ok: true };
+  },
+};
+
 /**
  * Fase O da Inteligência URBIS (04/09/2026): QUADRO_AREAS_COMPLETO entra no catálogo real — está
  * aqui, tem hash, aparece na lista que `executarVisao` percorre — mas com `ativa: false`
  * (lib/visao/quadroAreas.ts), então `executarVisao` pula ela sempre, ANTES de checar orçamento
  * ou chamar o Gemini. "No catálogo" e "executando" são coisas diferentes agora, de propósito.
  */
-export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS, ICCAP, QUADRO_AREAS_COMPLETO];
+export const RECEITAS: Receita[] = [CALCULO_DE_VAGAS, ICCAP, QUADRO_AREAS_COMPLETO, CERTIDAO_IMOVEL, SITUACAO_LOTE];
 
 export const receitaDaChave = (chave: string) => RECEITAS.find((r) => r.chaves.includes(chave));
 

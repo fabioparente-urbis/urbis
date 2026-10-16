@@ -10,6 +10,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { matriz } from "@/lib/rastreabilidade";
 import { fecharResultados } from "@/lib/rastreabilidade/fechar";
 import { executarVisao } from "@/lib/visao";
+import { RECEITAS } from "@/lib/visao/receitas";
+import { conferirLote } from "@/lib/visao/conferirLote";
 
 /**
  * POST /api/lip/ler-pasta — leitura da pasta do processo de Aprovação de Projeto (slot 5).
@@ -333,7 +335,50 @@ async function processar(
                 `existem como imagem no carimbo ficaram por ler; o resto da leitura está completo`],
       }), TETO_VISAO_MS)),
     ]);
+
+    /* CONFERÊNCIA DO LOTE — certidão (imagem) × planta de situação (imagem) × carimbo (texto).
+     * As duas receitas devolvem chaves AUXILIARES (`certidao*`, `situacao*`) que não são campos do
+     * LIP: servem só para esta comparação e são descartadas aqui, para não vazarem para a ficha.
+     * Só o veredito, em `dimensoesDoLoteConferemComA`, segue adiante — como INFERIDO, que a tela
+     * marca para o analista confirmar. Regra de decisão em lib/visao/conferirLote.ts. */
+    const chavesAuxLote = new Set(RECEITAS
+      .filter((r) => r.id === "certidao.descricao_imovel" || r.id === "prancha.planta_situacao")
+      .flatMap((r) => r.chaves));
+    const lido = (k: string) => {
+      const c: any = visao.campos[k];
+      return c?.valor ? String(c.valor) : null;
+    };
+    const textoDe = (k: string) => {
+      const c: any = campos[k];
+      return c?.valor ? String(c.valor) : null;
+    };
+    const conf = conferirLote({
+      certidao: {
+        lote: lido("certidaoLote"), quadra: lido("certidaoQuadra"), area: lido("certidaoArea"),
+        frente: lido("certidaoFrente"), lateralDireita: lido("certidaoLateralDireita"),
+        lateralEsquerda: lido("certidaoLateralEsquerda"), fundos: lido("certidaoFundos"),
+      },
+      situacao: { area: lido("situacaoArea"), menorCota: lido("situacaoMenorCota"), maiorCota: lido("situacaoMaiorCota") },
+      carimbo: { areaTerreno: textoDe("areaTerreno"), lote: textoDe("lote"), quadra: textoDe("quadra") },
+    });
+    const algumaLeitura = [...chavesAuxLote].some((k) => lido(k));
+    for (const k of chavesAuxLote) { delete visao.campos[k]; delete visao.meta[k]; }
     Object.assign(campos, visao.campos);
+    if (algumaLeitura) {
+      const nome = "Dimensões do lote conferem com a certidão de matrícula?";
+      resultado.conferencias.push({
+        nome,
+        estado: conf.veredito === "SIM" ? "CONFERE" : conf.veredito === "NÃO" ? "NÃO CONFERE" : "SEM DADO",
+        detalhe: conf.evidencia,
+      });
+      if (conf.veredito && !campos.dimensoesDoLoteConferemComA?.valor) {
+        campos.dimensoesDoLoteConferemComA = {
+          valor: conf.veredito, resultado: "INFERIDO",
+          fonte: "visão localizada — certidão de matrícula × planta de situação × carimbo",
+          evidencia: conf.evidencia,
+        };
+      }
+    }
 
     /* Fecha todo campo declarado que leitor e rota não tocaram — NAO_ENCONTRADO/AGUARDANDO_FATO/
      * DOCUMENTO_AUSENTE/BLOQUEADO/MANUAL/NAO_IMPLEMENTADO conforme a própria declaração da matriz.

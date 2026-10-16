@@ -243,21 +243,21 @@ export const CAMPOS_LIP_SLOT5: CampoRastreado[] = [
 
   // ═══════════════ LOTE ═══════════════
   {
-    chave: "dimensoesDoLoteConferemComA", declaracao: "PENDENTE_VISAO", implementado: false,
-    metodos: ["VISAO_LOCALIZADA"], fontePrincipal: "OUTROS_CAMPOS",
+    chave: "dimensoesDoLoteConferemComA", declaracao: "AUTOMATICO", implementado: true,
+    metodos: ["VISAO_LOCALIZADA", "REGRA_DERIVADA"], fontePrincipal: "OUTROS_CAMPOS",
     fontesComparadas: ["CERTIDAO", "PRANCHA"],
     regras: [
-      { regra: "COMPARAR_FONTES", descricao: "imagem da certidão de matrícula × imagem/cotas da planta de situação, direto" },
-      { regra: "MARCAR_SEM_DADO", descricao: "sem a leitura da imagem, fica sem dado — nunca estimado" },
+      { regra: "COMPARAR_FONTES", descricao: "descrição do imóvel na certidão (imagem) × planta de situação (imagem) × carimbo (texto): lote, quadra, área e menor/maior cota" },
+      { regra: "MARCAR_SEM_DADO", descricao: "sem leitura da certidão ou da planta de situação, ou com dado insuficiente, o campo fica sem dado — nunca estimado" },
     ],
-    formula: "dimensões (frente/fundo/laterais) e área lidas na certidão == lidas na planta de situação (com tolerância)",
-    regraSemDado: "depende de leitura de imagem (grupo C) — certidão é imagem em todas as páginas, planta é desenho cotado",
-    valoresPossiveis: SIM_NAO, responsavel: "(a implementar — grupo C)", preenchidoPor: "analista",
-    usaIA: false, versao: 2, alteradoEm: "2026-08-18", testes: T_RASTREIO,
-    observacao: "v2 em 18/08/2026: dimensoesDoLoteNaCertidao/dimensoesDoLoteNoProjeto removidos do LIP — eram "
-      + "campos-fonte literais redundantes com este veredito (se o veredito é SIM/NÃO, escrever a dimensão de "
-      + "novo não agrega). Hoje o analista compara a olho e digita o veredito; quando o grupo C existir, ele lê "
-      + "as duas imagens direto e preenche este campo sozinho, sem precisar dos campos removidos.",
+    formula: "SIM se todo par comparável confere (área com tolerância de 0,5%/0,5 m², cotas com 0,10 m) e há ao menos 2 pares, 1 deles da planta de situação; NÃO se algum diverge",
+    regraSemDado: "visão desligada, sem orçamento ou indisponível resulta NAO_ENCONTRADO; certidão com lote irregular (menos de 4 lados explícitos) compara só área, lote e quadra e não fecha veredito",
+    valoresPossiveis: SIM_NAO, responsavel: "lib/visao/conferirLote.ts (receitas certidao.descricao_imovel e prancha.planta_situacao)",
+    preenchidoPor: "rota", usaIA: true, versao: 3, alteradoEm: "2026-10-01", testes: [...T_RASTREIO, "scripts/testar_conferir_lote.mts"],
+    observacao: "v3 em 01/10/2026: deixou de ser PENDENTE_VISAO. Sai INFERIDO (analista confirma). Depende de "
+      + "urbis_config.visao_ligada, que estava DESLIGADA em produção quando isto foi implementado. v2 em "
+      + "18/08/2026: dimensoesDoLoteNaCertidao/dimensoesDoLoteNoProjeto removidos do LIP — eram campos-fonte "
+      + "literais redundantes com este veredito.",
   },
   podeSerNP("dimensoesDoLoteConferemComRememb", "OUTROS_CAMPOS", "não há remembramento, remanejamento ou desmembramento na pasta"),
 

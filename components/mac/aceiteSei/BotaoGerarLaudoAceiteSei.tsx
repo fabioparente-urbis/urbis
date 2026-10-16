@@ -39,6 +39,8 @@ interface Props {
   onSuccess?: () => void;
   /** Portão de pendências da tela. Devolve false para desistir da emissão. */
   onAntesDeGerar?: () => Promise<boolean>;
+  /** Data do laudo já emitido neste processo. Quando vem, o botão vira "Reemitir" e pede confirmação. */
+  laudoJaEmitidoEm?: string;
 }
 
 /** Lê um cabeçalho que a rota manda percent-encoded, sem estourar se vier torto. */
@@ -48,11 +50,13 @@ function lerHeader(res: Response, nome: string): string | null {
   try { return decodeURIComponent(v); } catch { return v; }
 }
 
-export function BotaoGerarLaudoAceiteSei({ processoId, disabled, onSuccess, mrpData, onAntesDeGerar }: Props) {
+export function BotaoGerarLaudoAceiteSei({ processoId, disabled, onSuccess, mrpData, onAntesDeGerar, laudoJaEmitidoEm }: Props) {
   const [gerando, setGerando] = useState(false);
 
   async function handleGerar() {
     if (!processoId || gerando) return;
+    if (laudoJaEmitidoEm &&
+        !window.confirm(`O laudo deste processo já foi emitido em ${laudoJaEmitidoEm}.\n\nReemitir?`)) return;
     if (onAntesDeGerar && !(await onAntesDeGerar())) return;
     setGerando(true);
     try {
@@ -146,7 +150,7 @@ export function BotaoGerarLaudoAceiteSei({ processoId, disabled, onSuccess, mrpD
       className="w-full bg-[var(--success)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[var(--primary-text)] font-bold py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center gap-2"
     >
       {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
-      {gerando ? "⏳ Gerando..." : "📊 Gerar Laudo Excel"}
+      {gerando ? "⏳ Gerando..." : laudoJaEmitidoEm ? "🔄 Reemitir Laudo Excel" : "📊 Gerar Laudo Excel"}
     </button>
   );
 }

@@ -88,6 +88,12 @@ export type Receita = {
    * (ver `CHECKLIST_ATIVACAO_VISAO` em lib/visao/quadroAreas.ts) não foi cumprido por um humano.
    */
   ativa: boolean;
+  /**
+   * As chaves são AUXILIARES: insumo de uma conferência, não campos do LIP. A rota as consome e
+   * descarta (ver app/api/lip/ler-pasta/route.ts), por isso não constam da matriz — e é por isso
+   * também que NÃO podem coincidir com a chave de nenhum campo real (o teste garante).
+   */
+  auxiliar?: boolean;
   /** o que torna o valor de CADA campo aceitável. Valor fora disto é tratado como ilegível. */
   validadores: Record<string, (valor: string) => { ok: boolean; motivo?: string }>;
   /**

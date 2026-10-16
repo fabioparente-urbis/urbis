@@ -172,6 +172,28 @@ export async function POST(req: NextRequest) {
   };
   // auto_gerado: upsert por (usuario_id, numero_despacho) — evita duplicata na reemissão
   const isUpsert = body.auto_gerado && body.numero_despacho;
+
+  // Laudo não tem numero_despacho (não consome faixa), então não há chave de upsert: cada
+  // reemissão inseria outra linha e somava pontos de novo. A identidade do laudo é
+  // (analista, processo, análise); sem análise de um dos lados, casa com o laudo do processo.
+  if (body.auto_gerado && payload.tipo_despacho === "laudo" && !payload.numero_despacho) {
+    const { data: laudos } = await supabaseAdmin
+      .from("mrp_registros").select("id, numero_analise")
+      .eq("usuario_id", usuarioId).eq("processo_codigo", payload.processo_codigo).eq("tipo_despacho", "laudo");
+    const igual = (laudos ?? []).find((l: any) =>
+      l.numero_analise == null || payload.numero_analise == null || l.numero_analise === payload.numero_analise);
+    if (igual) {
+      const { data: atual, error: errUp } = await supabaseAdmin.from("mrp_registros")
+        .update({
+          ...payload,
+          numero_analise: payload.numero_analise ?? (igual as any).numero_analise ?? null,
+        })
+        .eq("id", (igual as any).id).select().maybeSingle();
+      if (errUp) return NextResponse.json({ ok: false, erro: errUp.message }, { status: 500 });
+      return NextResponse.json({ ok: true, data: atual, reemissao: true });
+    }
+  }
+
   const { data, error } = isUpsert
     ? await supabaseAdmin.from("mrp_registros")
         .upsert(payload, { onConflict: "usuario_id,numero_despacho", ignoreDuplicates: false })

@@ -117,7 +117,7 @@ const transitorio = (status: number, corpo: string) =>
   status === 503 || status === 429 || status >= 500
   || /overloaded|high demand|unavailable/i.test(corpo);
 
-async function chamarModelo(png: Uint8Array, r: Receita): Promise<{ texto: string; custo: number; ms: number }> {
+export async function chamarModelo(png: Uint8Array, r: Receita): Promise<{ texto: string; custo: number; ms: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY não configurada");
   const t0 = performance.now();
@@ -130,7 +130,7 @@ async function chamarModelo(png: Uint8Array, r: Receita): Promise<{ texto: strin
       ],
     }],
     // temperatura zero: não se quer criatividade lendo número de vaga de estacionamento
-    generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: "application/json" },
+    generationConfig: { temperature: 0, maxOutputTokens: 4096, responseMimeType: "application/json" },
   });
 
   let ultimoErro = "";
