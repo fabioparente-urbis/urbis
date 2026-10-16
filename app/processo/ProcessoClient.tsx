@@ -10,12 +10,6 @@ import { juntarArquivosComoFile } from "@/lib/documentosSei/juntarArquivosLeitur
 import { AJUDA_CAMPOS } from "@/lib/lipAjuda";
 import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
 import { ehRegularizacaoSei } from "@/lib/compatibilidadeArea";
-// Slots 3 e 4 (PED, 16/10/2026) — regras próprias de cada um, nunca as do Slot 1/2.
-import { ehRegularizacaoPed } from "@/lib/regularizacaoPed/identidade";
-import { ehAceitePed } from "@/lib/aceitePed/identidade";
-import * as marcoSlot3 from "@/lib/regularizacaoPed/marcoTemporal";
-import * as marcoSlot4 from "@/lib/aceitePed/marcoTemporal";
-import { avaliarCaixaRecargaDosDados as avaliarCaixaRecargaDosDadosSlot3 } from "@/lib/regularizacaoPed/caixaRecarga";
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
 import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
@@ -130,34 +124,9 @@ function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" |
   );
 }
 
-/* Desvio por slot do marco temporal (Slots 3 e 4 — PED, 16/10/2026). Cada slot lê o marco
- * do PRÓPRIO arquivo. Para Slot 1/2 o caminho é exatamente o de antes (`lib/marcoTemporal`);
- * os arquivos do Slot 3/4 só respondem ao próprio slug, então nenhum slot pega regra alheia. */
-function marcoTemporalDoSlot(tipo: string | null | undefined) {
-  if (ehRegularizacaoPed(tipo)) return marcoSlot3.marcoTemporalDoTipo(tipo);
-  if (ehAceitePed(tipo)) return marcoSlot4.marcoTemporalDoTipo(tipo);
-  return marcoTemporalDoTipo(tipo);
-}
-function avaliarMarcoTemporalDoSlot(tipo: string | null | undefined, leitura: any): VeredictoMarcoTemporal | null {
-  if (ehRegularizacaoPed(tipo)) return marcoSlot3.avaliarMarcoTemporal(tipo, leitura);
-  if (ehAceitePed(tipo)) return marcoSlot4.avaliarMarcoTemporal(tipo, leitura);
-  return avaliarMarcoTemporal(tipo, leitura);
-}
-
-/** Tela do MAC de cada slot. Slot 1 continua sendo o caminho padrão, como antes. */
-function rotaMacDoSlot(tipo: string): string {
-  if (tipo === "slot_05") return "/analise-aprovacao-projeto";
-  if (tipo === "aceite_sei") return "/analise-aceite-sei";
-  if (ehRegularizacaoPed(tipo)) return "/analise-regularizacao-ped";
-  if (ehAceitePed(tipo)) return "/analise-aceite-ped";
-  return "/analise-regularizacao";
-}
-
 /** Fallback estático — o nome bom vem do banco (`nomeAssunto`). */
 function rotuloTipo(slug: string): string {
   if (slug === "aceite_sei") return "Aceite SEI";
-  if (slug === "slot_03") return "Regularização PED";
-  if (slug === "slot_04") return "Aceite PED";
   if (slug === "aprovacao_pp") return "Aprovação PP";
   if (slug === "aprovacao_mp") return "Aprovação MP";
   return "Regularização SEI";
@@ -256,12 +225,8 @@ export default function ProcessoClient() {
    * Sem essa trava, qualquer slot novo herdaria a feature de graça, sem pedido.
    * Estender a outro slot exige pedido explícito, igual a mexer no Slot 1
    * (ver memória urbis-tela-lip-nao-isolada-por-slot). */
-  // Slots 3 e 4 (PED) entram por pedido explícito do Fábio, 16/10/2026: "o Slot 3 copia 100% o
-  // Slot 1 e o Slot 4 copia 100% o Slot 2".
-  const ehSlot3 = ehRegularizacaoPed(tipoUrl);
-  const ehSlot4 = ehAceitePed(tipoUrl);
   const coordenadasMapaFacilHabilitado =
-    tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || ehSlot5 || ehSlot3 || ehSlot4;
+    tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || ehSlot5;
 
   const [aba, setAba] = useState(0);
   const { registrar } = useAuditoria();
@@ -611,10 +576,7 @@ export default function ProcessoClient() {
   }, [idUrl, carregandoAbas, carregarProcesso]);
   useEffect(() => {
     if (!idUrl) return;
-    const rota = tipoUrl === "aceite_sei" ? "/api/analise-aceite-sei"
-      : ehSlot3 ? "/api/analise-regularizacao-ped"
-      : ehSlot4 ? "/api/analise-aceite-ped"
-      : "/api/analise-regularizacao";
+    const rota = tipoUrl === "aceite_sei" ? "/api/analise-aceite-sei" : "/api/analise-regularizacao";
     fetch(`${rota}?codigo=${encodeURIComponent(idUrl)}`)
       .then(r => r.json())
       .then(j => {
@@ -1554,7 +1516,7 @@ export default function ProcessoClient() {
       // reprovar para o processo não passar. O veredito é do fiscal — o
       // URBIS só lê o último laudo e repassa.
       const _comMarco = resultados
-        .map((r) => avaliarMarcoTemporalDoSlot((r as any).tipoProcesso ?? tipoUrl, (r as any).marcoTemporal))
+        .map((r) => avaliarMarcoTemporal((r as any).tipoProcesso ?? tipoUrl, (r as any).marcoTemporal))
         .filter((v): v is VeredictoMarcoTemporal => v !== null);
       _veredicto =
         _comMarco.find((v) => v.naoApta === true) ??
@@ -1742,7 +1704,7 @@ export default function ProcessoClient() {
 
   async function processarVCP() {
     if (vcpArquivos.length === 0) return;
-    if (marcoTemporalDoSlot(tipoUrl) !== null) return processarVCPComoLeituraUnica();
+    if (marcoTemporalDoTipo(tipoUrl) !== null) return processarVCPComoLeituraUnica();
     setVcpProcessando(true);
     setModalVCP(false);
     setTempoLeitura(0);
@@ -1927,11 +1889,7 @@ export default function ProcessoClient() {
               padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null,
             }),
           })
-        // Slots 3 e 4 (PED): despacho interno pela rota PRÓPRIA de cada um — mesmo corpo da
-        // chamada compartilhada abaixo, só o endereço muda.
-        : await fetch(ehSlot3 ? "/api/mac/regularizacao-ped/despacho-interno"
-            : ehSlot4 ? "/api/mac/aceite-ped/despacho-interno"
-            : "/api/despacho-interno", {
+        : await fetch("/api/despacho-interno", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null }),
           });
@@ -2052,7 +2010,7 @@ export default function ProcessoClient() {
     // parte dessa checagem. Por padrão, todo campo em CAMPOS_LAUDO nesses
     // dois slots fica verde clarinho; o analista pode desligar campo a
     // campo (não fica "verde pra sempre") — ver toggleDestaqueLaudo.
-    const laudoDefinidoNesteSlot = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || ehSlot3 || ehSlot4;
+    const laudoDefinidoNesteSlot = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei";
     const noLaudo = laudoDefinidoNesteSlot && CAMPOS_LAUDO.has(campo.chave);
     const laudoAtivo = noLaudo && !laudoOcultos.includes(campo.chave);
     const bgLaudo = laudoAtivo ? "bg-green-50" : "";
@@ -2069,13 +2027,10 @@ export default function ProcessoClient() {
     // a caixa é DISPENSADA e o campo vazio não vira exigência (a rota de save
     // também deixa de pré-marcar os itens do MAC — ver lib/caixaRecargaSlot1.ts).
     // Outros slots não passam por aqui: o Slot 5 tem lei e regra próprias.
-    // Slot 3 (Regularização PED) tem a mesma nota, pela regra do PRÓPRIO arquivo.
     const notaCaixa =
       ehRegularizacaoSei(tipoUrl) && (campo.chave === "caixa" || campo.chave === "artCx")
         ? avaliarCaixaRecargaDosDados(d)
-        : ehSlot3 && (campo.chave === "caixa" || campo.chave === "artCx")
-          ? avaliarCaixaRecargaDosDadosSlot3(d)
-          : null;
+        : null;
     const notaCaixaClasse =
       notaCaixa?.dispensadaPorArea === true
         ? "border-green-400 bg-green-50 text-green-800"
@@ -3055,7 +3010,8 @@ export default function ProcessoClient() {
               setIndoParaMac(true);
               try {
                 await salvar();
-                const rotaMac = rotaMacDoSlot(tipoUrl);
+                const rotaMac = tipoUrl === "slot_05" ? "/analise-aprovacao-projeto"
+                  : tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao";
                 router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
               } finally { setIndoParaMac(false); }
             }} disabled={indoParaMac}
@@ -3067,7 +3023,7 @@ export default function ProcessoClient() {
               setIndoParaMac(true);
               try {
                 await salvar();
-                const rotaMac2 = rotaMacDoSlot(tipoUrl);
+                const rotaMac2 = tipoUrl === "slot_05" ? "/analise-aprovacao-projeto" : tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao";
                 window.open(`${rotaMac2}/${encodeURIComponent(idUrl)}`, "_blank");
               } finally { setIndoParaMac(false); }
             }} disabled={indoParaMac}
@@ -3164,7 +3120,7 @@ export default function ProcessoClient() {
               08/09/2026 — e Slot 5 (slot_05), pedido dele em 25/09/2026: mesma regra, mesmo
               botão. Desvio por tipo_processo dentro do arquivo compartilhado do LIP, sem
               alterar o caminho dos demais slots (regra do CLAUDE.md). */}
-          {(tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || tipoUrl === "slot_05" || ehSlot3 || ehSlot4) && (
+          {(tipoUrl === "regularizacao" || tipoUrl === "aceite_sei" || tipoUrl === "slot_05") && (
             <button
               type="button"
               onClick={finalizarLip}
@@ -3203,7 +3159,7 @@ export default function ProcessoClient() {
                 </p>
               );
             })()}
-            {(tipoUrl === "regularizacao" || ehSlot3) && laudoEmitido && (
+            {tipoUrl === "regularizacao" && laudoEmitido && (
               <p className="text-[var(--success)] text-xs font-bold mt-0.5">
                 📊 Laudo emitido em {laudoEmitido.data}{laudoEmitido.numero_analise ? ` (Análise ${laudoEmitido.numero_analise})` : ""}
               </p>
@@ -3637,7 +3593,7 @@ export default function ProcessoClient() {
                   setConfirmarMac(false); setIndoParaMac(true);
                   try {
                     await salvar();
-                    const rotaMac3 = rotaMacDoSlot(tipoUrl);
+                    const rotaMac3 = tipoUrl === "slot_05" ? "/analise-aprovacao-projeto" : tipoUrl === "aceite_sei" ? "/analise-aceite-sei" : "/analise-regularizacao";
                     router.push(`${rotaMac3}/${encodeURIComponent(idUrl)}`);
                   } finally { setIndoParaMac(false); }
                 }} disabled={indoParaMac}

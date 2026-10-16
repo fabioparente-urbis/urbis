@@ -48,7 +48,18 @@ async function lerJsonSeguro(res: Response, etapa: string): Promise<any> {
   }
 }
 
-async function aguardarJobS3(jobId: string): Promise<any> {
+/**
+ * Rotas de leitura do LIP de cada slot. Os Slots 3 e 4 (PED) têm LIP PRÓPRIO (Etapa 2 do plano
+ * docs/URBIS_PLANO_SLOTS_3_4_PED.md, 16/10/2026) — o Fatiador lê pelas rotas deles. Os demais
+ * slots seguem nas rotas comuns, exatamente como antes.
+ */
+function baseLipDoSlot(slot: string): string {
+  if (slot === "slot_03") return "/api/regularizacao-ped/lip";
+  if (slot === "slot_04") return "/api/aceite-ped/lip";
+  return "/api/lip";
+}
+
+async function aguardarJobS3(jobId: string, base = "/api/lip"): Promise<any> {
   if (!jobId) throw new Error("S3: jobId ausente");
   return new Promise((resolve, reject) => {
     let tentativas = 0;
@@ -56,7 +67,7 @@ async function aguardarJobS3(jobId: string): Promise<any> {
     const intervalo = setInterval(async () => {
       tentativas++;
       try {
-        const poll = await fetch(`/api/lip/s3/status?jobId=${encodeURIComponent(jobId)}`);
+        const poll = await fetch(`${base}/s3/status?jobId=${encodeURIComponent(jobId)}`);
         if (!poll.ok) return;
         const data = await lerJsonSeguro(poll, "S3/status");
         if (data.status === "concluido") {
@@ -84,7 +95,8 @@ export async function lerArquivoComGemini(
   aoProgredir?: (mensagem: string, percentual: number) => void,
 ): Promise<ResultadoLote> {
   aoProgredir?.("Enviando lote para o Gemini...", 10);
-  const s1Res = await fetch("/api/lip/s1", {
+  const base = baseLipDoSlot(contexto.slot);
+  const s1Res = await fetch(`${base}/s1`, {
     method: "POST",
     headers: {
       "Content-Type": "application/pdf",
@@ -101,7 +113,7 @@ export async function lerArquivoComGemini(
   const { fileUri } = s1Data;
 
   aoProgredir?.("Mapeando documentos do lote...", 40);
-  const s2Res = await fetch("/api/lip/s2", {
+  const s2Res = await fetch(`${base}/s2`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -120,7 +132,7 @@ export async function lerArquivoComGemini(
     r.onload = () => res((r.result as string).split(",")[1]);
     r.readAsDataURL(arquivo);
   });
-  const s3InitRes = await fetch("/api/lip/s3", {
+  const s3InitRes = await fetch(`${base}/s3`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -132,7 +144,7 @@ export async function lerArquivoComGemini(
   if (!s3Init.ok) throw new Error("S3: " + (s3Init.erro || "Erro ao iniciar a leitura"));
 
   aoProgredir?.("Lendo com IA... pode levar alguns minutos", 80);
-  const s3Data = await aguardarJobS3(s3Init.jobId);
+  const s3Data = await aguardarJobS3(s3Init.jobId, base);
 
   return {
     campos: s3Data.campos ?? {},

@@ -77,6 +77,14 @@ const ROTA_POR_SLOT: Record<Slot, string> = {
   slot_03: "/api/analise-regularizacao-ped/documentos-sei",
   slot_04: "/api/analise-aceite-ped/documentos-sei",
 };
+// Rotas do LIP (carregar, salvar, última leitura) de cada slot. Slots 3 e 4 têm LIP PRÓPRIO
+// (Etapa 2, 16/10/2026); os demais seguem nas rotas comuns, como antes.
+const ROTA_LIP_POR_SLOT: Record<Slot, { carregar: string; salvar: string; ultimaLeitura: string }> = {
+  regularizacao: { carregar: "/api/processo/carregar", salvar: "/api/processo/salvar", ultimaLeitura: "/api/lip/ultima-leitura" },
+  aceite_sei: { carregar: "/api/processo/carregar", salvar: "/api/processo/salvar", ultimaLeitura: "/api/lip/ultima-leitura" },
+  slot_03: { carregar: "/api/regularizacao-ped/processo/carregar", salvar: "/api/regularizacao-ped/processo/salvar", ultimaLeitura: "/api/regularizacao-ped/lip/ultima-leitura" },
+  slot_04: { carregar: "/api/aceite-ped/processo/carregar", salvar: "/api/aceite-ped/processo/salvar", ultimaLeitura: "/api/aceite-ped/lip/ultima-leitura" },
+};
 const NOME_SLOT: Record<Slot, string> = {
   regularizacao: "Regularização (Slot 1)",
   aceite_sei: "Aceite SEI (Slot 2)",
@@ -436,7 +444,7 @@ export default function TelaFatiamento() {
 
   async function carregarFichaLip() {
     if (!processoCodigo) return null;
-    const r = await fetch(`/api/processo/carregar?id=${encodeURIComponent(processoCodigo)}&tipo=${slot}`, { credentials: "include" });
+    const r = await fetch(`${ROTA_LIP_POR_SLOT[slot].carregar}?id=${encodeURIComponent(processoCodigo)}&tipo=${slot}`, { credentials: "include" });
     const j = await r.json();
     if (!j?.ok) {
       // Processo ainda não cadastrado — pedido do Fábio (15/09/2026): "quero que ele faça o
@@ -497,7 +505,7 @@ export default function TelaFatiamento() {
       if (!gravadas.includes(chave)) gravadas.push(chave);
     }
     if (!gravadas.length) return 0;
-    const r = await fetch("/api/processo/salvar", {
+    const r = await fetch(ROTA_LIP_POR_SLOT[slot].salvar, {
       method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: processoCodigo, dados: novo, tipo: slot }),
     });
@@ -513,7 +521,7 @@ export default function TelaFatiamento() {
     setGravandoLeitura(true);
     setErro(null);
     try {
-      const r = await fetch(`/api/lip/ultima-leitura?codigo=${encodeURIComponent(processoCodigo)}&tipo=${encodeURIComponent(slot)}`, { credentials: "include" });
+      const r = await fetch(`${ROTA_LIP_POR_SLOT[slot].ultimaLeitura}?codigo=${encodeURIComponent(processoCodigo)}&tipo=${encodeURIComponent(slot)}`, { credentials: "include" });
       const j = await r.json().catch(() => null);
       if (!j?.ok) throw new Error(j?.erro ?? "não consegui buscar a última leitura");
       const gravados = await gravarCamposNaFicha(j.campos);

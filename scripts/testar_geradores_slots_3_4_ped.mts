@@ -209,6 +209,12 @@ secao("isolamento Etapa 2 — LIP e MAC próprios (ficha, rotas e bibliotecas)")
       "app/api/analise-regularizacao-ped", "app/api/despacho-regularizacao-ped", "app/api/mac/regularizacao-ped",
       "lib/geradores/regularizacaoPed",
     ],
+    "Slot 4": [
+      "app/lip-aceite-ped", "app/api/aceite-ped", "app/analise-aceite-ped",
+      "components/aceitePed", "components/mac/aceitePed", "lib/aceitePed",
+      "app/api/analise-aceite-ped", "app/api/despacho-aceite-ped", "app/api/mac/aceite-ped",
+      "lib/geradores/aceitePed",
+    ],
   };
   const COMPARTILHADO = new RegExp([
     String.raw`["'\x60]/api/lip/`, String.raw`["'\x60]/api/processo/(salvar|carregar|historico|restaurar|importar-lip|exportar-lip)`,
@@ -219,15 +225,46 @@ secao("isolamento Etapa 2 — LIP e MAC próprios (ficha, rotas e bibliotecas)")
     String.raw`["'\x60]/processo/\$\{(idUrl|codigo|encodeURIComponent\((idUrl|codigo)\))`,
     String.raw`@/lib/(promptCampos|lipAjuda|documentosSei/leituraUnicaLipMac)["']`, String.raw`@/components/documentosSei/AlertaFluxo`,
     String.raw`@/lib/(marcoTemporal|caixaRecargaSlot1|compatibilidadeArea|carimboAssunto|cheadvAprovado|aceiteSeiDispensas)["']`,
-    String.raw`@/lib/aceitePed/|@/lib/mac-motor/slot5|@/components/aprovacaoProjeto/`,
+    String.raw`@/lib/mac-motor/slot5|@/components/aprovacaoProjeto/`,
   ].join("|"));
   for (const [slot, pastas] of Object.entries(PASTAS_ETAPA2)) {
     for (const arq of pastas.flatMap(listar)) {
+      const OUTRO_PED = slot === "Slot 3" ? /@\/lib\/aceitePed\/|\/api\/aceite-ped\// : /@\/lib\/regularizacaoPed\/|\/api\/regularizacao-ped\//;
       const linhas = readFileSync(join(raiz, arq), "utf-8").split("\n")
         .map((l, i) => [i + 1, l] as const)
-        .filter(([, l]) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l) && COMPARTILHADO.test(l));
+        .filter(([, l]) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l) && (COMPARTILHADO.test(l) || OUTRO_PED.test(l)));
       t(`${slot}: ${arq} só usa LIP/MAC do próprio slot`, linhas.length === 0, linhas.map(([n, l]) => `${n}: ${l.trim().slice(0, 110)}`).join(" | "));
     }
+  }
+}
+
+// O caminho inverso: o LIP e o MAC dos Slots 1, 2 e 5 não carregam código PED. Os desvios da
+// Fase 4 foram desfeitos quando cada PED ganhou o próprio programa (Etapa 2, 16/10/2026).
+secao("isolamento Etapa 2 — LIP/MAC dos Slots 1, 2 e 5 sem código PED");
+{
+  const { readFileSync, readdirSync, statSync, existsSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const raiz = new URL("..", import.meta.url).pathname;
+  const listar = (dir: string): string[] =>
+    !existsSync(join(raiz, dir)) ? [] : statSync(join(raiz, dir)).isFile() ? [dir] :
+    readdirSync(join(raiz, dir)).flatMap((n) => {
+      const rel = join(dir, n);
+      return statSync(join(raiz, rel)).isDirectory() ? listar(rel) : /\.(ts|tsx)$/.test(n) ? [rel] : [];
+    });
+  const COMUNS_LIP_MAC = [
+    "app/processo/ProcessoClient.tsx", "app/api/lip", "app/api/processo/salvar", "app/api/processo/carregar",
+    "app/api/processo/historico", "app/api/processo/restaurar", "app/api/processo/importar-lip",
+    "app/api/processo/exportar-lip", "app/api/mac/p3", "app/api/mac/leitura-unica", "app/api/mac/historico",
+    "app/api/mac/buscar", "app/api/mac/exportar-mac", "app/api/mac/importar-mac", "app/api/mac/checklists",
+    "lib/promptCampos.ts", "lib/lipAjuda.ts", "lib/documentosSei/leituraUnicaLipMac.ts",
+    "components/documentosSei/AlertaFluxo.tsx",
+    "app/analise-regularizacao", "app/analise-aceite-sei", "app/api/analise-regularizacao", "app/api/analise-aceite-sei",
+  ];
+  const PED = /slot_03|slot_04|regularizacaoPed|aceitePed|regularizacao-ped|aceite-ped/;
+  for (const arq of COMUNS_LIP_MAC.flatMap(listar)) {
+    const linhas = readFileSync(join(raiz, arq), "utf-8").split("\n")
+      .map((l, i) => [i + 1, l] as const).filter(([, l]) => PED.test(l));
+    t(`${arq} sem código PED`, linhas.length === 0, linhas.map(([n, l]) => `${n}: ${l.trim().slice(0, 100)}`).join(" | "));
   }
 }
 

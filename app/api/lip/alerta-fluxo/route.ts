@@ -57,8 +57,7 @@ export async function GET(req: NextRequest) {
   if (semPermissao) return semPermissao;
 
   const tipo = String((processo as any).tipo_processo ?? "").toLowerCase();
-  // Slots 3 e 4 (PED, 16/10/2026) entram como cópia do Slot 1 e do Slot 2.
-  if (tipo !== "regularizacao" && tipo !== "aceite_sei" && tipo !== "slot_03" && tipo !== "slot_04") {
+  if (tipo !== "regularizacao" && tipo !== "aceite_sei") {
     return NextResponse.json({ ok: true, alerta: null });
   }
 

@@ -7,6 +7,7 @@ import ProcessoClient from "../ProcessoClient";
 // slots seguem nesta ficha, sem nenhuma mudança.
 const FICHA_PROPRIA: Record<string, string> = {
   slot_03: "/lip-regularizacao-ped",
+  slot_04: "/lip-aceite-ped",
 };
 
 export default async function Page({
