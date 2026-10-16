@@ -201,6 +201,29 @@ Isso **não** era o que o Fábio pediu. A Etapa 2 corrige.
 **Ordem aprovada:** Slots 3 e 4 primeiro; depois 2, 5 e por último o 1 (produção crítica), um
 por vez, com teste antes do próximo.
 
+**Situação em 16/10/2026: Etapa 2 CONCLUÍDA para os Slots 3 e 4.**
+- Slot 3: ficha própria (`components/regularizacaoPed/LipRegularizacaoPed.tsx`, sem o "Ler pasta"
+  do Slot 5), 18 rotas de LIP/MAC próprias em `/api/regularizacao-ped/*`, bibliotecas de LIP
+  próprias em `lib/regularizacaoPed/lip/`, tela do MAC chamando só rotas do slot.
+- Slot 4: o mesmo em `/api/aceite-ped/*`, `components/aceitePed/LipAceitePed.tsx` e
+  `lib/aceitePed/lip/`, com o comportamento do Slot 2 (sem nota de caixa, sem aviso de laudo).
+- As rotas PED usam SÓ prompt e checklist do próprio slot. As comuns caem no prompt de qualquer
+  assunto, ou mostram modelos "globais", quando o slot não tem o seu.
+- Leitura única LIP+MAC com liga/desliga próprio por slot (migration `2026_10_16c`).
+- Fatiador lê e grava o Slot 3/4 pelas rotas de cada um.
+- **Os desvios PED da Fase 4 foram DESFEITOS** na ficha comum e nas rotas comuns (`s3`, `s4`,
+  `salvar`, `alerta-fluxo`): esses arquivos voltaram a ser idênticos aos da `main`. O LIP/MAC dos
+  Slots 1, 2 e 5 não tem nenhum código PED. Um teste garante isso.
+- Provas: `testar_regras` 233/233; `testar_geradores` 208/208 (inclui isolamento nos dois
+  sentidos); `tsc` limpo. **Navegador:** Slot 3 e Slot 4 abertos pelo endereço antigo
+  (encaminhados para a ficha própria), LIP preenchido e salvo, MAC aberto com só o checklist do
+  slot, análise salva. Contagem das chamadas: **zero** rotas comuns de LIP/MAC; a única chamada
+  comum foi do widget do URBI (satélite). Banco: análise no slot certo, MRP, MDP e numeração com 0
+  linhas. Processos de teste apagados e conferidos.
+- **Comum, de propósito:** satélites (MRP, MDP, MAP, MHD, URBI, Pilha/tags, Vigia), numeração,
+  cadastros, a trava de custo do LIP (50 leituras/h para a plataforma inteira), banco, login.
+- **Próximos, na ordem aprovada:** Slot 2, depois Slot 5, por último Slot 1. Ainda não iniciados.
+
 **Endereços do Slot 3:** ficha em `/lip-regularizacao-ped/<processo>`; rotas em
 `/api/regularizacao-ped/lip/*`, `/api/regularizacao-ped/processo/*`,
 `/api/regularizacao-ped/mac/*`. O Slot 4 segue o mesmo padrão com `aceite-ped`. O endereço

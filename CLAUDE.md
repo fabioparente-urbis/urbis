@@ -41,9 +41,13 @@ Um "slot" é um tipo de processo. Cada um tem seu checklist e seus documentos.
 - **Slot 5** — Aprovação de Projeto (`slot_05`)
 
 **Slots 3 e 4 (PED)** — plano e registro completo em `docs/URBIS_PLANO_SLOTS_3_4_PED.md`.
-- Regras em `lib/regularizacaoPed/` e `lib/aceitePed/`; rotas `*-ped`; geradores em
-  `lib/geradores/regularizacaoPed/` e `lib/geradores/aceitePed/`; telas
-  `app/analise-regularizacao-ped/` e `app/analise-aceite-ped/`.
+- Regras em `lib/regularizacaoPed/` e `lib/aceitePed/` (inclui `lip/` com as bibliotecas de LIP
+  próprias); rotas `/api/regularizacao-ped/*`, `/api/aceite-ped/*` e `*-ped`; geradores em
+  `lib/geradores/regularizacaoPed/` e `lib/geradores/aceitePed/`; fichas do LIP em
+  `components/regularizacaoPed/LipRegularizacaoPed.tsx` e `components/aceitePed/LipAceitePed.tsx`;
+  telas do MAC `app/analise-regularizacao-ped/` e `app/analise-aceite-ped/`.
+- Prompts e checklists: as rotas PED usam SÓ os do próprio slot. As rotas comuns caem no prompt de
+  qualquer assunto quando o slot não tem o seu; as PED param e avisam.
 - **Slug nunca por prefixo.** Os arquivos do Slot 1/2 decidem por `startsWith("regularizacao")` /
   `startsWith("aceite")`. Por isso os slugs PED são `slot_03`/`slot_04` (e não `regularizacao_ped`),
   e todo arquivo PED se reconhece por igualdade exata (`ehRegularizacaoPed` / `ehAceitePed`).
@@ -53,17 +57,25 @@ Um "slot" é um tipo de processo. Cada um tem seu checklist e seus documentos.
   `scripts/testar_geradores_slots_3_4_ped.mts` (documentos byte a byte iguais aos do 1/2 até
   alguém mudar uma regra PED de propósito — aí o teste é atualizado junto).
 
-**Isolamento entre slots é regra, não estilo.** Slot 5 não importa código do Slot 1 e vice-versa;
-quando o comportamento precisa ser igual, o código é reproduzido por leitura, nunca compartilhado.
+**5 programas independentes dentro de uma plataforma** (decisão do Fábio, 16/10/2026 — "QUERO QUE
+SEJAM 5 PROGRAMAS INDEPENDENTES DENTRO DE UMA PLATAFORMA RODEADO POR MODULOS COMUNS E NUMEROS DE
+PARECERES E DESPACHOS COMUNS"). Cada slot é um programa completo e próprio: **LIP** (ficha + rotas
+de leitura, salvar, carregar, histórico), **MAC** (tela + rotas) e **geração de documentos**.
+Quando o comportamento precisa ser igual, o código é reproduzido por leitura, nunca compartilhado.
 Dois atos que hoje se parecem são de setores diferentes e podem divergir amanhã — um ajuste num
 não pode mudar o outro em silêncio.
 
-**Exceção deliberada:** a numeração de despachos e pareceres (`/api/numeracao/proximo`) é **fonte
-única para todos os slots**, com as mesmas regras. Não criar série por slot.
+**Comum a todos (de propósito):** os módulos satélites (MRP, MDP, MAP, MHD, URBI, tag/Pilha,
+Vigia), a numeração de despachos e pareceres (`/api/numeracao/proximo`, **fonte única**, mesmas
+regras — não criar série por slot), cadastros gerais (assuntos, logradouros, profissionais),
+login, banco e utilitários puros sem regra de slot.
 
-**A tela do LIP não é isolada:** `ProcessoClient.tsx` é um arquivo só para todos os slots. Quando
-precisar de comportamento específico, use um desvio por `tipo_processo` sem alterar o caminho dos
-demais. Os prompts do LIP, esses sim, são isolados por slot.
+**Estado da separação do LIP (16/10/2026):** os Slots 3 e 4 já têm ficha do LIP própria
+(`/lip-regularizacao-ped/<id>`, `/lip-aceite-ped/<id>`) e rotas próprias
+(`/api/regularizacao-ped/*`, `/api/aceite-ped/*`); `/processo/<id>?tipo=slot_03|slot_04` só
+encaminha. Os Slots 1, 2 e 5 **ainda** dividem `ProcessoClient.tsx` e as rotas comuns de LIP/MAC —
+a separação deles está aprovada, na ordem **2, depois 5, por último o 1**, um por vez. Até lá, NÃO
+pôr código de slot novo na ficha comum: slot novo nasce com ficha e rotas próprias.
 
 ## Regras de trabalho
 
