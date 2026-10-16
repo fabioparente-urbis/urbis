@@ -70,14 +70,15 @@ Vigia), a numeração de despachos e pareceres (`/api/numeracao/proximo`, **font
 regras — não criar série por slot), cadastros gerais (assuntos, logradouros, profissionais),
 login, banco e utilitários puros sem regra de slot.
 
-**Estado da separação do LIP (16/10/2026):** os Slots 2, 3 e 4 já têm ficha do LIP própria
-(`/lip-aceite-sei/<id>`, `/lip-regularizacao-ped/<id>`, `/lip-aceite-ped/<id>`) e rotas próprias
-(`/api/aceite-sei/*`, `/api/regularizacao-ped/*`, `/api/aceite-ped/*`);
-`/processo/<id>?tipo=aceite_sei|slot_03|slot_04` só encaminha. O Slot 2 tem interruptor próprio da
-leitura única (`leitura_unica_aceite_sei_ativo`, migration `2026_10_16d`). Prova do Slot 2:
-`scripts/testar_slot2_lip_proprio.mts`. Os Slots 1 e 5 **ainda** dividem `ProcessoClient.tsx` e as
-rotas comuns de LIP/MAC — próximos, na ordem **5, por último o 1**, um por vez. O código do Slot 2
-que ficou na ficha e nas rotas comuns está MORTO (ninguém do Slot 2 chega mais lá); sai quando o
+**Estado da separação do LIP (16/10/2026):** os Slots 2, 3, 4 e 5 já têm ficha do LIP própria
+(`/lip-aceite-sei/<id>`, `/lip-regularizacao-ped/<id>`, `/lip-aceite-ped/<id>`,
+`/lip-aprovacao-projeto/<id>`) e rotas próprias (`/api/aceite-sei/*`, `/api/regularizacao-ped/*`,
+`/api/aceite-ped/*`, `/api/aprovacao-projeto/*`; o MAC do Slot 5 já era `/api/mac/slot-05/*`);
+`/processo/<id>?tipo=aceite_sei|slot_03|slot_04|slot_05` só encaminha. O Slot 2 tem interruptor
+próprio da leitura única (`leitura_unica_aceite_sei_ativo`, migration `2026_10_16d`). Provas:
+`scripts/testar_slot2_lip_proprio.mts` e `scripts/testar_slot5_lip_proprio.mts`. **Só o Slot 1**
+ainda usa `ProcessoClient.tsx` e as rotas comuns de LIP/MAC — é o último a separar. O código dos
+Slots 2 e 5 que ficou na ficha e nas rotas comuns está MORTO (ninguém chega mais lá); sai quando o
 Slot 1 for separado, para não mexer agora no arquivo que o Slot 1 usa. Até lá, NÃO pôr código de
 slot novo na ficha comum: slot novo nasce com ficha e rotas próprias.
 

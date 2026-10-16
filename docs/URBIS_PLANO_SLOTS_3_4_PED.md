@@ -222,7 +222,7 @@ por vez, com teste antes do próximo.
   linhas. Processos de teste apagados e conferidos.
 - **Comum, de propósito:** satélites (MRP, MDP, MAP, MHD, URBI, Pilha/tags, Vigia), numeração,
   cadastros, a trava de custo do LIP (50 leituras/h para a plataforma inteira), banco, login.
-- **Próximos, na ordem aprovada:** ~~Slot 2~~ (feito 16/10, ver abaixo), depois Slot 5, por último Slot 1.
+- **Próximos, na ordem aprovada:** ~~Slot 2~~ e ~~Slot 5~~ (feitos 16/10, ver abaixo), por último Slot 1.
 
 **Slot 2 (Aceite SEI) separado em 16/10/2026**, mesmo molde:
 - Ficha própria `components/aceiteSei/LipAceiteSei.tsx` em `/lip-aceite-sei/<id>`; 25 rotas
@@ -249,6 +249,24 @@ por vez, com teste antes do próximo.
   `testar_regras` 233/233; `testar_geradores` 208/208; `tsc` limpo. Navegador (só leitura, sem
   salvar): endereço antigo encaminha; ficha e MAC do processo 25.37.000004372-5 carregaram só pelas
   rotas do Slot 2; a única chamada comum foi a do widget do URBI (satélite).
+
+**Slot 5 (Aprovação de Projeto) separado em 16/10/2026**, mesmo molde:
+- Ficha própria `components/aprovacaoProjeto/LipAprovacaoProjeto.tsx` em `/lip-aprovacao-projeto/<id>`;
+  19 rotas próprias em `/api/aprovacao-projeto/{lip,processo}/*` (12 nasceram das do Slot 2 trocando
+  o slug; s3, cache, salvar e as três da leitura de pasta, da rota comum; `processo/analises` é nova,
+  cópia do GET de `/api/analise-regularizacao`). O MAC do Slot 5 já era próprio (`/api/mac/slot-05/*`);
+  só os links de volta ao LIP e a legenda de foto mudaram.
+- Medido antes: nenhuma regra dos Slots 1/2 rodava para o Slot 5 nas rotas comuns (marco, área,
+  caixa por 250 m², carimbo, CHEADV, dispensas, leitura única) — todas saíram sem mudar resultado.
+  Prompts P1/P2/P3 próprios existem.
+- Diferenças deliberadas: salvar grava sempre slot_05 e recalcula a outorga; a faixa de análises
+  deixou de ler pela rota da Regularização; cache de leitura sem a trava da leitura única (4 dos 8
+  processos pagavam IA de novo à toa); despacho interno do LIP só pela rota do Slot 5.
+- Manuais: `MANUAL_SLOT5_LIP.md` v1.47 e `MANUAL_SLOT5_MAC.md` v1.48.
+- Provas: `testar_slot5_lip_proprio` 80/80 (inclui 12 rotas gêmeas das do Slot 2);
+  `testar_slot2_lip_proprio` 104/104; `testar_regras` 233/233; `testar_geradores` 208/208; `tsc`
+  limpo. Navegador (processo 50724, sem salvar no LIP): endereço antigo encaminha; ficha carregou só
+  pelas rotas do Slot 5; MAC abriu e volta para a ficha própria.
 
 **Endereços do Slot 3:** ficha em `/lip-regularizacao-ped/<processo>`; rotas em
 `/api/regularizacao-ped/lip/*`, `/api/regularizacao-ped/processo/*`,

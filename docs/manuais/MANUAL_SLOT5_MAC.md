@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.47
-**Data:** 2026-10-15
+**Versão:** 1.48
+**Data:** 2026-10-16
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -67,6 +67,12 @@ reconferidas depois, porque a reconciliação desativou itens sem recalcular cla
 ---
 
 ## 3. A tela própria do MAC do Slot 5
+
+> **16/10/2026 — LIP próprio do Slot 5.** Os botões "← LIP", "🔍 Ver LIP ↗" e os atalhos dos campos
+> do LIP em rascunho passaram a abrir a ficha própria (`/lip-aprovacao-projeto/<processo>`), e a
+> legenda de foto do indeferimento passou a ser lida por `/api/aprovacao-projeto/lip/legenda-foto`.
+> Nada mais mudou na tela do MAC, que já usava só rotas `/api/mac/slot-05/*`. Ver
+> `MANUAL_SLOT5_LIP.md` seção 2.
 
 Arquivo: `app/analise-aprovacao-projeto/[codigo]/page.tsx` — exclusivo do Slot 5 (diferente da tela
 do LIP, que é 1 arquivo para os 15 slots; aqui dá para mexer num slot sem tocar o outro, mas ainda
@@ -269,7 +275,7 @@ que poderia, em teoria, pegar processo de outro slot se o código se repetisse (
 `lib/mac-motor/slot5/outorgaOnerosa.ts` (commit `271ab26`). Regra do Fábio, as **duas** condições
 juntas: altura do térreo até a **cobertura** (ou o **forro**, se não tiver cobertura; ou a **parte
 de baixo do telhado**, se não tiver nem forro — NUNCA a altura total do prédio) `>= 7,5m` **E**
-área construída `>` área do terreno. Roda a cada `POST /api/processo/salvar` do Slot 5 (não no LER
+área construída `>` área do terreno. Roda a cada `POST /api/processo/salvar` do Slot 5 (desde 16/10/2026, `POST /api/aprovacao-projeto/processo/salvar`, rota própria do Slot 5, que recalcula sempre) (não no LER
 PASTA, porque `alturaDaEdificacao` é `PENDENTE_VISAO` — só existe quando o analista digita manual,
 então o cálculo precisa reagir a QUALQUER salvamento, não só a uma leitura de pasta). Isolado por
 `tipoProcesso === "slot_05"` dentro da rota compartilhada — Slot 1 nunca é tocado por esse cálculo.
@@ -699,7 +705,9 @@ numeração do despacho ao interessado, com `documento=despacho_interno` discrim
 isso um sobrescreveria o número do outro). Chamado tanto pela tela própria do MAC (`modalDI` em
 `analise-aprovacao-projeto/[codigo]/page.tsx`) quanto pelo botão de Despacho Interno do LIP — em
 `ProcessoClient.tsx`, `handleDespachoInterno` desvia por `tipoUrl === "slot_05"` para esta rota; os
-demais slots usam `/api/despacho-interno` (agnóstica).
+demais slots usam `/api/despacho-interno` (agnóstica). **Desde 16/10/2026** o botão do LIP do Slot 5
+fica na ficha própria (`components/aprovacaoProjeto/LipAprovacaoProjeto.tsx`) e chama só esta rota,
+sem desvio.
 
 **Reemissão dentro de 15 min (08/09/2026)**: o botão "📨 Despacho Interno" agora reemite — mesma
 regra do Despacho ao Interessado (seção 8.1), mas com janela de tempo em vez de "sempre que já
@@ -1477,6 +1485,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.48 | 2026-10-16 | Seção 3 (caixa no topo), 4.3 e 8.2: com o LIP do Slot 5 virando programa próprio, os botões de voltar ao LIP abrem `/lip-aprovacao-projeto/<id>`, a legenda de foto usa a rota do Slot 5, a outorga roda na rota de salvar própria e o despacho interno do LIP sai só pela rota do Slot 5. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |
 | 1.47 | 2026-10-15 | Seção 8.3: reemissão do Laudo — botão "Reemitir" com confirmação quando já há tag `laudo`; MRP do laudo deixa de duplicar na reemissão. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.46. |
 | 1.46 | 2026-10-02 | Seção 3.4.1: o botão de classificar item em filtro passa a usar o ícone de funil do filtro do Excel (antes 🏷️), a pedido do Fábio. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.45. |
 | 1.45 | 2026-10-02 | Tela do MAC: o contador "N/M respondidos" dentro de cada ÍTEM (aba) passa a letra maior, vermelha e em negrito (pedido do Fábio). Lado LIP: `MANUAL_SLOT5_LIP.md` v1.44. |

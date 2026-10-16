@@ -1,0 +1,305 @@
+// ============================================================
+// SLOT 5 — APROVAÇÃO DE PROJETO · rota PRÓPRIA do slot. CÓPIA POR LEITURA de app/api/processo/salvar/route.ts,
+// 16/10/2026 (separação do Slot 5, molde da Etapa 2 em docs/URBIS_PLANO_SLOTS_3_4_PED.md —
+// "5 programas independentes"). Diferenças: grava sempre como Slot 5 (a rota comum caía em "regularizacao" quando a tela não mandava o tipo); recalcula a outorga onerosa a cada save, como antes; saíram as dispensas do Slot 1 (caixa) e do Slot 2 (Aceite), que já davam vazio para o Slot 5. Satélites seguem COMUNS.
+// ============================================================
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { autenticar, renovarCookieAuth, verificarOwnership } from "@/lib/auth";
+import { extrairMetricasProcesso } from "@/lib/mrp";
+import { recalcularOutorgaOnerosa } from "@/lib/mac-motor/slot5/outorgaOnerosa";
+import { SLUG_APROVACAO_PROJETO } from "@/lib/aprovacaoProjeto/identidade";
+import { sincronizarProfissionaisDoLip, precisaResincronizarProfissionais } from "@/lib/profissionais/sincronizar";
+
+/**
+ * Retorna as chaves do objeto `dados` cujos campos estão marcados como
+ * "CONFERIR" (origem padrão + valor vazio) ou têm valor literal "X".
+ * Essas chaves disparam pré-marcação dos itens do MAC como naoConforme.
+ */
+/**
+ * Extrai data_protocolo de dados.data_protocolo.valor (campo do LIP,
+ * preenchido manualmente pelo analista) para espelhar na coluna
+ * estruturada processos.data_protocolo. Retorna null se ausente ou
+ * inválido — nunca deriva de criado_em nem de outra fonte automática.
+ */
+function extrairDataProtocolo(dados: any): string | null {
+  const bruto = dados?.data_protocolo?.valor ?? dados?.dataProtocolo?.valor;
+  if (!bruto || typeof bruto !== "string") return null;
+  const iso = bruto.trim();
+  // Aceita "YYYY-MM-DD" (input type=date) ou "DD/MM/YYYY" (texto livre).
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/) ?? iso.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const [, a, b, c] = m;
+  const dataFormatada = a.length === 4 ? `${a}-${b}-${c}` : `${c}-${b}-${a}`;
+  return isNaN(Date.parse(dataFormatada)) ? null : dataFormatada;
+}
+
+function chavesVaziasOuX(dados: any): string[] {
+  if (!dados || typeof dados !== "object") return [];
+  const out: string[] = [];
+  for (const chave of Object.keys(dados)) {
+    const c = dados[chave];
+    if (!c || typeof c !== "object") continue;
+    const valor = String(c.valor ?? "").trim();
+    const origem = c.origem;
+    const ehConferir = origem === "padrao" && valor === "";
+    const ehX = valor.toUpperCase() === "X";
+    if (ehConferir || ehX) out.push(chave);
+  }
+  return out;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await autenticar(req);
+    if (auth instanceof NextResponse) return auth;
+    const usuarioId = auth.userId;
+
+    const body = await req.json();
+    const { id, dados: dadosRecebidos, camposAlterados } = body;
+    // Rota do Slot 5: grava SEMPRE como Slot 5, qualquer que seja o `tipo` do corpo.
+    void body.tipo;
+    const tipoProcesso: string = SLUG_APROVACAO_PROJETO;
+    // Recalcula outorgaOnerosa a cada save do LIP do Slot 5.
+    const dados = dadosRecebidos !== undefined
+      ? recalcularOutorgaOnerosa(dadosRecebidos)
+      : dadosRecebidos;
+
+    if (!id) {
+      return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    }
+
+    // Busca processo EXATAMENTE do par (codigo, tipo). Sem o tipo, REG e
+    // ACEITE do mesmo SEI colidem.
+    const { data: existente, error: erroBusca } = await supabaseAdmin
+      .from("processos")
+      .select("id, codigo, analista_id, tipo_processo, assunto_id, dados")
+      .eq("codigo", id)
+      .eq("tipo_processo", tipoProcesso)
+      .limit(1).then(r => ({ data: r.data?.[0] ?? null, error: r.error }));
+
+    if (erroBusca) {
+      return NextResponse.json({ ok: false, erro: erroBusca.message }, { status: 500 });
+    }
+
+    // Resolve assunto_id a partir do slug (já é o valor canônico do banco).
+    // ATENÇÃO: tem que ser o client ADMIN. `assuntos` tem RLS e, com a
+    // chave anônima, esta consulta voltava `null` SEM erro — o processo
+    // nascia com assunto_id nulo e a tela caía no fallback (Regularização).
+    // Era a origem dos 36 processos órfãos que o backfill de 2026-07-24
+    // teve que consertar depois.
+    const { data: assuntoRow } = await supabaseAdmin
+      .from("assuntos")
+      .select("id")
+      .eq("slug", tipoProcesso)
+      .maybeSingle();
+    const assuntoIdResolvido: string | null = assuntoRow?.id ?? null;
+
+    let processoId: string | null = null;
+    let acao = "inserido";
+
+    if (existente?.id) {
+      // UPDATE: so o analista dono (ou perfil irrestrito) pode salvar
+      const ownerErr = verificarOwnership(auth, existente.analista_id);
+      if (ownerErr) return ownerErr;
+
+      processoId = existente.id;
+      acao = "atualizado";
+      const update: any = {
+        codigo: id,
+        status: "CADASTRADO",
+        tipo_processo: tipoProcesso,
+        edicao_autorizada: true,
+        atualizado_em: new Date().toISOString(),
+      };
+      // Só sobrescreve `dados` quando o cliente envia (a Home cria o
+      // processo só com tipo + id; o LIP envia depois com `dados`).
+      if (dados !== undefined) update.dados = dados;
+      // Espelha data_protocolo (preenchida manualmente no LIP) na coluna
+      // estruturada. Só sobrescreve quando o analista de fato preencheu
+      // um valor válido — nunca apaga um valor já gravado com um save
+      // que não tocou nesse campo.
+      const dataProtocoloExtraida = dados !== undefined ? extrairDataProtocolo(dados) : null;
+      if (dataProtocoloExtraida) {
+        update.data_protocolo = dataProtocoloExtraida;
+        update.data_protocolo_origem = "analista_lip";
+      }
+      // Sessão 4: backfill de assunto_id. Não rebatiza processos que já
+      // têm um assunto (proteção contra trocar assunto no meio do
+      // caminho); apenas preenche quando ainda está NULL e o lookup
+      // resolveu.
+      if (!existente.assunto_id && assuntoIdResolvido) {
+        update.assunto_id = assuntoIdResolvido;
+      }
+
+      // Espelha área e porte nas colunas estruturadas. A view do BDI
+      // (vw_bdi_por_assunto) soma `processos.area_construida` e agrupa por
+      // `processos.porte` — ambas nunca eram preenchidas por código algum,
+      // então o painel mostrava área 0 e porte nulo. A área real vive em
+      // dados.areaTotal.valor como texto PT-BR.
+      if (dados !== undefined) {
+        const m = extrairMetricasProcesso(dados);
+        if (m.area > 0) {
+          update.area_construida = m.area;
+          update.porte = m.porte;
+        }
+      }
+
+      const { error } = await supabaseAdmin
+        .from("processos")
+        .update(update)
+        .eq("id", existente.id);
+
+      if (error) {
+        return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+      }
+    } else {
+      // INSERT: atribui o criador como analista responsavel.
+      // Sem isso, o processo recem-criado nasceria com analista_id=null
+      // e sumiria da lista do proprio criador (que e Analista, nao irrestrito).
+      const dataProtocoloInicial = extrairDataProtocolo(dados ?? {});
+      const { data, error } = await supabaseAdmin
+        .from("processos")
+        .insert([{
+          codigo: id,
+          dados: dados ?? {},
+          status: "CADASTRADO",
+          tipo_processo: tipoProcesso,
+          edicao_autorizada: true,
+          analista_id: usuarioId,
+          // Sessão 4: grava o vínculo com o assunto. Pode ser NULL se o
+          // slug não bater com nenhum registro em `assuntos` (não deveria
+          // acontecer, mas não bloqueia o insert).
+          assunto_id: assuntoIdResolvido,
+          // Mesmas colunas espelhadas do caminho de UPDATE (ver comentário lá).
+          ...(() => {
+            const m = extrairMetricasProcesso(dados ?? {});
+            return m.area > 0 ? { area_construida: m.area, porte: m.porte } : {};
+          })(),
+          ...(dataProtocoloInicial ? { data_protocolo: dataProtocoloInicial, data_protocolo_origem: "analista_lip" } : {}),
+        }])
+        .select();
+
+      if (error) {
+        return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+      }
+      processoId = data?.[0]?.id ?? null;
+    }
+
+    if (processoId && camposAlterados && camposAlterados.length > 0) {
+      await supabaseAdmin
+        .from("processo_historico")
+        .insert([{
+          processo_id: processoId,
+          usuario_id: usuarioId,
+          acao: acao === "inserido" ? "Processo criado" : "Auto-save",
+          detalhe: { campos: camposAlterados },
+        }]);
+    }
+
+    // Propaga campos CONFERIR/X do LIP para a análise MAC ativa
+    // (status != 'deferido' && status != 'indeferido') como itens
+    // 'nao_conforme'. NÃO cria análise se não existir e NÃO sobrescreve
+    // marcações manuais do analista — apenas itens nulos ou
+    // 'nao_respondido' são alterados.
+    //
+    // O equivalente conceitual do "UPSERT em analise_itens com
+    // ON CONFLICT (analise_id, checklist_item_id) DO UPDATE SET
+    // status = 'nao_conforme'" é implementado sobre o jsonb
+    // `analises_mac.itens` (mapa item_id → status), já que essa é a
+    // estrutura efetiva no banco. Filtra por tipo_processo via
+    // modelo_id da análise + colunas explícitas.
+    try {
+      const chavesProblema = dados ? chavesVaziasOuX(dados) : [];
+
+      // Slot 5: sem as dispensas da caixa (Slot 1) e do Aceite (Slot 2) — na rota comum as duas
+      // já devolviam lista vazia para o Slot 5.
+
+      if (chavesProblema.length > 0) {
+        // 3. Buscar a análise MAC ativa (não deferida e não indeferida).
+        const { data: ultima } = await supabaseAdmin
+          .from("analises_mac")
+          .select("id, itens, modelo_id, status")
+          .eq("processo_codigo", id)
+          .eq("tipo_processo", tipoProcesso)
+          .order("numero_analise", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const ativa =
+          ultima?.id &&
+          ultima.modelo_id &&
+          ultima.status !== "deferido" &&
+          ultima.status !== "indeferido";
+
+        if (ativa) {
+          // 2. Itens do MAC cuja `chave_lip` cai na lista de campos
+          //    vazios/X, restritos ao modelo da análise ativa
+          //    (que, por sua vez, está vinculado ao tipo_processo).
+          const { data: itensMap } = await supabaseAdmin
+            .from("mac_checklist_itens")
+            .select("id, chave_lip")
+            .eq("modelo_id", ultima!.modelo_id)
+            .eq("ativo", true)
+            .in("chave_lip", chavesProblema);
+
+          if (itensMap && itensMap.length > 0) {
+            const itensAtuais: Record<string, string | null> =
+              (ultima!.itens as any) || {};
+            let alterou = false;
+            for (const it of itensMap) {
+              if (!it?.id) continue;
+              const atual = itensAtuais[it.id];
+              // 4. UPSERT lógico: só pré-marca se status atual for
+              //    null/undefined, vazio ou 'nao_respondido'. Marcações
+              //    manuais ('conforme', 'nao_conforme', 'nao_aplica')
+              //    NÃO são sobrescritas.
+              const livreParaPreMarcar =
+                atual === null ||
+                atual === undefined ||
+                atual === "" ||
+                atual === "nao_respondido";
+              if (livreParaPreMarcar) {
+                itensAtuais[it.id] = "nao_conforme";
+                alterou = true;
+              }
+            }
+            if (alterou) {
+              await supabaseAdmin
+                .from("analises_mac")
+                .update({
+                  itens: itensAtuais,
+                  atualizado_em: new Date().toISOString(),
+                })
+                .eq("id", ultima!.id);
+            }
+          }
+        }
+      }
+    } catch {
+      // Falha silenciosa: coluna chave_lip/tipo_processo pode não existir ainda.
+    }
+
+    // Sincronização ao vivo do módulo Profissionais (achado 08/09/2026: a tabela só tinha a
+    // carga inicial de julho, nunca era atualizada por save nenhum — ver lib/profissionais/
+    // sincronizar.ts). Só roda quando CAU/CREA/nome do RT de fato mudou desde o `dados` anterior
+    // (evita bater no banco a cada autosave de campo que não tem nada a ver com isso). Nunca
+    // aguarda nem deixa erro chegar na resposta — não é isso que define se o LIP foi salvo.
+    if (processoId && dados && precisaResincronizarProfissionais(existente?.dados ?? null, dados)) {
+      sincronizarProfissionaisDoLip(processoId, dados).catch((erroSyncProfissionais: any) => {
+        console.error("[processo/salvar] falha ao sincronizar profissionais (RT):", erroSyncProfissionais?.message);
+      });
+    }
+
+    return renovarCookieAuth(
+      NextResponse.json({
+        ok: true,
+        acao,
+        tipo: tipoProcesso,
+      }),
+      auth.userId,
+    );
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+  }
+}

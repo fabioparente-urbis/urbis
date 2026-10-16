@@ -1580,7 +1580,7 @@ export default function AnaliseAprovacaoProjeto() {
       const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       setFotosIndef((prev) => [...prev, { id, dataUrl, tipo, legenda: "", gerandoLegenda: true }]);
       try {
-        const r = await fetch("/api/lip/legenda-foto", {
+        const r = await fetch("/api/aprovacao-projeto/lip/legenda-foto", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imagemBase64: dataUrl.split(",")[1], mimeType: arquivo.type, processo: codigo }),
         });
@@ -2866,7 +2866,7 @@ export default function AnaliseAprovacaoProjeto() {
                   </p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {pendenciasLip.map((p) => (
-                      <a key={p} href={`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`}
+                      <a key={p} href={`/lip-aprovacao-projeto/${encodeURIComponent(codigo)}`}
                         style={{ fontSize: 12, color: "white", background: "rgba(255,255,255,0.2)",
                           borderRadius: 4, padding: "3px 10px", textDecoration: "none", fontWeight: 600 }}>
                         {p} →
@@ -2916,11 +2916,11 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`); }}
+            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/lip-aprovacao-projeto/${encodeURIComponent(codigo)}`); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
             </button>
-            <button onClick={() => window.open(`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`, "_blank")}
+            <button onClick={() => window.open(`/lip-aprovacao-projeto/${encodeURIComponent(codigo)}`, "_blank")}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>

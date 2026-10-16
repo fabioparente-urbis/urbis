@@ -8,6 +8,7 @@ import ProcessoClient from "../ProcessoClient";
 const FICHA_PROPRIA: Record<string, string> = {
   aceite_sei: "/lip-aceite-sei",
   slot_03: "/lip-regularizacao-ped",
+  slot_05: "/lip-aprovacao-projeto",
   slot_04: "/lip-aceite-ped",
 };
 
