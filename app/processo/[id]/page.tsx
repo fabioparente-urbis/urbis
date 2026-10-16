@@ -6,6 +6,7 @@ import ProcessoClient from "../ProcessoClient";
 // ficha do slot, para nenhum link antigo (Pilha, URBI, e-mail, Fatiador) quebrar. Os demais
 // slots seguem nesta ficha, sem nenhuma mudança.
 const FICHA_PROPRIA: Record<string, string> = {
+  aceite_sei: "/lip-aceite-sei",
   slot_03: "/lip-regularizacao-ped",
   slot_04: "/lip-aceite-ped",
 };

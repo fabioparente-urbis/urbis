@@ -222,7 +222,33 @@ por vez, com teste antes do próximo.
   linhas. Processos de teste apagados e conferidos.
 - **Comum, de propósito:** satélites (MRP, MDP, MAP, MHD, URBI, Pilha/tags, Vigia), numeração,
   cadastros, a trava de custo do LIP (50 leituras/h para a plataforma inteira), banco, login.
-- **Próximos, na ordem aprovada:** Slot 2, depois Slot 5, por último Slot 1. Ainda não iniciados.
+- **Próximos, na ordem aprovada:** ~~Slot 2~~ (feito 16/10, ver abaixo), depois Slot 5, por último Slot 1.
+
+**Slot 2 (Aceite SEI) separado em 16/10/2026**, mesmo molde:
+- Ficha própria `components/aceiteSei/LipAceiteSei.tsx` em `/lip-aceite-sei/<id>`; 25 rotas
+  próprias em `/api/aceite-sei/{lip,processo,mac}/*`; LIP em `lib/aceiteSei/lip/`; identidade por
+  slug EXATO em `lib/aceiteSei/identidade.ts` (`ehAceiteSeiExato`). Tela do MAC
+  (`app/analise-aceite-sei`) só chama rotas do slot; Fatiador lê e grava pelo Slot 2.
+- Gerado a partir das rotas do Slot 4 (que são cópia do Slot 2) trocando o slug; as regras de
+  negócio continuam as que o Slot 2 já usava (`lib/marcoTemporal`, `lib/carimboAssunto`,
+  `lib/cheadvAprovado`, `lib/aceiteSeiDispensas`). Conferido: nas rotas comuns os blocos de caixa
+  e de área já vinham vazios para o Slot 2 — nada de comportamento se perdeu.
+- Medido antes: o Slot 2 tem os próprios P1/P2/P3 e as 3 análises usam o checklist do próprio
+  Slot 2 (nenhum modelo "global") — tirar a queda para prompt/checklist de outro assunto não
+  tira nada dele.
+- **Leitura única:** o interruptor comum estava LIGADO. O Slot 2 ganhou o seu
+  (`leitura_unica_aceite_sei_ativo`, migration `2026_10_16d`) copiando o valor atual — precisa
+  ser rodada ANTES de publicar, senão a leitura única do Slot 2 fica desligada.
+- Correções que vieram junto: a OBS salva pelo MAC do Slot 2 ia sem tipo e a rota comum assumia
+  "regularizacao"; o MAC assumia "regularizacao" quando não achava o processo; o despacho
+  interno da ficha passou para a rota própria do Slot 2 (`/api/mac/aceite-sei/despacho-interno`),
+  que já existia desde 17/09 e era usada pela tela do MAC.
+- **Não mexido de propósito:** `ProcessoClient.tsx` e as rotas comuns continuam com o código do
+  Slot 2 (agora morto), para não tocar no que o Slot 1 usa; sai na separação do Slot 1.
+- Provas: `testar_slot2_lip_proprio` 104/104 (inclui rotas gêmeas das do Slot 4);
+  `testar_regras` 233/233; `testar_geradores` 208/208; `tsc` limpo. Navegador (só leitura, sem
+  salvar): endereço antigo encaminha; ficha e MAC do processo 25.37.000004372-5 carregaram só pelas
+  rotas do Slot 2; a única chamada comum foi a do widget do URBI (satélite).
 
 **Endereços do Slot 3:** ficha em `/lip-regularizacao-ped/<processo>`; rotas em
 `/api/regularizacao-ped/lip/*`, `/api/regularizacao-ped/processo/*`,
