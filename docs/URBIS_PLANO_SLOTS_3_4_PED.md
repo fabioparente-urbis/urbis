@@ -1,7 +1,7 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 2 → **45% concluído, 55% restante.**
+**Progresso:** Fase 3 → **70% concluído, 30% restante.**
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -54,6 +54,23 @@
   - **Pergunta aberta:** os documentos do Slot 3/4 trazem "SEI:" no cabeçalho e citam "SEI nº"
     na base legal, igual ao Slot 1/2. Se o processo PED não usa número SEI, ajustar só nos
     geradores PED.
+- **Decisão do Fábio (16/10/2026):** o "SEI" nos documentos PED fica como está por enquanto.
+- **Fase 3 (16/10/2026):** telas próprias, cópia por leitura.
+  - Slot 3: `app/analise-regularizacao-ped/[codigo]` (MAC), `components/regularizacaoPed/
+    OrganizadorSeiRegularizacaoPed.tsx`, `components/mac/regularizacaoPed/BotaoGerarLaudo.tsx`.
+  - Slot 4: `app/analise-aceite-ped/[codigo]`, `components/aceitePed/OrganizadorSeiAceitePed.tsx`,
+    `components/mac/aceitePed/BotaoGerarLaudoAceitePed.tsx`.
+  - Cada tela chama só as rotas do próprio slot (análise, despacho, despacho interno, laudo,
+    documentos SEI) e lê o próprio interruptor (`documentos_vivos_slot_03/04_ativo`). Título do
+    MAC do Slot 4: "MAC — Aceite PED".
+  - A tela do Slot 2 tem um *fallback* `"regularizacao"` herdado do Slot 1 (linha ~338). Na
+    cópia do Slot 4 ele virou `"slot_04"`. **O Slot 2 não foi mexido.**
+  - Prova: `diff` contra o original mostra só as linhas trocadas (24 na tela do Slot 3, 26 na do
+    Slot 4, 3 a 4 nos componentes). O teste `testar_geradores_slots_3_4_ped.mts` passou a varrer
+    também as telas: 57/57. `tsc` limpo.
+  - **Não verificado no navegador:** as telas ainda não têm entrada pela ficha do LIP (Fase 4),
+    e abrir com processo real exigiria login e dado de produção. A verificação visual fica para
+    a Fase 6, com processo de teste.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.

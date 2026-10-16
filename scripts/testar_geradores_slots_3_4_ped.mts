@@ -165,6 +165,9 @@ secao("isolamento — rotas e geradores do Slot 3/4 não usam código do Slot 1/
     "app/api/analise-regularizacao-ped", "app/api/despacho-regularizacao-ped", "app/api/mac/regularizacao-ped",
     "lib/geradores/regularizacaoPed", "app/api/analise-aceite-ped", "app/api/despacho-aceite-ped",
     "app/api/mac/aceite-ped", "lib/geradores/aceitePed",
+    // Fase 3 — telas
+    "app/analise-regularizacao-ped", "components/regularizacaoPed", "components/mac/regularizacaoPed",
+    "app/analise-aceite-ped", "components/aceitePed", "components/mac/aceitePed",
   ];
   // Código do Slot 1/2 que uma cópia nunca pode chamar (comentário de histórico não conta).
   const PROIBIDO = new RegExp([
@@ -173,6 +176,9 @@ secao("isolamento — rotas e geradores do Slot 3/4 não usam código do Slot 1/
     String.raw`/api/(analise-regularizacao|analise-aceite-sei|despacho-regularizacao|despacho-aceite-sei|despacho-interno|mac/gerar-laudo|mac/aceite-sei)([/"'\x60?]|$)`,
     String.raw`["'](regularizacao|aceite_sei)["']`, String.raw`ehAceiteSei|ehRegularizacaoSei|documentosVivos(Regularizacao|AceiteSei)Ativo`,
     String.raw`laudo_(regularizacao|aceite_sei)\.xlsm`,
+    String.raw`@/components/(regularizacao|aceiteSei)/|@/components/mac/(BotaoGerarLaudo["']|aceiteSei/)`,
+    String.raw`/analise-(regularizacao|aceite-sei)/`,
+    String.raw`documentos_vivos_(regularizacao|aceite_sei)_ativo`,
   ].join("|"));
   for (const arq of PASTAS.flatMap(listar)) {
     const linhas = readFileSync(join(raiz, arq), "utf-8").split("\n")
