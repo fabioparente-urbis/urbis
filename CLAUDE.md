@@ -36,7 +36,22 @@ Um "slot" é um tipo de processo. Cada um tem seu checklist e seus documentos.
 
 - **Slot 1** — Regularização SEI (`regularizacao`)
 - **Slot 2** — Aceite SEI (`aceite_sei`)
+- **Slot 3** — Regularização PED (`slot_03`) — nasceu em 16/10/2026 como cópia 100% do Slot 1
+- **Slot 4** — Aceite PED (`slot_04`) — nasceu em 16/10/2026 como cópia 100% do Slot 2
 - **Slot 5** — Aprovação de Projeto (`slot_05`)
+
+**Slots 3 e 4 (PED)** — plano e registro completo em `docs/URBIS_PLANO_SLOTS_3_4_PED.md`.
+- Regras em `lib/regularizacaoPed/` e `lib/aceitePed/`; rotas `*-ped`; geradores em
+  `lib/geradores/regularizacaoPed/` e `lib/geradores/aceitePed/`; telas
+  `app/analise-regularizacao-ped/` e `app/analise-aceite-ped/`.
+- **Slug nunca por prefixo.** Os arquivos do Slot 1/2 decidem por `startsWith("regularizacao")` /
+  `startsWith("aceite")`. Por isso os slugs PED são `slot_03`/`slot_04` (e não `regularizacao_ped`),
+  e todo arquivo PED se reconhece por igualdade exata (`ehRegularizacaoPed` / `ehAceitePed`).
+- Condições bloqueantes do URBI: o 3/4 tem liga/desliga próprio em `urbi_regras_bloqueio_slot`;
+  o 1/2 segue em `urbi_regras_bloqueio`.
+- Provas que precisam continuar passando: `scripts/testar_regras_slots_3_4_ped.mts` e
+  `scripts/testar_geradores_slots_3_4_ped.mts` (documentos byte a byte iguais aos do 1/2 até
+  alguém mudar uma regra PED de propósito — aí o teste é atualizado junto).
 
 **Isolamento entre slots é regra, não estilo.** Slot 5 não importa código do Slot 1 e vice-versa;
 quando o comportamento precisa ser igual, o código é reproduzido por leitura, nunca compartilhado.

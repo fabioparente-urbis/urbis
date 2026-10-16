@@ -1,7 +1,8 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 5 → **92% concluído, 8% restante.**
+**Progresso:** Fase 6 → **100% do plano concluído.** Falta só o que é ação do Fábio: rodar as
+duas migrations no projeto certo (ver Fase 6) e ativar os slots pela tela.
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -136,6 +137,34 @@
     antes. Conferido depois: 0 itens pendentes no banco. **Observação não explicada:** os 3
     itens que o teste pôs na fila foram processados por outro processo, apesar de o Radar estar
     pausado.
+- **Fase 6 (16/10/2026) — teste ponta a ponta do Slot 3**, no navegador do app (servidor local
+  ligado ao banco de produção), com o Fábio logado. Processo `TESTE-PED-SLOT3-0001`:
+  - Criado pelo mesmo caminho do botão "Cadastrar" (`POST /api/processo/salvar`). Nasceu com o
+    `assunto_id` do Slot 3.
+  - Ficha do LIP: título "Regularização PED", 9 abas do Slot 1, selo LAUDO, "Finalizar LIP",
+    mapa de coordenadas. LIP preenchido à mão (sem IA). Com área total de 180,00 m², a nota da
+    caixa de recarga disse "DISPENSADA" (regra do Slot 3). O log do servidor mostrou
+    `[LIP/slot3] ... caixa de recarga (DISPENSADA)` no salvar. Nenhum erro de servidor.
+  - Ficha chamou `/api/analise-regularizacao-ped`, o Vigia, o alerta de fluxo e o dossiê do URBI:
+    todos 200.
+  - "MAC →" (pela confirmação de campos pendentes) levou a `/analise-regularizacao-ped/`. Só o
+    checklist "PADRÃO — Regularização PED" foi oferecido. Item da caixa sem pré-marcação.
+    Marcações salvas pela rota do Slot 3 (`POST/PUT /api/analise-regularizacao-ped`).
+  - Banco: processo e análise com `tipo_processo = slot_03`, modelo do Slot 3, 1 não conforme +
+    2 conformes. **MRP, MDP e numeração: 0 linhas** — parado antes de qualquer emissão.
+  - Limpeza: apagadas todas as linhas do teste (processos, analises_mac, mac_historico,
+    auditoria_eventos e 4 tabelas legadas preenchidas por gatilho: alertas, eventos,
+    processo_eventos, processo_tempo). Conferido depois: nada sobrou.
+  - **Não testado no navegador:** o Slot 4 (as mesmas peças do Slot 3, provadas por teste
+    automático), a emissão de documentos (provada byte a byte por teste, sem consumir número),
+    o despacho interno e o Fatiador.
+  - **Observação (não é defeito novo):** a análise do MAC grava `assunto_id` vazio. O Slot 1 faz
+    igual (100 de 142 análises) e o Aceite SEI também (3 de 3). Cópia fiel.
+  - **⚠️ As migrations continuam sem aparecer pela API** depois de o Fábio rodá-las:
+    `documentos_vivos_slot_03_ativo` e `urbi_regras_bloqueio_slot` não existem para o projeto
+    `kfpupmwdadmnvskwktqd` (o do `.env.local`). Também falta a coluna de uma migration de 11/09
+    (`interpretacao_assistida_fluxo_ativo`). Suspeita: o SQL Editor está em outro projeto.
+    Conferir a URL do projeto no painel do Supabase.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.
