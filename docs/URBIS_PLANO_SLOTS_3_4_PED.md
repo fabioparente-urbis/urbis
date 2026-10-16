@@ -1,7 +1,7 @@
 # Plano — Slot 3 (Regularização PED) e Slot 4 (Aceite PED)
 
 **Status:** APROVADO em 16/10/2026 (Opção A, slugs `slot_03`/`slot_04`, `nome_documento` herdado).
-**Progresso:** Fase 0 → **10% concluído, 90% restante.**
+**Progresso:** Fase 1 → **20% concluído, 80% restante.**
 **Data:** 16/10/2026
 
 ### Registro das fases
@@ -11,6 +11,25 @@
   "Regularização SEI" (0 trocas). O Slot 4 teve 3 trocas "Aceite SEI" → "Aceite PED".
   Migration `supabase/migrations/2026_10_16_slots_3_4_ped_fundacao.sql`: **o Fábio roda no SQL
   Editor** (a conexão direta ao Postgres dá timeout nesta máquina).
+- **Migration — situação em 16/10/2026:** depois de o Fábio rodar no SQL Editor, a API ainda
+  respondia que `urbis_config.documentos_vivos_slot_03_ativo` não existe. Ou a execução não
+  chegou ao COMMIT, ou o cache de esquema da API não recarregou. Conferir no SQL Editor:
+  `select documentos_vivos_slot_03_ativo from urbis_config;`. Se a coluna existir, rodar
+  `notify pgrst, 'reload schema';`. Só a Fase 4 depende disso.
+- **Fase 1 (16/10/2026):** regras determinísticas próprias, cópia por leitura:
+  - Slot 3, `lib/regularizacaoPed/`: `identidade.ts`, `caixaRecarga.ts`,
+    `compatibilidadeArea.ts`, `marcoTemporal.ts`, `carimboAssunto.ts`, `cheadvAprovado.ts`.
+  - Slot 4, `lib/aceitePed/`: `identidade.ts`, `dispensas.ts`, `marcoTemporal.ts`,
+    `carimboAssunto.ts`, `cheadvAprovado.ts`.
+  - Cada slot se reconhece por **slug exato** (`ehRegularizacaoPed` / `ehAceitePed`), nunca por
+    prefixo. Leis, datas e limites são idênticos aos do Slot 1/2 na data da cópia.
+  - Prova: `scripts/testar_regras_slots_3_4_ped.mts` passa 189/189. Cobre equivalência com a
+    origem, ausência de vazamento entre slots (nos dois sentidos) e isolamento de import. Teste
+    de mutação: limite 250 → 251 derruba 30 casos. `tsc` limpo.
+  - Ainda **ninguém chama** esses arquivos: a ligação é na Fase 4 (s3, s4, salvar,
+    ProcessoClient). Até lá, o comportamento do sistema não muda em nada.
+  - O texto dos prompts manteve "nº SEI" como referência de número de documento, igual ao
+    Slot 1. Se o processo PED não usa número SEI, ajustar só nestes arquivos.
 - **Achado para a Fase 4:** `urbi_regras_bloqueio` (as 8 condições bloqueantes) é uma tabela
   só, por `chave`, sem slot. Os Slots 1 e 2 já dividem os mesmos interruptores. O Slot 3/4
   precisa de interruptores próprios, para que ligar uma condição no 1 não ligue no 3.
