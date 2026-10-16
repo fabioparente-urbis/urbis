@@ -1,4 +1,5 @@
 // ============================================================
+// Etapa 2 (16/10/2026): rotas de LIP e MAC próprias do Slot 3 (/api/regularizacao-ped/*) e ficha do LIP própria (/lip-regularizacao-ped/).
 // SLOT 3 — REGULARIZAÇÃO PED. CÓPIA POR LEITURA de app/analise-regularizacao/[codigo]/page.tsx (Slot 1),
 // feita em 16/10/2026 a pedido do Fábio ("o Slot 3 começa copiando 100% o Slot 1"). Comportamento idêntico
 // ao original na data da cópia; daqui em diante os dois arquivos são independentes.
@@ -228,9 +229,9 @@ export default function MacPage() {
        * `exportar-lip` e `exportar-mac?todas=true`. Um respiro entre os dois porque navegador
        * costuma engolir o segundo download disparado no mesmo instante.
        */
-      window.open(`/api/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "slot_03"}`, "_blank");
+      window.open(`/api/regularizacao-ped/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "slot_03"}`, "_blank");
       setTimeout(() => {
-        window.open(`/api/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
+        window.open(`/api/regularizacao-ped/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
       }, 800);
     }
     window.addEventListener("urbi:executar", onAcao);
@@ -288,7 +289,7 @@ export default function MacPage() {
       } else {
         fd.append("analiseId", analiseAtual!.id);
       }
-      const res = await fetch("/api/mac/importar-mac", { method: "POST", body: fd });
+      const res = await fetch("/api/regularizacao-ped/mac/importar-mac", { method: "POST", body: fd });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         mostrarToast(`Erro ao importar: ${json?.erro || res.statusText}`);
@@ -367,7 +368,7 @@ export default function MacPage() {
     const meRes = await fetch("/api/auth/me");
     const meJson = await meRes.json();
     const uid = meJson.ok ? meJson.data.id : "";
-    let url = `/api/mac/checklists?analista_id=${uid}`;
+    let url = `/api/regularizacao-ped/mac/checklists?analista_id=${uid}`;
     if (assunto) url += `&assunto_id=${encodeURIComponent(assunto)}`;
     const res = await fetch(url);
     const json = await res.json();
@@ -380,7 +381,7 @@ export default function MacPage() {
   }
 
   async function carregarItensModelo(modeloId: string) {
-    const res = await fetch(`/api/mac/checklists/itens?modelo_id=${modeloId}`);
+    const res = await fetch(`/api/regularizacao-ped/mac/checklists/itens?modelo_id=${modeloId}`);
     const json = await res.json();
     if (json.ok) setChecklistItens(json.data);
   }
@@ -423,7 +424,7 @@ export default function MacPage() {
       setHistoricoAnalises(ultima.historico_analises || "");
       setNovaAnalise(false);
       // Carrega campos LIP para o banner crítico
-      fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" })
+      fetch(`/api/regularizacao-ped/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" })
         .then(r => r.json())
         .then(j => { setDadosLip(j?.data?.dados || j?.dados || {}); setTagsProcesso(j?.data?.tags || j?.tags || []); });
 
@@ -456,7 +457,7 @@ export default function MacPage() {
   // aparecer, nunca trava a tela.
   useEffect(() => {
     if (!codigo) return;
-    fetch(`/api/mac/leitura-unica?codigo=${encodeURIComponent(codigo)}`)
+    fetch(`/api/regularizacao-ped/mac/leitura-unica?codigo=${encodeURIComponent(codigo)}`)
       .then((r) => r.json())
       .then((json) => { if (json?.ok && json.encontrado && json.sugestao) setSugestaoLeituraUnica(json.sugestao); })
       .catch(() => {});
@@ -499,7 +500,7 @@ export default function MacPage() {
     });
     registrar({ modulo: "MAC", acao: "MAC_LEITURA_UNICA_APLICADA", processo_codigo: codigo, origem: "IA", detalhe: { itens_preenchidos: total, itens_sugeridos: totalSugeridos } });
     mostrarToast(`🤖 Sugestão da leitura única aplicada — ${total} item(ns) preenchido(s).`);
-    fetch("/api/mac/leitura-unica", {
+    fetch("/api/regularizacao-ped/mac/leitura-unica", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codigo }),
     }).catch(() => {});
@@ -508,7 +509,7 @@ export default function MacPage() {
   }
 
   function dispensarSugestaoLeituraUnica() {
-    fetch("/api/mac/leitura-unica", {
+    fetch("/api/regularizacao-ped/mac/leitura-unica", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ codigo }),
     }).catch(() => {});
@@ -613,7 +614,7 @@ export default function MacPage() {
     if (!assuntoId) { setBuscaErro("Assunto do processo não resolvido."); return; }
     setBuscando(true); setBuscaErro(""); setBuscaIA(null);
     try {
-      const res = await fetch("/api/mac/buscar", {
+      const res = await fetch("/api/regularizacao-ped/mac/buscar", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assunto_id: assuntoId, pergunta }),
       });
@@ -703,7 +704,7 @@ export default function MacPage() {
   async function salvarObs() {
     try {
       registrar({ modulo: "LIP", acao: "LIP_SALVO", processo_codigo: codigo, detalhe: { campos: Object.keys(dadosLip).length } });
-      const res = await fetch("/api/processo/salvar", {
+      const res = await fetch("/api/regularizacao-ped/processo/salvar", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ codigo, campos: { observacoes: { valor: obsText, origem: "manual", status: "confirmado" } } })
       });
@@ -726,7 +727,7 @@ export default function MacPage() {
       setFotosIndeferimento((prev) => [...prev, { id, dataUrl, tipo, legenda: "", gerandoLegenda: true }]);
       try {
         const base64 = dataUrl.split(",")[1];
-        const r = await fetch("/api/lip/legenda-foto", {
+        const r = await fetch("/api/regularizacao-ped/lip/legenda-foto", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imagemBase64: base64, mimeType: arquivo.type, processo: codigo }),
         });
@@ -799,7 +800,7 @@ export default function MacPage() {
   function carregarHistoricoMac(id: string) {
     if (carregandoHistoricoRef.current) return;
     carregandoHistoricoRef.current = true;
-    fetch(`/api/mac/historico?analiseId=${id}`)
+    fetch(`/api/regularizacao-ped/mac/historico?analiseId=${id}`)
       .then(r => r.json())
       .then(j => { if (j.ok) setHistoricoMac(j.eventos); })
       .finally(() => { carregandoHistoricoRef.current = false; });
@@ -1037,8 +1038,8 @@ export default function MacPage() {
       .map((i) => ({ id: i.id, texto: i.texto, grupo: i.grupo, origem: "mac" as const }));
     try {
       const [procRes, lipRes] = await Promise.all([
-        fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }),
-        fetch(`/api/admin/lip${assuntoId ? `?assunto_id=${encodeURIComponent(assuntoId)}` : ""}`),
+        fetch(`/api/regularizacao-ped/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }),
+        fetch(`/api/regularizacao-ped/lip/estrutura${assuntoId ? `?assunto_id=${encodeURIComponent(assuntoId)}` : ""}`),
       ]);
       const procJson = await procRes.json();
       const lipJson = await lipRes.json();
@@ -1137,7 +1138,7 @@ export default function MacPage() {
       const mrpFalhouServidor = res.headers.get("X-MRP-Falhou");
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_GERADO", processo_codigo: codigo, detalhe: { tipo: tipoDespacho, numero: numeroDespacho } });
       // Auto-registro MRP
-      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
+      const dlFresh = await fetch(`/api/regularizacao-ped/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1178,7 +1179,7 @@ export default function MacPage() {
        */
       if (capturedAnaliseId) {
         setTimeout(() => {
-          window.open(`/api/mac/exportar-mac?analiseId=${capturedAnaliseId}&codigo=${encodeURIComponent(codigo)}`, "_blank");
+          window.open(`/api/regularizacao-ped/mac/exportar-mac?analiseId=${capturedAnaliseId}&codigo=${encodeURIComponent(codigo)}`, "_blank");
         }, 800);
       }
 
@@ -1547,7 +1548,7 @@ export default function MacPage() {
   useEffect(() => {
     if (!assuntoId) return;
     let vivo = true;
-    fetch(`/api/admin/lip?assunto_id=${encodeURIComponent(assuntoId)}`)
+    fetch(`/api/regularizacao-ped/lip/estrutura?assunto_id=${encodeURIComponent(assuntoId)}`)
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;
@@ -1606,7 +1607,7 @@ export default function MacPage() {
         }
         setAnaliseAtual((prev: any) => prev ? { ...prev, numero_despacho_interno: numDI } : prev);
       }
-      const dlFresh = await fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
+      const dlFresh = await fetch(`/api/regularizacao-ped/processo/carregar?id=${encodeURIComponent(codigo)}${tipoProcesso ? `&tipo=${encodeURIComponent(tipoProcesso)}` : ""}`, { credentials: "include" }).then(r => r.json()).then(j => j?.data?.dados || j?.dados || {}).catch(() => ({}));
       fetch("/api/mrp/registros", {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1628,7 +1629,7 @@ export default function MacPage() {
   }
 
   /**
-   * LER ARQUIVOS INDIVIDUAIS do MAC — cada arquivo passa pelo mesmo `/api/mac/p3`
+   * LER ARQUIVOS INDIVIDUAIS do MAC — cada arquivo passa pelo mesmo `/api/regularizacao-ped/mac/p3`
    * do botão único, um de cada vez; os itens são mesclados sem sobrescrever o
    * que o analista já respondeu (`if (prev[id] == null)`), igual ao botão
    * único já fazia — só que agora somando o que cada documento contribui.
@@ -1661,13 +1662,13 @@ export default function MacPage() {
       // Manda TODOS os arquivos marcados numa chamada só (`files`, plural) — desde 16/09/2026.
       // Antes disso era 1 chamada por arquivo em fila, cada uma sem ver os outros documentos:
       // além de lento (soma o tempo de todas), o modelo não conseguia cruzar informação entre
-      // arquivos, o que gerava respostas divergentes pro mesmo item. Ver app/api/mac/p3/route.ts.
+      // arquivos, o que gerava respostas divergentes pro mesmo item. Ver app/api/regularizacao-ped/mac/p3/route.ts.
       const totalBytes = arquivos.reduce((soma, a) => soma + a.size, 0);
       if (totalBytes > LIMITE_BYTES_PLATAFORMA) {
         throw new Error(`Os ${arquivos.length} arquivos somam ${(totalBytes / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita numa leitura só. Leia em dois lotes menores.`);
       }
       // Aviso de modelo caro segue o MAIOR arquivo, não a soma — tem que bater com o critério
-      // real usado pela rota (app/api/mac/p3/route.ts), senão o toast avisa custo que não
+      // real usado pela rota (app/api/regularizacao-ped/mac/p3/route.ts), senão o toast avisa custo que não
       // vai acontecer (ou fica calado quando vai).
       const maiorArquivo = Math.max(...arquivos.map((a) => a.size));
       const avisoModelo = avisoModeloArquivoGrande(maiorArquivo);
@@ -1683,7 +1684,7 @@ export default function MacPage() {
       ));
       if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
       if (assuntoId) fd.append("assunto_id", assuntoId);
-      const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
+      const res = await fetch("/api/regularizacao-ped/mac/p3", { method: "POST", body: fd });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         // Mesmo achado do "LER PROCESSO" (08/09/2026, linha ~2388): Railway serve por HTTP/2,
@@ -1788,7 +1789,7 @@ export default function MacPage() {
                   <p style={{ fontSize:11, color:"#fca5a5", fontWeight:700, marginBottom:4, textTransform:"uppercase" }}>Campos LIP em rascunho</p>
                   <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
                     {pendentesLIPItems.map((p, i) => (
-                      <a key={i} href={`/processo/${codigo}?tipo=${tipoProcesso || "slot_03"}`}
+                      <a key={i} href={`/lip-regularizacao-ped/${codigo}`}
                         style={{ fontSize:12, color:"white", background:"rgba(255,255,255,0.2)", borderRadius:4, padding:"3px 10px", textDecoration:"none", fontWeight:600 }}>
                         {p.label} →
                       </a>
@@ -1984,11 +1985,11 @@ export default function MacPage() {
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/processo/${encodeURIComponent(codigo)}?tipo=${tipoProcesso || "slot_03"}`))}
+                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/lip-regularizacao-ped/${encodeURIComponent(codigo)}`))}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
-            <button onClick={() => window.open(`/processo/${codigo}?tipo=${tipoProcesso || "slot_03"}`, "_blank")}
+            <button onClick={() => window.open(`/lip-regularizacao-ped/${codigo}`, "_blank")}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
               🔍 Ver LIP ↗
             </button>
@@ -2406,7 +2407,7 @@ export default function MacPage() {
                     ));
                     if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
                     if (assuntoId) fd.append("assunto_id", assuntoId);
-                    const res = await fetch("/api/mac/p3", { method: "POST", body: fd });
+                    const res = await fetch("/api/regularizacao-ped/mac/p3", { method: "POST", body: fd });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
                       /* Railway serve por HTTP/2 — `res.statusText` vem SEMPRE vazio nesse
@@ -3209,7 +3210,7 @@ export default function MacPage() {
                   if (!jaEmitiuDocumento && !window.confirm(
                     "Esta análise ainda não emitiu documento (despacho/parecer/laudo). O Excel do MAC costuma vir DEPOIS do documento — exportar mesmo assim?"
                   )) return;
-                  window.open(`/api/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank");
+                  window.open(`/api/regularizacao-ped/mac/exportar-mac?analiseId=${analiseAtual.id}&codigo=${encodeURIComponent(codigo)}`, "_blank");
                   setModalExportar(false);
                 }}
                 disabled={!analiseAtual?.id}
@@ -3218,7 +3219,7 @@ export default function MacPage() {
               </button>
               <button
                 onClick={() => {
-                  window.open(`/api/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
+                  window.open(`/api/regularizacao-ped/mac/exportar-mac?todas=true&codigo=${encodeURIComponent(codigo)}`, "_blank");
                   setModalExportar(false);
                 }}
                 className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border-strong)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">

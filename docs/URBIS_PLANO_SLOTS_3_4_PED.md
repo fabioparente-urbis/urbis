@@ -177,6 +177,38 @@ código e banco feito hoje (só leitura).
 
 ---
 
+## ETAPA 2 — separação TOTAL de LIP, MAC e documentos (decisão do Fábio, 16/10/2026)
+
+> "QUERO QUE O LIP E MAC DE CADA UM DOS SLOTS SEJAM TOTALMENTE INDEPENDENTES... JA FALEI ISSO
+> VARIAS VEZES" · "GERACAO DE DOCUMENTOS TAMBEM" · "MAS QUE TODOS MODULOS SATELITES E A NUMERACAO
+> DE PARECERES E DESPACHOS SEJA COMUM"
+
+A Etapa 1 (Fases 0-6, abaixo) seguiu a regra antiga do CLAUDE.md e deixou a ficha do LIP
+(`ProcessoClient.tsx`) e as rotas de leitura do LIP/MAC compartilhadas, com desvio por slot.
+Isso **não** era o que o Fábio pediu. A Etapa 2 corrige.
+
+**Linha de corte:**
+- **Próprio de cada slot:** ficha do LIP (tela + endereço próprios), rotas do LIP (leitura por
+  IA s1-s4, cache, salvar, carregar, histórico, importar/exportar, restaurar, estrutura das abas,
+  alerta de fluxo), tela e rotas do MAC (p3, leitura única, histórico, busca, importar/exportar,
+  checklists), geradores de documento, e as bibliotecas com lógica de LIP/MAC (`promptCampos`,
+  `leituraUnicaLipMac`, `lipAjuda`).
+- **Comum a todos:** satélites (MRP, MDP, MAP, MHD, URBI, tag/Pilha, Vigia), numeração de
+  despachos e pareceres, cadastros gerais (assuntos, logradouros, profissionais, padrões de
+  despacho), login, banco e utilitários puros sem regra de slot (cliente da IA, registro de custo
+  de IA, coordenadas, PDF).
+
+**Ordem aprovada:** Slots 3 e 4 primeiro; depois 2, 5 e por último o 1 (produção crítica), um
+por vez, com teste antes do próximo.
+
+**Endereços do Slot 3:** ficha em `/lip-regularizacao-ped/<processo>`; rotas em
+`/api/regularizacao-ped/lip/*`, `/api/regularizacao-ped/processo/*`,
+`/api/regularizacao-ped/mac/*`. O Slot 4 segue o mesmo padrão com `aceite-ped`. O endereço
+antigo `/processo/<id>?tipo=slot_03` redireciona para a ficha própria, para nenhum link antigo
+quebrar.
+
+---
+
 ## 1. O que foi medido hoje
 
 ### Banco (`assuntos`)

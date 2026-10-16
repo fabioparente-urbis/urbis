@@ -188,5 +188,48 @@ secao("isolamento — rotas e geradores do Slot 3/4 não usam código do Slot 1/
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Etapa 2 (16/10/2026, "5 programas independentes"): LIP e MAC de cada slot também são
+// próprios. As pastas abaixo não podem chamar as rotas COMPARTILHADAS de LIP/MAC nem as
+// bibliotecas de LIP comuns — só as do próprio slot. Satélites e numeração continuam comuns.
+secao("isolamento Etapa 2 — LIP e MAC próprios (ficha, rotas e bibliotecas)");
+{
+  const { readFileSync, readdirSync, statSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const raiz = new URL("..", import.meta.url).pathname;
+  const listar = (dir: string): string[] =>
+    readdirSync(join(raiz, dir)).flatMap((n) => {
+      const rel = join(dir, n);
+      return statSync(join(raiz, rel)).isDirectory() ? listar(rel) : /\.(ts|tsx)$/.test(n) ? [rel] : [];
+    });
+  const PASTAS_ETAPA2: Record<string, string[]> = {
+    "Slot 3": [
+      "app/lip-regularizacao-ped", "app/api/regularizacao-ped", "app/analise-regularizacao-ped",
+      "components/regularizacaoPed", "components/mac/regularizacaoPed", "lib/regularizacaoPed",
+      "app/api/analise-regularizacao-ped", "app/api/despacho-regularizacao-ped", "app/api/mac/regularizacao-ped",
+      "lib/geradores/regularizacaoPed",
+    ],
+  };
+  const COMPARTILHADO = new RegExp([
+    String.raw`["'\x60]/api/lip/`, String.raw`["'\x60]/api/processo/(salvar|carregar|historico|restaurar|importar-lip|exportar-lip)`,
+    String.raw`["'\x60]/api/mac/(p3|leitura-unica|historico|buscar|exportar-mac|importar-mac|checklists|gerar-laudo)\b`,
+    String.raw`["'\x60]/api/admin/lip`,
+    // Abrir o PRÓPRIO processo pela ficha comum é proibido. Ir para OUTRO processo (campo "Ir para
+    // processo") passa pela entrada da plataforma, /processo/<id>, que encaminha cada slot à sua ficha.
+    String.raw`["'\x60]/processo/\$\{(idUrl|codigo|encodeURIComponent\((idUrl|codigo)\))`,
+    String.raw`@/lib/(promptCampos|lipAjuda|documentosSei/leituraUnicaLipMac)["']`, String.raw`@/components/documentosSei/AlertaFluxo`,
+    String.raw`@/lib/(marcoTemporal|caixaRecargaSlot1|compatibilidadeArea|carimboAssunto|cheadvAprovado|aceiteSeiDispensas)["']`,
+    String.raw`@/lib/aceitePed/|@/lib/mac-motor/slot5|@/components/aprovacaoProjeto/`,
+  ].join("|"));
+  for (const [slot, pastas] of Object.entries(PASTAS_ETAPA2)) {
+    for (const arq of pastas.flatMap(listar)) {
+      const linhas = readFileSync(join(raiz, arq), "utf-8").split("\n")
+        .map((l, i) => [i + 1, l] as const)
+        .filter(([, l]) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l) && COMPARTILHADO.test(l));
+      t(`${slot}: ${arq} só usa LIP/MAC do próprio slot`, linhas.length === 0, linhas.map(([n, l]) => `${n}: ${l.trim().slice(0, 110)}`).join(" | "));
+    }
+  }
+}
+
 console.log(`\n${total - falhas}/${total} ok` + (falhas ? ` — ${falhas} FALHA(S)` : ""));
 process.exitCode = falhas ? 1 : 0;

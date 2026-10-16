@@ -185,7 +185,8 @@ secao("3 · isolamento de import");
 
   for (const [pasta, propria] of [["lib/regularizacaoPed", "@/lib/regularizacaoPed/"], ["lib/aceitePed", "@/lib/aceitePed/"]]) {
     for (const arq of listar(pasta)) {
-      const fora = imports(arq).filter((i) => !i.startsWith(propria));
+      // Banco (supabaseAdmin) é infraestrutura comum da plataforma, como o login — permitido.
+      const fora = imports(arq).filter((i) => !i.startsWith(propria) && i !== "@/lib/supabaseAdmin");
       t(`${arq} só importa da própria pasta`, fora.length === 0, `importa: ${fora.join(", ")}`);
     }
   }
