@@ -6,6 +6,7 @@ import ProcessoClient from "../ProcessoClient";
 // ficha do slot, para nenhum link antigo (Pilha, URBI, e-mail, Fatiador) quebrar. Os demais
 // slots seguem nesta ficha, sem nenhuma mudança.
 const FICHA_PROPRIA: Record<string, string> = {
+  regularizacao: "/lip-regularizacao-sei",
   aceite_sei: "/lip-aceite-sei",
   slot_03: "/lip-regularizacao-ped",
   slot_05: "/lip-aprovacao-projeto",
@@ -21,8 +22,9 @@ export default async function Page({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const tipo = typeof sp.tipo === "string" ? sp.tipo : null;
-  const destino = tipo ? FICHA_PROPRIA[tipo] : undefined;
+  // Sem `?tipo=` a ficha comum sempre abriu como Regularização — o encaminhamento segue a mesma regra.
+  const tipo = typeof sp.tipo === "string" && sp.tipo ? sp.tipo : "regularizacao";
+  const destino = FICHA_PROPRIA[tipo];
   if (destino) redirect(`${destino}/${encodeURIComponent(decodeURIComponent(id))}`);
   return <ProcessoClient />;
 }

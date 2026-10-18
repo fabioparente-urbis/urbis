@@ -70,17 +70,23 @@ Vigia), a numeração de despachos e pareceres (`/api/numeracao/proximo`, **font
 regras — não criar série por slot), cadastros gerais (assuntos, logradouros, profissionais),
 login, banco e utilitários puros sem regra de slot.
 
-**Estado da separação do LIP (16/10/2026):** os Slots 2, 3, 4 e 5 já têm ficha do LIP própria
-(`/lip-aceite-sei/<id>`, `/lip-regularizacao-ped/<id>`, `/lip-aceite-ped/<id>`,
-`/lip-aprovacao-projeto/<id>`) e rotas próprias (`/api/aceite-sei/*`, `/api/regularizacao-ped/*`,
-`/api/aceite-ped/*`, `/api/aprovacao-projeto/*`; o MAC do Slot 5 já era `/api/mac/slot-05/*`);
-`/processo/<id>?tipo=aceite_sei|slot_03|slot_04|slot_05` só encaminha. O Slot 2 tem interruptor
-próprio da leitura única (`leitura_unica_aceite_sei_ativo`, migration `2026_10_16d`). Provas:
-`scripts/testar_slot2_lip_proprio.mts` e `scripts/testar_slot5_lip_proprio.mts`. **Só o Slot 1**
-ainda usa `ProcessoClient.tsx` e as rotas comuns de LIP/MAC — é o último a separar. O código dos
-Slots 2 e 5 que ficou na ficha e nas rotas comuns está MORTO (ninguém chega mais lá); sai quando o
-Slot 1 for separado, para não mexer agora no arquivo que o Slot 1 usa. Até lá, NÃO pôr código de
-slot novo na ficha comum: slot novo nasce com ficha e rotas próprias.
+**Estado da separação do LIP (16/10/2026): os 5 slots têm ficha do LIP e rotas próprias.**
+
+| slot | ficha do LIP | rotas de LIP/MAC | prova |
+|---|---|---|---|
+| 1 | `/lip-regularizacao-sei/<id>` (`components/regularizacao/LipRegularizacaoSei.tsx`) | `/api/regularizacao-sei/*` | `scripts/testar_slot1_lip_proprio.mts` |
+| 2 | `/lip-aceite-sei/<id>` (`components/aceiteSei/LipAceiteSei.tsx`) | `/api/aceite-sei/*` | `scripts/testar_slot2_lip_proprio.mts` |
+| 3 | `/lip-regularizacao-ped/<id>` | `/api/regularizacao-ped/*` | `scripts/testar_*_slots_3_4_ped.mts` |
+| 4 | `/lip-aceite-ped/<id>` | `/api/aceite-ped/*` | idem |
+| 5 | `/lip-aprovacao-projeto/<id>` (`components/aprovacaoProjeto/LipAprovacaoProjeto.tsx`) | `/api/aprovacao-projeto/*` + `/api/mac/slot-05/*` | `scripts/testar_slot5_lip_proprio.mts` |
+
+`/processo/<id>?tipo=<slug>` (e `/processo/<id>` sem tipo, que sempre abriu como Regularização) só
+encaminha. Cada slot tem o seu interruptor da leitura única (o Slot 1 ficou com
+`leitura_unica_lip_mac_ativo`, o de sempre). `app/processo/ProcessoClient.tsx` e as rotas comuns de
+LIP/MAC (`/api/lip/*`, `/api/processo/*`, `/api/mac/{p3,checklists,...}`, `/api/admin/lip`) não
+servem mais nenhum slot ativo — viraram código morto, mantido por enquanto; a exceção é
+`/api/processo/salvar`, que o "Cadastrar" da tela inicial (`app/page.tsx`) ainda usa para CRIAR o
+processo. Slot novo nasce com ficha e rotas próprias, nunca na ficha comum.
 
 ## Regras de trabalho
 

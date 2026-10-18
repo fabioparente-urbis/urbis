@@ -222,7 +222,7 @@ por vez, com teste antes do próximo.
   linhas. Processos de teste apagados e conferidos.
 - **Comum, de propósito:** satélites (MRP, MDP, MAP, MHD, URBI, Pilha/tags, Vigia), numeração,
   cadastros, a trava de custo do LIP (50 leituras/h para a plataforma inteira), banco, login.
-- **Próximos, na ordem aprovada:** ~~Slot 2~~ e ~~Slot 5~~ (feitos 16/10, ver abaixo), por último Slot 1.
+- **Ordem aprovada:** ~~Slot 2~~, ~~Slot 5~~ e ~~Slot 1~~ — **todos feitos em 16/10** (ver abaixo).
 
 **Slot 2 (Aceite SEI) separado em 16/10/2026**, mesmo molde:
 - Ficha própria `components/aceiteSei/LipAceiteSei.tsx` em `/lip-aceite-sei/<id>`; 25 rotas
@@ -267,6 +267,29 @@ por vez, com teste antes do próximo.
   `testar_slot2_lip_proprio` 104/104; `testar_regras` 233/233; `testar_geradores` 208/208; `tsc`
   limpo. Navegador (processo 50724, sem salvar no LIP): endereço antigo encaminha; ficha carregou só
   pelas rotas do Slot 5; MAC abriu e volta para a ficha própria.
+
+**Slot 1 (Regularização SEI) separado em 16/10/2026** (autorização explícita do Fábio para o Slot 1):
+- Ficha própria `components/regularizacao/LipRegularizacaoSei.tsx` em `/lip-regularizacao-sei/<id>`;
+  25 rotas próprias em `/api/regularizacao-sei/{lip,processo,mac}/*`; LIP em
+  `lib/regularizacaoSei/lip/`; identidade exata em `lib/regularizacaoSei/identidade.ts`. Tela do MAC
+  (`app/analise-regularizacao`) e Fatiador só chamam rotas do slot. `/processo/<id>` com
+  `?tipo=regularizacao` **ou sem tipo** encaminha.
+- Gerado a partir das rotas e da ficha do Slot 3 (cópia 100% do Slot 1), trocando o slug e voltando
+  às bibliotecas de regra de sempre (`lib/marcoTemporal`, `caixaRecargaSlot1`, `compatibilidadeArea`,
+  `carimboAssunto`, `cheadvAprovado`). Conferido contra as rotas comuns: mesmas regras; saíram só os
+  ramos de outros slots e a queda para prompt/checklist de outro assunto.
+- Medido antes: P1/P2/P3 próprios ativos; as 105 análises usam o checklist próprio do Slot 1
+  ("PADRÃO — Regularização SEI"); nenhum modelo global; 84 processos, todos `regularizacao` exato.
+- Ficou igual de propósito: leitura única no interruptor de sempre (`leitura_unica_lip_mac_ativo`,
+  que agora só o Slot 1 lê); despacho interno na rota de sempre (`/api/despacho-interno`); Laudo,
+  nota de caixa e aviso de laudo emitido.
+- Provas: `testar_slot1_lip_proprio` 114/114 (inclui 25 rotas gêmeas das do Slot 3); Slot 2
+  104/104; Slot 5 80/80; regras 233/233; geradores 208/208; `tsc` limpo. Navegador (processo
+  25.5.000047197-5, só leitura): `/processo/<id>` sem tipo encaminhou; ficha e MAC carregaram só
+  pelas rotas do Slot 1; nenhuma gravação.
+- **Depois disto:** `ProcessoClient.tsx` e as rotas comuns de LIP/MAC não servem mais nenhum slot
+  ativo. Apagá-los é um passo à parte (exceto `/api/processo/salvar`, ainda usado para criar
+  processo na tela inicial).
 
 **Endereços do Slot 3:** ficha em `/lip-regularizacao-ped/<processo>`; rotas em
 `/api/regularizacao-ped/lip/*`, `/api/regularizacao-ped/processo/*`,

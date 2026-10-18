@@ -49,11 +49,12 @@ async function lerJsonSeguro(res: Response, etapa: string): Promise<any> {
 }
 
 /**
- * Rotas de leitura do LIP de cada slot. Os Slots 2, 3 e 4 têm LIP PRÓPRIO (Etapa 2 do plano
- * docs/URBIS_PLANO_SLOTS_3_4_PED.md, 16/10/2026) — o Fatiador lê pelas rotas deles. Os demais
- * slots seguem nas rotas comuns, exatamente como antes.
+ * Rotas de leitura do LIP de cada slot. Todos os slots têm LIP PRÓPRIO (Etapa 2 do plano
+ * docs/URBIS_PLANO_SLOTS_3_4_PED.md, 16/10/2026) — o Fatiador lê pelas rotas de cada um. Slot
+ * desconhecido cai nas rotas comuns, como antes.
  */
 function baseLipDoSlot(slot: string): string {
+  if (slot === "regularizacao") return "/api/regularizacao-sei/lip";
   if (slot === "aceite_sei") return "/api/aceite-sei/lip";
   if (slot === "slot_03") return "/api/regularizacao-ped/lip";
   if (slot === "slot_04") return "/api/aceite-ped/lip";

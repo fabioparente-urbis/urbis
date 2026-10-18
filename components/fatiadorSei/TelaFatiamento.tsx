@@ -77,10 +77,10 @@ const ROTA_POR_SLOT: Record<Slot, string> = {
   slot_03: "/api/analise-regularizacao-ped/documentos-sei",
   slot_04: "/api/analise-aceite-ped/documentos-sei",
 };
-// Rotas do LIP (carregar, salvar, última leitura) de cada slot. Slots 2, 3 e 4 têm LIP PRÓPRIO
-// (Etapa 2, 16/10/2026); os demais seguem nas rotas comuns, como antes.
+// Rotas do LIP (carregar, salvar, última leitura) de cada slot. Todos os slots têm LIP PRÓPRIO
+// (Etapa 2, 16/10/2026).
 const ROTA_LIP_POR_SLOT: Record<Slot, { carregar: string; salvar: string; ultimaLeitura: string }> = {
-  regularizacao: { carregar: "/api/processo/carregar", salvar: "/api/processo/salvar", ultimaLeitura: "/api/lip/ultima-leitura" },
+  regularizacao: { carregar: "/api/regularizacao-sei/processo/carregar", salvar: "/api/regularizacao-sei/processo/salvar", ultimaLeitura: "/api/regularizacao-sei/lip/ultima-leitura" },
   aceite_sei: { carregar: "/api/aceite-sei/processo/carregar", salvar: "/api/aceite-sei/processo/salvar", ultimaLeitura: "/api/aceite-sei/lip/ultima-leitura" },
   slot_03: { carregar: "/api/regularizacao-ped/processo/carregar", salvar: "/api/regularizacao-ped/processo/salvar", ultimaLeitura: "/api/regularizacao-ped/lip/ultima-leitura" },
   slot_04: { carregar: "/api/aceite-ped/processo/carregar", salvar: "/api/aceite-ped/processo/salvar", ultimaLeitura: "/api/aceite-ped/lip/ultima-leitura" },
