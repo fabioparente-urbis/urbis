@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { ASSUNTO_ID_SLOT5, TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
@@ -110,8 +111,10 @@ export async function POST(req: NextRequest) {
       .order("numero_analise", { ascending: false }).limit(1);
 
     const proximo = existentes?.length ? (existentes[0] as any).numero_analise + 1 : 1;
-    if (proximo > 5) {
-      return NextResponse.json({ ok: false, erro: "Limite de 5 análises atingido." }, { status: 400 });
+    // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
+    const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
+    if (proximo > limiteAnalises) {
+      return NextResponse.json({ ok: false, erro: `Limite de ${limiteAnalises} análises atingido. Processo deve ser indeferido.` }, { status: 400 });
     }
 
     const { data, error } = await supabaseAdmin.from("analises_mac").insert({

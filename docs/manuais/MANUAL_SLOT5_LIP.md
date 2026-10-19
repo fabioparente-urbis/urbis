@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.47
+**Versão:** 1.48
 **Data:** 2026-10-19
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -502,7 +502,6 @@ correção (commits `9495a7b`, `80ae535`, `5d0c690`):
 
 | | Slot 1 | Slot 2 | Slot 5 |
 |---|---|---|---|
-| 1.47 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.48. |
 | auditoria → **MAP** | ✅ 9 pontos | ✅ 9 | ✅ 6 |
 | **MRP** · **MDP** · **tag** | ✅ | ✅ | ✅ |
 | **MHD** | ❌ | ❌ | ✅ |
@@ -1313,6 +1312,8 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC passou a ter quantidade de análises configurável no admin (a penúltima avisa, a última indefere). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
+| 1.47 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.48. |
 | 1.46 | 2026-10-15 | Conferido: o LIP não mudou. O Laudo do Slot 5 ganhou reemissão (botão "Reemitir" + MRP sem duplicar). Ver `MANUAL_SLOT5_MAC.md` v1.47. |
 | 1.45 | 2026-10-02 | Conferido: o LIP não mudou. O botão de classificar item em filtro no MAC trocou o ícone para o funil do Excel. Ver `MANUAL_SLOT5_MAC.md` v1.46. |
 | 1.44 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o contador "respondidos" de cada ÍTEM ganhou destaque (vermelho, negrito). Ver `MANUAL_SLOT5_MAC.md` v1.45. |

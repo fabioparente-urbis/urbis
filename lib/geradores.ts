@@ -382,15 +382,18 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
  * só quando o despacho sendo emitido é o da 4ª (a última da lista). Vale para todos os slots; cada
  * slot tem o seu gerador e reproduz o texto, sem importar do outro.
  */
-function paragrafoObsPenultimaAnalise(analises: { numero: number }[]): Paragraph | null {
-  if (!Array.isArray(analises) || analises[analises.length - 1]?.numero !== 4) return null;
+// Penúltima = a N-1 do limite do slot (admin, coluna "Análises" em Assuntos); a rota marca `penultima`.
+// Sem a marca (chamador antigo), vale a regra de antes: a 4ª.
+function paragrafoObsPenultimaAnalise(analises: { numero: number; penultima?: boolean }[]): Paragraph | null {
+  const ultimaListada = Array.isArray(analises) ? analises[analises.length - 1] : undefined;
+  if (!(ultimaListada?.penultima ?? ultimaListada?.numero === 4)) return null;
   return new Paragraph({
     alignment: AlignmentType.LEFT, spacing: { before: 60, after: 120 }, keepLines: true,
     children: [txt("*OBS: penúltimo despacho, sendo que a última análise vai acompanhada do indeferimento;", { size: 16 })],
   });
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -472,7 +475,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
