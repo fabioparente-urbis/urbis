@@ -13,6 +13,7 @@
  * do LIP + texto dos PDFs guardado no MHD) e marca sozinho os grupos que não se aplicam.
  */
 
+import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import type {
@@ -510,6 +511,15 @@ function origemDoItem(fonte: string | undefined): { icone: string; rotulo: strin
 
 export default function AnaliseAprovacaoProjeto() {
   const router = useRouter();
+  // Quantas análises este slot permite — configurável no admin (coluna "Análises" em Assuntos). A última
+  // indefere, a penúltima avisa. Padrão 5 até a resposta chegar (comportamento de antes).
+  const [limiteAnalises, setLimiteAnalises] = useState<number>(LIMITE_ANALISES_PADRAO);
+  useEffect(() => {
+    fetch("/api/mac/limite-analises", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { const n = Number(j?.data?.["slot_05"]); if (j?.ok && n >= 1) setLimiteAnalises(n); })
+      .catch(() => {});
+  }, []);
   const codigo = decodeURIComponent(String(useParams()?.codigo ?? ""));
   // Auditoria alimenta o MAP. O Slot 5 não registrava nada — o módulo enxergava
   // Regularização/Aceite e um buraco no lugar da Aprovação de Projeto.
@@ -1148,7 +1158,7 @@ export default function AnaliseAprovacaoProjeto() {
   }
 
   function iniciarNovaAnalise(n: number) {
-    if (analises.length >= 5) { notificar("Limite de 5 análises atingido."); return; }
+    if (analises.length >= limiteAnalises) { notificar(`Limite de ${limiteAnalises} análises atingido.`); return; }
     // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a herança
     // independente da ordenação da API.
     const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
@@ -3965,7 +3975,7 @@ export default function AnaliseAprovacaoProjeto() {
               emitido, não pela mera existência da linha. Uma análise pode
               existir em branco (clique errado no botão, como aconteceu no
               Slot 1 em 26/08/2026) sem que nada tenha sido de fato emitido. */}
-          {[1, 2, 3, 4, 5].map((n) => {
+          {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
             const jaEmitida = !!(existente?.numero_despacho || existente?.numero_parecer);
             const anterior = analises.find((a) => a.numero_analise === n - 1);

@@ -2,6 +2,7 @@
 import { AbaAuditoria } from "./auditoria-aba";
 import { AbaPontuacao } from "./pontuacao-aba";
 import { AbaObsCod } from "./obs-cod-aba";
+import { SLOTS_LIMITE_ANALISES, LIMITE_ANALISES_PADRAO, LIMITE_ANALISES_MAXIMO } from "@/lib/macLimiteAnalisesSlots";
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Settings2, Check, Loader2, Lock, Trash2, AlertTriangle, Bot } from "lucide-react";
@@ -37,6 +38,27 @@ function ConfiguracoesInner() {
   const [metaInput, setMetaInput] = useState<string>("100");
   const [salvandoMeta, setSalvandoMeta] = useState(false);
   const [sucessoMeta, setSucessoMeta] = useState(false);
+  // Quantas análises o MAC de cada slot permite (coluna "Análises" da tabela de Assuntos).
+  // Limite N: a N indefere, a N-1 avisa. Ver lib/macLimiteAnalises.ts.
+  const [limitesAnalises, setLimitesAnalises] = useState<Record<string, number>>({});
+  const [limiteSalvo, setLimiteSalvo] = useState<string | null>(null);
+  useEffect(() => {
+    fetch("/api/mac/limite-analises", { cache: "no-store" })
+      .then((r) => r.json()).then((j) => { if (j?.ok) setLimitesAnalises(j.data); }).catch(() => {});
+  }, []);
+  async function salvarLimiteAnalises(slug: string, n: number) {
+    const anterior = limitesAnalises[slug];
+    setLimitesAnalises((p) => ({ ...p, [slug]: n }));
+    try {
+      const r = await fetch("/api/mac/limite-analises", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limites: { [slug]: n } }) });
+      const j = await r.json();
+      if (!j?.ok) throw new Error(j?.erro || "Erro ao salvar.");
+      setLimitesAnalises(j.data); setLimiteSalvo(slug); setTimeout(() => setLimiteSalvo(null), 2000);
+    } catch (e: any) {
+      setLimitesAnalises((p) => ({ ...p, [slug]: anterior }));
+      alert(`Não foi possível salvar a quantidade de análises: ${e?.message || e}`);
+    }
+  }
   const [abaAtual, setAbaAtual] = useState<"geral" | "logradouros" | "auditoria" | "pontuacao" | "obscod">("geral");
   const [logFiltro, setLogFiltro] = useState("");
   const [logData, setLogData] = useState<LogRow[]>([]);
@@ -282,15 +304,15 @@ function ConfiguracoesInner() {
           {avisoClone && <div className="mb-4 rounded-lg border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">✅ {avisoClone}</div>}
           {carregando ? (<div className="text-[var(--text-muted)] text-sm inline-flex items-center gap-2"><Loader2 size={16} className="animate-spin" /> Carregando assuntos…</div>) : (
             <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] overflow-hidden">
-              <div className="grid grid-cols-[60px_1fr_140px_190px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
-                <div>Ordem</div><div>Nome</div><div className="text-center">Ativo</div><div className="text-right pr-2">Ação</div>
+              <div className="grid grid-cols-[60px_1fr_110px_150px_190px] gap-3 px-4 py-3 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+                <div>Ordem</div><div>Nome</div><div className="text-center">Ativo</div><div className="text-center">Análises</div><div className="text-right pr-2">Ação</div>
               </div>
               {assuntos.map((a) => {
                 const fixo = a.slug === SLUG_FIXO;
                 const v = edicao[a.id] ?? { nome: a.nome, ativo: a.ativo };
                 const podeSalvar = !fixo && linhaSofreuMudanca(a) && !salvandoId;
                 return (
-                  <div key={a.id} className="grid grid-cols-[60px_1fr_140px_190px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0">
+                  <div key={a.id} className="grid grid-cols-[60px_1fr_110px_150px_190px] gap-3 px-4 py-3 items-center border-b border-[var(--border)] last:border-b-0">
                     <div className="text-[var(--text-muted)] text-sm">{a.ordem}</div>
                     <div className="min-w-0">
                       {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
@@ -305,6 +327,21 @@ function ConfiguracoesInner() {
                     <div className="flex justify-center">
                       {fixo ? (<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--success-bg)]/40 text-[var(--accent-fg)] text-xs"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Ativo</span>
                       ) : (<button type="button" role="switch" aria-checked={v.ativo} onClick={() => atualizarLinha(a.id, { ativo: !v.ativo })} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${v.ativo ? "bg-[var(--accent)]" : "bg-[var(--bg-secondary)]"}`}><span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${v.ativo ? "translate-x-6" : "translate-x-1"}`} /></button>)}
+                    </div>
+                    <div className="flex flex-col items-center gap-0.5">
+                      {SLOTS_LIMITE_ANALISES.some((s) => s.slug === a.slug) ? (() => {
+                        const n = limitesAnalises[a.slug] ?? LIMITE_ANALISES_PADRAO;
+                        return (<>
+                          <select value={n} disabled={!isAdmin} onChange={(e) => salvarLimiteAnalises(a.slug, Number(e.target.value))}
+                            title="Quantas análises o MAC deste slot permite. A última indefere; a penúltima avisa."
+                            className="bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-2 py-1 text-sm text-[var(--text-primary)]">
+                            {Array.from({ length: LIMITE_ANALISES_MAXIMO }, (_, i) => i + 1).map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                          <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
+                            {limiteSalvo === a.slug ? <span className="text-emerald-400">✓ salvo</span> : n > 1 ? `avisa na ${n - 1}ª · indefere na ${n}ª` : "indefere na 1ª"}
+                          </span>
+                        </>);
+                      })() : <span className="text-xs text-slate-600">—</span>}
                     </div>
                     <div className="flex justify-end items-center gap-2 pr-2">
                       {fixo ? (<span className="text-xs text-slate-600">—</span>

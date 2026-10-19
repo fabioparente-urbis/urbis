@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { limiteAnalisesDoSlot, marcarUltimaPenultima } from "@/lib/macLimiteAnalises";
 
 export async function POST(req: NextRequest) {
   try {
@@ -134,8 +135,11 @@ export async function POST(req: NextRequest) {
     // analises[] vem do frontend com as análises reais (numero, data, ultima)
     // Usar analises.length para determinar obs — não numero_revisao (pode estar errado no banco)
     const nReal = Array.isArray(analises) ? analises.length : 0;
+    // Última (indeferimento) e penúltima (aviso) saem do limite do slot configurado no admin,
+    // não do que a tela mandou — limite N: a N indefere, a N-1 avisa.
+    const limiteAnalises = await limiteAnalisesDoSlot("regularizacao");
     const analisesParaDoc = Array.isArray(analises) && analises.length > 0
-      ? analises
+      ? marcarUltimaPenultima(analises, limiteAnalises)
       : [];
 
     // Gerar documento baseado no tipo
