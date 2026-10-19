@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       corpoPersonalizado,
       datasEtapas,
       numeroAnalise: Number((alvo as any).numero_analise) || undefined,
-      // Aviso de penúltimo = a N-1 do limite do Slot 5 configurado no admin ("Análises por slot").
+      // Aviso de penúltimo = a N-1 do limite do Slot 5 configurado no admin (coluna "Análises" em Assuntos).
       penultima: limiteSlot5 > 1 && Number((alvo as any).numero_analise) === limiteSlot5 - 1,
       assinante: {
         nome: (membro as any)?.nome || "—",

@@ -866,8 +866,8 @@ análise vai acompanhada do indeferimento;"*. Na 1ª, 2ª, 3ª e 5ª análise na
 reproduzido no gerador do Slot 5, sem importar do Slot 1. Testado gerando o .docx na 3ª, 4ª e 5ª.
 
 > **19/10/2026 — a penúltima segue o limite do admin.** A quantidade de análises do Slot 5 deixou de
-> ser fixa em 5: o administrador escolhe de 1 a 10 em `/admin/configuracoes`, aba **🔢 Análises por
-> slot** (`urbis_config.mac_limite_analises`, ver `lib/macLimiteAnalises.ts`). Com limite N, a tela
+> ser fixa em 5: o administrador escolhe de 1 a 10 em `/admin/configuracoes`, coluna **Análises** da
+> tabela de Assuntos (`urbis_config.mac_limite_analises`, ver `lib/macLimiteAnalises.ts`). Com limite N, a tela
 > mostra as Análises 1..N (as que o processo já tiver acima de N continuam visíveis), a rota
 > `/api/mac/slot-05/analise` recusa criar a N+1, e o aviso de penúltimo sai na **N-1** (a rota de
 > despacho passa `penultima` ao gerador). Ex.: limite 2 → a 1ª avisa, a 2ª indefere. Sem a
@@ -1498,7 +1498,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
-| 1.50 | 2026-10-19 | Seção 8.8: quantidade de análises configurável por slot no admin (1 a 10, aba "Análises por slot"); a penúltima (aviso) é a N-1 e a última a N; rota de criar análise respeita o limite. Limite da tabela de 5 etapas registrado. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.49. |
+| 1.50 | 2026-10-19 | Seção 8.8: quantidade de análises configurável por slot no admin (1 a 10, coluna "Análises" na tabela de Assuntos de /admin/configuracoes); a penúltima (aviso) é a N-1 e a última a N; rota de criar análise respeita o limite. Limite da tabela de 5 etapas registrado. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.49. |
 | 1.49 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **← Pilha de Processo**, depois de 🚪 Sair (igual ao do LIP), leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 a 4. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.48. |
 | 1.48 | 2026-10-16 | Seção 3 (caixa no topo), 4.3 e 8.2: com o LIP do Slot 5 virando programa próprio, os botões de voltar ao LIP abrem `/lip-aprovacao-projeto/<id>`, a legenda de foto usa a rota do Slot 5, a outorga roda na rota de salvar própria e o despacho interno do LIP sai só pela rota do Slot 5. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |
 | 1.47 | 2026-10-15 | Seção 8.3: reemissão do Laudo — botão "Reemitir" com confirmação quando já há tag `laudo`; MRP do laudo deixa de duplicar na reemissão. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.46. |

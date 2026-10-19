@@ -51,7 +51,7 @@ type Modelo = {
 export default function MacPage() {
   const params = useParams();
   const router = useRouter();
-  // Quantas análises este slot permite — configurável no admin ("Análises por slot"). A última
+  // Quantas análises este slot permite — configurável no admin (coluna "Análises" em Assuntos). A última
   // indefere, a penúltima avisa. Padrão 5 até a resposta chegar (comportamento de antes).
   const [limiteAnalises, setLimiteAnalises] = useState<number>(LIMITE_ANALISES_PADRAO);
   useEffect(() => {

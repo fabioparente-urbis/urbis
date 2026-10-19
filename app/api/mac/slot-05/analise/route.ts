@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       .order("numero_analise", { ascending: false }).limit(1);
 
     const proximo = existentes?.length ? (existentes[0] as any).numero_analise + 1 : 1;
-    // Limite configurável no admin (/admin/configuracoes, "Análises por slot"); padrão 5.
+    // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
     const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
     if (proximo > limiteAnalises) {
       return NextResponse.json({ ok: false, erro: `Limite de ${limiteAnalises} análises atingido. Processo deve ser indeferido.` }, { status: 400 });

@@ -382,7 +382,7 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
  * só quando o despacho sendo emitido é o da 4ª (a última da lista). Vale para todos os slots; cada
  * slot tem o seu gerador e reproduz o texto, sem importar do outro.
  */
-// Penúltima = a N-1 do limite do slot (admin, "Análises por slot"); a rota marca `penultima`.
+// Penúltima = a N-1 do limite do slot (admin, coluna "Análises" em Assuntos); a rota marca `penultima`.
 // Sem a marca (chamador antigo), vale a regra de antes: a 4ª.
 function paragrafoObsPenultimaAnalise(analises: { numero: number; penultima?: boolean }[]): Paragraph | null {
   const ultimaListada = Array.isArray(analises) ? analises[analises.length - 1] : undefined;

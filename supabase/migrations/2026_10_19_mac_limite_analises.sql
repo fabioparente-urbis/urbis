@@ -1,7 +1,7 @@
 -- 2026_10_19_mac_limite_analises.sql
 --
--- Limite de análises do MAC POR SLOT, configurável no admin (/admin/configuracoes, aba
--- "Análises por slot"). Pedido do Fábio, 19/10/2026: "em breve serão 2 análises" — a penúltima
+-- Limite de análises do MAC POR SLOT, configurável no admin (/admin/configuracoes, coluna
+-- "Análises" da tabela de Assuntos). Pedido do Fábio, 19/10/2026: "em breve serão 2 análises" — a penúltima
 -- avisa que a próxima indefere, a última indefere.
 --
 -- Um número de 1 a 10 por slot. O corte é sempre do FIM: limite 3 = Análises 1, 2 e 3; a 3ª é a
