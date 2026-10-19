@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.46
-**Data:** 2026-10-15
+**Versão:** 1.47
+**Data:** 2026-10-19
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -502,6 +502,7 @@ correção (commits `9495a7b`, `80ae535`, `5d0c690`):
 
 | | Slot 1 | Slot 2 | Slot 5 |
 |---|---|---|---|
+| 1.47 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.48. |
 | auditoria → **MAP** | ✅ 9 pontos | ✅ 9 | ✅ 6 |
 | **MRP** · **MDP** · **tag** | ✅ | ✅ | ✅ |
 | **MHD** | ❌ | ❌ | ✅ |

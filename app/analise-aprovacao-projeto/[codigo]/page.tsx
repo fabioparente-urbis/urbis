@@ -2916,6 +2916,10 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
+            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/processos"); }}
+              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              ← Pilha de Processo
+            </button>
             <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/processo/${encodeURIComponent(codigo)}?tipo=slot_05`); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
