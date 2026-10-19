@@ -1341,7 +1341,7 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
-| 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão 📚 Pilha (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
+| 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
 | 1.47 | 2026-10-16 | Seção 2 e 3.1: o LIP do Slot 5 vira programa próprio — ficha `/lip-aprovacao-projeto/<id>`, 19 rotas em `/api/aprovacao-projeto/*`, prompts só do Slot 5; o endereço antigo encaminha. Quatro diferenças deliberadas listadas na seção 2. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.48. |
 | 1.46 | 2026-10-15 | Conferido: o LIP não mudou. O Laudo do Slot 5 ganhou reemissão (botão "Reemitir" + MRP sem duplicar). Ver `MANUAL_SLOT5_MAC.md` v1.47. |
 | 1.45 | 2026-10-02 | Conferido: o LIP não mudou. O botão de classificar item em filtro no MAC trocou o ícone para o funil do Excel. Ver `MANUAL_SLOT5_MAC.md` v1.46. |
