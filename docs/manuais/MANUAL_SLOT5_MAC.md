@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.47
-**Data:** 2026-10-15
+**Versão:** 1.48
+**Data:** 2026-10-19
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -67,6 +67,9 @@ reconferidas depois, porque a reconciliação desativou itens sem recalcular cla
 ---
 
 ## 3. A tela própria do MAC do Slot 5
+
+> **19/10/2026 — botão ← Pilha de Processo.** No topo da tela, depois de 🚪 Sair (igual ao do LIP), o
+> botão "← Pilha de Processo" salva a análise e leva direto à Pilha de Processos (`/processos`).
 
 Arquivo: `app/analise-aprovacao-projeto/[codigo]/page.tsx` — exclusivo do Slot 5 (diferente da tela
 do LIP, que é 1 arquivo para os 15 slots; aqui dá para mexer num slot sem tocar o outro, mas ainda
@@ -1132,6 +1135,7 @@ compara:
 
 | Filtro | Campo do LIP acionador | Item do checklist |
 |---|---|---|
+| 1.48 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **← Pilha de Processo**, depois de 🚪 Sair (igual ao do LIP), leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 e 2. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |
 | ÁREA DO TERRENO DIVERGENTE | `divergenciasChaves` contém `areaTerreno` | "Área do terreno;" |
 | ÁREA CONSTRUÍDA DIVERGENTE | `divergenciasChaves` contém `areaTotal` | "Área construída, número de pavimentos..." |
 | ART DE PROJETO DIVERGENTE | `divergenciasChaves` contém `numeroDeArtProjeto` | "Compatibilizar Nº das ARTs e RRTs;" |
