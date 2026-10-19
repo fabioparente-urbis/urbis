@@ -56,6 +56,8 @@ export type DadosDespacho = {
   datasEtapas: (string | null)[];
   /** Número da análise que está sendo emitida. Na 4ª, o despacho leva o aviso de penúltimo. */
   numeroAnalise?: number;
+  /** Penúltima pelo limite do Slot 5 no admin (a rota calcula). Sem ela, vale a regra antiga: a 4ª. */
+  penultima?: boolean;
   assinante: { nome: string; cargo?: string | null; registro?: string | null };
 };
 
@@ -289,10 +291,11 @@ export async function gerarDespachoAprovacaoProjeto(dados: DadosDespacho): Promi
 
   doc = trocarDatasEtapas(doc, dados.datasEtapas);
 
-  // Aviso da 4ª análise (pedido do Fábio, 30/09/2026, vale para todos os slots): o despacho da 4ª é
+  // Aviso da penúltima análise (pedido do Fábio, 30/09/2026; desde 19/10/2026 a penúltima é a N-1 do
+  // limite configurado no admin, antes fixa na 4ª): o despacho da penúltima é
   // o PENÚLTIMO — a última análise vai acompanhada do indeferimento. Letra pequena, logo abaixo da
   // tabela de Controle de Etapas (a única tabela do modelo).
-  if (dados.numeroAnalise === 4) {
+  if (dados.penultima ?? dados.numeroAnalise === 4) {
     const fimTabela = doc.indexOf("</w:tbl>");
     if (fimTabela !== -1) {
       const aviso = `<w:p><w:pPr><w:pStyle w:val="Corpodetexto"/><w:spacing w:before="60" w:after="120" w:line="240" w:lineRule="auto"/><w:jc w:val="left"/></w:pPr>`

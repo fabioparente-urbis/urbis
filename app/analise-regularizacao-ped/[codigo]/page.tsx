@@ -6,6 +6,7 @@
 // Trocas feitas: '/api/analise-regularizacao' → '/api/analise-regularizacao-ped'; '/api/despacho-regularizacao' → '/api/despacho-regularizacao-ped'; '"/api/despacho-interno"' → '"/api/mac/regularizacao-ped/despacho-interno"'; '|| "regularizacao"' → '|| "slot_03"'; ': "regularizacao";' → ': "slot_03";'; '/analise-regularizacao/${codigo}' → '/analise-regularizacao-ped/${codigo}'; '@/components/mac/BotaoGerarLaudo' → '@/components/mac/regularizacaoPed/BotaoGerarLaudo'
 // ============================================================
 "use client";
+import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
 import { filtrosDoAssunto, type FiltroMac } from "@/lib/macFiltros";
 import { useAuditoria } from "@/hooks/useAuditoria";
@@ -50,6 +51,15 @@ type Modelo = {
 export default function MacPage() {
   const params = useParams();
   const router = useRouter();
+  // Quantas análises este slot permite — configurável no admin ("Análises por slot"). A última
+  // indefere, a penúltima avisa. Padrão 5 até a resposta chegar (comportamento de antes).
+  const [limiteAnalises, setLimiteAnalises] = useState<number>(LIMITE_ANALISES_PADRAO);
+  useEffect(() => {
+    fetch("/api/mac/limite-analises", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => { const n = Number(j?.data?.["slot_03"]); if (j?.ok && n >= 1) setLimiteAnalises(n); })
+      .catch(() => {});
+  }, []);
   const codigo = decodeURIComponent(params?.codigo as string ?? "");
 
   const [analises, setAnalises] = useState<any[]>([]);
@@ -1120,7 +1130,7 @@ export default function MacPage() {
           analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (capturedNumeroAnalise ?? 1)).map((a) => ({
             numero: a.numero_analise,
             data: dataDaAnalise(a),
-            ultima: a.numero_analise === 5,
+            ultima: a.numero_analise === limiteAnalises,
           })),
           analiseId: capturedAnaliseId,
           assunto_id: assuntoId,
@@ -1283,10 +1293,10 @@ export default function MacPage() {
       if (mdpFalhouServidor) mostrarToast(`⚠️ Despacho gerado, mas o registro automático de MDP falhou: ${decodeURIComponent(mdpFalhouServidor)}`);
       else if (mrpFalhouServidor) mostrarToast(`⚠️ Despacho gerado, mas o registro automático de MRP falhou: ${decodeURIComponent(mrpFalhouServidor)}`);
 
-      // Análise 5 + despacho ao interessado → abre indeferimento (STEP 1d)
+      // Última análise (limite do slot) + despacho ao interessado → abre indeferimento (STEP 1d)
       if (
         tipoDespacho === "despacho" &&
-        analiseAtual?.numero_analise === 5
+        analiseAtual?.numero_analise === limiteAnalises
       ) {
         setTimeout(() => setModalIndeferimento(true), 400);
       }
@@ -1337,8 +1347,8 @@ export default function MacPage() {
   }
 
   function iniciarNovaAnalise() {
-    if (analises.length >= 5) {
-      mostrarToast("Limite de 5 análises atingido.");
+    if (analises.length >= limiteAnalises) {
+      mostrarToast(`Limite de ${limiteAnalises} análises atingido.`);
       return;
     }
     // `analises` vem da API ordenada por numero_analise DESC, então a posição
@@ -2680,7 +2690,7 @@ export default function MacPage() {
 
           {/* Botões de análise 1-5 — compactos + Limpar individual */}
           <div className="flex flex-col gap-1.5 mb-1">
-            {[1, 2, 3, 4, 5].map((n) => {
+            {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
               const existente = analises.find((a) => a.numero_analise === n);
               // "Emitida" é o que destrava a próxima análise — não a mera
               // existência da linha em analises_mac. Uma análise pode ter
@@ -2829,7 +2839,7 @@ export default function MacPage() {
                     processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
                     fotos: fotos.map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
-                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), assunto_id: assuntoId,
                     data: dataEmissao,
                   }),
                 });
@@ -2910,7 +2920,7 @@ export default function MacPage() {
                     processo: codigo, tipo: "indeferimento", numeroDespacho: _np,
                     naoConformes: _m, observacoes: _o,
                     fotos: (_f ?? []).map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
-                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === 5 })), assunto_id: assuntoId,
+                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), assunto_id: assuntoId,
                     data: indeferimentoParaReimprimir.data || dataEmissao,
                   }),
                 });

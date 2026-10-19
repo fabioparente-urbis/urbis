@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { modeloDoSlot5 } from "@/lib/mac-motor/slot5/modeloChecklist";
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
     const { data: membro } = await supabaseAdmin
       .from("usuarios").select("nome, cargo, cau_crea").eq("id", usuario.id).maybeSingle();
 
+    const limiteSlot5 = await limiteAnalisesDoSlot("slot_05");
     const buffer = await gerarDespachoAprovacaoProjeto({
       codigo,
       numeroProcessoFisico: valor("processoFisico"),
@@ -136,6 +138,8 @@ export async function POST(req: NextRequest) {
       corpoPersonalizado,
       datasEtapas,
       numeroAnalise: Number((alvo as any).numero_analise) || undefined,
+      // Aviso de penúltimo = a N-1 do limite do Slot 5 configurado no admin ("Análises por slot").
+      penultima: limiteSlot5 > 1 && Number((alvo as any).numero_analise) === limiteSlot5 - 1,
       assinante: {
         nome: (membro as any)?.nome || "—",
         cargo: (membro as any)?.cargo || null,

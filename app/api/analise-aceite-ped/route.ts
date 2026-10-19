@@ -5,6 +5,7 @@
 // Trocas feitas: 'const TIPO = "aceite_sei";' → 'const TIPO = "slot_04";'
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
+import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { createClient } from "@supabase/supabase-js";
 import { resolverUsuarioIdPorCookie } from "@/lib/auth";
 
@@ -67,8 +68,10 @@ export async function POST(req: NextRequest) {
 
     const proximoNumero = existentes && existentes.length > 0 ? existentes[0].numero_analise + 1 : 1;
 
-    if (proximoNumero > 5) {
-      return NextResponse.json({ ok: false, erro: "Limite de 5 analises atingido. Processo deve ser indeferido." }, { status: 400 });
+    // Limite configurável no admin (/admin/configuracoes, "Análises por slot"); padrão 5.
+    const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
+    if (proximoNumero > limiteAnalises) {
+      return NextResponse.json({ ok: false, erro: `Limite de ${limiteAnalises} análises atingido. Processo deve ser indeferido.` }, { status: 400 });
     }
 
     // Snapshot do CAU/CREA do responsável técnico no momento desta análise —

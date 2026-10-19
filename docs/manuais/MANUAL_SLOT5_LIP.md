@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.48
+**Versão:** 1.49
 **Data:** 2026-10-19
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1341,6 +1341,7 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.49 | 2026-10-19 | Conferido: o LIP não mudou. O MAC passou a ter quantidade de análises configurável no admin (a penúltima avisa, a última indefere). Ver `MANUAL_SLOT5_MAC.md` v1.50. |
 | 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
 | 1.47 | 2026-10-16 | Seção 2 e 3.1: o LIP do Slot 5 vira programa próprio — ficha `/lip-aprovacao-projeto/<id>`, 19 rotas em `/api/aprovacao-projeto/*`, prompts só do Slot 5; o endereço antigo encaminha. Quatro diferenças deliberadas listadas na seção 2. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.48. |
 | 1.46 | 2026-10-15 | Conferido: o LIP não mudou. O Laudo do Slot 5 ganhou reemissão (botão "Reemitir" + MRP sem duplicar). Ver `MANUAL_SLOT5_MAC.md` v1.47. |

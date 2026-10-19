@@ -5,6 +5,7 @@
 // Trocas feitas: 'await import("@/lib/geradores")' → 'await import("@/lib/geradores/aceitePed/assuntoParaDocumento")'; 'await import("@/lib/geradores/aceiteSei/gerarDespachoAceiteSei")' → 'await import("@/lib/geradores/aceitePed/gerarDespachoAceitePed")'; 'await import("@/lib/geradores/aceiteSei/gerarParecerAceiteSei")' → 'await import("@/lib/geradores/aceitePed/gerarParecerAceitePed")'; 'gerarDespachoAceiteSei' → 'gerarDespachoAceitePed'; 'gerarIndeferimentoAceiteSei' → 'gerarIndeferimentoAceitePed'; 'gerarArquivamentoAceiteSei' → 'gerarArquivamentoAceitePed'; '?? "aceite_sei"' → '?? "slot_04"'; '/slot2]' → '/slot4]'; '"[DESPACHO]"' → '"[DESPACHO/slot4]"'
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
+import { limiteAnalisesDoSlot, marcarUltimaPenultima } from "@/lib/macLimiteAnalises";
 
 export async function POST(req: NextRequest) {
   try {
@@ -140,8 +141,11 @@ export async function POST(req: NextRequest) {
     // analises[] vem do frontend com as análises reais (numero, data, ultima)
     // Usar analises.length para determinar obs — não numero_revisao (pode estar errado no banco)
     const nReal = Array.isArray(analises) ? analises.length : 0;
+    // Última (indeferimento) e penúltima (aviso) saem do limite do slot configurado no admin,
+    // não do que a tela mandou — limite N: a N indefere, a N-1 avisa.
+    const limiteAnalises = await limiteAnalisesDoSlot("slot_04");
     const analisesParaDoc = Array.isArray(analises) && analises.length > 0
-      ? analises
+      ? marcarUltimaPenultima(analises, limiteAnalises)
       : [];
 
     // Gerar documento baseado no tipo

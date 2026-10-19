@@ -139,7 +139,7 @@ export type DadosDespachoAceite = {
   naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[];
   observacoes?: string;
   observacoesPorAba?: Record<string, string>;
-  analises: { numero: number; data: string; ultima?: boolean }[];
+  analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[];
   assinante?: Assinante;
   analista?: string;
   crea?: string;
@@ -221,6 +221,11 @@ export async function gerarDespachoAceitePed(dados: DadosDespachoAceite): Promis
   });
   if (dados.analises.some((a) => a.ultima)) {
     children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
+  }
+  // Penúltima análise (N-1 do limite do slot, marcada pela rota): avisa que a próxima indefere.
+  // Pedido do Fábio, 19/10/2026 — antes o Aceite não tinha este aviso.
+  if (dados.analises[dados.analises.length - 1]?.penultima) {
+    children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 60, after: 120 }, keepLines: true, children: [txt("*OBS: penúltimo despacho, sendo que a última análise vai acompanhada do indeferimento;", { size: 16 })] }));
   }
   children.push(vazio(120));
 
