@@ -1811,13 +1811,13 @@ export default function MacPage() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
-            <button onClick={() => { router.push("/processos"); }}
-              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
-              📚 Pilha
-            </button>
             <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
+            </button>
+            <button onClick={() => { router.push("/processos"); }}
+              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              ← Pilha de Processo
             </button>
                         <button onClick={() => salvar("em_andamento").then(() => router.push(`/lip-aceite-ped/${encodeURIComponent(codigo)}`))}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
