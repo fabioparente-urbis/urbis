@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.48
-**Data:** 2026-10-16
+**Versão:** 1.49
+**Data:** 2026-10-19
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -73,6 +73,9 @@ reconferidas depois, porque a reconciliação desativou itens sem recalcular cla
 > legenda de foto do indeferimento passou a ser lida por `/api/aprovacao-projeto/lip/legenda-foto`.
 > Nada mais mudou na tela do MAC, que já usava só rotas `/api/mac/slot-05/*`. Ver
 > `MANUAL_SLOT5_LIP.md` seção 2.
+
+> **19/10/2026 — botão 📚 Pilha.** No topo da tela, ao lado de 🏠 Home, o botão "📚 Pilha" salva a
+> análise e leva direto à Pilha de Processos (`/processos`), sem passar pela Home.
 
 Arquivo: `app/analise-aprovacao-projeto/[codigo]/page.tsx` — exclusivo do Slot 5 (diferente da tela
 do LIP, que é 1 arquivo para os 15 slots; aqui dá para mexer num slot sem tocar o outro, mas ainda
@@ -1485,6 +1488,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.49 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **📚 Pilha**, ao lado de 🏠 Home, leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 a 4. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.48. |
 | 1.48 | 2026-10-16 | Seção 3 (caixa no topo), 4.3 e 8.2: com o LIP do Slot 5 virando programa próprio, os botões de voltar ao LIP abrem `/lip-aprovacao-projeto/<id>`, a legenda de foto usa a rota do Slot 5, a outorga roda na rota de salvar própria e o despacho interno do LIP sai só pela rota do Slot 5. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |
 | 1.47 | 2026-10-15 | Seção 8.3: reemissão do Laudo — botão "Reemitir" com confirmação quando já há tag `laudo`; MRP do laudo deixa de duplicar na reemissão. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.46. |
 | 1.46 | 2026-10-02 | Seção 3.4.1: o botão de classificar item em filtro passa a usar o ícone de funil do filtro do Excel (antes 🏷️), a pedido do Fábio. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.45. |
