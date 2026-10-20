@@ -23,6 +23,7 @@ const LABEL_CAMPO: Record<string, string> = {
   despacho: "Despacho CHEADV", tipoUso: "Tipo de Uso do Solo",
   usoDefinido: "Uso sem definição", numeroUso: "Nº Uso para Aprovação",
   cnae1: "CNAE 1", cnae2: "CNAE 2", cnae3: "CNAE 3", cnae4: "CNAE 4", cnae5: "CNAE 5",
+  cnae6: "CNAE 6", cnae7: "CNAE 7", cnae8: "CNAE 8", cnae9: "CNAE 9", cnae10: "CNAE 10",
   corredor: "Corredor Viário", faixa: "Faixa de Ampliação", caixa: "Caixa de Recarga",
   volMin: "Vol. Mínimo da Caixa", volAt: "Vol. Atendido da Caixa", caixas: "Nº de Caixas",
   pav: "Nº de Pavimentos", unid: "Nº de Unidades", existente: "Área Existente Aprovada",

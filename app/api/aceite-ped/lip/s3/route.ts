@@ -239,6 +239,10 @@ const CAMPOS_NP = [
   "seiArtCaixaRecarga","seiFotoGoogle",
 ];
 
+// CNAE 1 a 10 + descrições (20/10/2026) — campos da aba "3. Uso do Solo" deste slot.
+const CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `cnae${i + 1}`);
+const DESC_CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `descCnae${i + 1}`);
+
 async function processarJobBackground(jobId: string, params: {
   fileUri: string;
   promptFinal: string;
@@ -386,20 +390,32 @@ async function processarJobBackground(jobId: string, params: {
           campos[chave] = { valor: val, fonte: item.fonte ? String(item.fonte).trim() : "Processo SEI" };
         }
       }
-      for (const c of CAMPOS_NP) {
+      const temCnae1a10 = true; // rota própria: só atende este slot, que tem os 20 campos
+      const camposNpDoTipo = temCnae1a10
+        ? [...CAMPOS_NP, ...CNAES_1_A_10, ...DESC_CNAES_1_A_10]
+        : CAMPOS_NP;
+      for (const c of camposNpDoTipo) {
         if (!campos[c]) campos[c] = { valor: "NP", fonte: "Nao identificado" };
       }
 
       // "Sem uso definido": o CNAE 000000008 (ou "8") NÃO é atividade econômica —
-      // é a ausência de uso definido. Trata como se não houvesse CNAE (tudo NP) e
-      // marca usoDefinido="Não". Trava determinística: o modelo às vezes devolve o
-      // código cru "000000008" em vez de reconhecer o "sem uso definido".
-      const c1 = (campos.cnae1?.valor || "").trim();
-      if (/^0*8$/.test(c1) || /sem uso definido/i.test(c1)) {
-        for (const c of ["cnae1", "cnae2", "cnae3", "cnae4", "cnae5"]) {
-          campos[c] = { valor: "NP", fonte: "Sem uso definido" };
+      // é a ausência de uso definido. Trata como se não houvesse CNAE (tudo NP).
+      // Trava determinística: o modelo às vezes devolve o código cru "000000008"
+      // em vez de reconhecer o "sem uso definido". Vale para os 10 CNAEs e as
+      // descrições (20/10/2026); antes só olhava os 5 primeiros códigos.
+      //
+      // usoDefinido responde a pergunta da ficha "Uso de Solo SEM uso definido?":
+      // sem uso definido → "Sim". Até 20/10/2026 esta trava gravava "Não" — o
+      // contrário do que a ficha pergunta (o prompt antigo também invertia).
+      const ehSemUso = (v?: string | null) => {
+        const t = (v || "").trim();
+        return /^0*8$/.test(t) || /sem uso definido/i.test(t);
+      };
+      if (CNAES_1_A_10.some((c) => ehSemUso(campos[c]?.valor))) {
+        for (const c of [...CNAES_1_A_10, ...DESC_CNAES_1_A_10]) {
+          if (temCnae1a10 || c in campos) campos[c] = { valor: "NP", fonte: "Sem uso definido" };
         }
-        campos.usoDefinido = { valor: "Não", fonte: campos.usoDefinido?.fonte || "Despacho CHEADV" };
+        campos.usoDefinido = { valor: "Sim", fonte: campos.usoDefinido?.fonte || "Despacho CHEADV" };
       }
     }
 
