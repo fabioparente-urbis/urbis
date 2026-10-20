@@ -240,10 +240,10 @@ const CAMPOS_NP = [
 ];
 
 // CNAE 1 a 10 + descrições (20/10/2026): só nos slots que têm esses campos na aba
-// "3. Uso do Solo" (Regularização, Aceite e os PED). O Slot 5 usa outras chaves.
+// "3. Uso do Solo" (Regularização e Aceite). O Slot 5 usa outras chaves.
 const CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `cnae${i + 1}`);
 const DESC_CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `descCnae${i + 1}`);
-const TIPOS_COM_CNAE_1_A_10 = ["regularizacao", "aceite_sei", "slot_03", "slot_04"];
+const TIPOS_COM_CNAE_1_A_10 = ["regularizacao", "aceite_sei"];
 
 async function processarJobBackground(jobId: string, params: {
   fileUri: string;

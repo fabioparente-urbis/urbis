@@ -6,7 +6,8 @@
  * CNAE for 8 desconsiderar... se não for tem que anotar todos e mandar pro LIP e pro LAUDO".
  *
  * O que muda em cada prompt:
- *   1. CNAE vem SEMPRE do último Uso do Solo anexado (maior SEI);
+ *   1. CNAE vem SEMPRE do último Uso do Solo anexado PELA PREFEITURA (nunca a cópia do
+ *      interessado, mesmo mais recente — pedido do Fábio, 20/10/2026);
  *   2. anota TODOS os CNAEs do documento, até 10: código em cnae1..cnae10 e descrição em
  *      descCnae1..descCnae10 (antes: 5 códigos e 2 descrições);
  *   3. CNAE "8" / sem uso definido → todos NP (já era a regra; agora cobre os 10 + descrições);
@@ -40,7 +41,8 @@ const MARCA = "CNAEs — ÚLTIMO USO DO SOLO";
 const linhasJson = (prefixo, de, ate) =>
   Array.from({ length: ate - de + 1 }, (_, i) => `    "${prefixo}${de + i}": { "valor": null, "fonte": null },`).join("\n");
 
-const REGRA_CNAE = `- ${MARCA}: os CNAEs vêm SEMPRE do ÚLTIMO documento de Uso do Solo anexado ao processo (o de maior número SEI) — é o válido; ignore Usos do Solo anteriores.
+const REGRA_CNAE = `- ${MARCA}: os CNAEs vêm SEMPRE do ÚLTIMO documento de Uso do Solo anexado PELA PREFEITURA (o de maior número SEI entre os emitidos/juntados por unidade da Prefeitura — ex.: COMTEC, SEPLANH, CHEADV — assinados por servidor) — é o válido; ignore Usos do Solo anteriores.
+  Se houver mais de um Uso do Solo, NÃO use cópia anexada pelo INTERESSADO/requerente (documento externo, peticionamento, anexo do requerimento), mesmo que tenha número SEI maior: vale o último da Prefeitura. Só use o do interessado se não houver nenhum anexado pela Prefeitura e diga isso na fonte ("Uso do Solo anexado pelo interessado").
   Se esse documento indicar USO ESPECÍFICO, anote TODOS os CNAEs listados nele, na ordem em que aparecem, até 10: o código em cnae1..cnae10 (os dígitos como estão no documento) e a descrição da atividade, lida ao lado do código, em descCnae1..descCnae10 (mesmo número do código). Os que sobrarem = "NP". Nunca pule CNAE e nunca resuma vários num campo só.`;
 
 const SEM_USO_ALVO = `então TODOS os campos cnae (cnae1 a cnae10) e descCnae (descCnae1 a descCnae10) = "NP". Trate como se NÃO houvesse CNAE — nunca escreva o código "8"/"000000008" nem o texto "sem uso definido" nos campos cnae.`;
