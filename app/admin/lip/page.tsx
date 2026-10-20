@@ -323,7 +323,7 @@ export default function AdminLipPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarAba} disabled={!formAba.nome.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoAba ? "Salvar alterações" : "Criar aba"}
               </button>
               <button onClick={() => setModalAba(false)}
@@ -393,7 +393,7 @@ export default function AdminLipPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarCampo} disabled={!formCampo.label.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoCampo ? "Salvar alterações" : "Criar campo"}
               </button>
               <button onClick={() => setModalCampo(false)}
@@ -443,7 +443,7 @@ export default function AdminLipPage() {
               </button>
             )}
             <button onClick={abrirNovaAba} disabled={!assuntoId}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
               + Nova Aba
             </button>
           </div>
@@ -457,7 +457,7 @@ export default function AdminLipPage() {
           {abas.map((aba, idx) => (
             <div key={aba.id}
               className={`rounded-lg border p-3 cursor-pointer transition-colors ${
-                abaSelecionada?.id === aba.id ? "bg-[var(--accent)] border-[var(--accent-hover)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
+                abaSelecionada?.id === aba.id ? "bg-[var(--accent)] border-[var(--accent-hover)] [&_*]:!text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
               }`}
               onClick={() => setAbaSelecionada(aba)}>
               <div className="flex items-start justify-between gap-2">
