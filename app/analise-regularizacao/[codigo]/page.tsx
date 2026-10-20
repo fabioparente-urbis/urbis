@@ -1872,7 +1872,7 @@ export default function MacPage() {
               <button
                 onClick={confirmarModelo}
                 disabled={!modeloSelecionado}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 Usar este checklist →
               </button>
             </div>
@@ -2352,7 +2352,7 @@ export default function MacPage() {
               );
             })}
             <button onClick={() => { void salvarSilencioso(); setAbaAtual(GRUPOS.length); }}
-              className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${abaAtual === GRUPOS.length ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>
+              className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${abaAtual === GRUPOS.length ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--accent-fg)] hover:bg-[var(--bg-card-hover)]"}`}>
               📝 OBS
             </button>
           </div>

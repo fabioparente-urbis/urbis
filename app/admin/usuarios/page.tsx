@@ -230,7 +230,7 @@ export default function UsuariosPage() {
             <p className="text-[var(--text-muted)] text-sm">{filtrados.length} usuário{filtrados.length !== 1 ? "s" : ""} · Cadastro e controle de acesso ao URBIS</p>
           </div>
         </div>
-        <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
+        <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-2 rounded-lg text-sm font-bold transition-colors">+ Novo Usuário</button>
       </div>
 
       <div className="mb-4">
@@ -396,7 +396,7 @@ export default function UsuariosPage() {
             {erro && <div className="bg-red-900 border border-red-600 text-red-200 text-xs px-3 py-2 rounded-lg mt-4">❌ {erro}</div>}
             <div className="flex gap-3 mt-6">
               <button onClick={salvar} disabled={salvando}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : editando ? "💾 Salvar alterações" : "✅ Cadastrar"}
               </button>
               <button onClick={() => setModal(false)} className="bg-slate-600 hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">Cancelar</button>

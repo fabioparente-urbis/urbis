@@ -20,6 +20,12 @@ type LogRow = { id?: string; bairro: string; nome_logradouro: string; hierarquia
 const LOG_VAZIO: LogRow = { bairro: "", nome_logradouro: "", hierarquia_viaria: "", largura_via: "", larg_calcada: "", largura_pista: "", largura_ilha: "", area: "" };
 const SLUG_FIXO = "regularizacao";
 
+// Slots 1 e 2 nasceram com o código por extenso; na tela aparecem no mesmo padrão dos demais (slot_0N).
+// O despacho do Slot 5 escreve "APROVAÇÃO DE PROJETO" direto no gerador (não lê nome_documento do cadastro);
+// aqui é só exibição, para a linha "documento:" não parecer faltando.
+const DOCUMENTO_FIXO_NO_GERADOR: Record<string, string> = { slot_05: "Aprovação de Projeto" };
+const ROTULO_SLOT_TELA: Record<string, string> = { regularizacao: "slot_01", aceite_sei: "slot_02" };
+
 function ConfiguracoesInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -276,12 +282,12 @@ function ConfiguracoesInner() {
           <h1 className="text-xl font-semibold text-[var(--text-primary)] inline-flex items-center gap-2 ml-4"><Settings2 size={20} /> {abaAtual === "geral" ? "Configurações — Geral" : abaAtual === "logradouros" ? "Configurações — Logradouros" : abaAtual === "pontuacao" ? "MRP — Tabela de Pontuação" : abaAtual === "obscod" ? "OBS COD — Observações sobre o código" : "MAP — Módulo de Auditoria e Produtividade"}</h1>
         </div>
         <div className="flex gap-1">
-          <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
+          <button onClick={() => setAbaAtual("geral")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "geral" ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>⚙️ Geral</button>
           <button onClick={() => router.push("/admin/despacho-padroes")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">📋 Padrões de Despacho</button>
-          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
-          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("pontuacao")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "pontuacao" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🎯 Pontuação</button>}
-          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("obscod")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "obscod" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📝 OBS COD</button>}
-          {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
+          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("logradouros")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "logradouros" ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📍 Logradouros</button>}
+          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("pontuacao")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "pontuacao" ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🎯 Pontuação</button>}
+          {isAdmin && abaAtual !== "auditoria" && <button onClick={() => setAbaAtual("obscod")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "obscod" ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>📝 OBS COD</button>}
+          {isAdmin && <button onClick={() => setAbaAtual("auditoria")} className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${abaAtual === "auditoria" ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]"}`}>🗂️ Auditoria</button>}
           {isAdmin && <button onClick={() => router.push("/admin/usuarios")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">👤 Usuários</button>}
           {isAdmin && <button onClick={() => router.push("/admin/lixeira")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🗑️ Lixeira</button>}
           {isAdmin && <button onClick={() => router.push("/admin/numeracao")} className="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface)]">🔢 Numeração</button>}
@@ -317,10 +323,12 @@ function ConfiguracoesInner() {
                     <div className="min-w-0">
                       {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
                       ) : (<input type="text" value={v.nome} onChange={(e) => atualizarLinha(a.id, { nome: e.target.value })} placeholder={`Slot ${String(a.ordem).padStart(2, "0")}`} className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]" maxLength={80} />)}
-                      <div className="text-xs text-[var(--text-muted)] mt-1 font-mono">{a.slug}</div>
-                      {a.nome_documento && (
+                      {/* Só rótulo de tela: o código gravado no banco (regularizacao / aceite_sei) não muda — está em
+                          processos, análises, despachos, MRP e MDP. Aparece ao passar o mouse. */}
+                      <div className="text-xs text-[var(--text-muted)] mt-1 font-mono" title={`código interno: ${a.slug}`}>{ROTULO_SLOT_TELA[a.slug] ?? a.slug}</div>
+                      {(a.nome_documento || DOCUMENTO_FIXO_NO_GERADOR[a.slug]) && (
                         <div className="text-xs text-[var(--text-muted)] mt-0.5" title="Este slot tem texto próprio para o cabeçalho “Assunto:” do documento — o nome de tela acima não altera o documento.">
-                          documento: <span className="text-[var(--text-secondary)]">{a.nome_documento.toUpperCase()}</span>
+                          documento: <span className="text-[var(--text-secondary)]">{(a.nome_documento || DOCUMENTO_FIXO_NO_GERADOR[a.slug]).toUpperCase()}</span>
                         </div>
                       )}
                     </div>
@@ -347,7 +355,7 @@ function ConfiguracoesInner() {
                       {fixo ? (<span className="text-xs text-slate-600">—</span>
                       ) : (<>
                         {sucessoId === a.id ? (<span className="inline-flex items-center gap-1 text-xs text-emerald-400"><Check size={14} /> Salvo</span>
-                        ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
+                        ) : (<button type="button" onClick={() => salvar(a)} disabled={!podeSalvar} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${podeSalvar ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]" : "bg-[var(--surface)] text-[var(--accent-fg)] cursor-not-allowed"}`}>{salvandoId === a.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}</button>)}
                         {/* Segue o toggle na tela, não o estado salvo: desligou, liberou. */}
                         <button type="button" onClick={() => abrirZerar(a)} title={v.ativo ? "Desative o slot para liberar" : "Zerar o slot (apaga LIP, MAC e prompts)"} disabled={v.ativo} className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors ${v.ativo ? "border-[var(--border)] text-[var(--text-muted)] cursor-not-allowed opacity-50" : "border-[var(--error)] text-[var(--error)] hover:bg-[var(--error)] hover:text-white"}`}><Trash2 size={12} /> Zerar</button>
                       </>)}
@@ -461,7 +469,7 @@ function ConfiguracoesInner() {
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">Logradouros</h2>
               <p className="text-sm text-[var(--text-muted)] mt-1">Cadastro de vias utilizado nos processos. {logTotal > 0 && <span className="text-[var(--text-muted)]">{logTotal} registros.</span>}</p>
             </div>
-            <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm">+ Novo</button>
+            <button onClick={abrirNovo} className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold px-4 py-2 rounded-lg text-sm">+ Novo</button>
           </div>
           <div className="flex gap-3 mb-4">
             <input value={logFiltro} onChange={e => setLogFiltro(e.target.value)} onKeyDown={e => e.key === "Enter" && carregarLog(logFiltro, 0)} placeholder="Filtrar por bairro ou logradouro..." className="flex-1 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
@@ -521,7 +529,7 @@ function ConfiguracoesInner() {
                   ))}
                 </div>
                 <div className="flex gap-3 mt-5">
-                  <button onClick={salvarLog} disabled={logSalvando} className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm">{logSalvando ? "Salvando..." : "💾 Salvar"}</button>
+                  <button onClick={salvarLog} disabled={logSalvando} className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm">{logSalvando ? "Salvando..." : "💾 Salvar"}</button>
                   <button onClick={() => setLogModal(false)} className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2.5 rounded-lg text-sm">Cancelar</button>
                 </div>
               </div>

@@ -133,7 +133,7 @@ export function AbaObsCod() {
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         {(["abertas", "todas"] as const).map((f) => (
           <button key={f} onClick={() => setFiltro(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtro === f ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}>
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filtro === f ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--accent-fg)] hover:text-[var(--text-primary)]"}`}>
             {f === "abertas" ? `Abertas (${abertas})` : `Todas (${obs.length})`}
           </button>
         ))}

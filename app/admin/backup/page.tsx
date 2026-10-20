@@ -485,7 +485,7 @@ export default function BackupPage() {
                 <button
                   onClick={() => exportar(secao)}
                   disabled={st.exportando || st.importando}
-                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
+                  className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold px-4 py-2 rounded-lg text-sm transition-colors"
                   title="Gerar Backup (exporta a seção e registra snapshot BDI)"
                 >
                   {st.exportando ? "Gerando backup..." : "⬇ Gerar Backup"}

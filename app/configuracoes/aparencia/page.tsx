@@ -297,7 +297,7 @@ export default function ConfiguracoesPage() {
                       onClick={() => setTema(t)}
                       className={`flex items-center gap-2 px-5 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
                         tema === t
-                          ? "border-[var(--accent-hover)] bg-[var(--accent)] text-[var(--text-primary)]"
+                          ? "border-[var(--accent-hover)] bg-[var(--accent)] text-[var(--accent-fg)]"
                           : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--accent)]"
                       }`}>
                       {LABELS[t]}
