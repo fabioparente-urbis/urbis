@@ -62,6 +62,12 @@ export interface DadosLaudo {
   descCnae1?: string;                 // K22
   cnae2?: string;                     // G23
   descCnae2?: string;                 // K23
+  /** "Sim"/"Não" da caixa "Uso de Solo sem uso definido?" do LIP. Com "Sim" o
+   *  bloco Atividade Econômica sai como sempre saiu (cnae1/cnae2 acima). */
+  usoSemDefinicao?: string;
+  /** CNAE 1 a 10 do LIP (código + descrição). Usado quando usoSemDefinicao
+   *  não é "Sim": o laudo cita só os que não forem NP. Ver montarBlocoCnae. */
+  cnaes?: { codigo?: string; descricao?: string }[];
   corredorViario?: string;            // D24
   obsCorredorViario?: string;         // K24
 
@@ -154,6 +160,130 @@ function setRC(ws: ExcelJS.Worksheet, row: number, col: number, value: unknown) 
 }
 
 // ─────────────────────────────────────────────────────────────
+// BLOCO "ATIVIDADE ECONÔMICA" (CNAEs) — pedido do Fábio, 20/10/2026
+//
+//   • Caixa "Uso de Solo sem uso definido?" = Sim → exatamente como sempre:
+//     CNAE (1) e CNAE (2) do LIP, uma linha cada (G22/K22, G23/K23).
+//   • Caixa = Não → cita SÓ os CNAEs que não forem NP (de 1 a 10), renumerados
+//     1, 2, 3… na ordem do LIP:
+//       – até 2 → mesmo layout de sempre (falta = "NP");
+//       – 3 ou 4 → as mesmas 2 linhas, mas com 2 CNAEs por linha (um de cada lado);
+//       – 5 a 10 → 2 CNAEs por linha e o bloco ganha linhas (3, 4 ou 5). Sempre
+//         em par: com número ímpar sobra a caixa da direita vazia.
+// ─────────────────────────────────────────────────────────────
+
+const BLOCO_CNAE_LINHA = 22;      // primeira linha do bloco no template
+const BLOCO_CNAE_LINHAS_HOJE = 2; // 22 e 23
+const ULTIMA_LINHA_IMPRESSAO = 73; // área de impressão B5:N73
+
+function ehNP(v?: string): boolean {
+  const t = (v ?? "").trim().toUpperCase();
+  return t === "" || t === "NP" || t === "N.P." || t === "N/P";
+}
+
+/** CNAEs que o laudo cita quando a caixa é "Não". */
+export function cnaesCitados(dados: Pick<DadosLaudo, "cnaes">): { codigo: string; descricao: string }[] {
+  return (dados.cnaes ?? [])
+    .filter((c) => !ehNP(c.codigo) || !ehNP(c.descricao))
+    .map((c) => ({
+      codigo: ehNP(c.codigo) ? "NP" : c.codigo!.trim(),
+      descricao: ehNP(c.descricao) ? "NP" : c.descricao!.trim(),
+    }));
+}
+
+function montarBlocoCnae(ws: ExcelJS.Worksheet, dados: DadosLaudo) {
+  const L = BLOCO_CNAE_LINHA;
+  const semUsoDefinido = (dados.usoSemDefinicao ?? "").trim().toUpperCase() === "SIM";
+
+  if (semUsoDefinido) {
+    set(ws, `G${L}`, dados.cnae1 ?? "");
+    set(ws, `K${L}`, dados.descCnae1 ?? "");
+    set(ws, `G${L + 1}`, dados.cnae2 ?? "");
+    set(ws, `K${L + 1}`, dados.descCnae2 ?? "");
+    return;
+  }
+
+  const lista = cnaesCitados(dados);
+  if (lista.length <= 2) {
+    set(ws, `G${L}`, lista[0]?.codigo ?? "NP");
+    set(ws, `K${L}`, lista[0]?.descricao ?? "NP");
+    set(ws, `G${L + 1}`, lista[1]?.codigo ?? "NP");
+    set(ws, `K${L + 1}`, lista[1]?.descricao ?? "NP");
+    return;
+  }
+
+  const linhas = Math.max(BLOCO_CNAE_LINHAS_HOJE, Math.ceil(lista.length / 2));
+  const extra = linhas - BLOCO_CNAE_LINHAS_HOJE;
+
+  // Estilos de referência, lidos antes de qualquer mudança.
+  const estiloRotulo = ws.getCell(`F${L}`).style;
+  const estiloValor = ws.getCell(`K${L}`).style;
+
+  // ExcelJS move valores/estilos no spliceRows mas NÃO move as mesclagens:
+  // desfaz tudo do bloco para baixo e refaz deslocado.
+  const merges: string[] = [...((ws.model as unknown as { merges: string[] }).merges ?? [])];
+  const abaixo: string[] = [];
+  for (const m of merges) {
+    const top = Number(/^[A-Z]+(\d+)/.exec(m)?.[1] ?? 0);
+    if (top < L) continue;
+    ws.unMergeCells(m);
+    if (top >= L + BLOCO_CNAE_LINHAS_HOJE) abaixo.push(m);
+  }
+  if (extra > 0) {
+    ws.spliceRows(L + BLOCO_CNAE_LINHAS_HOJE, 0, ...Array.from({ length: extra }, () => []));
+    for (const m of abaixo) {
+      ws.mergeCells(m.replace(/(\d+)/g, (n) => String(Number(n) + extra)));
+    }
+    ws.pageSetup.printArea = `B5:N${ULTIMA_LINHA_IMPRESSAO + extra}`;
+  } else {
+    for (const m of abaixo) ws.mergeCells(m);
+  }
+
+  // Rótulo "Atividade Econômica:" ocupando o bloco todo (B:C).
+  const fim = L + linhas - 1;
+  const rotuloBloco = ws.getCell(`B${L}`).style;
+  for (let r = L; r <= fim; r++) {
+    for (let c = 2; c <= 14; c++) ws.getCell(r, c).value = null;
+    ws.getCell(r, 2).style = rotuloBloco;
+    ws.getCell(r, 3).style = rotuloBloco;
+  }
+  ws.getCell(`B${L}`).value = "Atividade Econômica:";
+  ws.mergeCells(`B${L}:C${fim}`);
+
+  // Cada linha: D rótulo | E código | F:I descrição || J rótulo | K código | L:N descrição
+  const lados = [
+    { rot: 4, cod: 5, desc: [6, 9] },
+    { rot: 10, cod: 11, desc: [12, 14] },
+  ];
+  const borda: Partial<ExcelJS.Borders> = {
+    top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" },
+  };
+  for (let i = 0; i < linhas; i++) {
+    const r = L + i;
+    ws.getRow(r).height = 40;
+    lados.forEach((lado, j) => {
+      const idx = i * 2 + j;
+      const item = lista[idx];
+      const rot = ws.getCell(r, lado.rot);
+      rot.style = { ...estiloRotulo, border: borda, alignment: { horizontal: "right", vertical: "middle" } };
+      rot.value = item ? `CNAE (${idx + 1}):` : null;
+      const cod = ws.getCell(r, lado.cod);
+      cod.style = { ...estiloValor, border: borda, alignment: { horizontal: "center", vertical: "middle" } };
+      cod.value = item?.codigo ?? null;
+      for (let c = lado.desc[0]; c <= lado.desc[1]; c++) {
+        ws.getCell(r, c).style = {
+          ...estiloValor, border: borda,
+          font: { ...estiloValor.font, size: 10 },
+          alignment: { horizontal: "left", vertical: "middle", wrapText: true },
+        };
+      }
+      ws.getCell(r, lado.desc[0]).value = item?.descricao ?? null;
+      ws.mergeCells(r, lado.desc[0], r, lado.desc[1]);
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
 // FUNÇÃO PRINCIPAL
 // ─────────────────────────────────────────────────────────────
 
@@ -210,10 +340,7 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
   set(ws, "K20", dados.tipoUsoSolo ?? "");
   set(ws, "D21", dados.unidadeTerritorial ?? "");
   set(ws, "K21", dados.certCorredorViario ?? "");
-  set(ws, "G22", dados.cnae1 ?? "");
-  set(ws, "K22", dados.descCnae1 ?? "");
-  set(ws, "G23", dados.cnae2 ?? "");
-  set(ws, "K23", dados.descCnae2 ?? "");
+  // G22/K22/G23/K23 (CNAEs) → montarBlocoCnae, no fim: ele pode inserir linhas.
   set(ws, "D24", dados.corredorViario ?? "");
   set(ws, "K24", dados.obsCorredorViario ?? "");
 
@@ -306,6 +433,12 @@ export async function gerarLaudo(dados: DadosLaudo): Promise<Buffer> {
   if (dados.observacoesFinais) {
     set(ws, "B70", dados.observacoesFinais);
   }
+
+  // ── ATIVIDADE ECONÔMICA (CNAEs) ───────────────────────────
+  // Por último de propósito: com mais de 4 CNAEs o bloco ganha linhas e
+  // empurra tudo o que vem abaixo — os endereços fixos acima (E27, K61,
+  // B70…) já foram escritos.
+  montarBlocoCnae(ws, dados);
 
   // ── Serializar e retornar ─────────────────────────────────
   const arrayBuffer = await wb.xlsx.writeBuffer();

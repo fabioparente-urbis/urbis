@@ -210,6 +210,10 @@ const CAMPOS_LAUDO = new Set([
   // Só entram na checagem de área divergente (Regularização SEI), mas
   // ainda são fontes de dado pro laudo — ficam com o mesmo destaque.
   "areaLaudo", "areaArt", "areaVistoria",
+  // CNAE 3 a 10 e a caixa "sem uso definido" (bloco Atividade Econômica, 20/10/2026).
+  "usoDefinido",
+  ...Array.from({ length: 8 }, (_, i) => `cnae${i + 3}`),
+  ...Array.from({ length: 8 }, (_, i) => `descCnae${i + 3}`),
 ]);
 
 function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {

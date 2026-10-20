@@ -198,6 +198,14 @@ const CAMPOS_LAUDO = new Set([
   "areaLaudo", "areaArt", "areaVistoria",
 ]);
 
+// CNAE 3 a 10 e a caixa "sem uso definido" só alimentam o laudo da
+// Regularização SEI (20/10/2026). O laudo do Aceite não imprime CNAE.
+const CAMPOS_LAUDO_SO_REGULARIZACAO = new Set([
+  "usoDefinido",
+  ...Array.from({ length: 8 }, (_, i) => `cnae${i + 3}`),
+  ...Array.from({ length: 8 }, (_, i) => `descCnae${i + 3}`),
+]);
+
 function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {
   if (!v) return v;
   const clean = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -2011,7 +2019,8 @@ export default function ProcessoClient() {
     // dois slots fica verde clarinho; o analista pode desligar campo a
     // campo (não fica "verde pra sempre") — ver toggleDestaqueLaudo.
     const laudoDefinidoNesteSlot = tipoUrl === "regularizacao" || tipoUrl === "aceite_sei";
-    const noLaudo = laudoDefinidoNesteSlot && CAMPOS_LAUDO.has(campo.chave);
+    const noLaudo = laudoDefinidoNesteSlot && (CAMPOS_LAUDO.has(campo.chave)
+      || (tipoUrl === "regularizacao" && CAMPOS_LAUDO_SO_REGULARIZACAO.has(campo.chave)));
     const laudoAtivo = noLaudo && !laudoOcultos.includes(campo.chave);
     const bgLaudo = laudoAtivo ? "bg-green-50" : "";
     const badgeLaudo = noLaudo && (
