@@ -62,7 +62,7 @@ export default function AdminMrpPage() {
             {[ano - 1, ano, ano + 1].map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
           <button onClick={() => router.push(`/mrp`)}
-            className="bg-[var(--accent)] px-3 py-1 rounded hover:bg-[var(--accent-hover)]">📊 Meu painel</button>
+            className="bg-[var(--accent)] text-[var(--accent-fg)] px-3 py-1 rounded hover:bg-[var(--accent-hover)]">📊 Meu painel</button>
         </div>
       </header>
 

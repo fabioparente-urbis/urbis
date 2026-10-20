@@ -234,7 +234,7 @@ export function AbaAuditoria({ isAdmin }: { isAdmin: boolean }) {
         <div className="flex rounded-lg border border-[var(--border)] overflow-hidden">
           {PERIODOS.map(p => (
             <button key={p.key} onClick={() => setPeriodo(p.key)}
-              className={`px-3 py-1.5 text-sm transition-colors ${periodo === p.key ? "bg-[var(--accent)] text-[var(--text-primary)]" : "bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"}`}>
+              className={`px-3 py-1.5 text-sm transition-colors ${periodo === p.key ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] text-[var(--accent-fg)] hover:text-[var(--text-primary)]"}`}>
               {p.label}
             </button>
           ))}
@@ -320,7 +320,7 @@ export function AbaAuditoria({ isAdmin }: { isAdmin: boolean }) {
             <input type="date" value={filtroAte} onChange={e => setFiltroAte(e.target.value)}
               className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none" />
             <button onClick={() => carregarLog(0)}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] px-4 py-1.5 rounded-lg text-sm">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] px-4 py-1.5 rounded-lg text-sm">
               Filtrar
             </button>
             <button onClick={exportarCSV}

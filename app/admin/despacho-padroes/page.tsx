@@ -222,7 +222,7 @@ export default function DespachoPadroesPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarPadrao} disabled={!novoTitulo.trim() || !novoCorpo.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoPadrao ? "Salvar alterações" : "Criar padrão"}
               </button>
               <button onClick={fecharModalPadrao}
@@ -257,7 +257,7 @@ export default function DespachoPadroesPage() {
           </div>
           {bucketCompleto && (
             <button onClick={abrirNovoPadrao}
-              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+              className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
               + Novo Padrão
             </button>
           )}
@@ -311,7 +311,7 @@ export default function DespachoPadroesPage() {
             ) : padroes.map((p) => (
               <div key={p.id}
                 className={`rounded-lg border p-3 cursor-pointer transition-colors ${
-                  padraoAtual?.id === p.id ? "bg-[var(--accent)] border-[var(--accent-hover)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
+                  padraoAtual?.id === p.id ? "bg-[var(--accent)] border-[var(--accent-hover)] [&_*]:!text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
                 }`}
                 onClick={() => setPadraoAtual(p)}>
                 <p className="text-sm font-semibold text-[var(--text-primary)] truncate">{p.titulo}</p>

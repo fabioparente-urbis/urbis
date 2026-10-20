@@ -101,7 +101,7 @@ export function AbaPontuacao() {
             className="w-24 bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]" />
           <span className="text-sm text-[var(--text-muted)]">pts/mês</span>
           <button onClick={salvarMeta} disabled={salvandoMeta}
-            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--text-primary)] font-bold px-4 py-1.5 rounded-lg text-sm transition-colors">
+            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold px-4 py-1.5 rounded-lg text-sm transition-colors">
             {salvandoMeta ? "Salvando..." : "Salvar"}
           </button>
           {sucessoMeta && <span className="text-emerald-400 text-sm">✓ Salvo</span>}
@@ -166,7 +166,7 @@ export function AbaPontuacao() {
                 : <button
                     onClick={() => salvar(r)}
                     disabled={!mudou(r) || salvando === r.id}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mudou(r) && salvando !== r.id ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)]" : "bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed"}`}>
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${mudou(r) && salvando !== r.id ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)]" : "bg-[var(--surface)] text-[var(--accent-fg)] cursor-not-allowed"}`}>
                     {salvando === r.id ? <><Loader2 size={12} className="animate-spin" /> Salvando</> : "Salvar"}
                   </button>
               }

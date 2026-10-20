@@ -110,7 +110,7 @@ function MetaProdutividade() {
           <span className="text-[var(--text-muted)] text-sm">pts</span>
         </div>
         <button onClick={salvar} disabled={salvando || parseInt(metaInput) === metaAtual}
-          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] transition-colors">
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed text-[var(--accent-fg)] transition-colors">
           {salvando ? "Salvando..." : sucesso ? "✓ Salvo" : "Salvar"}
         </button>
       </div>

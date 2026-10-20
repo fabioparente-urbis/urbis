@@ -280,7 +280,7 @@ export default function BDIPage() {
             <button
               key={a}
               onClick={() => setAba(a)}
-              className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${aba === a ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"}`}
+              className={`whitespace-nowrap rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${aba === a ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"}`}
             >
               {{ painel: "📊 Painel", estatisticas: "🧠 Estatísticas", capacidades: "⚙️ Capacidades", legislacao: "📚 Legislação", historico: "🕘 Histórico" }[a]}
             </button>
@@ -339,7 +339,7 @@ export default function BDIPage() {
                       <div className="mb-6 flex gap-1 overflow-x-auto border-b border-[var(--border)] pb-3">
                         {subAbas.map(([k,l]) => (
                           <button key={k} onClick={() => { setSubAba(k as any); if (k === 'sessoes') carregarSessoes(); }}
-                            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${subAba===k ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"}`}>
+                            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${subAba===k ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]"}`}>
                             {l}
                           </button>
                         ))}

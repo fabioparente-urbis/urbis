@@ -101,7 +101,7 @@ export default function LixeiraPage() {
         <div className="flex gap-1">
           {(["processos", "analises"] as const).map((k) => (
             <button key={k} onClick={() => setAba(k)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${aba === k ? "bg-[var(--accent)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:bg-[var(--surface)]"}`}>
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${aba === k ? "bg-[var(--accent)] text-[var(--accent-fg)]" : "text-[var(--accent-fg)] hover:bg-[var(--surface)]"}`}>
               {k === "processos" ? "📁 Processos" : "📋 Análises"}
             </button>
           ))}

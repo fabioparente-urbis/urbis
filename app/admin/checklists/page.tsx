@@ -421,7 +421,7 @@ export default function ChecklistsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={salvarItem}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {editandoItem ? "Salvar alterações" : "Adicionar item"}
               </button>
               <button onClick={fecharModalItem}
@@ -469,7 +469,7 @@ export default function ChecklistsPage() {
             </div>
             <div className="flex gap-3 mt-6">
               <button onClick={avancarEtapa2} disabled={!nomeModelo.trim()}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {copiarDe ? "Selecionar itens →" : "Criar modelo vazio"}
               </button>
               <button onClick={() => setModalModelo(false)}
@@ -568,7 +568,7 @@ export default function ChecklistsPage() {
                 ← Voltar
               </button>
               <button onClick={confirmarCriacaoComSelecao} disabled={itensSelecionados.size === 0 && itensFonte.length > 0}
-                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 ✅ Criar modelo com {itensSelecionados.size} iten{itensSelecionados.size !== 1 ? "s" : ""}
               </button>
             </div>
@@ -596,7 +596,7 @@ export default function ChecklistsPage() {
             </div>
           </div>
           <button onClick={abrirModalModelo}
-            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-primary)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
+            className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--accent-fg)] font-bold px-4 py-2 rounded-lg text-sm transition-colors">
             + Novo Modelo
           </button>
         </div>
@@ -609,7 +609,7 @@ export default function ChecklistsPage() {
           {modelos.map((m) => (
             <div key={m.id}
               className={`rounded-lg border p-3 cursor-pointer transition-colors ${
-                modeloAtual?.id === m.id ? "bg-[var(--accent)] border-[var(--accent-hover)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
+                modeloAtual?.id === m.id ? "bg-[var(--accent)] border-[var(--accent-hover)] [&_*]:!text-[var(--accent-fg)]" : "bg-[var(--bg-secondary)] border-[var(--border)] hover:bg-[var(--bg-card-hover)]"
               }`}
               onClick={() => selecionarModelo(m)}>
               <div className="flex items-start justify-between gap-2">
