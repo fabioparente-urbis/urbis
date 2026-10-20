@@ -20,6 +20,9 @@ type LogRow = { id?: string; bairro: string; nome_logradouro: string; hierarquia
 const LOG_VAZIO: LogRow = { bairro: "", nome_logradouro: "", hierarquia_viaria: "", largura_via: "", larg_calcada: "", largura_pista: "", largura_ilha: "", area: "" };
 const SLUG_FIXO = "regularizacao";
 
+// Slots 1 e 2 nasceram com o código por extenso; na tela aparecem no mesmo padrão dos demais (slot_0N).
+const ROTULO_SLOT_TELA: Record<string, string> = { regularizacao: "slot_01", aceite_sei: "slot_02" };
+
 function ConfiguracoesInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -317,7 +320,9 @@ function ConfiguracoesInner() {
                     <div className="min-w-0">
                       {fixo ? (<div className="inline-flex items-center gap-2 text-[var(--text-primary)] font-medium"><Lock size={14} className="text-[var(--text-muted)]" />{a.nome}<span className="text-xs text-[var(--text-muted)] font-normal">(fixo)</span></div>
                       ) : (<input type="text" value={v.nome} onChange={(e) => atualizarLinha(a.id, { nome: e.target.value })} placeholder={`Slot ${String(a.ordem).padStart(2, "0")}`} className="w-full bg-[var(--bg-primary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--accent-hover)] focus:ring-1 focus:ring-[var(--accent)]" maxLength={80} />)}
-                      <div className="text-xs text-[var(--text-muted)] mt-1 font-mono">{a.slug}</div>
+                      {/* Só rótulo de tela: o código gravado no banco (regularizacao / aceite_sei) não muda — está em
+                          processos, análises, despachos, MRP e MDP. Aparece ao passar o mouse. */}
+                      <div className="text-xs text-[var(--text-muted)] mt-1 font-mono" title={`código interno: ${a.slug}`}>{ROTULO_SLOT_TELA[a.slug] ?? a.slug}</div>
                       {a.nome_documento && (
                         <div className="text-xs text-[var(--text-muted)] mt-0.5" title="Este slot tem texto próprio para o cabeçalho “Assunto:” do documento — o nome de tela acima não altera o documento.">
                           documento: <span className="text-[var(--text-secondary)]">{a.nome_documento.toUpperCase()}</span>
