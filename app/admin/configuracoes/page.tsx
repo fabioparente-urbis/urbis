@@ -21,6 +21,9 @@ const LOG_VAZIO: LogRow = { bairro: "", nome_logradouro: "", hierarquia_viaria: 
 const SLUG_FIXO = "regularizacao";
 
 // Slots 1 e 2 nasceram com o código por extenso; na tela aparecem no mesmo padrão dos demais (slot_0N).
+// O despacho do Slot 5 escreve "APROVAÇÃO DE PROJETO" direto no gerador (não lê nome_documento do cadastro);
+// aqui é só exibição, para a linha "documento:" não parecer faltando.
+const DOCUMENTO_FIXO_NO_GERADOR: Record<string, string> = { slot_05: "Aprovação de Projeto" };
 const ROTULO_SLOT_TELA: Record<string, string> = { regularizacao: "slot_01", aceite_sei: "slot_02" };
 
 function ConfiguracoesInner() {
@@ -323,9 +326,9 @@ function ConfiguracoesInner() {
                       {/* Só rótulo de tela: o código gravado no banco (regularizacao / aceite_sei) não muda — está em
                           processos, análises, despachos, MRP e MDP. Aparece ao passar o mouse. */}
                       <div className="text-xs text-[var(--text-muted)] mt-1 font-mono" title={`código interno: ${a.slug}`}>{ROTULO_SLOT_TELA[a.slug] ?? a.slug}</div>
-                      {a.nome_documento && (
+                      {(a.nome_documento || DOCUMENTO_FIXO_NO_GERADOR[a.slug]) && (
                         <div className="text-xs text-[var(--text-muted)] mt-0.5" title="Este slot tem texto próprio para o cabeçalho “Assunto:” do documento — o nome de tela acima não altera o documento.">
-                          documento: <span className="text-[var(--text-secondary)]">{a.nome_documento.toUpperCase()}</span>
+                          documento: <span className="text-[var(--text-secondary)]">{(a.nome_documento || DOCUMENTO_FIXO_NO_GERADOR[a.slug]).toUpperCase()}</span>
                         </div>
                       )}
                     </div>
