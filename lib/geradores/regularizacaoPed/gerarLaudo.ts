@@ -69,11 +69,8 @@ export interface DadosLaudo {
   descCnae1?: string;                 // K22
   cnae2?: string;                     // G23
   descCnae2?: string;                 // K23
-  /** "Sim"/"Não" da caixa "Uso de Solo sem uso definido?" do LIP. Com "Sim" o
-   *  bloco Atividade Econômica sai como sempre saiu (cnae1/cnae2 acima). */
-  usoSemDefinicao?: string;
-  /** CNAE 1 a 10 do LIP (código + descrição). Usado quando usoSemDefinicao
-   *  não é "Sim": o laudo cita só os que não forem NP. Ver montarBlocoCnae. */
+  /** CNAE 1 a 10 do LIP (código + descrição). O laudo cita só os que não
+   *  forem NP. Ver montarBlocoCnae. */
   cnaes?: { codigo?: string; descricao?: string }[];
   corredorViario?: string;            // D24
   obsCorredorViario?: string;         // K24
@@ -169,14 +166,15 @@ function setRC(ws: ExcelJS.Worksheet, row: number, col: number, value: unknown) 
 // ─────────────────────────────────────────────────────────────
 // BLOCO "ATIVIDADE ECONÔMICA" (CNAEs) — pedido do Fábio, 20/10/2026
 //
-//   • Caixa "Uso de Solo sem uso definido?" = Sim → exatamente como sempre:
-//     CNAE (1) e CNAE (2) do LIP, uma linha cada (G22/K22, G23/K23).
-//   • Caixa = Não → cita SÓ os CNAEs que não forem NP (de 1 a 10), renumerados
-//     1, 2, 3… na ordem do LIP:
-//       – até 2 → mesmo layout de sempre (falta = "NP");
-//       – 3 ou 4 → as mesmas 2 linhas, mas com 2 CNAEs por linha (um de cada lado);
-//       – 5 a 10 → 2 CNAEs por linha e o bloco ganha linhas (3, 4 ou 5). Sempre
-//         em par: com número ímpar sobra a caixa da direita vazia.
+// O laudo cita SÓ os CNAEs que não forem NP (de 1 a 10), renumerados 1, 2, 3…
+// na ordem do LIP. Quem decide é o CNAE, não a pergunta "Uso de Solo sem uso
+// definido?": sem uso definido (CNAE 8) a leitura já deixa todos em NP, e o
+// laudo sai como sempre saiu. (Na 1ª versão, de 20/10, a pergunta decidia —
+// mas a leitura automática respondia ela ao contrário até a mesma data.)
+//   – até 2 → mesmo layout de sempre (falta = "NP");
+//   – 3 ou 4 → as mesmas 2 linhas, mas com 2 CNAEs por linha (um de cada lado);
+//   – 5 a 10 → 2 CNAEs por linha e o bloco ganha linhas (3, 4 ou 5). Sempre
+//     em par: com número ímpar sobra a caixa da direita vazia.
 // ─────────────────────────────────────────────────────────────
 
 const BLOCO_CNAE_LINHA = 22;      // primeira linha do bloco no template
@@ -200,17 +198,13 @@ export function cnaesCitados(dados: Pick<DadosLaudo, "cnaes">): { codigo: string
 
 function montarBlocoCnae(ws: ExcelJS.Worksheet, dados: DadosLaudo) {
   const L = BLOCO_CNAE_LINHA;
-  const semUsoDefinido = (dados.usoSemDefinicao ?? "").trim().toUpperCase() === "SIM";
-
-  if (semUsoDefinido) {
-    set(ws, `G${L}`, dados.cnae1 ?? "");
-    set(ws, `K${L}`, dados.descCnae1 ?? "");
-    set(ws, `G${L + 1}`, dados.cnae2 ?? "");
-    set(ws, `K${L + 1}`, dados.descCnae2 ?? "");
-    return;
-  }
-
-  const lista = cnaesCitados(dados);
+  // Sem a lista (chamador antigo), cai nos dois campos de sempre.
+  const lista = cnaesCitados({
+    cnaes: dados.cnaes ?? [
+      { codigo: dados.cnae1, descricao: dados.descCnae1 },
+      { codigo: dados.cnae2, descricao: dados.descCnae2 },
+    ],
+  });
   if (lista.length <= 2) {
     set(ws, `G${L}`, lista[0]?.codigo ?? "NP");
     set(ws, `K${L}`, lista[0]?.descricao ?? "NP");

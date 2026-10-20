@@ -170,7 +170,6 @@ ${membro.cau_crea}`;
       descCnae1:          v("descCnae1"),
       cnae2:              v("cnae2"),
       descCnae2:          v("descCnae2"),
-      usoSemDefinicao:    v("usoDefinido"),
       cnaes:              Array.from({ length: 10 }, (_, i) => ({
                             codigo: v(`cnae${i + 1}`), descricao: v(`descCnae${i + 1}`),
                           })),

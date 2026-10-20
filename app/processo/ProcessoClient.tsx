@@ -198,10 +198,9 @@ const CAMPOS_LAUDO = new Set([
   "areaLaudo", "areaArt", "areaVistoria",
 ]);
 
-// CNAE 3 a 10 e a caixa "sem uso definido" só alimentam o laudo da
-// Regularização SEI (20/10/2026). O laudo do Aceite não imprime CNAE.
+// CNAE 3 a 10 só alimentam o laudo da Regularização SEI (20/10/2026). O
+// laudo do Aceite não imprime CNAE.
 const CAMPOS_LAUDO_SO_REGULARIZACAO = new Set([
-  "usoDefinido",
   ...Array.from({ length: 8 }, (_, i) => `cnae${i + 3}`),
   ...Array.from({ length: 8 }, (_, i) => `descCnae${i + 3}`),
 ]);
