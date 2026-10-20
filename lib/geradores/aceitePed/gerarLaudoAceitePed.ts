@@ -113,8 +113,10 @@ const MAPA_PAINEL: Record<string, string> = {
   quadra:       "C7",
   lote:         "C8",
   bairro:       "C9",
-  cnae1:        "C10",
-  cnae2:        "C11",
+  // C10/C11 são "Descri CNAE1/2". Até 20/10/2026 as chaves cnae1/cnae2 do LIP do
+  // Aceite guardavam a descrição; agora guardam o código e a descrição tem chave própria.
+  descCnae1:    "C10",
+  descCnae2:    "C11",
 
   // ── Documentos — nº SEI (coluna D) ──
   certidao:                 "D13",
