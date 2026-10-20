@@ -171,10 +171,10 @@ function setRC(ws: ExcelJS.Worksheet, row: number, col: number, value: unknown) 
 // definido?": sem uso definido (CNAE 8) a leitura já deixa todos em NP, e o
 // laudo sai como sempre saiu. (Na 1ª versão, de 20/10, a pergunta decidia —
 // mas a leitura automática respondia ela ao contrário até a mesma data.)
-//   – até 2 → mesmo layout de sempre (falta = "NP");
-//   – 3 ou 4 → as mesmas 2 linhas, mas com 2 CNAEs por linha (um de cada lado);
-//   – 5 a 10 → 2 CNAEs por linha e o bloco ganha linhas (3, 4 ou 5). Sempre
-//     em par: com número ímpar sobra a caixa da direita vazia.
+//   – até 2 → as duas linhas de sempre (falta = "NP");
+//   – 3 a 10 → uma linha por CNAE, no mesmo desenho: código de um lado,
+//     descrição do outro (Fábio, 20/10/2026 — trocou o "2 por linha" da
+//     1ª versão). O que vem abaixo do bloco desce junto.
 // ─────────────────────────────────────────────────────────────
 
 const BLOCO_CNAE_LINHA = 22;      // primeira linha do bloco no template
@@ -213,12 +213,15 @@ function montarBlocoCnae(ws: ExcelJS.Worksheet, dados: DadosLaudo) {
     return;
   }
 
-  const linhas = Math.max(BLOCO_CNAE_LINHAS_HOJE, Math.ceil(lista.length / 2));
+  // Uma linha por CNAE, no mesmo desenho das duas linhas de sempre.
+  const linhas = Math.max(BLOCO_CNAE_LINHAS_HOJE, lista.length);
   const extra = linhas - BLOCO_CNAE_LINHAS_HOJE;
 
-  // Estilos de referência, lidos antes de qualquer mudança.
-  const estiloRotulo = ws.getCell(`F${L}`).style;
-  const estiloValor = ws.getCell(`K${L}`).style;
+  // Estilos da linha 22 do template, lidos antes de qualquer mudança.
+  const estilo = (col: string) => ({ ...ws.getCell(`${col}${L}`).style });
+  const est = { D: estilo("D"), F: estilo("F"), G: estilo("G"), H: estilo("H"), K: estilo("K") };
+  const rotuloBloco = estilo("B");
+  const alturaLinha = ws.getRow(L).height;
 
   // ExcelJS move valores/estilos no spliceRows mas NÃO move as mesclagens:
   // desfaz tudo do bloco para baixo e refaz deslocado.
@@ -232,17 +235,14 @@ function montarBlocoCnae(ws: ExcelJS.Worksheet, dados: DadosLaudo) {
   }
   if (extra > 0) {
     ws.spliceRows(L + BLOCO_CNAE_LINHAS_HOJE, 0, ...Array.from({ length: extra }, () => []));
-    for (const m of abaixo) {
-      ws.mergeCells(m.replace(/(\d+)/g, (n) => String(Number(n) + extra)));
-    }
     ws.pageSetup.printArea = `B5:N${ULTIMA_LINHA_IMPRESSAO + extra}`;
-  } else {
-    for (const m of abaixo) ws.mergeCells(m);
+  }
+  for (const m of abaixo) {
+    ws.mergeCells(m.replace(/(\d+)/g, (n) => String(Number(n) + extra)));
   }
 
   // Rótulo "Atividade Econômica:" ocupando o bloco todo (B:C).
   const fim = L + linhas - 1;
-  const rotuloBloco = ws.getCell(`B${L}`).style;
   for (let r = L; r <= fim; r++) {
     for (let c = 2; c <= 14; c++) ws.getCell(r, c).value = null;
     ws.getCell(r, 2).style = rotuloBloco;
@@ -251,36 +251,27 @@ function montarBlocoCnae(ws: ExcelJS.Worksheet, dados: DadosLaudo) {
   ws.getCell(`B${L}`).value = "Atividade Econômica:";
   ws.mergeCells(`B${L}:C${fim}`);
 
-  // Cada linha: D rótulo | E código | F:I descrição || J rótulo | K código | L:N descrição
-  const lados = [
-    { rot: 4, cod: 5, desc: [6, 9] },
-    { rot: 10, cod: 11, desc: [12, 14] },
-  ];
-  const borda: Partial<ExcelJS.Borders> = {
-    top: { style: "thin" }, bottom: { style: "thin" }, left: { style: "thin" }, right: { style: "thin" },
-  };
+  // Cada linha: D:E vazio | F "CNAE (n):" | G código | H:J "Descrição CNAE (n):" | K:N descrição
   for (let i = 0; i < linhas; i++) {
     const r = L + i;
-    ws.getRow(r).height = 40;
-    lados.forEach((lado, j) => {
-      const idx = i * 2 + j;
-      const item = lista[idx];
-      const rot = ws.getCell(r, lado.rot);
-      rot.style = { ...estiloRotulo, border: borda, alignment: { horizontal: "right", vertical: "middle" } };
-      rot.value = item ? `CNAE (${idx + 1}):` : null;
-      const cod = ws.getCell(r, lado.cod);
-      cod.style = { ...estiloValor, border: borda, alignment: { horizontal: "center", vertical: "middle" } };
-      cod.value = item?.codigo ?? null;
-      for (let c = lado.desc[0]; c <= lado.desc[1]; c++) {
-        ws.getCell(r, c).style = {
-          ...estiloValor, border: borda,
-          font: { ...estiloValor.font, size: 10 },
-          alignment: { horizontal: "left", vertical: "middle", wrapText: true },
-        };
-      }
-      ws.getCell(r, lado.desc[0]).value = item?.descricao ?? null;
-      ws.mergeCells(r, lado.desc[0], r, lado.desc[1]);
-    });
+    const item = lista[i];
+    const pinta = (de: number, ate: number, st: Partial<ExcelJS.Style>) => {
+      for (let c = de; c <= ate; c++) ws.getCell(r, c).style = { ...st };
+    };
+    pinta(4, 5, est.D);
+    pinta(6, 6, est.F);
+    pinta(7, 7, est.G);
+    pinta(8, 10, est.H);
+    pinta(11, 14, { ...est.K, alignment: { horizontal: "center", vertical: "middle", wrapText: true } });
+    ws.getCell(r, 6).value = `CNAE (${i + 1}):`;
+    ws.getCell(r, 7).value = item?.codigo ?? "NP";
+    ws.getCell(r, 8).value = `Descrição CNAE (${i + 1}):`;
+    ws.getCell(r, 11).value = item?.descricao ?? "NP";
+    ws.mergeCells(r, 4, r, 5);
+    ws.mergeCells(r, 8, r, 10);
+    ws.mergeCells(r, 11, r, 14);
+    // Descrição longa quebra em duas linhas dentro de K:N.
+    ws.getRow(r).height = (item?.descricao ?? "").length > 55 ? 32 : alturaLinha;
   }
 }
 
