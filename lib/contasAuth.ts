@@ -14,7 +14,10 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const POR_PAGINA = 200;
 const MAX_PAGINAS = 100; // 20 mil contas — muito acima do tamanho da diretoria
 
-export class ErroAuth extends Error {}
+export class ErroAuth extends Error {
+  /** true quando o Auth recusou porque o e-mail já tem conta. */
+  jaExiste = false;
+}
 
 /** Conta do Auth pelo e-mail. `null` = não existe. Lança `ErroAuth` se a consulta falhar. */
 export async function buscarContaAuthPorEmail(email: string): Promise<{ id: string } | null> {
@@ -53,4 +56,37 @@ export async function definirSenha(authId: string, senha: string): Promise<void>
 /** Senha aleatória que ninguém conhece — usada para obrigar a redefinição (P5). */
 export function senhaDescartavel(): string {
   return randomBytes(32).toString("base64url");
+}
+
+/**
+ * Cria a conta de acesso. Com `bloqueada`, ela já nasce banida — um cadastro Inativo nunca tem
+ * uma conta de acesso livre, nem por um instante. Lança `ErroAuth` (com `jaExiste` quando o
+ * e-mail já tem conta no Auth).
+ */
+export async function criarConta(email: string, senha: string, bloqueada: boolean): Promise<string> {
+  const { data, error } = await supabaseAdmin.auth.admin.createUser({
+    email, password: senha, email_confirm: true,
+    ...(bloqueada ? { ban_duration: "876000h" } : {}),
+  });
+  if (error || !data?.user) {
+    const e = new ErroAuth(`criação da conta de acesso falhou: ${error?.message ?? "sem conta no retorno"}`);
+    // Só "e-mail já cadastrado" — um 422 genérico (ex.: senha fraca) NÃO é conta órfã.
+    const code = (error as { code?: string } | null)?.code;
+    e.jaExiste = code === "email_exists" || /already (been )?registered|already exists/i.test(error?.message ?? "");
+    throw e;
+  }
+  return data.user.id;
+}
+
+/** A conta está bloqueada (banida) neste momento? Lança `ErroAuth` se não conseguir consultar. */
+export async function contaEstaBloqueada(authId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(authId);
+  if (error || !data?.user) throw new ErroAuth(`consulta à conta de acesso falhou: ${error?.message ?? "não encontrada"}`);
+  const ate = (data.user as { banned_until?: string | null }).banned_until;
+  return !!ate && new Date(ate).getTime() > Date.now();
+}
+
+export async function excluirConta(authId: string): Promise<void> {
+  const { error } = await supabaseAdmin.auth.admin.deleteUser(authId);
+  if (error) throw new ErroAuth(`exclusão da conta de acesso falhou: ${error.message}`);
 }

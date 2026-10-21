@@ -131,7 +131,7 @@ export default function UsuariosPage() {
     });
   }
 
-  async function salvar() {
+  async function salvar(confirmacoes: { reaproveitarContaOrfa?: boolean; criarContaAcesso?: boolean } = {}) {
     if (!form.nome || !form.email) { setErro("Nome e email obrigatórios."); return; }
     if (!editando && !senha) { setErro("Senha obrigatória para novo usuário."); return; }
     try {
@@ -150,9 +150,25 @@ export default function UsuariosPage() {
           gerencia: gerenciaPayload,
           senha: senha || undefined,
           id: editando?.id,
+          ...confirmacoes,
         }),
       });
       const json = await res.json();
+      // Situações que o servidor só resolve com confirmação explícita do Administrador (C1).
+      if (!json.ok && json.code === "CONTA_ORFA" && !confirmacoes.reaproveitarContaOrfa) {
+        if (confirm(`${json.erro}\n\nReaproveitar a conta de acesso existente com a senha informada?`)) {
+          setSalvando(false);
+          return salvar({ ...confirmacoes, reaproveitarContaOrfa: true });
+        }
+        setErro(json.erro); return;
+      }
+      if (!json.ok && json.code === "SEM_CONTA_AUTH" && !confirmacoes.criarContaAcesso) {
+        if (confirm(`${json.erro}\n\nCriar agora a conta de acesso com a senha informada?`)) {
+          setSalvando(false);
+          return salvar({ ...confirmacoes, criarContaAcesso: true });
+        }
+        setErro(json.erro); return;
+      }
       if (!json.ok) {
         // Mensagem amigavel para a constraint unica de gerencia (item 1).
         const erroStr = String(json.erro || "");
@@ -168,6 +184,8 @@ export default function UsuariosPage() {
         } else {
           setErro(json.erro || "Erro ao salvar.");
         }
+        // Estado parcial: parte foi gravada — a lista precisa mostrar o que está no banco agora.
+        if (json.parcial) await carregar();
         return;
       }
       setModal(false); await carregar();
@@ -199,7 +217,10 @@ export default function UsuariosPage() {
     if (json.ok) {
       await carregar();
       if (Array.isArray(json.avisos) && json.avisos.length) alert(json.avisos.join("\n"));
-    } else alert("❌ " + json.erro);
+    } else {
+      if (json.parcial) await carregar();
+      alert("❌ " + json.erro);
+    }
   }
 
   function f(campo: string, valor: string) { setForm((prev) => ({ ...prev, [campo]: valor })); }
@@ -408,7 +429,7 @@ export default function UsuariosPage() {
             </div>
             {erro && <div className="bg-red-900 border border-red-600 text-red-200 text-xs px-3 py-2 rounded-lg mt-4">❌ {erro}</div>}
             <div className="flex gap-3 mt-6">
-              <button onClick={salvar} disabled={salvando}
+              <button onClick={() => salvar()} disabled={salvando}
                 className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : editando ? "💾 Salvar alterações" : "✅ Cadastrar"}
               </button>

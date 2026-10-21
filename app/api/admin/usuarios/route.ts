@@ -5,6 +5,7 @@ import { exigirAdministradorAtivo, type UsuarioAtivo } from "@/lib/autorizacao";
 import { registrarIntencao, registrarResultado, diferencas, type AcaoAdmin } from "@/lib/adminAuditoria";
 import {
   buscarContaAuthPorEmail, banirConta, desbanirConta, definirSenha, senhaDescartavel, ErroAuth,
+  criarConta, contaEstaBloqueada, excluirConta,
 } from "@/lib/contasAuth";
 import { PERFIS_DISPONIVEIS } from "@/lib/perfis";
 
@@ -82,32 +83,56 @@ function ehChefia(perfis: string[]): boolean {
  * avaliados pela regra que valia neles. Sem isso, promover um analista a
  * gerente apagaria retroativamente a meta dos meses em que ele produziu —
  * e rebaixar um gerente criaria meta em meses que ele não tinha.
- * Falha aqui não derruba a edição do usuário; apenas registra no log.
+ *
+ * C1 (21/10/2026): antes, a falha aqui ia só para o log e a edição respondia "ok" — o perfil
+ * mudava e o MRP ficava com a meta errada, em silêncio. Agora:
+ *   · é chamada ANTES de gravar o cadastro; se falhar, LANÇA e nada é alterado;
+ *   · devolve `desfazer()`, para a rota reverter a vigência se o cadastro falhar depois.
+ * Devolve null quando não há virada (nada a gravar).
  */
-async function registrarViradaDeMeta(usuarioId: string, perfisAntes: string[], perfisDepois: string[]) {
+async function aplicarViradaDeMeta(
+  usuarioId: string, perfisAntes: string[], perfisDepois: string[],
+): Promise<{ desfazer: () => Promise<string | null>; isento: boolean } | null> {
   const antes = ehChefia(perfisAntes);
   const depois = ehChefia(perfisDepois);
-  if (antes === depois) return;
+  if (antes === depois) return null;
   const hoje = new Date();
   const vigenteDesde = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-01`;
   // A unicidade por pessoa é índice PARCIAL (WHERE usuario_id IS NOT NULL) e
   // ON CONFLICT não infere índice parcial (42P10) — busca e decide na mão.
-  const { data: jaExiste } = await supabase
+  const { data: jaExiste, error: errBusca } = await supabase
     .from("mrp_meta_historico")
-    .select("id")
+    .select("id, isento, meta")
     .eq("usuario_id", usuarioId)
     .eq("vigente_desde", vigenteDesde)
     .maybeSingle();
+  if (errBusca) throw new Error(`consulta da vigência de meta falhou: ${errBusca.message}`);
+  const anterior = jaExiste as { id: string; isento: boolean | null; meta: number | null } | null;
 
-  const { error } = jaExiste
-    ? await supabase
-        .from("mrp_meta_historico")
-        .update({ isento: depois, meta: null })
-        .eq("id", (jaExiste as any).id)
-    : await supabase
-        .from("mrp_meta_historico")
-        .insert({ usuario_id: usuarioId, isento: depois, meta: null, vigente_desde: vigenteDesde });
-  if (error) console.error("[mrp] falha ao registrar virada de meta:", error.message);
+  if (anterior) {
+    const { error } = await supabase.from("mrp_meta_historico").update({ isento: depois, meta: null }).eq("id", anterior.id);
+    if (error) throw new Error(`gravação da vigência de meta falhou: ${error.message}`);
+    return {
+      isento: depois,
+      desfazer: async () => {
+        const { error: e } = await supabase.from("mrp_meta_historico")
+          .update({ isento: anterior.isento, meta: anterior.meta }).eq("id", anterior.id);
+        return e ? e.message : null;
+      },
+    };
+  }
+  const { data: criada, error } = await supabase.from("mrp_meta_historico")
+    .insert({ usuario_id: usuarioId, isento: depois, meta: null, vigente_desde: vigenteDesde })
+    .select("id").single();
+  if (error || !criada) throw new Error(`gravação da vigência de meta falhou: ${error?.message ?? "sem retorno"}`);
+  const idCriada = (criada as { id: string }).id;
+  return {
+    isento: depois,
+    desfazer: async () => {
+      const { error: e } = await supabase.from("mrp_meta_historico").delete().eq("id", idCriada);
+      return e ? e.message : null;
+    },
+  };
 }
 
 /**
@@ -280,32 +305,92 @@ export async function POST(req: NextRequest) {
     return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
   }
 
-  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-    email, password: senha, email_confirm: true,
-  });
-  if (authError || !authData?.user) {
-    await registrarResultado(reg, "falha", {}, authError?.message ?? "Auth não devolveu a conta");
-    return erro(400, authError?.message ?? "Falha ao criar a conta de acesso.");
+  // 1. Conta de acesso. Cadastro Inativo: a conta já nasce bloqueada.
+  const inativo = status === "Inativo";
+  let authId: string;
+  let reaproveitada = false;
+  try {
+    authId = await criarConta(email, senha, inativo);
+  } catch (e) {
+    if (!(e instanceof ErroAuth && e.jaExiste)) {
+      await registrarResultado(reg, "falha", {}, mensagemDe(e));
+      return erro(502, "Nada foi criado: a conta de acesso não pôde ser criada no Auth. Tente novamente.");
+    }
+    // O e-mail já tem conta no Auth, mas não tem cadastro no URBIS (conferido acima): conta
+    // órfã, sobra de um cadastro interrompido. Só é reaproveitada com confirmação explícita.
+    if (body.reaproveitarContaOrfa !== true) {
+      await registrarResultado(reg, "falha", {}, "conta de acesso órfã encontrada — aguardando confirmação para reaproveitar");
+      return erro(409, `Já existe uma conta de acesso para ${email} no Auth, sem cadastro no URBIS (sobra de um cadastro interrompido). Nada foi criado. Para reaproveitá-la com a senha informada, confirme a operação.`, { code: "CONTA_ORFA" });
+    }
+    let orfa: { id: string } | null = null;
+    try { orfa = await buscarContaAuthPorEmail(email); } catch (e2) {
+      await registrarResultado(reg, "falha", {}, mensagemDe(e2));
+      return erro(502, "Nada foi criado: não foi possível consultar a conta de acesso órfã. Tente novamente.");
+    }
+    if (!orfa) {
+      await registrarResultado(reg, "falha", {}, "conta órfã não localizada na releitura");
+      return erro(502, "Nada foi criado: a conta de acesso órfã não foi localizada. Tente cadastrar de novo.");
+    }
+    try {
+      await definirSenha(orfa.id, senha);
+      if (inativo) await banirConta(orfa.id); else await desbanirConta(orfa.id);
+    } catch (e3) {
+      await registrarResultado(reg, "falha", {}, mensagemDe(e3));
+      return erro(502, "Nada foi criado: a conta de acesso órfã não pôde ser preparada (senha/bloqueio). A conta continua órfã, sem cadastro — tente de novo.");
+    }
+    authId = orfa.id;
+    reaproveitada = true;
   }
 
+  /** Desfaz a conta de acesso criada nesta chamada. Devolve a mensagem de erro, ou null se desfez. */
+  const desfazerConta = async (): Promise<string | null> => {
+    if (reaproveitada) return null; // conta já existia antes desta chamada: continua órfã, como estava
+    try { await excluirConta(authId); return null; } catch (e) { return mensagemDe(e); }
+  };
+  const estadoOrfa = (motivo: string) =>
+    `ESTADO PARCIAL: ${motivo} A conta de acesso de ${email} ficou criada no Auth SEM cadastro no URBIS` +
+    `${inativo ? " e SEM bloqueio confirmado" : ""}. Ela não consegue usar o URBIS (sem cadastro, toda rota recusa), mas existe. ` +
+    `Recuperação: cadastre de novo com o mesmo e-mail — o sistema detecta a conta órfã e oferece reaproveitá-la.`;
+
+  // 2. Cadastro Inativo: confirma no Auth que a conta está mesmo bloqueada (nem toda versão do
+  //    Auth aplica o bloqueio na criação); se não estiver, bloqueia; se não der, desfaz tudo.
+  if (inativo) {
+    let bloqueada = false;
+    let motivo = "";
+    try {
+      bloqueada = await contaEstaBloqueada(authId);
+      if (!bloqueada) { await banirConta(authId); bloqueada = await contaEstaBloqueada(authId); }
+    } catch (e) { motivo = mensagemDe(e); }
+    if (!bloqueada) {
+      const falhaDesfazer = await desfazerConta();
+      if (falhaDesfazer) {
+        await registrarResultado(reg, "falha_parcial", {}, `bloqueio não confirmado (${motivo || "conta continua livre"}); desfazer a conta falhou: ${falhaDesfazer}`);
+        return erro(502, estadoOrfa("o bloqueio da conta de acesso não pôde ser confirmado e desfazer a conta também falhou."), { parcial: true, code: "CONTA_ORFA_CRIADA" });
+      }
+      await registrarResultado(reg, "falha", {}, `bloqueio não confirmado (${motivo || "conta continua livre"}); conta desfeita`);
+      return erro(502, "Nada foi criado: não foi possível confirmar o bloqueio da conta de acesso de um cadastro Inativo. Tente novamente.");
+    }
+  }
+
+  // 3. Cadastro no URBIS.
   const { data: inserido, error: dbError } = await supabase.from("usuarios").insert(novo).select("id").single();
   if (dbError || !inserido) {
-    // Compensação: a conta do Auth recém-criada não pode ficar órfã.
-    await supabase.auth.admin.deleteUser(authData.user.id);
-    await registrarResultado(reg, "falha", {}, dbError?.message ?? "cadastro não inserido");
+    const falhaDesfazer = await desfazerConta();
+    if (falhaDesfazer) {
+      await registrarResultado(reg, "falha_parcial", {}, `cadastro não gravado (${dbError?.message ?? "sem retorno"}); desfazer a conta falhou: ${falhaDesfazer}`);
+      return erro(502, estadoOrfa("o cadastro não foi gravado e desfazer a conta de acesso falhou."), { parcial: true, code: "CONTA_ORFA_CRIADA" });
+    }
+    await registrarResultado(reg, "falha", {}, `${dbError?.message ?? "cadastro não inserido"}${reaproveitada ? " (conta órfã reaproveitada continua órfã)" : "; conta de acesso desfeita"}`);
     // Propaga code (23505 = unique_violation) para a UI tratar.
-    return erro(500, "Falha ao gravar o cadastro.", { code: dbError?.code });
-  }
-
-  let aviso: string | undefined;
-  if (status === "Inativo") {
-    try { await banirConta(authData.user.id); }
-    catch (e) { aviso = "Cadastro criado como Inativo, mas o bloqueio da conta de acesso falhou."; console.error(mensagemDe(e)); }
+    return erro(500, reaproveitada
+      ? "Nada foi criado: o cadastro não pôde ser gravado. A conta de acesso órfã continua existindo, como antes — tente de novo."
+      : "Nada foi criado: o cadastro não pôde ser gravado e a conta de acesso foi desfeita. Tente novamente.", { code: dbError?.code });
   }
 
   const idNovo = (inserido as { id: string }).id;
-  await registrarResultado({ ...reg, alvo: { id: idNovo, nome } }, aviso ? "falha_parcial" : "sucesso", diferencas({}, novo), aviso ?? null);
-  return NextResponse.json({ ok: true, id: idNovo, ...(aviso ? { aviso } : {}) });
+  const avisos = reaproveitada ? [`A conta de acesso que já existia para ${email} foi reaproveitada, com a senha informada.`] : [];
+  await registrarResultado({ ...reg, alvo: { id: idNovo, nome } }, "sucesso", { ...diferencas({}, novo), ...(reaproveitada ? { conta_orfa_reaproveitada: true } : {}) });
+  return NextResponse.json({ ok: true, id: idNovo, ...(avisos.length ? { avisos } : {}) });
 }
 
 // ─── PUT: editar / desativar / reativar / trocar senha ─────────────────────
@@ -405,7 +490,56 @@ export async function PUT(req: NextRequest) {
   const acao: AcaoAdmin = desativando ? "desativar" : reativando ? "reativar" : "editar";
   const alteracoes: Record<string, unknown> = diferencas(a, novo);
   if (senha) alteracoes.senha = "alterada";
-  if (Object.keys(alteracoes).length === 0) return NextResponse.json({ ok: true, semAlteracao: true });
+  const criarContaAcesso = body.criarContaAcesso === true;
+
+  // ── Conta de acesso conferida ANTES de gravar qualquer coisa. ──
+  const precisaConta = desativando || reativando || !!senha || Object.keys(alteracoes).length === 0;
+  let conta: { id: string } | null = null;
+  let consultaFalhou: string | null = null;
+  if (precisaConta) {
+    try {
+      conta = await buscarContaAuthPorEmail(a.email);
+    } catch (e) {
+      consultaFalhou = mensagemDe(e);
+    }
+    // Senha (e "salvar sem alterar") dependem da conta: sem consultar, nada é feito.
+    // Desativar NÃO é barrado: é a ação de segurança mais urgente; o status vale na hora e o
+    // bloqueio no Auth vira pendência explícita logo abaixo.
+    if (consultaFalhou && (senha || Object.keys(alteracoes).length === 0)) {
+      return erro(502, `Nada foi alterado: não foi possível consultar a conta de acesso (${consultaFalhou}). Tente novamente.`);
+    }
+    if (!conta && senha && !criarContaAcesso) {
+      return erro(409, `Nada foi alterado: este cadastro não tem conta de acesso no Auth, então a senha não tem onde ser gravada. Para criar a conta de acesso com a senha informada, confirme a operação.`, { code: "SEM_CONTA_AUTH" });
+    }
+  }
+
+  // ── Nenhum campo mudou: "salvar de novo" é o caminho de recuperação de uma falha parcial
+  //    anterior — reaplica no Auth o bloqueio (Inativo) ou o desbloqueio (Ativo). ──
+  if (Object.keys(alteracoes).length === 0) {
+    if (!conta) return NextResponse.json({ ok: true, semAlteracao: true });
+    let bloqueada: boolean;
+    try { bloqueada = await contaEstaBloqueada(conta.id); } catch (e) {
+      return erro(502, `Nada foi alterado: não foi possível conferir o bloqueio da conta de acesso (${mensagemDe(e)}).`);
+    }
+    const deveEstarBloqueada = status === "Inativo";
+    if (bloqueada === deveEstarBloqueada) return NextResponse.json({ ok: true, semAlteracao: true });
+    let regSync;
+    try {
+      regSync = await registrarIntencao(req, ator, deveEstarBloqueada ? "desativar" : "reativar", { id, nome: a.nome }, { bloqueio_no_auth: { antes: bloqueada, depois: deveEstarBloqueada } });
+    } catch {
+      return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
+    }
+    try {
+      if (deveEstarBloqueada) await banirConta(conta.id); else await desbanirConta(conta.id);
+    } catch (e) {
+      await registrarResultado(regSync, "falha", {}, mensagemDe(e));
+      return erro(502, `Nada foi alterado: o ${deveEstarBloqueada ? "bloqueio" : "desbloqueio"} da conta de acesso falhou de novo (${mensagemDe(e)}). Tente mais tarde.`);
+    }
+    await registrarResultado(regSync, "sucesso", { bloqueio_no_auth: { antes: bloqueada, depois: deveEstarBloqueada } });
+    return NextResponse.json({ ok: true, avisos: [deveEstarBloqueada
+      ? "O bloqueio da conta de acesso, que estava pendente, foi aplicado agora."
+      : "O desbloqueio da conta de acesso, que estava pendente, foi aplicado agora."] });
+  }
 
   let reg;
   try {
@@ -414,47 +548,79 @@ export async function PUT(req: NextRequest) {
     return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
   }
 
-  const { error: dbError } = await supabase.from("usuarios").update(novo).eq("id", id);
-  if (dbError) {
-    await registrarResultado(reg, "falha", {}, dbError.message);
-    // Propaga code (23505 = unique_violation) para a UI tratar.
-    return erro(500, "Falha ao gravar o cadastro.", { code: dbError.code });
+  // ── 1. Vigência de meta (MRP) ANTES do cadastro: se falhar, nada foi alterado. ──
+  let virada: Awaited<ReturnType<typeof aplicarViradaDeMeta>> = null;
+  try {
+    virada = await aplicarViradaDeMeta(id, perfisAtuais, perfis);
+  } catch (e) {
+    await registrarResultado(reg, "falha", {}, mensagemDe(e));
+    return erro(502, "Nada foi alterado: não foi possível registrar a vigência da meta (MRP) que acompanha a mudança de chefia. Tente novamente.");
   }
 
-  // Entrou ou saiu da chefia? Registra a vigência a partir deste mês.
-  await registrarViradaDeMeta(id, perfisAtuais, perfis);
+  // ── 2. Cadastro. Se falhar, desfaz a vigência de meta. ──
+  const { error: dbError } = await supabase.from("usuarios").update(novo).eq("id", id);
+  if (dbError) {
+    const falhaDesfazer = virada ? await virada.desfazer() : null;
+    if (falhaDesfazer) {
+      await registrarResultado(reg, "falha_parcial", {}, `cadastro não gravado (${dbError.message}); desfazer a vigência de meta falhou: ${falhaDesfazer}`);
+      return erro(502,
+        `ESTADO PARCIAL: o cadastro NÃO foi alterado, mas a vigência de meta deste mês ficou registrada como ${virada!.isento ? "ISENTA (chefia)" : "COM meta (não chefia)"}, ` +
+        `e desfazê-la falhou. Recuperação: salve o usuário de novo com o perfil desejado (a vigência é regravada). ` +
+        `Se a intenção era manter o perfil antigo, salve uma vez com a mudança e depois outra sem ela — cada salvamento regrava a vigência do mês.`,
+        { parcial: true, code: dbError.code });
+    }
+    await registrarResultado(reg, "falha", {}, dbError.message);
+    // Propaga code (23505 = unique_violation) para a UI tratar.
+    return erro(500, "Nada foi alterado: o cadastro não pôde ser gravado.", { code: dbError.code });
+  }
 
-  // Efeitos na conta de acesso (Auth). O cadastro já está gravado: se algo aqui falhar, a
-  // resposta diz exatamente o que NÃO foi aplicado — nunca "ok" calado.
+  // ── 3. Conta de acesso (Auth). Cadastro e meta já estão gravados e coerentes entre si: se algo
+  //       aqui falhar, a resposta diz exatamente o que NÃO foi aplicado e como recuperar. ──
   const avisos: string[] = [];
   const pendentes: string[] = [];
-  if (desativando || reativando || senha) {
-    let conta: { id: string } | null = null;
-    try {
-      conta = await buscarContaAuthPorEmail(a.email);
-    } catch (e) {
-      pendentes.push(`consulta à conta de acesso falhou (${mensagemDe(e)})`);
-    }
-    if (!conta && pendentes.length === 0) pendentes.push("conta de acesso não localizada no Auth");
-
-    if (conta) {
-      try {
-        if (desativando) await banirConta(conta.id);
-        if (reativando) {
-          await desbanirConta(conta.id);
-          // P5: reativar exige nova senha — a antiga pode ter vazado no período inativo.
-          if (!senha) {
-            await definirSenha(conta.id, senhaDescartavel());
-            const falhaEnvio = await enviarResetSenha(req, a.email);
-            avisos.push(falhaEnvio
-              ? "Conta reativada, mas o e-mail de redefinição de senha não foi enviado. Defina uma senha ou use o botão Senha."
-              : "Conta reativada. A pessoa recebeu um e-mail para criar uma nova senha.");
-          }
-        }
-        if (senha) await definirSenha(conta.id, senha);
-      } catch (e) {
-        pendentes.push(e instanceof ErroAuth ? e.message : "falha na conta de acesso");
+  const recuperar: string[] = [];
+  if (consultaFalhou && (desativando || reativando)) {
+    pendentes.push(`${desativando ? "bloqueio" : "desbloqueio"} do acesso (consulta à conta falhou: ${consultaFalhou})`);
+    recuperar.push(`abra o usuário e clique em Salvar sem alterar nada — o sistema reaplica o ${desativando ? "bloqueio" : "desbloqueio"}`);
+  } else if (desativando) {
+    if (!conta) avisos.push("Este cadastro não tem conta de acesso no Auth — não havia acesso a bloquear.");
+    else {
+      try { await banirConta(conta.id); } catch (e) {
+        pendentes.push(`bloqueio do acesso (${mensagemDe(e)})`);
+        recuperar.push("abra o usuário e clique em Salvar sem alterar nada — o sistema reaplica o bloqueio. Enquanto isso, a pessoa já está barrada no login e nas telas de gestão, Pilha e atribuição");
       }
+    }
+  }
+  if (reativando && !consultaFalhou) {
+    if (!conta && !(senha && criarContaAcesso)) avisos.push("Este cadastro não tem conta de acesso no Auth — para a pessoa entrar, defina uma nova senha (o sistema oferece criar a conta).");
+    else if (conta) {
+      try {
+        await desbanirConta(conta.id);
+        // P5: reativar exige nova senha — a antiga pode ter vazado no período inativo.
+        if (!senha) {
+          await definirSenha(conta.id, senhaDescartavel());
+          const falhaEnvio = await enviarResetSenha(req, a.email);
+          avisos.push(falhaEnvio
+            ? "Conta reativada, mas o e-mail de redefinição de senha não foi enviado. Defina uma senha em Editar → Nova senha, ou use o botão Senha."
+            : "Conta reativada. A pessoa recebeu um e-mail para criar uma nova senha.");
+        }
+      } catch (e) {
+        pendentes.push(`desbloqueio do acesso (${mensagemDe(e)})`);
+        recuperar.push("abra o usuário e clique em Salvar sem alterar nada — o sistema reaplica o desbloqueio; depois defina uma nova senha");
+      }
+    }
+  }
+  if (senha) {
+    try {
+      if (conta) await definirSenha(conta.id, senha);
+      else {
+        await criarConta(a.email, senha, status === "Inativo");
+        avisos.push("A conta de acesso, que não existia, foi criada com a senha informada.");
+        alteracoes.conta_acesso = "criada";
+      }
+    } catch (e) {
+      pendentes.push(conta ? `nova senha (${mensagemDe(e)})` : `criação da conta de acesso (${mensagemDe(e)})`);
+      recuperar.push("digite a nova senha de novo e salve");
     }
   }
 
@@ -469,8 +635,10 @@ export async function PUT(req: NextRequest) {
 
   if (pendentes.length) {
     await registrarResultado(reg, "falha_parcial", alteracoes, pendentes.join("; "));
-    const quais = [desativando && "o bloqueio do acesso", reativando && "o desbloqueio do acesso", senha && "a nova senha"].filter(Boolean).join(", ");
-    return erro(502, `O cadastro foi salvo, mas ${quais || "a atualização da conta de acesso"} NÃO foi aplicado: ${pendentes.join("; ")}.`, { parcial: true });
+    return erro(502,
+      `ESTADO PARCIAL: o cadastro foi salvo${virada ? " (com a vigência de meta)" : ""}, mas NÃO foi aplicado na conta de acesso: ${pendentes.join("; ")}. ` +
+      `Recuperação: ${recuperar.join("; ")}.`,
+      { parcial: true, ...(avisos.length ? { avisos } : {}) });
   }
 
   await registrarResultado(reg, "sucesso", alteracoes);

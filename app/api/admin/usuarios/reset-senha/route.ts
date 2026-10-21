@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { exigirAdministradorAtivo } from "@/lib/autorizacao";
 import { registrarIntencao, registrarResultado } from "@/lib/adminAuditoria";
+import { buscarContaAuthPorEmail } from "@/lib/contasAuth";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -13,6 +14,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * Antes: sem autenticação (qualquer pessoa disparava e-mails para qualquer conta) e com o link
  * apontando para `${SUPABASE_URL}/login` — o endereço do Supabase, não do URBIS. Agora o link
  * leva a `/redefinir-senha` do próprio URBIS, a mesma tela do "Esqueci a senha".
+ *
+ * A conta de acesso é conferida ANTES do envio: o Supabase responde "ok" mesmo quando o e-mail
+ * não tem conta (por desenho, contra enumeração), e a tela dizia "e-mail enviado" sem nada sair.
  */
 export async function POST(req: NextRequest) {
   const b = await exigirAdministradorAtivo(req, { mutacao: true, acao: "enviar_reset_senha" });
@@ -29,6 +33,21 @@ export async function POST(req: NextRequest) {
   if (!usuario?.email) return NextResponse.json({ ok: false, erro: "Usuário não encontrado" }, { status: 404 });
   if (usuario.status !== "Ativo")
     return NextResponse.json({ ok: false, erro: "Usuário inativo — reative o cadastro antes de redefinir a senha." }, { status: 400 });
+
+  // Sem conta de acesso no Auth não há o que redefinir — e o Supabase não avisaria.
+  let temConta: boolean;
+  try {
+    temConta = !!(await buscarContaAuthPorEmail(usuario.email));
+  } catch {
+    return NextResponse.json({ ok: false, erro: "Nenhum e-mail foi enviado: não foi possível consultar a conta de acesso. Tente novamente." }, { status: 502 });
+  }
+  if (!temConta) {
+    return NextResponse.json({
+      ok: false,
+      code: "SEM_CONTA_AUTH",
+      erro: "Nenhum e-mail foi enviado: este cadastro não tem conta de acesso no Auth. Recuperação: Editar → digite uma Nova senha → Salvar; o sistema oferece criar a conta de acesso.",
+    }, { status: 409 });
+  }
 
   let reg;
   try {
