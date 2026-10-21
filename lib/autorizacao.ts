@@ -161,9 +161,14 @@ export function origemConfiavel(req: NextRequest): boolean {
   } catch {
     return false;
   }
+  // Atrás do proxy do Railway, o domínio público pode vir em `x-forwarded-host` e/ou em `host`;
+  // aceita qualquer um dos dois (nenhum deles é forjável por um site de terceiros no navegador
+  // da vítima — são cabeçalhos proibidos ao JavaScript de outra origem).
   const permitidos = new Set<string>();
-  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "").split(",")[0].trim().toLowerCase();
-  if (host) permitidos.add(host);
+  for (const h of [req.headers.get("x-forwarded-host"), req.headers.get("host")]) {
+    const v = (h ?? "").split(",")[0].trim().toLowerCase();
+    if (v) permitidos.add(v);
+  }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (appUrl) {
     try { permitidos.add(new URL(appUrl).host.toLowerCase()); } catch { /* valor inválido: ignora */ }
