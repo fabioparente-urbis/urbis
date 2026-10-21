@@ -63,7 +63,8 @@ const TABELAS: Record<Exclude<Tipo, "tudo">, string[]> = {
     "obs_cod",
   ],
   mrp: ["mrp_registros", "mrp_calendario", "mrp_pontuacao", "mrp_pontuacao_historico", "mrp_meta_historico"],
-  map: ["auditoria_eventos", "auditoria_log", "auditoria_sessoes"],
+  // admin_auditoria: só exportação — ver SO_EXPORTACAO abaixo.
+  map: ["auditoria_eventos", "auditoria_log", "auditoria_sessoes", "admin_auditoria"],
   bdi: ["bdi_documentos_lei", "bdi_lei_fragmentos", "bdi_snapshots"],
   // MDP — Despachos e Pareceres (registro do que SAIU).
   mdp: ["mdp_registros"],
@@ -173,6 +174,7 @@ const ORDEM_IMPORT_TUDO: string[] = [
   "auditoria_sessoes",
   "auditoria_log",
   "auditoria_eventos",
+  "admin_auditoria",
   // BDI — banco de dados inteligente
   "bdi_documentos_lei",
   "bdi_lei_fragmentos",
@@ -192,6 +194,11 @@ const CHAVE_UPSERT: Record<string, string> = {
   // Slots 3 e 4 (PED): PK composta.
   urbi_regras_bloqueio_slot: "slot,chave",
 };
+
+// Tabelas que o backup EXPORTA mas a importação NUNCA sobrescreve: registro só de acréscimo
+// (C1, 21/10/2026 — supabase/migrations/2026_10_21_admin_auditoria.sql). Um upsert por `id`
+// reescreveria linhas antigas com o conteúdo do arquivo; o banco também recusaria (sem UPDATE).
+const SO_EXPORTACAO = new Set<string>(["admin_auditoria"]);
 
 function chaveUpsertDe(tabela: string): string {
   return CHAVE_UPSERT[tabela] ?? "id";
@@ -313,6 +320,10 @@ export async function POST(req: NextRequest) {
   > = {};
 
   for (const tabela of ordem) {
+    if (SO_EXPORTACAO.has(tabela)) {
+      relatorio[tabela] = { inseridos: 0, ignorado: true };
+      continue;
+    }
     const linhas = dados[tabela];
     if (!Array.isArray(linhas)) {
       relatorio[tabela] = { inseridos: 0, ignorado: true };

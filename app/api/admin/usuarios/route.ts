@@ -1,12 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
+import { exigirAdministradorAtivo, type UsuarioAtivo } from "@/lib/autorizacao";
+import { registrarIntencao, registrarResultado, diferencas, type AcaoAdmin } from "@/lib/adminAuditoria";
+import {
+  buscarContaAuthPorEmail, banirConta, desbanirConta, definirSenha, senhaDescartavel, ErroAuth,
+} from "@/lib/contasAuth";
+import { PERFIS_DISPONIVEIS } from "@/lib/perfis";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+/**
+ * Administração de contas — exclusiva do Administrador ATIVO, em todos os métodos (C1, 21/10/2026).
+ *
+ * Até esta data a rota não tinha autenticação nenhuma: qualquer pessoa na internet listava os
+ * cadastros, trocava a senha de qualquer conta (inclusive a do Administrador), criava e excluía
+ * usuários. Agora:
+ *   · toda chamada passa por `exigirAdministradorAtivo` (sessão validada no Auth + cadastro
+ *     ativo + perfil Administrador; nas que alteram, também origem do URBIS e corpo JSON);
+ *   · toda alteração registra intenção e resultado em `admin_auditoria` (lib/adminAuditoria.ts);
+ *   · não existe mais exclusão — só desativação, que preserva identidade e histórico (D4);
+ *   · e-mail não muda por aqui até a etapa E4 (identidade estável + confirmação, D5).
+ *
+ * A Pilha, que lia esta rota para mostrar nomes, passou a usar `analista_nome` em
+ * `/api/processos` e o diretório `/api/usuarios/diretorio`.
+ */
 
 const ADMIN_FIXO = "Fábio Parente Martins Santos";
+
+/** Só o que as telas de administração usam (usuários, BDI, aba Auditoria) — nunca `*`. */
+const COLUNAS = [
+  "id", "nome", "email", "matricula", "telefone", "cargo", "cau_crea",
+  "perfil", "perfis", "gerencia", "status", "reducao_meta",
+  "urbi_ativo", "urbi_modo_audio", "criado_em", "ultimo_acesso", "descadastrado_em",
+].join(", ");
+
+const STATUS_VALIDOS = ["Ativo", "Inativo"] as const;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const SENHA_MINIMA = 8;
 
 // Modo de voz do URBI. O Administrador é quem CONCEDE ou REMOVE essa
 // permissão pra qualquer usuário — ele mesmo incluído; não é obrigado a ter
@@ -20,11 +50,6 @@ function normalizarModoAudio(v: unknown): typeof MODOS_AUDIO_VALIDOS[number] {
     : "nenhum";
 }
 
-/**
- * Normaliza os perfis recebidos do client: dedup, remove vazios,
- * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
- * `perfil` (singular) é tratado como fallback quando `perfis` não vem.
- */
 // Perfis de chefia sem meta de produtividade. Administrador NÃO entra:
 // acumula chefia e produção.
 const PERFIS_SEM_META = [
@@ -70,167 +95,388 @@ async function registrarViradaDeMeta(usuarioId: string, perfisAntes: string[], p
   if (error) console.error("[mrp] falha ao registrar virada de meta:", error.message);
 }
 
+/**
+ * Normaliza os perfis recebidos do client: dedup, remove vazios,
+ * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
+ * `perfil` (singular) é tratado como fallback quando `perfis` não vem.
+ */
 function normalizarPerfis(input: { nome?: string; perfil?: string; perfis?: unknown }): string[] {
   const raw: string[] = Array.isArray(input.perfis)
-    ? (input.perfis as unknown[]).map((p) => String(p)).filter(Boolean)
+    ? (input.perfis as unknown[]).map((p) => String(p).trim()).filter(Boolean)
     : input.perfil
-      ? [String(input.perfil)]
+      ? [String(input.perfil).trim()]
       : [];
   const set = new Set(raw);
   if (input.nome && input.nome.trim() === ADMIN_FIXO) {
     set.add("Administrador");
   }
-  return Array.from(set);
+  // "Administrador" sempre em primeiro: `perfil` (legado) = perfis[0], e telas como o BDI ainda
+  // conferem `perfil === "Administrador"`. Sem isso, o Administrador que marcasse também
+  // "Analista" antes passava a ter perfil principal "Analista" e era barrado dessas telas.
+  const lista = Array.from(set);
+  return lista.includes("Administrador")
+    ? ["Administrador", ...lista.filter((p) => p !== "Administrador")]
+    : lista;
 }
 
-export async function GET() {
-  const { data, error } = await supabase.from("usuarios").select("*").order("nome");
-  if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, data });
-}
-
-// Normaliza usuarios.gerencia: aceita 'GERECCO'|'GERAED'|'GERAGP' ou null. Qualquer outro
+// Normaliza usuarios.gerencia: aceita 'GERECCO'|'GERAED'|'GERAGP'|'GERAP' ou null. Qualquer outro
 // valor (incluindo ''/undefined/'DIRAAP') vira null = analista DIRAAP direto.
 function normalizarGerencia(v: unknown): "GERECCO" | "GERAED" | "GERAGP" | "GERAP" | null {
   if (v === "GERECCO" || v === "GERAED" || v === "GERAGP" || v === "GERAP") return v;
   return null;
 }
 
-export async function POST(req: NextRequest) {
+function normalizarEmail(v: unknown): string {
+  return typeof v === "string" ? v.trim().toLowerCase() : "";
+}
+
+/** Texto livre opcional: aparado, vazio vira null, limitado a 200 caracteres. */
+function textoOpcional(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  return s ? s.slice(0, 200) : null;
+}
+
+function perfisDe(linha: any): string[] {
+  const arr: string[] = Array.isArray(linha?.perfis) ? linha.perfis.filter(Boolean) : [];
+  if (linha?.perfil && !arr.includes(linha.perfil)) arr.push(linha.perfil);
+  return arr;
+}
+
+function erro(status: number, mensagem: string, extra: Record<string, unknown> = {}) {
+  return NextResponse.json({ ok: false, erro: mensagem, ...extra }, { status });
+}
+
+/** Perfis aceitos: o catálogo oficial + os que a pessoa JÁ tem (legados, ex.: "Diretor"). */
+function perfisInvalidos(perfis: string[], jaTinha: string[] = []): string[] {
+  const aceitos = new Set<string>([...PERFIS_DISPONIVEIS, ...jaTinha]);
+  return perfis.filter((p) => !aceitos.has(p));
+}
+
+/** Quantos OUTROS Administradores ativos existem além de `exceto`. */
+async function outrosAdminsAtivos(exceto: string): Promise<number> {
+  const { data } = await supabase
+    .from("usuarios")
+    .select("id")
+    .eq("status", "Ativo")
+    .or("perfil.eq.Administrador,perfis.cs.{Administrador}")
+    .neq("id", exceto);
+  return (data ?? []).length;
+}
+
+function baseUrlDoApp(req: NextRequest): string {
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || req.nextUrl.origin;
+}
+
+async function enviarResetSenha(req: NextRequest, email: string): Promise<string | null> {
+  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+  const { error } = await anon.auth.resetPasswordForEmail(email, {
+    redirectTo: `${baseUrlDoApp(req)}/redefinir-senha`,
+  });
+  return error ? error.message : null;
+}
+
+async function lerCorpo(req: NextRequest): Promise<any | null> {
   try {
-    const body = await req.json();
-    const { nome, email, matricula, telefone, cargo, cau_crea, status, senha } = body;
-    if (!nome || !email || !senha)
-      return NextResponse.json({ ok: false, erro: "Nome, email e senha obrigatórios" }, { status: 400 });
-
-    const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
-    const perfilPrincipal = perfis[0] || "Analista";
-    // gerencia faz sentido apenas para analistas (DIRAAP). Para os demais, null.
-    const ehAnalista = perfis.includes("Analista");
-    const gerencia = ehAnalista ? normalizarGerencia(body.gerencia) : null;
-
-    // Regra: perfil Administrador só para o nome fixo
-    if (perfis.includes("Administrador") && nome.trim() !== ADMIN_FIXO)
-      return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
-
-    // Regra: só pode existir 1 administrador no sistema
-    if (perfis.includes("Administrador")) {
-      const { data: admins } = await supabase
-        .from("usuarios")
-        .select("id")
-        .or("perfil.eq.Administrador,perfis.cs.{Administrador}");
-      if (admins && admins.length > 0)
-        return NextResponse.json({ ok: false, erro: "Já existe um Administrador cadastrado no sistema." }, { status: 400 });
-    }
-
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email, password: senha, email_confirm: true,
-    });
-    if (authError) return NextResponse.json({ ok: false, erro: authError.message }, { status: 400 });
-
-    const { error: dbError } = await supabase.from("usuarios").insert({
-      nome, email, matricula, telefone, cargo,
-      perfil: perfilPrincipal,
-      perfis,
-      gerencia,
-      status: status || "Ativo",
-      urbi_ativo: body.urbi_ativo === true,
-      urbi_modo_audio: normalizarModoAudio(body.urbi_modo_audio),
-    });
-
-    if (dbError) {
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      // Propaga code (23505 = unique_violation) para a UI tratar.
-      return NextResponse.json(
-        { ok: false, erro: dbError.message, code: (dbError as any).code },
-        { status: 500 },
-      );
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+    const b = await req.json();
+    return b && typeof b === "object" ? b : null;
+  } catch {
+    return null;
   }
 }
 
-export async function PUT(req: NextRequest) {
+// ─── GET: lista para as telas de administração ─────────────────────────────
+export async function GET(req: NextRequest) {
+  const b = await exigirAdministradorAtivo(req, { acao: "listar" });
+  if (!b.ok) return b.resposta;
+
+  const { data, error } = await supabase.from("usuarios").select(COLUNAS).order("nome");
+  if (error) {
+    console.error("[admin/usuarios GET]", error.message);
+    return erro(500, "Falha ao carregar usuários.");
+  }
+  return NextResponse.json({ ok: true, data });
+}
+
+// ─── POST: cadastrar ───────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  const b = await exigirAdministradorAtivo(req, { mutacao: true, acao: "criar" });
+  if (!b.ok) return b.resposta;
+  const ator = b.usuario;
+
+  const body = await lerCorpo(req);
+  if (!body) return erro(400, "Corpo inválido.");
+
+  const nome = typeof body.nome === "string" ? body.nome.trim() : "";
+  const email = normalizarEmail(body.email);
+  const senha = typeof body.senha === "string" ? body.senha : "";
+  if (!nome || !email || !senha) return erro(400, "Nome, email e senha obrigatórios");
+  if (!EMAIL.test(email)) return erro(400, "E-mail inválido.");
+  if (senha.length < SENHA_MINIMA) return erro(400, `A senha deve ter pelo menos ${SENHA_MINIMA} caracteres.`);
+
+  const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
+  if (perfis.length === 0) return erro(400, "Selecione ao menos um perfil.");
+  const invalidos = perfisInvalidos(perfis);
+  if (invalidos.length) return erro(400, `Perfil não reconhecido: ${invalidos.join(", ")}.`);
+
+  const status = body.status === undefined || body.status === "" ? "Ativo" : body.status;
+  if (!(STATUS_VALIDOS as readonly string[]).includes(status)) return erro(400, "Status inválido (use Ativo ou Inativo).");
+
+  // Regra: perfil Administrador só para o nome fixo
+  if (perfis.includes("Administrador") && nome !== ADMIN_FIXO)
+    return erro(400, `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".`);
+
+  // Regra: só pode existir 1 administrador no sistema
+  if (perfis.includes("Administrador")) {
+    const { data: admins } = await supabase
+      .from("usuarios")
+      .select("id")
+      .or("perfil.eq.Administrador,perfis.cs.{Administrador}");
+    if (admins && admins.length > 0) return erro(400, "Já existe um Administrador cadastrado no sistema.");
+  }
+
+  // Comparação sem diferenciar maiúsculas (cadastros antigos podem ter e-mail com maiúscula);
+  // `%` e `_` escapados para o ilike não virar curinga.
+  const { data: emailUsado } = await supabase
+    .from("usuarios").select("id").ilike("email", email.replace(/[\\%_]/g, (c) => `\\${c}`)).limit(1);
+  if (emailUsado && emailUsado.length > 0) return erro(409, "Já existe um cadastro com este e-mail.");
+
+  const perfilPrincipal = perfis[0];
+  // gerencia faz sentido apenas para analistas (DIRAAP). Para os demais, null.
+  const gerencia = perfis.includes("Analista") ? normalizarGerencia(body.gerencia) : null;
+  const novo = {
+    nome,
+    email,
+    matricula: textoOpcional(body.matricula),
+    telefone: textoOpcional(body.telefone),
+    cargo: textoOpcional(body.cargo),
+    perfil: perfilPrincipal,
+    perfis,
+    gerencia,
+    status,
+    urbi_ativo: body.urbi_ativo === true,
+    urbi_modo_audio: normalizarModoAudio(body.urbi_modo_audio),
+  };
+
+  let reg;
   try {
-    const body = await req.json();
-    const { id, nome, email, matricula, telefone, cargo, cau_crea, status, senha } = body;
-    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
+    reg = await registrarIntencao(req, ator, "criar", { id: null, nome }, diferencas({}, novo));
+  } catch {
+    return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
+  }
 
-    const perfis = normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis });
-    const perfilPrincipal = perfis[0] || "Analista";
-    const ehAnalista = perfis.includes("Analista");
-    const gerencia = ehAnalista ? normalizarGerencia(body.gerencia) : null;
+  const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    email, password: senha, email_confirm: true,
+  });
+  if (authError || !authData?.user) {
+    await registrarResultado(reg, "falha", {}, authError?.message ?? "Auth não devolveu a conta");
+    return erro(400, authError?.message ?? "Falha ao criar a conta de acesso.");
+  }
 
-    // Regra: não permite remover/alterar o admin fixo
-    const { data: atual } = await supabase.from("usuarios").select("perfil, perfis, nome").eq("id", id).maybeSingle();
-    const atualPerfis: string[] = Array.isArray((atual as any)?.perfis) ? (atual as any).perfis : [];
-    const atualEraAdmin = atual?.perfil === "Administrador" || atualPerfis.includes("Administrador");
-    if (atualEraAdmin && atual?.nome === ADMIN_FIXO) {
-      if (!perfis.includes("Administrador"))
-        return NextResponse.json({ ok: false, erro: "Não é permitido remover o perfil Administrador do usuário fixo." }, { status: 400 });
-      if ((nome || "").trim() !== ADMIN_FIXO)
-        return NextResponse.json({ ok: false, erro: `O nome do Administrador não pode ser alterado.` }, { status: 400 });
+  const { data: inserido, error: dbError } = await supabase.from("usuarios").insert(novo).select("id").single();
+  if (dbError || !inserido) {
+    // Compensação: a conta do Auth recém-criada não pode ficar órfã.
+    await supabase.auth.admin.deleteUser(authData.user.id);
+    await registrarResultado(reg, "falha", {}, dbError?.message ?? "cadastro não inserido");
+    // Propaga code (23505 = unique_violation) para a UI tratar.
+    return erro(500, "Falha ao gravar o cadastro.", { code: (dbError as any)?.code });
+  }
+
+  let aviso: string | undefined;
+  if (status === "Inativo") {
+    try { await banirConta(authData.user.id); }
+    catch (e: any) { aviso = "Cadastro criado como Inativo, mas o bloqueio da conta de acesso falhou."; console.error(e?.message); }
+  }
+
+  await registrarResultado({ ...reg, alvo: { id: (inserido as any).id, nome } }, aviso ? "falha_parcial" : "sucesso", diferencas({}, novo), aviso ?? null);
+  return NextResponse.json({ ok: true, id: (inserido as any).id, ...(aviso ? { aviso } : {}) });
+}
+
+// ─── PUT: editar / desativar / reativar / trocar senha ─────────────────────
+export async function PUT(req: NextRequest) {
+  const b = await exigirAdministradorAtivo(req, { mutacao: true, acao: "editar" });
+  if (!b.ok) return b.resposta;
+  const ator: UsuarioAtivo = b.usuario;
+
+  const body = await lerCorpo(req);
+  if (!body) return erro(400, "Corpo inválido.");
+  const id = typeof body.id === "string" ? body.id : "";
+  if (!UUID.test(id)) return erro(400, "ID obrigatório");
+
+  const { data: atual } = await supabase.from("usuarios").select(COLUNAS).eq("id", id).maybeSingle();
+  if (!atual) return erro(404, "Usuário não encontrado.");
+  const a = atual as any;
+  const perfisAtuais = perfisDe(a);
+
+  // D5: troca de e-mail só na etapa E4 (identidade estável + confirmação pelo novo endereço).
+  if (body.email !== undefined && normalizarEmail(body.email) !== normalizarEmail(a.email)) {
+    return erro(400, "A alteração de e-mail ainda não está disponível. Ela exige confirmação pelo novo endereço e será liberada numa próxima etapa.");
+  }
+
+  const nome = body.nome !== undefined ? String(body.nome ?? "").trim() : a.nome;
+  if (!nome) return erro(400, "Nome obrigatório.");
+
+  const perfis = body.perfis !== undefined || body.perfil !== undefined
+    ? normalizarPerfis({ nome, perfil: body.perfil, perfis: body.perfis })
+    : perfisAtuais;
+  if (perfis.length === 0) return erro(400, "Selecione ao menos um perfil.");
+  const invalidos = perfisInvalidos(perfis, perfisAtuais);
+  if (invalidos.length) return erro(400, `Perfil não reconhecido: ${invalidos.join(", ")}.`);
+
+  // Regra: não permite remover/alterar o admin fixo
+  const atualEraAdmin = perfisAtuais.includes("Administrador");
+  if (atualEraAdmin && a.nome === ADMIN_FIXO) {
+    if (!perfis.includes("Administrador"))
+      return erro(400, "Não é permitido remover o perfil Administrador do usuário fixo.");
+    if (nome !== ADMIN_FIXO)
+      return erro(400, "O nome do Administrador não pode ser alterado.");
+  }
+  // Regra: perfil Administrador só para o nome fixo
+  if (perfis.includes("Administrador") && nome !== ADMIN_FIXO)
+    return erro(400, `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".`);
+
+  const status = body.status !== undefined ? body.status : a.status;
+  if (!(STATUS_VALIDOS as readonly string[]).includes(status) && status !== a.status)
+    return erro(400, "Status inválido (use Ativo ou Inativo).");
+
+  // Ninguém desativa a si mesmo nem tira o próprio perfil de Administrador.
+  if (id === ator.id) {
+    if (status !== "Ativo") return erro(400, "Você não pode desativar a sua própria conta.");
+    if (!perfis.includes("Administrador")) return erro(400, "Você não pode retirar o seu próprio perfil de Administrador.");
+  }
+  // Nenhuma operação pode deixar o sistema sem Administrador ativo.
+  const eraAdminAtivo = atualEraAdmin && a.status === "Ativo";
+  const seraAdminAtivo = perfis.includes("Administrador") && status === "Ativo";
+  if (eraAdminAtivo && !seraAdminAtivo && (await outrosAdminsAtivos(id)) === 0) {
+    return erro(400, "Operação recusada: o sistema ficaria sem nenhum Administrador ativo.");
+  }
+
+  let reducaoMeta: number = Number(a.reducao_meta ?? 0);
+  if (body.reducao_meta !== undefined && body.reducao_meta !== "") {
+    reducaoMeta = typeof body.reducao_meta === "number" ? body.reducao_meta : parseFloat(String(body.reducao_meta));
+    if (!Number.isFinite(reducaoMeta) || reducaoMeta < 0 || reducaoMeta > 100)
+      return erro(400, "Redução de meta deve estar entre 0 e 100.");
+  }
+
+  const senha = typeof body.senha === "string" && body.senha !== "" ? body.senha : null;
+  if (senha !== null && senha.length < SENHA_MINIMA)
+    return erro(400, `A senha deve ter pelo menos ${SENHA_MINIMA} caracteres.`);
+
+  const ehAnalista = perfis.includes("Analista");
+  const gerencia = ehAnalista
+    ? (body.gerencia !== undefined ? normalizarGerencia(body.gerencia) : (a.gerencia ?? null))
+    : null;
+
+  const novo: Record<string, unknown> = {
+    nome,
+    matricula: body.matricula !== undefined ? textoOpcional(body.matricula) : a.matricula,
+    telefone: body.telefone !== undefined ? textoOpcional(body.telefone) : a.telefone,
+    cargo: body.cargo !== undefined ? textoOpcional(body.cargo) : a.cargo,
+    cau_crea: body.cau_crea !== undefined ? textoOpcional(body.cau_crea) : a.cau_crea,
+    perfil: perfis[0],
+    perfis,
+    gerencia,
+    status,
+    reducao_meta: reducaoMeta,
+    urbi_ativo: body.urbi_ativo !== undefined ? body.urbi_ativo === true : a.urbi_ativo,
+    urbi_modo_audio: body.urbi_modo_audio !== undefined ? normalizarModoAudio(body.urbi_modo_audio) : a.urbi_modo_audio,
+  };
+  const desativando = a.status === "Ativo" && status === "Inativo";
+  const reativando = a.status !== "Ativo" && status === "Ativo";
+  if (desativando) novo.descadastrado_em = new Date().toISOString();
+  if (reativando) novo.descadastrado_em = null;
+
+  const acao: AcaoAdmin = desativando ? "desativar" : reativando ? "reativar" : "editar";
+  const alteracoes: Record<string, unknown> = diferencas(a, novo);
+  if (senha) alteracoes.senha = "alterada";
+  if (Object.keys(alteracoes).length === 0) return NextResponse.json({ ok: true, semAlteracao: true });
+
+  let reg;
+  try {
+    reg = await registrarIntencao(req, ator, acao, { id, nome: a.nome }, alteracoes);
+  } catch {
+    return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
+  }
+
+  const { error: dbError } = await supabase.from("usuarios").update(novo).eq("id", id);
+  if (dbError) {
+    await registrarResultado(reg, "falha", {}, dbError.message);
+    // Propaga code (23505 = unique_violation) para a UI tratar.
+    return erro(500, "Falha ao gravar o cadastro.", { code: (dbError as any).code });
+  }
+
+  // Entrou ou saiu da chefia? Registra a vigência a partir deste mês.
+  await registrarViradaDeMeta(id, perfisAtuais, perfis);
+
+  // Efeitos na conta de acesso (Auth). O cadastro já está gravado: se algo aqui falhar, a
+  // resposta diz exatamente o que NÃO foi aplicado — nunca "ok" calado.
+  const avisos: string[] = [];
+  const pendentes: string[] = [];
+  if (desativando || reativando || senha) {
+    let conta: { id: string } | null = null;
+    try {
+      conta = await buscarContaAuthPorEmail(a.email);
+    } catch (e: any) {
+      pendentes.push(`consulta à conta de acesso falhou (${e?.message ?? "erro"})`);
     }
+    if (!conta && pendentes.length === 0) pendentes.push("conta de acesso não localizada no Auth");
 
-    // Regra: perfil Administrador só para o nome fixo
-    if (perfis.includes("Administrador") && (nome || "").trim() !== ADMIN_FIXO)
-      return NextResponse.json({ ok: false, erro: `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".` }, { status: 400 });
-
-    const reducao_meta = typeof body.reducao_meta === "number" ? body.reducao_meta : (parseInt(body.reducao_meta) || 0);
-    const atualizacao: any = { nome, email, matricula, telefone, cargo, cau_crea: cau_crea ?? null, perfil: perfilPrincipal, perfis, gerencia, status, reducao_meta, urbi_ativo: body.urbi_ativo === true, urbi_modo_audio: normalizarModoAudio(body.urbi_modo_audio) };
-    if (status === "Inativo") atualizacao.descadastrado_em = new Date().toISOString();
-    if (status === "Ativo") atualizacao.descadastrado_em = null;
-
-    const { error: dbError } = await supabase.from("usuarios").update(atualizacao).eq("id", id);
-    if (dbError)
-      return NextResponse.json(
-        { ok: false, erro: dbError.message, code: (dbError as any).code },
-        { status: 500 },
-      );
-
-    // Entrou ou saiu da chefia? Registra a vigência a partir deste mês.
-    await registrarViradaDeMeta(id, atualPerfis, perfis);
-
-    if (senha) {
-      const { data: userData } = await supabase.from("usuarios").select("email").eq("id", id).maybeSingle();
-      if (userData?.email) {
-        const { data: authUser } = await supabase.auth.admin.listUsers();
-        const user = authUser?.users?.find((u) => u.email === userData.email);
-        if (user) await supabase.auth.admin.updateUserById(user.id, { password: senha });
+    if (conta) {
+      try {
+        if (desativando) await banirConta(conta.id);
+        if (reativando) {
+          await desbanirConta(conta.id);
+          // P5: reativar exige nova senha — a antiga pode ter vazado no período inativo.
+          if (!senha) {
+            await definirSenha(conta.id, senhaDescartavel());
+            const falhaEnvio = await enviarResetSenha(req, a.email);
+            avisos.push(falhaEnvio
+              ? "Conta reativada, mas o e-mail de redefinição de senha não foi enviado. Defina uma senha ou use o botão Senha."
+              : "Conta reativada. A pessoa recebeu um e-mail para criar uma nova senha.");
+          }
+        }
+        if (senha) await definirSenha(conta.id, senha);
+      } catch (e: any) {
+        pendentes.push(e instanceof ErroAuth ? e.message : "falha na conta de acesso");
       }
     }
-
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
+
+  if (desativando) {
+    const { count } = await supabase
+      .from("processos")
+      .select("id", { count: "exact", head: true })
+      .eq("analista_id", id)
+      .is("excluido_em", null);
+    if (count && count > 0) avisos.push(`${count} processo(s) continuam atribuídos a esta pessoa — redistribua pela Pilha.`);
+  }
+
+  if (pendentes.length) {
+    await registrarResultado(reg, "falha_parcial", alteracoes, pendentes.join("; "));
+    const quais = [desativando && "o bloqueio do acesso", reativando && "o desbloqueio do acesso", senha && "a nova senha"].filter(Boolean).join(", ");
+    return erro(502, `O cadastro foi salvo, mas ${quais || "a atualização da conta de acesso"} NÃO foi aplicado: ${pendentes.join("; ")}.`, { parcial: true });
+  }
+
+  await registrarResultado(reg, "sucesso", alteracoes);
+  return NextResponse.json({ ok: true, ...(avisos.length ? { avisos } : {}) });
 }
 
-// #1 — Exclusão real de usuário
+// ─── DELETE: exclusão física desativada (D4) ───────────────────────────────
 export async function DELETE(req: NextRequest) {
-  try {
-    const { id } = await req.json();
-    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
+  const b = await exigirAdministradorAtivo(req, { mutacao: true, acao: "excluir" });
+  if (!b.ok) return b.resposta;
 
-    // Protege o admin fixo
-    const { data: usuario } = await supabase.from("usuarios").select("perfil, nome, email").eq("id", id).maybeSingle();
-    if (usuario?.perfil === "Administrador" && usuario?.nome === ADMIN_FIXO)
-      return NextResponse.json({ ok: false, erro: "O Administrador fixo não pode ser excluído." }, { status: 400 });
-
-    // Remove do Auth do Supabase
-    const { data: authUsers } = await supabase.auth.admin.listUsers();
-    const authUser = authUsers?.users?.find((u) => u.email === usuario?.email);
-    if (authUser) await supabase.auth.admin.deleteUser(authUser.id);
-
-    // Remove da tabela usuarios
-    const { error } = await supabase.from("usuarios").delete().eq("id", id);
-    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  const body = await lerCorpo(req);
+  const id = typeof body?.id === "string" && UUID.test(body.id) ? body.id : null;
+  let nomeAlvo: string | null = null;
+  if (id) {
+    const { data } = await supabase.from("usuarios").select("nome").eq("id", id).maybeSingle();
+    nomeAlvo = (data as any)?.nome ?? null;
   }
+  try {
+    const reg = await registrarIntencao(req, b.usuario, "exclusao_bloqueada", { id, nome: nomeAlvo });
+    await registrarResultado(reg, "falha", {}, "exclusão física desativada (D4)");
+  } catch { /* a recusa sai de qualquer jeito */ }
+
+  return erro(405, "A exclusão de usuários foi desativada para preservar o histórico. Para impedir o acesso, edite o usuário e mude o status para Inativo.");
 }
