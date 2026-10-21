@@ -26,6 +26,8 @@ const DESTINOS_FIXOS = ["GERECCO", "GERAED", "GERAGP", "DIRAAP"];
 const SLOTS_COM_DESPACHO = [
   { slug: "regularizacao", rotulo: "Slot 1 — Regularização SEI" },
   { slug: "aceite_sei", rotulo: "Slot 2 — Aceite SEI" },
+  { slug: "slot_03", rotulo: "Slot 3 — Regularização PED" },
+  { slug: "slot_04", rotulo: "Slot 4 — Aceite PED" },
   { slug: "slot_05", rotulo: "Slot 5 — Aprovação de Projeto" },
 ];
 

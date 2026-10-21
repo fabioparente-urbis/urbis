@@ -10,7 +10,7 @@ import { LIMITE_CHAMADAS_CHAT_HORA, OPERACOES_CHAT_URBI } from "@/lib/urbi/limit
  * é agregação de tabela que já existe, com a fonte declarada.
  */
 
-const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_05: "Aprovação de Projeto" };
+const NOME_SLOT: Record<string, string> = { regularizacao: "Regularização SEI", aceite_sei: "Aceite SEI", slot_03: "Regularização PED", slot_04: "Aceite PED", slot_05: "Aprovação de Projeto" };
 
 async function emLotes<T>(
   ids: string[],
@@ -82,12 +82,15 @@ export async function GET(req: NextRequest) {
     const { data: vinculos } = await emLotes<{ mac_item_id: string }>(ids, 150, (lote) => supabaseAdmin.from("mac_bip_vinculos").select("mac_item_id").in("mac_item_id", lote));
     return { total: ids.length, vinculado: new Set(vinculos.map((v) => v.mac_item_id)).size };
   }
-  const [bipRegularizacao, bipAceiteSei, bipSlot5] = await Promise.all([
+  const [bipRegularizacao, bipAceiteSei, bipSlot5, bipSlot3, bipSlot4] = await Promise.all([
     coberturaBip("regularizacao"), coberturaBip("aceite_sei"), coberturaBip("slot_05"),
+    coberturaBip("slot_03"), coberturaBip("slot_04"),
   ]);
   const coberturaBipPorSlot = [
     { slot: "regularizacao", nome_slot: NOME_SLOT.regularizacao, ...bipRegularizacao },
     { slot: "aceite_sei", nome_slot: NOME_SLOT.aceite_sei, ...bipAceiteSei },
+    { slot: "slot_03", nome_slot: NOME_SLOT.slot_03, ...bipSlot3 },
+    { slot: "slot_04", nome_slot: NOME_SLOT.slot_04, ...bipSlot4 },
     { slot: "slot_05", nome_slot: NOME_SLOT.slot_05, ...bipSlot5 },
   ];
 

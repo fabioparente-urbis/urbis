@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.48
+**Versão:** 1.49
 **Data:** 2026-10-19
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -45,6 +45,35 @@ trâmite. Este manual cobre o LIP como implementado hoje para o Slot 5.
 
 ## 2. Onde vive o LIP na arquitetura
 
+> **Desde 16/10/2026 o LIP do Slot 5 é um programa PRÓPRIO** (decisão do Fábio: "5 programas
+> independentes dentro de uma plataforma"). O que está abaixo desta caixa, até o fim da seção 2,
+> descreve como era ANTES — fica como histórico.
+>
+> - **Ficha:** `components/aprovacaoProjeto/LipAprovacaoProjeto.tsx`, no endereço
+>   `/lip-aprovacao-projeto/<processo>`. O endereço antigo `/processo/<id>?tipo=slot_05` só
+>   encaminha para lá (nenhum link da Pilha, do URBI ou de e-mail quebra).
+> - **Rotas próprias** em `/api/aprovacao-projeto/`: `lip/estrutura`, `lip/s1`, `lip/s2`, `lip/s3`
+>   (+ `s3/status`), `lip/s4`, `lip/cache-gemini`, `lip/registrar-evento`, `lip/legenda-foto`,
+>   `lip/ler-pasta`, `lip/localizar-documento`, `lip/aceitar-pasta`, `processo/carregar`,
+>   `processo/salvar`, `processo/historico`, `processo/restaurar`, `processo/importar-lip`,
+>   `processo/exportar-lip` e `processo/analises` (a faixa "Análise N…" do topo da ficha).
+> - **Identidade e ajuda próprias** em `lib/aprovacaoProjeto/` (`identidade.ts`,
+>   `assuntoDoSlot.ts`, `lip/promptCampos.ts`, `lip/lipAjuda.ts`).
+> - **Prompts só do Slot 5:** as rotas do Slot 5 não caem mais no prompt de outro assunto; sem
+>   prompt do Slot 5, a leitura para e avisa. Medido em 16/10: o Slot 5 tem P1, P2 e P3 ativos.
+> - **Comportamento igual ao de antes**, com quatro diferenças deliberadas: (1) salvar grava sempre
+>   como `slot_05` (a rota comum assumia "regularizacao" se a tela não mandasse o tipo); (2) a
+>   faixa de análises lê pela rota do Slot 5, e não mais pela da Regularização; (3) a leitura
+>   individual usa o cache de leitura sem a trava da "leitura única LIP+MAC" dos Slots 1/2, que
+>   no Slot 5 só fazia pagar IA de novo à toa (4 dos 8 processos caíam nela); (4) a rota do s3
+>   não carrega os blocos de regra dos Slots 1/2 (marco temporal, área, caixa por 250 m²,
+>   carimbo, CHEADV), que já vinham vazios para o Slot 5.
+> - **Comum, de propósito:** satélites (MHD, MDP, MRP, MAP, URBI, tag/Pilha, Vigia), numeração,
+>   cadastros (logradouros, profissionais, assuntos), login e banco.
+> - **Prova:** `scripts/testar_slot5_lip_proprio.mts` (80 verificações).
+> - O código do Slot 5 que ficou em `ProcessoClient.tsx` e nas rotas comuns está morto (ninguém do
+>   Slot 5 chega mais lá) e sai quando o Slot 1 for separado.
+
 **A tela do LIP não é isolada por slot.** `app/processo/ProcessoClient.tsx` é **um único
 componente**, roteado por `app/processo/[id]/page.tsx`, que serve os 15 `assuntos` (slots) do
 URBIS. Qualquer edição nessa tela — botão novo, mudança de comportamento, texto — atinge os 15
@@ -78,9 +107,9 @@ fazem fallback automático ao prompt do Slot 1 quando um slot não tem prompt pr
 
 ### 3.1 Fluxo
 
-Botão **📁 LER PASTA** no LIP do Slot 5 → `POST /api/lip/ler-pasta` → `lerPastaSlot5()`
+Botão **📁 LER PASTA** no LIP do Slot 5 → `POST /api/aprovacao-projeto/lip/ler-pasta` (até 16/10/2026, `/api/lip/ler-pasta`) → `lerPastaSlot5()`
 (`lib/lerPastaSlot5.ts`) → resultado numa **proposta** dentro de um modal → **aceite em bloco** →
-`POST /api/lip/aceitar-pasta` grava. Nada entra no LIP sem o analista aceitar explicitamente.
+`POST /api/aprovacao-projeto/lip/aceitar-pasta` grava. Nada entra no LIP sem o analista aceitar explicitamente.
 
 Em `ProcessoClient.tsx`, o botão é travado por slot: `ehSlot5 ? lerPasta(fs) :
 aoEscolherArquivosLeitura(fs)`. Slots 1/2 caem em `lerLip()`, um caminho diferente que **não passa
@@ -1312,8 +1341,9 @@ veredito chega à ficha.
 
 | Versão | Data | Mudança |
 |---|---|---|
-| 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC passou a ter quantidade de análises configurável no admin (a penúltima avisa, a última indefere). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
-| 1.47 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.48. |
+| 1.49 | 2026-10-19 | Conferido: o LIP não mudou. O MAC passou a ter quantidade de análises configurável no admin (a penúltima avisa, a última indefere). Ver `MANUAL_SLOT5_MAC.md` v1.50. |
+| 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.49. |
+| 1.47 | 2026-10-16 | Seção 2 e 3.1: o LIP do Slot 5 vira programa próprio — ficha `/lip-aprovacao-projeto/<id>`, 19 rotas em `/api/aprovacao-projeto/*`, prompts só do Slot 5; o endereço antigo encaminha. Quatro diferenças deliberadas listadas na seção 2. Lado MAC: `MANUAL_SLOT5_MAC.md` v1.48. |
 | 1.46 | 2026-10-15 | Conferido: o LIP não mudou. O Laudo do Slot 5 ganhou reemissão (botão "Reemitir" + MRP sem duplicar). Ver `MANUAL_SLOT5_MAC.md` v1.47. |
 | 1.45 | 2026-10-02 | Conferido: o LIP não mudou. O botão de classificar item em filtro no MAC trocou o ícone para o funil do Excel. Ver `MANUAL_SLOT5_MAC.md` v1.46. |
 | 1.44 | 2026-10-02 | Conferido: o LIP não mudou. No MAC, o contador "respondidos" de cada ÍTEM ganhou destaque (vermelho, negrito). Ver `MANUAL_SLOT5_MAC.md` v1.45. |

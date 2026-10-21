@@ -39,7 +39,11 @@ function Secao({ titulo, descricao, acao, children }: { titulo: string; descrica
   );
 }
 
-const ASSUNTOS = [{ slug: "regularizacao", nome: "Regularização SEI" }, { slug: "aceite_sei", nome: "Aceite SEI" }];
+const ASSUNTOS = [
+  { slug: "regularizacao", nome: "Regularização SEI" }, { slug: "aceite_sei", nome: "Aceite SEI" },
+  // Slots 3 e 4 (PED, 16/10/2026): fila própria de cada um, separada por assunto como os demais.
+  { slug: "slot_03", nome: "Regularização PED" }, { slug: "slot_04", nome: "Aceite PED" },
+];
 // Slot 5 entra só na comparação de cobertura (Fase Q) — não tem fila aqui, mecanismo próprio em
 // /admin/filtros-slot5. Ver app/api/mac/vinculos-fila/cobertura-slot5/route.ts.
 const SLOT5 = { slug: "slot_05", nome: "Aprovação de Projeto (Slot 5)" };

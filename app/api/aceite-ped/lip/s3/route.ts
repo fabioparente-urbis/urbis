@@ -1,0 +1,492 @@
+// ============================================================
+// SLOT 4 — ACEITE PED · rota PRÓPRIA do slot. CÓPIA POR LEITURA de app/api/lip/s3/route.ts,
+// 16/10/2026 (Etapa 2 do plano docs/URBIS_PLANO_SLOTS_3_4_PED.md — "5 programas
+// independentes"). Diferenças: só lê processo do Slot 4; só os blocos de regra do Slot 4 (marco, carimbo, CHEADV — o Aceite não tem caixa nem área); prompt SÓ do Slot 4, sem queda para o de outro assunto; marcadores e leitura única pelas cópias em lib/aceitePed/lip/. Comum à plataforma: trava de custo, registro de custo de IA, Gemini.
+// ============================================================
+import { NextRequest, NextResponse } from "next/server";
+import { type GeminiModel } from "@/lib/constants";
+import { escolherModeloPorTamanho } from "@/lib/modeloGemini";
+import { createClient } from "@supabase/supabase-js";
+// Regras do PRÓPRIO Slot 4 — nenhuma regra de outro slot entra nesta rota. O Aceite (como o
+// Slot 2, de que é cópia) não tem caixa de recarga nem compatibilidade de área.
+import { blocoPromptMarcoTemporal, marcoTemporalDoTipo } from "@/lib/aceitePed/marcoTemporal";
+import { blocoPromptCarimboAssunto } from "@/lib/aceitePed/carimboAssunto";
+import { blocoPromptCheadvAprovado } from "@/lib/aceitePed/cheadvAprovado";
+import { ehAceitePed } from "@/lib/aceitePed/identidade";
+import { aplicarMarcadores } from "@/lib/aceitePed/lip/promptCampos";
+import { registrarChamadaIA } from "@/lib/iaUso";
+import {
+  leituraUnicaLipMacAtiva,
+  montarPromptCombinadoLipMac,
+  interpretarRespostaMac,
+  gravarSugestaoMac,
+} from "@/lib/aceitePed/lip/leituraUnicaLipMac";
+
+type ChecklistItemMac = { id: string; texto: string; grupo: string };
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+export const maxDuration = 30;
+
+export async function POST(req: NextRequest) {
+  try {
+    const { fileUri, documentos, codigo, fileName, pdfBase64, assunto_id, mimeType, tamanhoBytes } = await req.json();
+    // Tamanho medido pelo S1: acima do teto do modelo padrão a extração sobe para o modelo que
+    // suporta o arquivo, em vez de falhar com 400 — Fase 2, ver lib/modeloGemini.ts. Sem tamanho
+    // informado, continua o padrão de sempre.
+    const modelo = escolherModeloPorTamanho(typeof tamanhoBytes === "number" ? tamanhoBytes : null);
+    const tipoArquivo = typeof mimeType === "string" && mimeType.startsWith("image/") ? mimeType : "application/pdf";
+    if (!fileUri)
+      return NextResponse.json({ ok: false, erro: "fileUri nao informado" }, { status: 400 });
+
+    // Trava de budget — restrita ao módulo LIP (`modulo = "LIP"`). Sem esse filtro, chamadas
+    // de outros módulos (ex.: chat/STT/TTS do URBI) contariam para o mesmo limite e poderiam
+    // bloquear a leitura de PDF do LIP por consumo alheio.
+    const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: chamadasRecentes, error: erroBudget } = await supabaseAdmin
+      .from("urbis_api_calls")
+      .select("*", { count: "exact", head: true })
+      .eq("modulo", "LIP")
+      .gte("criado_em", umaHoraAtras)
+      .eq("status", "ok");
+    if (erroBudget) {
+      // Falha na consulta não pode virar "orçamento zerado, pode passar" — isso desarma a
+      // trava exatamente no cenário que ela existe para evitar (custo de IA fora de controle).
+      // Requisição HEAD (count-only) às vezes não traz corpo de erro legível — loga o objeto
+      // inteiro (code/details/hint) em vez de só .message, que pode vir vazio nesse caso.
+      console.error("[lip/s3/slot4] falha ao consultar trava de budget:", erroBudget);
+      return NextResponse.json(
+        { ok: false, erro: "BUDGET_INDISPONIVEL", detalhe: "Não foi possível verificar o limite de uso antes de prosseguir. Tente novamente em instantes." },
+        { status: 503 },
+      );
+    }
+    if ((chamadasRecentes ?? 0) >= 50) {
+      return NextResponse.json({ ok: false, erro: "BUDGET_EXCEDIDO", detalhe: "Limite de 50 chamadas/hora atingido." }, { status: 429 });
+    }
+
+    // Marco temporal (LC 314/2018): só Regularização SEI e Aceite SEI têm data
+    // limite. O bloco vai DEPOIS do prompt do slot — acrescenta a verificação
+    // da última vistoria sem alterar nada do que o slot já extrai.
+    //
+    // Também serve de FALLBACK pro assunto (achado do Fábio, 15/09/2026): o Fatiador de PDF SEI
+    // nunca manda `assunto_id` (só conhece o código do processo, ver lib/documentosSei/lerComGemini.ts) —
+    // sem isso, a extração caía no prompt de QUALQUER assunto de maior versão (hoje, Aceite SEI),
+    // mesmo lendo um processo de Regularização. Resultado: campo errado (prompt do Aceite não tem
+    // `outro`/`qualOutro`) e nome de campo errado (`nomeResponsavelEng` em vez de
+    // `nome_responsavel_eng`, que é o que a tela realmente lê) — a leitura ficava presa fora da
+    // ficha. Buscando o assunto pelo próprio processo aqui, todo chamador (Fatiador e LIP) ganha
+    // o prompt certo sem precisar saber o assunto de antemão.
+    let tipoProcesso: string | null = null;
+    let assuntoIdDoProcesso: string | null = null;
+    if (codigo) {
+      const { data: procTipo } = await supabaseAdmin
+        .from("processos")
+        .select("tipo_processo, assunto_id")
+        .eq("codigo", codigo)
+        .maybeSingle();
+      tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
+      assuntoIdDoProcesso = (procTipo as any)?.assunto_id ?? null;
+    }
+    // Rota do Slot 4: só lê processo do Slot 4. Processo de outro slot (ou sem código) é recusado.
+    if (!codigo || !ehAceitePed(tipoProcesso)) {
+      return NextResponse.json(
+        { ok: false, erro: `Esta leitura é do Slot 4 (Aceite PED); o processo é "${tipoProcesso ?? "desconhecido"}".` },
+        { status: 400 },
+      );
+    }
+
+    // Carrega prompt
+    // Assunto vem SEMPRE do próprio processo (que é do Slot 4) — nunca do corpo da requisição.
+    void assunto_id;
+    const assuntoValido = assuntoIdDoProcesso;
+    let promptData: { conteudo: string; versao: number } | null = null;
+    if (assuntoValido) {
+      const { data } = await supabaseAdmin
+        .from("lip_prompts")
+        .select("conteudo, versao")
+        .eq("ativo", true).eq("chave", "P2_EXTRACAO").eq("assunto_id", assuntoValido)
+        .order("versao", { ascending: false }).limit(1).maybeSingle();
+      promptData = data;
+    }
+    // Sem cair no prompt de outro assunto: sem prompt do Slot 4, a leitura para e avisa.
+    if (!promptData)
+      return NextResponse.json({ ok: false, erro: "Prompt P2_EXTRACAO do Slot 4 (Aceite PED) não encontrado ou inativo." }, { status: 500 });
+
+    console.log(`[S3/slot4] Prompt versao ${promptData.versao} carregado.`);
+    const ctxDocs = documentos?.length
+      ? `\n\n---\nMAPA DE DOCUMENTOS:\n${JSON.stringify(documentos, null, 2)}\n---`
+      : "";
+    const blocoMarco = blocoPromptMarcoTemporal(tipoProcesso);
+    const blocoArea = ""; // Aceite: sem compatibilidade de área (igual ao Slot 2)
+    // Caixa de recarga (só Regularização SEI): impede que o modelo responda
+    // "caixa: Sim" por dedução da área. O corte de 250m² da LC 314/2018 é
+    // comparação numérica feita pelo sistema — do modelo se quer só o fato
+    // que está no carimbo. Ver lib/caixaRecargaSlot1.ts.
+    const blocoCaixa = ""; // Aceite: sem bloco de caixa de recarga (igual ao Slot 2)
+    // Condições bloqueantes #6 e #7 do URBI (pedido do Fábio, 08/09/2026): mesma técnica
+    // aditiva acima, cada uma acrescenta 1 campo novo dentro de "campos".
+    const blocoCarimbo = blocoPromptCarimboAssunto(tipoProcesso);
+    const blocoCheadvAprovado = blocoPromptCheadvAprovado(tipoProcesso);
+
+    // Marcadores resolvidos pelo banco ({{CAMPOS_DO_ASSUNTO}},
+    // {{ESQUELETO_JSON}}, {{CAMPOS_VAZIOS}}). Prompt sem marcador passa
+    // intacto — nada muda até alguém decidir usar.
+    const conteudoResolvido = await aplicarMarcadores(promptData.conteudo, {
+      assunto_id: assuntoValido,
+      codigo: typeof codigo === "string" ? codigo : null,
+    });
+    const promptFinal = conteudoResolvido + ctxDocs + blocoMarco + blocoArea + blocoCaixa + blocoCarimbo + blocoCheadvAprovado;
+
+    // Fase 9B — "uma leitura, dois destinos": se o interruptor estiver ligado e o processo já
+    // tiver uma análise MAC (é dela que vem o checklist a julgar), junta o prompt do LIP com o
+    // P3_MAC e pede os dois blocos numa resposta só. Qualquer falha aqui (interruptor desligado,
+    // sem análise MAC ainda, prompt P3_MAC não cadastrado) cai no comportamento de sempre —
+    // fail-safe, nunca bloqueia a leitura do LIP.
+    //
+    // Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md (18/09/2026): restrito a
+    // Regularização e Aceite — reaproveita `marcoTemporalDoTipo` (só reconhece esses dois
+    // prefixos) em vez de duplicar a checagem. Antes desta trava, o código só conferia se havia
+    // uma linha em `analises_mac` pro processo, sem olhar o slot — o Slot 5 nunca bateu essa
+    // condição na prática (usa outro mecanismo pra checklist), mas era coincidência, não
+    // garantia. Com o interruptor ligado, um processo do Slot 5 que por algum motivo tivesse
+    // linha em `analises_mac` entraria na leitura combinada por engano.
+    let promptParaEnviar = promptFinal;
+    let checklistCombinado: ChecklistItemMac[] | null = null;
+    /** Bloco E: true assim que o interruptor está ligado e o slot é elegível — mesmo que a
+     * combinação acabe não acontecendo por falta de análise/checklist/prompt MAC. Diferencia
+     * "não tentou" (interruptor desligado ou slot fora do escopo) de "tentou e não achou o que
+     * precisava" pro texto que `lerLip` escreve em Observações. */
+    let tentouCombinar = false;
+    const temMarcoNoSlot = marcoTemporalDoTipo(tipoProcesso) !== null;
+    if (typeof codigo === "string" && codigo && temMarcoNoSlot) {
+      try {
+        if (await leituraUnicaLipMacAtiva()) {
+          tentouCombinar = true;
+          const { data: analise } = await supabaseAdmin
+            .from("analises_mac")
+            .select("modelo_id")
+            .eq("processo_codigo", codigo)
+            .is("excluido_em", null)
+            .order("numero_analise", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const modeloId = (analise as any)?.modelo_id ?? null;
+          if (modeloId) {
+            const { data: itensModelo } = await supabaseAdmin
+              .from("mac_checklist_itens")
+              .select("id, texto, grupo")
+              .eq("modelo_id", modeloId)
+              .eq("ativo", true);
+            const checklistItens = (itensModelo ?? []) as ChecklistItemMac[];
+            if (checklistItens.length) {
+              // Mesma busca de app/api/mac/p3/route.ts: prompt do assunto, senão o global.
+              let promptMacData: { conteudo: string } | null = null;
+              if (assuntoValido) {
+                const { data } = await supabaseAdmin
+                  .from("lip_prompts").select("conteudo, versao")
+                  .eq("ativo", true).eq("chave", "P3_MAC").eq("assunto_id", assuntoValido)
+                  .order("versao", { ascending: false }).limit(1).maybeSingle();
+                promptMacData = data;
+              }
+              if (promptMacData) {
+                promptParaEnviar = montarPromptCombinadoLipMac(promptFinal, promptMacData.conteudo, checklistItens);
+                checklistCombinado = checklistItens;
+                console.log(`[S3/slot4] Fase 9B ativa — leitura combinada LIP+MAC (${checklistItens.length} itens de checklist).`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        console.error("[S3/slot4] leitura combinada indisponível, seguindo só com LIP:", e?.message);
+      }
+    }
+
+    // Cria job no banco
+    const { data: job, error: jobErr } = await supabaseAdmin
+      .from("lip_jobs")
+      .insert({ processo_codigo: codigo ?? null, status: "processando" })
+      .select("id")
+      .single();
+
+    if (jobErr || !job)
+      return NextResponse.json({ ok: false, erro: "Erro ao criar job: " + jobErr?.message }, { status: 500 });
+
+    const jobId = (job as any).id as string;
+    const apiKey = process.env.GEMINI_API_KEY!;
+
+    // Dispara processamento em background (Railway é Node.js persistente — sem serverless)
+    processarJobBackground(jobId, { fileUri, promptFinal: promptParaEnviar, apiKey, codigo, fileName, tipoProcesso, tipoArquivo, modelo, checklistCombinado, tentouCombinar }).catch(
+      (e) => console.error("[S3-bg] erro não capturado:", e?.message)
+    );
+
+    return NextResponse.json({ ok: true, jobId });
+  } catch (e: any) {
+    console.error("[S3/slot4] Erro:", e?.message);
+    return NextResponse.json({ ok: false, erro: e?.message || "Erro interno" }, { status: 500 });
+  }
+}
+
+const CAMPOS_NP = [
+  "cnae1","cnae2","cnae3","cnae4","cnae5","faixa",
+  "volMin","volAt","caixas","qualOutro","dataEmb",
+  "artCx","foto","despacho","seiCheadv","seiProcuracao",
+  "seiEmbargo","areaAprovada","usoSolo","processoFisico","arqNome","arqCau",
+  "faixaAmpliacacao","caixaRecarga","volMinimoCaixa","volAtendidoCaixa","numCaixas",
+  "areaImpermeavelCalc","nOutroProcesso","dataEmbargo","seiOnerosa",
+  "seiArtCaixaRecarga","seiFotoGoogle",
+];
+
+// CNAE 1 a 10 + descrições (20/10/2026) — campos da aba "3. Uso do Solo" deste slot.
+const CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `cnae${i + 1}`);
+const DESC_CNAES_1_A_10 = Array.from({ length: 10 }, (_, i) => `descCnae${i + 1}`);
+
+async function processarJobBackground(jobId: string, params: {
+  fileUri: string;
+  promptFinal: string;
+  apiKey: string;
+  codigo?: string;
+  fileName?: string;
+  tipoProcesso?: string | null;
+  /** application/pdf ou image/* — o print de tela precisa ir como imagem. */
+  tipoArquivo?: string;
+  /** Escolhido pelo tamanho do arquivo no POST — o job não tem como recalcular sozinho. */
+  modelo: GeminiModel;
+  /** Fase 9B: presente = promptFinal é o prompt COMBINADO (pede `{lip, mac}`), não só o do LIP. */
+  checklistCombinado?: ChecklistItemMac[] | null;
+  /** Bloco E: true = interruptor ligado + slot elegível — distingue "não tentou" de "tentou e
+   * não achou" quando `checklistCombinado` vem null. Ver comentário na chamada, mais acima. */
+  tentouCombinar?: boolean;
+}) {
+  const { fileUri, promptFinal, apiKey, codigo, fileName, tipoProcesso, modelo, checklistCombinado, tentouCombinar } = params;
+  const tipoArquivo = params.tipoArquivo ?? "application/pdf";
+  const t0 = Date.now();
+  try {
+    let texto = "";
+    let geminiOk = false;
+    let ultimoStatus = 0;
+    let ultimoCorpo = "";
+    let usageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number } | null = null;
+    // Sob sobrecarga o Gemini tende a: (a) devolver 503, ou (b) devolver 200 com
+    // texto explicativo em vez do JSON pedido. Mais tentativas e espera mais
+    // longa cobrem picos de demanda que hoje derrubam a leitura de vez.
+    const MAX_TENTATIVAS = 7;
+
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      console.log(`[S3-bg] job=${jobId} tentativa ${tentativa}/${MAX_TENTATIVAS}`);
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ fileData: { mimeType: tipoArquivo, fileUri } }, { text: promptFinal }] }],
+            generationConfig: { maxOutputTokens: 65536, temperature: 0.1 },
+          }),
+        }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const candidato = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
+        if (candidato) {
+          // Resposta não vazia ainda pode ser prosa em vez de JSON — testa aqui
+          // dentro do laço para poder tentar de novo em vez de desistir na hora.
+          const testeJson = candidato.replace(/```json|```/g, "").trim();
+          try {
+            JSON.parse(testeJson);
+            texto = candidato;
+            geminiOk = true;
+            usageMetadata = data.usageMetadata ?? null;
+            console.log(`[S3-bg] job=${jobId} OK`);
+            break;
+          } catch {
+            ultimoStatus = 200;
+            ultimoCorpo = "JSON inválido: " + testeJson.slice(0, 300);
+          }
+        } else {
+          ultimoStatus = 200;
+          ultimoCorpo = "Resposta vazia. finishReason: " + (data.candidates?.[0]?.finishReason ?? "?");
+        }
+      } else {
+        ultimoStatus = res.status;
+        ultimoCorpo = (await res.text()).slice(0, 500);
+      }
+      console.log(`[S3-bg] job=${jobId} falhou (${ultimoStatus}): ${ultimoCorpo.slice(0, 200)}`);
+      const sobrecarga = ultimoStatus === 503 || ultimoCorpo.toLowerCase().includes("overloaded") || ultimoCorpo.toLowerCase().includes("high demand");
+      if ((sobrecarga || ultimoStatus === 200) && tentativa < MAX_TENTATIVAS) {
+        await new Promise((r) => setTimeout(r, Math.min(tentativa * 5000, 30000)));
+        continue;
+      }
+      break;
+    }
+
+    if (!geminiOk) {
+      let motivo = "ERRO_GEMINI";
+      const cl = ultimoCorpo.toLowerCase();
+      if (ultimoStatus === 429 || cl.includes("resource_exhausted") || cl.includes("quota")) motivo = "LIMITE_DIARIO_GEMINI";
+      else if (ultimoStatus === 400 && (cl.includes("invalid_argument") || cl.includes("not found"))) motivo = "MODELO_INVALIDO";
+      else if (ultimoStatus === 413 || cl.includes("file_too_large") || cl.includes("too large")) motivo = "ARQUIVO_GRANDE";
+      else if (ultimoStatus === 503 || cl.includes("overloaded")) motivo = "GEMINI_SOBRECARREGADO";
+      else if (ultimoStatus === 200 && cl.startsWith("json inválido")) motivo = "JSON_INVALIDO";
+      else if (ultimoStatus === 200) motivo = "RESPOSTA_VAZIA";
+      await registrarChamadaIA({
+        modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+        modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: motivo,
+      });
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: motivo + ": " + ultimoCorpo.slice(0, 300),
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
+    }
+
+    await registrarChamadaIA({
+      modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+      modelo, duracaoMs: Date.now() - t0, status: "ok",
+      tokensEntrada: usageMetadata?.promptTokenCount ?? null,
+      tokensSaida: usageMetadata?.candidatesTokenCount ?? null,
+    });
+
+    const clean = texto.replace(/```json|```/g, "").trim();
+    let dados: any;
+    try {
+      dados = JSON.parse(clean);
+    } catch (parseErr: any) {
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: `JSON inválido do Gemini: ${parseErr.message} | Início da resposta: ${clean.slice(0, 400)}`,
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
+    }
+
+    // Fase 9B: em leitura combinada o Gemini responde { lip: {...}, mac: {...} }. Se ele não
+    // seguiu o formato pedido (dados.lip ausente), cai no comportamento de sempre — trata `dados`
+    // como se fosse só o LIP, igual antes da Fase 9B existir. Nunca perde a leitura por isso.
+    const dadosLip: any = checklistCombinado && dados && typeof dados.lip === "object" && dados.lip !== null
+      ? dados.lip
+      : dados;
+    const dadosMac: any = checklistCombinado && dados && typeof dados.mac === "object" ? dados.mac : null;
+
+    if (!dadosLip.campos || Object.keys(dadosLip.campos).length === 0) {
+      await supabaseAdmin.from("lip_jobs").update({
+        status: "erro",
+        erro: `Gemini respondeu sem a chave "campos". Chaves recebidas: ${Object.keys(dadosLip).join(", ") || "(nenhuma)"} | Resposta: ${clean.slice(0, 400)}`,
+        atualizado_em: new Date().toISOString(),
+      }).eq("id", jobId);
+      return;
+    }
+
+    const campos: Record<string, { valor: string; fonte: string } | null> = {};
+    if (dadosLip.campos) {
+      for (const [chave, item] of Object.entries(dadosLip.campos as Record<string, any>)) {
+        const val = item?.valor?.toString().trim();
+        if (!val || ["null","n/a","nao identificado",""].includes(val.toLowerCase())) {
+          campos[chave] = CAMPOS_NP.includes(chave) ? { valor: "NP", fonte: "Nao identificado" } : null;
+        } else {
+          campos[chave] = { valor: val, fonte: item.fonte ? String(item.fonte).trim() : "Processo SEI" };
+        }
+      }
+      const temCnae1a10 = true; // rota própria: só atende este slot, que tem os 20 campos
+      const camposNpDoTipo = temCnae1a10
+        ? [...CAMPOS_NP, ...CNAES_1_A_10, ...DESC_CNAES_1_A_10]
+        : CAMPOS_NP;
+      for (const c of camposNpDoTipo) {
+        if (!campos[c]) campos[c] = { valor: "NP", fonte: "Nao identificado" };
+      }
+
+      // "Sem uso definido": o CNAE 000000008 (ou "8") NÃO é atividade econômica —
+      // é a ausência de uso definido. Trata como se não houvesse CNAE (tudo NP).
+      // Trava determinística: o modelo às vezes devolve o código cru "000000008"
+      // em vez de reconhecer o "sem uso definido". Vale para os 10 CNAEs e as
+      // descrições (20/10/2026); antes só olhava os 5 primeiros códigos.
+      //
+      // usoDefinido responde a pergunta da ficha "Uso de Solo SEM uso definido?":
+      // sem uso definido → "Sim". Até 20/10/2026 esta trava gravava "Não" — o
+      // contrário do que a ficha pergunta (o prompt antigo também invertia).
+      const ehSemUso = (v?: string | null) => {
+        const t = (v || "").trim();
+        return /^0*8$/.test(t) || /sem uso definido/i.test(t);
+      };
+      if (CNAES_1_A_10.some((c) => ehSemUso(campos[c]?.valor))) {
+        for (const c of [...CNAES_1_A_10, ...DESC_CNAES_1_A_10]) {
+          if (temCnae1a10 || c in campos) campos[c] = { valor: "NP", fonte: "Sem uso definido" };
+        }
+        campos.usoDefinido = { valor: "Sim", fonte: campos.usoDefinido?.fonte || "Despacho CHEADV" };
+      }
+    }
+
+    const preenchidos = Object.values(campos).filter((v) => v?.valor && v.valor !== "NP").length;
+    console.log(`[S3-bg] job=${jobId} concluido. ${preenchidos} campos preenchidos. resultado salvo.`);
+    console.log(`[S3-bg] job=${jobId} amostra campos:`, JSON.stringify(Object.entries(campos).slice(0, 5)));
+
+    // Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md: estado da sugestão do
+    // MAC, pra `lerLip` (app/processo/ProcessoClient.tsx) registrar em Observações — nunca falha
+    // em silêncio. "gravada" só é setada de fato depois do `gravarSugestaoMac` abaixo, que pode
+    // ainda não ter rodado neste ponto: o valor aqui é o palpite antes de tentar, corrigido logo
+    // em seguida se a gravação acontecer ou falhar.
+    let macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" =
+      !tentouCombinar ? "desligado" : checklistCombinado && checklistCombinado.length ? "falhou" : "sem_analise_mac";
+
+    // Fase 9B — grava a sugestão do bloco MAC pra tela do MAC oferecer "aplicar" depois. Melhor
+    // esforço, depois do job do LIP já ter sido salvo com sucesso: uma falha aqui nunca pode
+    // fazer a leitura do LIP parecer que deu errado.
+    if (checklistCombinado && checklistCombinado.length && dadosMac && codigo) {
+      try {
+        const sugestao = interpretarRespostaMac(dadosMac, checklistCombinado);
+        await gravarSugestaoMac(codigo, sugestao);
+        macSugestao = "gravada";
+        console.log(`[S3-bg] job=${jobId} sugestão MAC gravada (${Object.keys(sugestao.itens).length} item(ns)).`);
+      } catch (e: any) {
+        macSugestao = "falhou";
+        console.error(`[S3-bg] job=${jobId} falha ao gravar sugestão MAC:`, e?.message);
+      }
+    }
+
+    await supabaseAdmin.from("lip_jobs").update({
+      status: "concluido",
+      resultado: {
+        campos,
+        alertasMAC: dadosLip.alertasMAC ?? [],
+        validacoes: dadosLip.validacoes ?? {},
+        pendencias: dadosLip.pendencias ?? [],
+        // Marco temporal (LC 314/2018) — só vem preenchido nos slots que têm
+        // data limite; o veredito é do fiscal, o URBIS só repassa.
+        marcoTemporal: dadosLip.marcoTemporal ?? null,
+        tipoProcesso: tipoProcesso ?? null,
+        macSugestao,
+      },
+      atualizado_em: new Date().toISOString(),
+    }).eq("id", jobId);
+
+    // Auditoria
+    if (codigo) {
+      try {
+        const { data: proc } = await supabaseAdmin.from("processos").select("id").eq("codigo", codigo).maybeSingle();
+        if ((proc as any)?.id) {
+          await supabaseAdmin.from("auditoria_log").insert({
+            tabela: "processos",
+            registro_id: (proc as any).id,
+            operacao: "LIP_LEITURA",
+            dados_antes: null,
+            dados_depois: { arquivo: fileName ?? "arquivo.pdf", camposPreenchidos: preenchidos, status: "OK" },
+          });
+        }
+      } catch (_) {}
+    }
+  } catch (e: any) {
+    console.error(`[S3-bg] job=${jobId} falha:`, e?.message);
+    await registrarChamadaIA({
+      modulo: "LIP", slot: tipoProcesso, operacao: "S3_EXTRACAO", processoCodigo: codigo ?? null,
+      modelo, duracaoMs: Date.now() - t0, status: "erro", motivoErro: e?.message,
+    });
+    await supabaseAdmin.from("lip_jobs").update({
+      status: "erro",
+      erro: e?.message || "Erro desconhecido",
+      atualizado_em: new Date().toISOString(),
+    }).eq("id", jobId);
+  }
+}

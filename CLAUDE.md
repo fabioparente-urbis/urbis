@@ -36,19 +36,57 @@ Um "slot" é um tipo de processo. Cada um tem seu checklist e seus documentos.
 
 - **Slot 1** — Regularização SEI (`regularizacao`)
 - **Slot 2** — Aceite SEI (`aceite_sei`)
+- **Slot 3** — Regularização PED (`slot_03`) — nasceu em 16/10/2026 como cópia 100% do Slot 1
+- **Slot 4** — Aceite PED (`slot_04`) — nasceu em 16/10/2026 como cópia 100% do Slot 2
 - **Slot 5** — Aprovação de Projeto (`slot_05`)
 
-**Isolamento entre slots é regra, não estilo.** Slot 5 não importa código do Slot 1 e vice-versa;
-quando o comportamento precisa ser igual, o código é reproduzido por leitura, nunca compartilhado.
+**Slots 3 e 4 (PED)** — plano e registro completo em `docs/URBIS_PLANO_SLOTS_3_4_PED.md`.
+- Regras em `lib/regularizacaoPed/` e `lib/aceitePed/` (inclui `lip/` com as bibliotecas de LIP
+  próprias); rotas `/api/regularizacao-ped/*`, `/api/aceite-ped/*` e `*-ped`; geradores em
+  `lib/geradores/regularizacaoPed/` e `lib/geradores/aceitePed/`; fichas do LIP em
+  `components/regularizacaoPed/LipRegularizacaoPed.tsx` e `components/aceitePed/LipAceitePed.tsx`;
+  telas do MAC `app/analise-regularizacao-ped/` e `app/analise-aceite-ped/`.
+- Prompts e checklists: as rotas PED usam SÓ os do próprio slot. As rotas comuns caem no prompt de
+  qualquer assunto quando o slot não tem o seu; as PED param e avisam.
+- **Slug nunca por prefixo.** Os arquivos do Slot 1/2 decidem por `startsWith("regularizacao")` /
+  `startsWith("aceite")`. Por isso os slugs PED são `slot_03`/`slot_04` (e não `regularizacao_ped`),
+  e todo arquivo PED se reconhece por igualdade exata (`ehRegularizacaoPed` / `ehAceitePed`).
+- Condições bloqueantes do URBI: o 3/4 tem liga/desliga próprio em `urbi_regras_bloqueio_slot`;
+  o 1/2 segue em `urbi_regras_bloqueio`.
+- Provas que precisam continuar passando: `scripts/testar_regras_slots_3_4_ped.mts` e
+  `scripts/testar_geradores_slots_3_4_ped.mts` (documentos byte a byte iguais aos do 1/2 até
+  alguém mudar uma regra PED de propósito — aí o teste é atualizado junto).
+
+**5 programas independentes dentro de uma plataforma** (decisão do Fábio, 16/10/2026 — "QUERO QUE
+SEJAM 5 PROGRAMAS INDEPENDENTES DENTRO DE UMA PLATAFORMA RODEADO POR MODULOS COMUNS E NUMEROS DE
+PARECERES E DESPACHOS COMUNS"). Cada slot é um programa completo e próprio: **LIP** (ficha + rotas
+de leitura, salvar, carregar, histórico), **MAC** (tela + rotas) e **geração de documentos**.
+Quando o comportamento precisa ser igual, o código é reproduzido por leitura, nunca compartilhado.
 Dois atos que hoje se parecem são de setores diferentes e podem divergir amanhã — um ajuste num
 não pode mudar o outro em silêncio.
 
-**Exceção deliberada:** a numeração de despachos e pareceres (`/api/numeracao/proximo`) é **fonte
-única para todos os slots**, com as mesmas regras. Não criar série por slot.
+**Comum a todos (de propósito):** os módulos satélites (MRP, MDP, MAP, MHD, URBI, tag/Pilha,
+Vigia), a numeração de despachos e pareceres (`/api/numeracao/proximo`, **fonte única**, mesmas
+regras — não criar série por slot), cadastros gerais (assuntos, logradouros, profissionais),
+login, banco e utilitários puros sem regra de slot.
 
-**A tela do LIP não é isolada:** `ProcessoClient.tsx` é um arquivo só para todos os slots. Quando
-precisar de comportamento específico, use um desvio por `tipo_processo` sem alterar o caminho dos
-demais. Os prompts do LIP, esses sim, são isolados por slot.
+**Estado da separação do LIP (16/10/2026): os 5 slots têm ficha do LIP e rotas próprias.**
+
+| slot | ficha do LIP | rotas de LIP/MAC | prova |
+|---|---|---|---|
+| 1 | `/lip-regularizacao-sei/<id>` (`components/regularizacao/LipRegularizacaoSei.tsx`) | `/api/regularizacao-sei/*` | `scripts/testar_slot1_lip_proprio.mts` |
+| 2 | `/lip-aceite-sei/<id>` (`components/aceiteSei/LipAceiteSei.tsx`) | `/api/aceite-sei/*` | `scripts/testar_slot2_lip_proprio.mts` |
+| 3 | `/lip-regularizacao-ped/<id>` | `/api/regularizacao-ped/*` | `scripts/testar_*_slots_3_4_ped.mts` |
+| 4 | `/lip-aceite-ped/<id>` | `/api/aceite-ped/*` | idem |
+| 5 | `/lip-aprovacao-projeto/<id>` (`components/aprovacaoProjeto/LipAprovacaoProjeto.tsx`) | `/api/aprovacao-projeto/*` + `/api/mac/slot-05/*` | `scripts/testar_slot5_lip_proprio.mts` |
+
+`/processo/<id>?tipo=<slug>` (e `/processo/<id>` sem tipo, que sempre abriu como Regularização) só
+encaminha. Cada slot tem o seu interruptor da leitura única (o Slot 1 ficou com
+`leitura_unica_lip_mac_ativo`, o de sempre). `app/processo/ProcessoClient.tsx` e as rotas comuns de
+LIP/MAC (`/api/lip/*`, `/api/processo/*`, `/api/mac/{p3,checklists,...}`, `/api/admin/lip`) não
+servem mais nenhum slot ativo — viraram código morto, mantido por enquanto; a exceção é
+`/api/processo/salvar`, que o "Cadastrar" da tela inicial (`app/page.tsx`) ainda usa para CRIAR o
+processo. Slot novo nasce com ficha e rotas próprias, nunca na ficha comum.
 
 ## Regras de trabalho
 

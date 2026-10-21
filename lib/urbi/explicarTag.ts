@@ -101,6 +101,15 @@ const EXPLICACAO_TIPO: Record<string, string> = {
     "Aceite SEI — obra que já tinha aprovação e está voltando pra ser aceita.",
     "Tem marco temporal próprio, e Uso do Solo não se aplica.",
   ]),
+  // Slots 3 e 4 (PED, 16/10/2026): mesma explicação do Slot 1 e do Slot 2, de que são cópia.
+  slot_03: montar([
+    "Regularização PED — obra já construída, pedindo pra ser regularizada.",
+    "Aqui vale o marco temporal (LC 314/2018) e precisa do Uso do Solo.",
+  ]),
+  slot_04: montar([
+    "Aceite PED — obra que já tinha aprovação e está voltando pra ser aceita.",
+    "Tem marco temporal próprio, e Uso do Solo não se aplica.",
+  ]),
   aprovacao_pp: "Aprovação de Projeto de pequeno porte — projeto novo, ainda não construído.",
   aprovacao_mp: "Aprovação de Projeto de médio porte — projeto novo, ainda não construído.",
   slot_05: "Aprovação de Projeto — projeto novo, ainda não construído.",

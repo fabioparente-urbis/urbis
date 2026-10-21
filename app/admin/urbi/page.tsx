@@ -540,6 +540,8 @@ function AbaSugestoes() {
           <option value="">Todos os slots</option>
           <option value="regularizacao">Regularização SEI</option>
           <option value="aceite_sei">Aceite SEI</option>
+          <option value="slot_03">Regularização PED</option>
+          <option value="slot_04">Aceite PED</option>
           <option value="slot_05">Aprovação de Projeto</option>
         </select>
         <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} className={INPUT}>
@@ -729,6 +731,8 @@ type MudancaCatalogo = {
 const NOME_SLOT: Record<string, string> = {
   regularizacao: "Regularização SEI",
   aceite_sei: "Aceite SEI",
+  slot_03: "Regularização PED",
+  slot_04: "Aceite PED",
   slot_05: "Aprovação de Projeto",
 };
 const TOM_ACAO: Record<string, string> = {
@@ -773,6 +777,8 @@ function AbaCatalogo() {
           <option value="">Todos os slots</option>
           <option value="regularizacao">Regularização SEI</option>
           <option value="aceite_sei">Aceite SEI</option>
+          <option value="slot_03">Regularização PED</option>
+          <option value="slot_04">Aceite PED</option>
           <option value="slot_05">Aprovação de Projeto</option>
         </select>
         <select value={acaoFiltro} onChange={(e) => setAcaoFiltro(e.target.value)} className={INPUT}>
@@ -890,6 +896,8 @@ function AbaRecorrencia() {
             <option value="">Todos os slots</option>
             <option value="regularizacao">Regularização SEI</option>
             <option value="aceite_sei">Aceite SEI</option>
+            <option value="slot_03">Regularização PED</option>
+            <option value="slot_04">Aceite PED</option>
             <option value="slot_05">Aprovação de Projeto</option>
           </select>
         </div>

@@ -1,0 +1,2939 @@
+// ============================================================
+// SLOT 1 — REGULARIZAÇÃO SEI · FICHA DO LIP PRÓPRIA do slot (/lip-regularizacao-sei/<processo>).
+// CÓPIA POR LEITURA de app/processo/ProcessoClient.tsx, 16/10/2026 — Etapa 2 do plano
+// docs/URBIS_PLANO_SLOTS_3_4_PED.md ("5 programas independentes dentro de uma plataforma").
+// Diferenças em relação ao original:
+//   · o tipo é SEMPRE regularizacao (a URL não escolhe o slot);
+//   · regras do Slot 1 as de sempre (lib/marcoTemporal, lib/caixaRecargaSlot1); ajuda pela cópia do slot;
+//   · todas as rotas de LIP e MAC são as do Slot 1 (/api/regularizacao-sei/*);
+//   · saiu o "Ler pasta" do Slot 5 (funções, painel e organizador);
+//   · alerta de fluxo pelo componente/rota próprios.
+// Comum à plataforma (de propósito): Vigia, MHD, MDP, MRP, auditoria, numeração, cadastros.
+// Mudar este arquivo NÃO muda a ficha dos outros slots, e vice-versa.
+// ============================================================
+"use client";
+import { useAuditoria } from "@/hooks/useAuditoria";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { perfilDe } from "@/lib/numeracao";
+import { avaliarMarcoTemporal, marcoTemporalDoTipo, type VeredictoMarcoTemporal } from "@/lib/marcoTemporal";
+import { juntarArquivosComoFile } from "@/lib/documentosSei/juntarArquivosLeitura";
+import { AJUDA_CAMPOS } from "@/lib/regularizacaoSei/lip/lipAjuda";
+import { avaliarCaixaRecargaDosDados } from "@/lib/caixaRecargaSlot1";
+import { SLUG_REGULARIZACAO_SEI } from "@/lib/regularizacaoSei/identidade";
+import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
+import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
+import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
+import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
+import VigiaProcesso from "@/components/bdi/VigiaProcesso";
+import AlertaFluxo from "@/components/regularizacao/AlertaFluxo";
+// Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — um componente por
+// slot (Regularização e Aceite SEI), cada um atrás do seu próprio interruptor (default
+// desligado) — isolamento entre slots do CLAUDE.md, não uma tela genérica com `if (slot)`.
+// Carregados sob demanda porque react-pdf usa APIs de navegador (worker), como já feito em
+// BipPdfViewer.
+
+/**
+ * De onde veio o valor que está no formulário.
+ *
+ * `inferido` existe para separar o que foi LIDO do que foi DEDUZIDO POR MODELO. Sem essa distinção
+ * um número produzido por visão computacional chega ao analista idêntico a um lido do carimbo, e
+ * ele assina o laudo sem ter como saber a diferença — num documento que fundamenta alvará e, via
+ * `outorgaOnerosa`, cobrança ao requerente. Valor inferido nunca deve parecer valor lido.
+ */
+type Origem = "original" | "urbis" | "manual" | "padrao" | "inferido";
+type Campo = { valor: string; origem: Origem; fonte?: string };
+type EventoHistorico = {
+  id: string;
+  operacao: string;
+  criado_em: string;
+  campos: { campo: string; de: string; para: string }[];
+  snapshot: Record<string, Campo> | null;
+  meta?: any;
+};
+type TipoProcesso = string;
+
+type CampoDB = {
+  id: string;
+  chave: string;
+  label: string;
+  tipo: string;
+  opcoes: string[] | null;
+  placeholder: string;
+  valor_padrao: string;
+  ordem: number;
+};
+
+type AbaDB = {
+  id: string;
+  nome: string;
+  dica: string;
+  ordem: number;
+  ativo: boolean;
+  lip_campos: CampoDB[];
+};
+
+function base(valor = ""): Campo { return { valor, origem: "original" }; }
+function padrao(valor: string): Campo { return { valor, origem: "padrao" }; }
+function cor(origem: Origem) {
+  if (origem === "urbis") return "text-[#2563EB]";
+  if (origem === "inferido") return "text-[#7C3AED]";
+  if (origem === "manual") return "text-[#475569]";
+  if (origem === "padrao") return "text-[#EA580C]";
+  return "text-[#000000]";
+}
+function borderCor(origem: Origem, valor: string) {
+  if (origem === "padrao" && valor.trim() === "") return "border-orange-400 border-2";
+  // inferido por modelo pede conferência ativa, como o padrão — mas por motivo oposto:
+  // não é que falte valor, é que o valor não foi lido, foi deduzido.
+  if (origem === "inferido") return "border-violet-400 border-2";
+  return "border-gray-300";
+}
+
+function formatarDataCompleta(dataStr: string) {
+  return new Date(dataStr).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+
+
+function diaKey(dataEvento: string): string {
+  const d = new Date(dataEvento);
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+function corPorIndiceDia(idx: number) {
+  if (idx === 0) return { bg: "bg-[#0F172A]", border: "border-[#0F172A]", text: "text-[#000000] font-bold" };
+  if (idx === 1) return { bg: "bg-[#1E3A8A]", border: "border-[#1E3A8A]", text: "text-[#1E3A8A] font-semibold" };
+  if (idx === 2) return { bg: "bg-[#334155]", border: "border-[#334155]", text: "text-[#334155] font-medium" };
+  if (idx === 3) return { bg: "bg-[#065F46]", border: "border-[#065F46]", text: "text-[#065F46]" };
+  return { bg: "bg-[#94A3B8]", border: "border-[#94A3B8]", text: "text-[#94A3B8]" };
+}
+function corParaData(dataEvento: string) {
+  return corPorIndiceDia(0);
+}
+
+function opacidadeEvento(indice: number, total: number): number {
+  if (total <= 1) return 1;
+  return 1 - (indice / (total - 1)) * 0.7;
+}
+
+function Toast({ msg, tipo, onClose }: { msg: string; tipo: "sucesso" | "erro" | "info"; onClose: () => void }) {
+  const bg = tipo === "sucesso" ? "bg-[var(--success-bg)] border-[var(--success)]" : tipo === "erro" ? "bg-[var(--error-bg)] border-[var(--error)]" : "bg-[var(--info-bg)] border-[var(--accent)]";
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, []);
+  return (
+    <div className={`fixed bottom-6 right-6 z-50 ${bg} border text-[var(--text-primary)] px-5 py-3 rounded-xl shadow-2xl text-sm font-medium flex items-center gap-3 max-w-sm`}>
+      <span>{msg}</span>
+      <button onClick={onClose} className="text-[var(--text-primary)] opacity-60 hover:opacity-100 ml-2">✕</button>
+
+    </div>
+  );
+}
+
+// Slot 1: marco temporal e tela do MAC SEMPRE do próprio slot.
+const marcoTemporalDoSlot = marcoTemporalDoTipo;
+const avaliarMarcoTemporalDoSlot = avaliarMarcoTemporal;
+function rotaMacDoSlot(_tipo: string): string { return "/analise-regularizacao"; }
+
+/** Fallback estático — o nome bom vem do banco (`nomeAssunto`). */
+function rotuloTipo(slug: string): string {
+  if (slug === "regularizacao") return "Regularização SEI";
+  if (slug === "aprovacao_pp") return "Aprovação PP";
+  if (slug === "aprovacao_mp") return "Aprovação MP";
+  return "Regularização SEI";
+}
+
+// A SEI é o número que o usuário digitou ao cadastrar (o código do processo) —
+// é a autoridade, não a leitura do PDF. A IA às vezes joga o número FÍSICO
+// (só dígitos) no campo "Processo SEI"; nesse caso recuperamos para o campo
+// físico (se estiver vazio) e restauramos a SEI. Só age em processos SEI
+// (código em formato NUP, ex.: 26.5.000009203-2). Muta `novo` in-place.
+function corrigirSeiFisico(novo: Record<string, Campo>, codigo: string): void {
+  if (!/^\d{2}\.\d{1,2}\.\d{6,}-\d$/.test(codigo)) return;
+  const extraido = novo.processo?.valor ? String(novo.processo.valor).trim() : "";
+  if (extraido && extraido !== codigo && !novo.processoFisico?.valor && /^\d{5,}$/.test(extraido)) {
+    novo.processoFisico = { valor: extraido, origem: "urbis", fonte: novo.processo?.fonte || "Leitura do processo" };
+  }
+  novo.processo = { valor: codigo, origem: "manual", fonte: "Número informado no cadastro" };
+}
+
+/** O que a busca no Mapa Fácil deixou para o analista conferir. */
+type ResultadoMapaFacil = {
+  coordenadas: string;
+  iptu: string;
+  /** false quando o IPTU casou por aproximação em vez de inscrição idêntica. */
+  exato: boolean;
+  cadastro: {
+    logradouro: string | null;
+    quadra: string | null;
+    lote: string | null;
+    bairro: string | null;
+  };
+  confrontos: Confronto[];
+};
+
+function parseCoords(val: string): string {
+  const parts = val.trim().split(/[,\s]+/).map(Number).filter(n => !isNaN(n));
+  if (parts.length < 2) return val;
+  const [a, b] = parts;
+  // UTM zona 22S: easting ~160000-840000, northing ~7500000-9000000
+  if (pareceUTM(a, b)) {
+    const { lat, lng } = utmToLatLng(a, b);
+    return formatarLatLng(lat, lng);
+  }
+  return val.trim();
+}
+
+
+
+// Chaves de campo que alimentam o Laudo (xlsx), espelhando 1:1 os `v("...")`
+// lidos em app/api/mac/gerar-laudo/route.ts — se um campo novo passar a
+// alimentar o laudo lá, precisa entrar aqui também para ganhar o destaque
+// verde. Usado só pra pintar o campo; o analista pode desligar campo a
+// campo (ver `laudoOcultos` / `toggleDestaqueLaudo`).
+const CAMPOS_LAUDO = new Set([
+  "proprietario", "logradouro", "quadra", "lote", "bairro", "processoFisico",
+  "despacho", "seiCheadv", "certidao", "artLev", "levantamento", "laudo",
+  "tombado", "certidaoRememDesm", "vistoriaAreaAeroportuaria", "vistoria",
+  "embargo", "dataEmb", "onerosa", "foto", "usoSolo", "tipoUso",
+  "vistoriaUnidadeTerritorial", "certCorredorViario", "cnae1", "descCnae1",
+  "cnae2", "descCnae2", "corredor", "areaTotal", "caixa", "indiceCaptacao",
+  "areaImpermeavel", "volAt", "caixas", "areaTerreno", "existente", "pav",
+  "unid", "vistoriaAreaComercial", "vistoriaEstruturaConcluida",
+  "vistoriaMais12m", "vistoriaOcupaRecuo", "vistoriaMax7Pav",
+  "vistoriaAltMax21m", "vistoriaOcupaPublica", "vistoriaLevante",
+  "vistoriaEsquadriaDivisa", "vistoriaCalcadas", "comaer", "flExercito",
+  "areaRecuo", "areaVertical", "areaForaFrontal",
+  // Só entram na checagem de área divergente (Regularização SEI), mas
+  // ainda são fontes de dado pro laudo — ficam com o mesmo destaque.
+  "areaLaudo", "areaArt", "areaVistoria",
+  // CNAE 3 a 10 (bloco Atividade Econômica, 20/10/2026).
+  ...Array.from({ length: 8 }, (_, i) => `cnae${i + 3}`),
+  ...Array.from({ length: 8 }, (_, i) => `descCnae${i + 3}`),
+]);
+
+function normalizarRegistro(v: string, tipo: "cau" | "crea"): string {
+  if (!v) return v;
+  const clean = v.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const prefix = tipo === "cau" ? "CAU" : "CREA";
+  const digits = clean.replace(/^(CAU|CREA)/, "");
+  const m = digits.match(/^(\d+)([A-Z]{2})?$/);
+  if (m) return m[2] ? `${prefix}-${m[1]}/${m[2]}` : `${prefix}-${m[1]}`;
+  // Texto livre que não segue o padrão numérico: retorna só uppercase/trim
+  return v.toUpperCase().trim();
+}
+export default function LipRegularizacaoSei() {
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const idUrl = (params?.id as string) ?? "";
+  // Ficha do Slot 1: o tipo é SEMPRE regularizacao, qualquer que seja o `?tipo=` da URL.
+  void searchParams;
+  const tipoUrl: string = SLUG_REGULARIZACAO_SEI;
+  // Aprovação de Projeto lê PASTA (a pasta é a rodada de análise); os outros assuntos
+  // seguem escolhendo arquivos, sem nenhuma mudança de comportamento.
+  const ehSlot5 = false; // ficha do Slot 1 — nenhum comportamento do Slot 5 aqui
+  /* A tela do LIP é 1 componente só pros 15 slots (assuntos) — não há como
+   * mudar "só a tela do Slot 1". Por isso a busca de coordenadas no Mapa Fácil
+   * fica travada nos slots que o usuário autorizou explicitamente: Regularização
+   * SEI e Aceite SEI (20/08/2026), Aprovação de Projeto — Slot 5 (mesmo dia,
+   * pedido à parte, depois de ter sido excluído por engano na trava original).
+   * Sem essa trava, qualquer slot novo herdaria a feature de graça, sem pedido.
+   * Estender a outro slot exige pedido explícito, igual a mexer no Slot 1
+   * (ver memória urbis-tela-lip-nao-isolada-por-slot). */
+  // Slot 1 já estava na lista da ficha comum (regularizacao, aceite_sei, slot_05).
+  const coordenadasMapaFacilHabilitado = true;
+
+  const [aba, setAba] = useState(0);
+  const { registrar } = useAuditoria();
+  const valorAnteriorRef = useRef<Record<string, string>>({});
+  const [salvando, setSalvando] = useState(false);
+  const [modalDI, setModalDI] = useState(false);
+  const [modalLimparLip, setModalLimparLip] = useState(false);
+  /* Confirmação POR DIGITAÇÃO. Limpar o LIP apaga trabalho de horas e não tem desfazer; um
+   * clique em "Confirmar" é fácil demais de dar por engano num modal que aparece de repente.
+   * Ter que escrever a palavra obriga a ler o que vai acontecer. */
+  const [confirmaLimparLip, setConfirmaLimparLip] = useState("");
+  const [numDI, setNumDI] = useState("");
+  const [dataDI, setDataDI] = useState(() => new Date().toLocaleDateString("pt-BR"));
+  const [destinoDI, setDestinoDI] = useState("");
+  const [destinoCustomDI, setDestinoCustomDI] = useState("");
+  const [corpoDI, setCorpoDI] = useState("");
+  const [gerandoDI, setGerandoDI] = useState(false);
+  const [numDIBloqueio, setNumDIBloqueio] = useState<string | null>(null);
+  const [padroesDI, setPadroesDI] = useState<{ id: string; titulo: string; corpo: string; destinatario_padrao: string | null }[]>([]);
+  const [padraoSelecionadoDI, setPadraoSelecionadoDI] = useState("");
+  const [numDICarregando, setNumDICarregando] = useState(false);
+  // Reemissão do Despacho Interno: só dentro de 15 min da emissão original
+  // (checado no clique do botão contra o mdp_registros.criado_em mais
+  // recente deste processo), senão pede número novo.
+  const [reemitindoDI, setReemitindoDI] = useState(false);
+  const [bairroBusca, setBairroBusca] = useState("");
+  const [bairrosBusca, setBairrosBusca] = useState<string[]>([]);
+  const [logradouroBusca, setLogradouroBusca] = useState("");
+  const [logradourosBusca, setLogradourosBusca] = useState<string[]>([]);
+  const [dadosLogradouro, setDadosLogradouro] = useState<any>(null);
+  const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
+  const [carregando, setCarregando] = useState(true);
+  /**
+   * Achado do Fábio, 16/09/2026 — bug real de perda de dado: "QUALQUER CLIQUE NA TELA GRAVA"
+   * (26/08/2026) descarrega `pendenteRef` na hora, em cima do que estiver em `d` — mas `d` começa
+   * `{}` e só recebe a ficha real depois que `carregarProcesso()` (fetch assíncrono) termina. Um
+   * clique em QUALQUER lugar da tela durante essa janela grava `d` quase vazio por cima da ficha
+   * inteira no banco — confirmado no log de auditoria (processo 25.5.000074961-2, 95 campos → 0
+   * num único UPDATE). Ref (não state) porque autoSalvar/gravarPendente são callbacks que
+   * precisam do valor mais recente sem entrar em array de dependência.
+   */
+  const carregandoRef = useRef(true);
+  const [carregandoAbas, setCarregandoAbas] = useState(true);
+  const [erroCampos, setErroCampos] = useState(false);
+  const [lendoLip, setLendoLip] = useState(false);
+  const [modalVCP, setModalVCP] = useState(false);
+  const [lendoPasta, setLendoPasta] = useState(false);
+  // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
+  const [propostaPasta, setPropostaPasta] = useState<any>(null);
+  // obrigatórios que faltavam na pasta e o analista apontou de fora dela — papel → resultado da leitura
+  const [docsLocalizados, setDocsLocalizados] = useState<Record<string, any>>({});
+  const [localizandoPapel, setLocalizandoPapel] = useState<string | null>(null);
+  // qual documento a leitura da pasta está abrindo agora — vai para o rótulo da barra
+  const [docLendo, setDocLendo] = useState<string | null>(null);
+  // MHD — histórico documental. Módulo satélite: vale para todo slot e todo assunto.
+  const [mhd, setMhd] = useState<any>(null);
+  const [carregandoMhd, setCarregandoMhd] = useState(false);
+
+  async function abrirMHD() {
+    try {
+      setCarregandoMhd(true);
+      const r = await fetch(`/api/mhd?processo=${encodeURIComponent(idUrl)}`);
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.erro || "Falha ao abrir o histórico");
+      setMhd(data);
+    } catch (e: any) {
+      mostrarToast("MHD: " + (e?.message ?? e), "erro");
+    } finally {
+      setCarregandoMhd(false);
+    }
+  }
+  const [vcpArquivos, setVcpArquivos] = useState<File[]>([]);
+  const [vcpProcessando, setVcpProcessando] = useState(false);
+  const [tempoLeitura, setTempoLeitura] = useState(0); // segundos
+  const tempoLeituraRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [vcpDragOver, setVcpDragOver] = useState(false);
+  const [vcpSugestoes, setVcpSugestoes] = useState<Record<string, string>>({});
+  const [vcpModo, setVcpModo] = useState<"substituir"|"sugerir"|null>(null);
+  // Marco temporal (LC 314/2018): quando a última vistoria reprova a obra,
+  // avisa em janela no meio da tela — só avisa, não bloqueia nada.
+  const [alertaMarco, setAlertaMarco] = useState<VeredictoMarcoTemporal | null>(null);
+
+  const [abasDB, setAbasDB] = useState<AbaDB[]>([]);
+  const [mostrarPendentes, setMostrarPendentes] = useState(false);
+  const [d, setD] = useState<Record<string, Campo>>({});
+
+  const [historico, setHistorico] = useState<EventoHistorico[]>([]);
+  const [perfisUsuario, setPerfisUsuario] = useState<string[]>([]);
+  const [eventoAberto, setEventoAberto] = useState<string | null>(null);
+  const [restaurando, setRestaurando] = useState<string | null>(null);
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [novoProcesso, setNovoProcesso] = useState("");
+  const [tipoNavegacao, setTipoNavegacao] = useState<TipoProcesso>(tipoUrl);
+  const [toast, setToast] = useState<{ msg: string; tipo: "sucesso"|"erro"|"info" } | null>(null);
+  const [analiseAtualLIP, setAnaliseAtualLIP] = useState<{ numero_analise: number; status: string; numero_despacho?: string; numero_parecer?: string } | null>(null);
+  // Id real (uuid) da linha em `processos` — carregado junto com o LIP,
+  // usado só pra gravar lip_incompleto/laudo_campos_ocultos via /api/processos.
+  const [processoDbId, setProcessoDbId] = useState<string | null>(null);
+  const [lipIncompleto, setLipIncompleto] = useState(false);
+  const [salvandoLipIncompleto, setSalvandoLipIncompleto] = useState(false);
+  const [lipFinalizado, setLipFinalizado] = useState(false);
+  // Laudo já emitido (tag "laudo" em processos.tags) — pedido do Fábio, 30/09/2026: o LIP tem que
+  // avisar que o laudo já saiu. Só Regularização por enquanto (desvio por tipo_processo).
+  const [laudoEmitido, setLaudoEmitido] = useState<{ data: string; numero_analise?: number } | null>(null);
+  const [finalizandoLip, setFinalizandoLip] = useState(false);
+  const [laudoOcultos, setLaudoOcultos] = useState<string[]>([]);
+  // Busca de coordenada no Mapa Fácil pelo IPTU (ver `buscarCoordenadas`).
+  const [buscandoCoord, setBuscandoCoord] = useState(false);
+  const [conflitoMapa, setConflitoMapa] = useState<ResultadoMapaFacil | null>(null);
+  /* Arquivos escolhidos no LER PROCESSO que estão esperando o analista dizer se
+   * a leitura substitui o LIP ou só sugere — ver `aoEscolherArquivosLeitura`. */
+  const [leituraPendente, setLeituraPendente] = useState<File[] | null>(null);
+
+  const inputFileRef = useRef<HTMLInputElement>(null);
+  const [progresso, setProgresso] = useState(0);
+  const progressoRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const snapRef = useRef<Record<string, Campo> | null>(null);
+
+  function mostrarToast(msg: string, tipo: "sucesso"|"erro"|"info" = "info") {
+    setToast({ msg, tipo });
+  }
+
+  // Guarda o assunto_id resolvido do processo — usado para pedir a IA (s2/s3)
+  // o prompt do slot certo. Ref (não state) porque é lido dentro de handlers async.
+  const assuntoIdRef = useRef<string | null>(null);
+
+  // Assuntos ativos vindos do banco. Sem isto, um slot novo (slot_05,
+  // slot_06…) cairia no `else` do `rotuloTipo` e a tela chamaria de
+  // "Regularização SEI" um processo que não é — e a caixa "Ir para
+  // processo" só oferecia Regularização, que era opção fixa no código.
+  const [assuntosAtivos, setAssuntosAtivos] = useState<{ slug: string; nome: string; numeracao?: string | null }[]>([]);
+  useEffect(() => {
+    let vivo = true;
+    fetch("/api/admin/assuntos")
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo || !j?.ok || !Array.isArray(j.data)) return;
+        setAssuntosAtivos(
+          j.data.filter((x: any) => x?.ativo === true)
+            .map((x: any) => ({ slug: x.slug, nome: x.nome, numeracao: x.numeracao })),
+        );
+      })
+      .catch(() => { /* fica no rótulo estático */ });
+    return () => { vivo = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!modalDI || !assuntoIdRef.current) return;
+    fetch(`/api/despacho-padroes?assunto_id=${assuntoIdRef.current}&modulo=LIP&tipo_despacho=interno`)
+      .then(r => r.json()).then(json => { if (json.ok) setPadroesDI(json.data); }).catch(() => {});
+  }, [modalDI]);
+
+  const nomeAssunto = assuntosAtivos.find((a) => a.slug === tipoUrl)?.nome ?? null;
+  // Como ESTE assunto numera seus processos (SEI x alvará/OS).
+  const perfilNum = perfilDe(assuntosAtivos.find((a) => a.slug === tipoUrl)?.numeracao);
+  // E como numera o assunto escolhido na caixa de navegação, que pode ser outro.
+  const perfilNumNavegacao = perfilDe(assuntosAtivos.find((a) => a.slug === tipoNavegacao)?.numeracao);
+
+  useEffect(() => {
+    // Sessão 4: LIP é parametrizado por assunto. Antes de buscar abas/campos,
+    // resolvemos o assunto_id do processo (via /api/regularizacao-sei/processo/carregar). Se
+    // o processo é legado ou ainda não foi criado, caímos para fetch sem
+    // filtro (que retorna todas as abas — compat).
+    async function inicializar() {
+      setCarregandoAbas(true);
+      let assuntoIdAlvo: string | null = null;
+      if (idUrl) {
+        try {
+          const resProc = await fetch(
+            `/api/regularizacao-sei/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`,
+          );
+          const jsonProc = await resProc.json().catch(() => null);
+          if (jsonProc?.ok) {
+            assuntoIdAlvo = jsonProc.data?.assunto_id ?? null;
+          }
+        } catch {
+          // segue sem assunto_id (fallback)
+        }
+      }
+      // Fallback: se processo não tem assunto_id, usa Regularização (slot_01)
+      // NUNCA busca sem filtro — evita misturar abas de slots diferentes
+      if (!assuntoIdAlvo) {
+        try {
+          const resAssunto = await fetch("/api/admin/assuntos");
+          const jsonAssunto = await resAssunto.json().catch(() => null);
+          const reg = jsonAssunto?.data?.find((a: {slug: string; id: string}) => a.slug === SLUG_REGULARIZACAO_SEI);
+          if (reg?.id) assuntoIdAlvo = reg.id;
+        } catch { /* mantém null */ }
+      }
+      assuntoIdRef.current = assuntoIdAlvo;
+      const urlAbas = assuntoIdAlvo
+        ? `/api/regularizacao-sei/lip/estrutura?assunto_id=${encodeURIComponent(assuntoIdAlvo)}`
+        : "/api/regularizacao-sei/lip/estrutura?assunto_id=none"; // fallback seguro — retorna vazio
+      const res = await fetch(urlAbas);
+      const json = await res.json();
+      if (json.ok) {
+        setAbasDB(json.data);
+        const estadoInicial: Record<string, Campo> = {};
+        for (const aba of json.data) {
+          for (const campo of aba.lip_campos) {
+            estadoInicial[campo.chave] = padrao(campo.valor_padrao || "");
+          }
+        }
+        estadoInicial["processo"] = base();
+        estadoInicial["pag"] = base(); // campo do Slot 1/2
+        setD(estadoInicial);
+        snapRef.current = estadoInicial;
+      }
+      setCarregandoAbas(false);
+    }
+    inicializar();
+  }, [idUrl, tipoUrl]);
+
+  async function carregarHistorico() {
+    try {
+      const res = await fetch(`/api/regularizacao-sei/processo/historico?id=${idUrl}`);
+      const meRes = await fetch("/api/auth/me");
+      if (meRes.ok) { const meJson = await meRes.json(); const p = Array.isArray(meJson.data?.perfis) ? meJson.data.perfis : (meJson.data?.perfil ? [meJson.data.perfil] : []); setPerfisUsuario(p); }
+      const json = await res.json();
+      if (json?.ok) setHistorico(json.data ?? []);
+    } catch {}
+  }
+
+  const carregarProcesso = useCallback(async () => {
+    if (!idUrl) return;
+    try {
+      setCarregando(true);
+      carregandoRef.current = true;
+      const res = await fetch(`/api/regularizacao-sei/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
+      const texto = await res.text();
+      let json: any = null;
+      try { json = texto ? JSON.parse(texto) : null; } catch {
+        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+      }
+      if (!json?.ok || !json?.data?.dados) {
+        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+      }
+      setProcessoDbId(json.data.id ?? null);
+      setLipIncompleto(json.data.lip_incompleto === true);
+      setLipFinalizado(json.data.lip_finalizado === true);
+      {
+        const tagLaudo = (Array.isArray(json.data.tags) ? json.data.tags : [])
+          .filter((t: any) => t && typeof t === "object" && t.tipo === "laudo")
+          .pop();
+        setLaudoEmitido(tagLaudo ? { data: String(tagLaudo.data || new Date(tagLaudo.criado_em).toLocaleDateString("pt-BR")), numero_analise: tagLaudo.numero_analise } : null);
+      }
+      setLaudoOcultos(Array.isArray(json.data.laudo_campos_ocultos) ? json.data.laudo_campos_ocultos : []);
+      const dadosSalvos = json.data.dados;
+      setD((prev) => {
+        const atualizado = { ...prev };
+        for (const chave in atualizado) {
+          const salvo = dadosSalvos[chave];
+          if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
+            atualizado[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
+          }
+        }
+        atualizado.processo = { valor: idUrl, origem: "urbis" };
+        snapRef.current = atualizado;
+        return atualizado;
+      });
+    } catch (e) {
+      console.error("Erro ao carregar:", e);
+      setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } }));
+    } finally {
+      setCarregando(false);
+      carregandoRef.current = false;
+    }
+  }, [idUrl, tipoUrl]);
+
+  async function toggleLipIncompleto() {
+    if (!processoDbId || salvandoLipIncompleto) return;
+    const novo = !lipIncompleto;
+    setLipIncompleto(novo); // otimista — a pilha de processos é quem mais se beneficia de resposta imediata
+    setSalvandoLipIncompleto(true);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, lip_incompleto: novo }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) { setLipIncompleto(!novo); mostrarToast("Erro ao marcar LIP não concluído.", "erro"); }
+    } catch {
+      setLipIncompleto(!novo);
+      mostrarToast("Erro ao marcar LIP não concluído.", "erro");
+    } finally {
+      setSalvandoLipIncompleto(false);
+    }
+  }
+
+  /**
+   * "Finalizar LIP" — 08/09/2026, pedido do Fábio, Slot 1 e 2: "ao clicar nele o URBI/tags
+   * entende que o LIP tá finalizado por enquanto e já exporta o Excel do LIP". Diferente de
+   * `lipIncompleto` (que é "sei que falta algo, me lembra"): isso é "decidi parar por aqui e
+   * seguir pro MAC com o que tem" — os dois podem estar marcados ao mesmo tempo. Exporta puxando
+   * o mesmo link que o botão "Exportar Excel" já usa, sem duplicar lógica de geração.
+   */
+  async function finalizarLip() {
+    if (!processoDbId || finalizandoLip) return;
+    setFinalizandoLip(true);
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, lip_finalizado: true }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) { mostrarToast("Erro ao finalizar o LIP.", "erro"); return; }
+      setLipFinalizado(true);
+      const a = document.createElement("a");
+      a.href = `/api/regularizacao-sei/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl}`;
+      a.download = "";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      mostrarToast("LIP finalizado — Excel exportado.", "sucesso");
+    } catch {
+      mostrarToast("Erro ao finalizar o LIP.", "erro");
+    } finally {
+      setFinalizandoLip(false);
+    }
+  }
+
+  async function toggleDestaqueLaudo(chave: string) {
+    if (!processoDbId) return;
+    const ligado = !laudoOcultos.includes(chave);
+    const novo = ligado ? [...laudoOcultos, chave] : laudoOcultos.filter((c) => c !== chave);
+    setLaudoOcultos(novo); // otimista
+    try {
+      const res = await fetch("/api/processos", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: processoDbId, laudo_campos_ocultos: novo }),
+      });
+      const json = await res.json().catch(() => ({ ok: false }));
+      if (!json?.ok) setLaudoOcultos(laudoOcultos); // desfaz
+    } catch {
+      setLaudoOcultos(laudoOcultos); // desfaz
+    }
+  }
+
+  useEffect(() => {
+    if (!idUrl || carregandoAbas) return;
+    carregarProcesso();
+    carregarHistorico();
+  }, [idUrl, carregandoAbas, carregarProcesso]);
+  useEffect(() => {
+    if (!idUrl) return;
+    const rota = "/api/analise-regularizacao";
+    fetch(`${rota}?codigo=${encodeURIComponent(idUrl)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j.ok && Array.isArray(j.data) && j.data.length > 0) {
+          const ultima = [...j.data].sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+          setAnaliseAtualLIP({ numero_analise: ultima.numero_analise, status: ultima.status, numero_despacho: ultima.numero_despacho, numero_parecer: ultima.numero_parecer });
+        }
+      })
+      .catch(() => {});
+  }, [idUrl, tipoUrl]);
+  // Sincroniza inputs de via quando LIP carrega do banco
+  useEffect(() => {
+    if (d["bairro"]?.valor && !bairroBusca) setBairroBusca(d["bairro"].valor);
+    if (d["logradouro"]?.valor && !logradouroBusca) setLogradouroBusca(d["logradouro"].valor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d["bairro"]?.valor, d["logradouro"]?.valor]);
+
+  const inputImportRef = useRef<HTMLInputElement>(null);
+  const [confirmarMac, setConfirmarMac] = useState(false);
+  // Sem isto os botões MAC → / MAC ↗ / "Ir assim mesmo" ficavam sem nenhum
+  // feedback durante o salvar() (POST com a ficha inteira — no Slot 5 são
+  // 136 campos). O analista, sem ver nada acontecer, clicava de novo, e
+  // cada clique empilhava outro POST e outro router.push.
+  const [indoParaMac, setIndoParaMac] = useState(false);
+  const [importando, setImportando] = useState(false);
+  async function importarExcel(file: File) {
+    if (!file) return;
+    try {
+      setImportando(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("codigo", idUrl);
+      fd.append("tipo", tipoUrl);
+      const res = await fetch("/api/regularizacao-sei/processo/importar-lip", { method: "POST", body: fd });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || !json?.ok) {
+        mostrarToast(`Erro ao importar: ${json?.erro || res.statusText}`, "erro");
+        return;
+      }
+      const naoEnc = Array.isArray(json.naoEncontrados) ? json.naoEncontrados.length : 0;
+      mostrarToast(
+        `✅ Importação concluída: ${json.atualizados} campo(s) atualizado(s)${naoEnc ? ` · ${naoEnc} não encontrado(s)` : ""}`,
+        "sucesso",
+      );
+      await carregarProcesso();
+      await carregarHistorico();
+    } catch (e: any) {
+      mostrarToast(`Erro ao importar: ${e?.message || "falha inesperada"}`, "erro");
+    } finally {
+      setImportando(false);
+      if (inputImportRef.current) inputImportRef.current.value = "";
+    }
+  }
+
+  /* Estado que está esperando o debounce de 2s. Fica num ref (não em state) porque quem lê é o
+   * descarregador do clique, fora do ciclo de renderização — e porque um render no meio da
+   * digitação não pode zerar o que ainda não foi gravado. */
+  const pendenteRef = useRef<Record<string, Campo> | null>(null);
+
+  const gravarPendente = useCallback(async () => {
+    const estado = pendenteRef.current;
+    if (!estado) return;
+    // Trava enquanto a ficha ainda está carregando (ver carregandoRef acima) — não descarta a
+    // edição pendente, só adia: fica em pendenteRef até o próximo gatilho (debounce seguinte ou
+    // clique) já com a ficha carregada.
+    if (carregandoRef.current) return;
+    pendenteRef.current = null;
+    if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
+    // Auto-save blindado: salva mesmo com campos padrão vazios (CONFERIR)
+    // para que a análise no MAC receba os itens não conformes correspondentes.
+    const iguais = snapRef.current && Object.keys(estado).every(
+      (k) => estado[k]?.valor === snapRef.current![k]?.valor
+    );
+    if (iguais) return;
+    try {
+      setStatusSalvo("salvando");
+      const res = await fetch("/api/regularizacao-sei/processo/salvar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
+      });
+      const json = await res.json();
+      if (json?.ok) {
+        snapRef.current = estado;
+        setStatusSalvo("salvo");
+        await carregarHistorico();
+        setTimeout(() => setStatusSalvo("idle"), 3000);
+      } else if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
+        mostrarToast("⚠️ Sessão expirada. Faça login em nova aba e salve novamente.", "erro");
+        setStatusSalvo("erro");
+      } else {
+        setStatusSalvo("erro");
+      }
+    } catch { setStatusSalvo("erro"); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idUrl, tipoUrl]);
+
+  const autoSalvar = useCallback((estado: Record<string, Campo>) => {
+    pendenteRef.current = estado;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { void gravarPendente(); }, 2000);
+  }, [gravarPendente]);
+
+  /* QUALQUER CLIQUE NA TELA GRAVA (pedido do Fábio, 26/08/2026).
+   *
+   * Não é um salvamento por clique: é o ADIANTAMENTO do que já estava agendado. Sem nada pendente
+   * (`pendenteRef` nulo), o clique não faz nada — nenhuma requisição extra sai. Com campo digitado
+   * esperando os 2s, o clique descarrega na hora.
+   *
+   * Fecha a janela de perda de digitar e fechar a aba/trocar de janela dentro dos 2s.
+   * `visibilitychange` cobre o fechar/trocar de aba; a fase de captura garante que a gravação
+   * dispare mesmo em clique de elemento que chama `stopPropagation`. */
+  useEffect(() => {
+    const descarregar = () => { if (pendenteRef.current) void gravarPendente(); };
+    const aoEsconder = () => { if (document.visibilityState === "hidden") descarregar(); };
+    document.addEventListener("click", descarregar, true);
+    document.addEventListener("visibilitychange", aoEsconder);
+    return () => {
+      document.removeEventListener("click", descarregar, true);
+      document.removeEventListener("visibilitychange", aoEsconder);
+    };
+  }, [gravarPendente]);
+
+  function u(chave: string, valor: string) {
+    setD((prev) => {
+      const novo = { ...prev, [chave]: { valor, origem: "manual" as Origem } };
+      autoSalvar(novo);
+      return novo;
+    });
+  }
+
+  function confirmar(chave: string) {
+    /* `inferido` entra aqui junto com `padrao` porque o gesto é o mesmo — o analista olhou e
+     * assumiu o valor — mas o motivo é oposto: em `padrao` falta valor; em `inferido` o valor
+     * existe e NÃO foi lido, foi deduzido por modelo. Enquanto não passar por aqui, não vale
+     * no laudo (ver `camposInferidosPendentes`). */
+    if (d[chave]?.origem === "padrao" || d[chave]?.origem === "inferido") {
+      setD((prev) => {
+        const novo = { ...prev, [chave]: { valor: prev[chave].valor, origem: "manual" as Origem } };
+        autoSalvar(novo);
+        return novo;
+      });
+    }
+  }
+
+  /**
+   * Busca a coordenada do imóvel no Mapa Fácil a partir do IPTU do formulário —
+   * o mesmo caminho que o analista faz à mão no portal.
+   *
+   * Regra do analista, e ela manda no desenho desta função: a coordenada é
+   * preenchida SEMPRE que o imóvel for localizado, mesmo com o endereço
+   * divergindo. O cadastro do município costuma estar defasado, então
+   * divergência é aviso, nunca impedimento — quem decide é o analista. O que o
+   * URBIS faz é preencher, dizer o que não bateu e abrir o Mapa Fácil para
+   * conferência.
+   */
+  async function buscarCoordenadas() {
+    // Defesa em profundidade: o botão já não aparece fora dos slots
+    // autorizados, mas a função não confia só nisso.
+    if (!coordenadasMapaFacilHabilitado) return;
+    const iptu = (d["iptu"]?.valor ?? "").replace(/\D/g, "");
+    if (!iptu) {
+      mostrarToast("Preencha o IPTU antes — a coordenada é buscada por ele.", "erro");
+      return;
+    }
+    setBuscandoCoord(true);
+    setConflitoMapa(null);
+    try {
+      const res = await fetch(`/api/mapa/coordenadas?iptu=${encodeURIComponent(iptu)}`);
+      const json = await res.json();
+      if (!json?.ok) {
+        mostrarToast(`🗺 ${json?.erro || "Não foi possível consultar o Mapa Fácil."}`, "erro");
+        return;
+      }
+
+      const confrontos = confrontarEndereco(
+        {
+          logradouro: d["logradouro"]?.valor,
+          quadra: d["quadra"]?.valor,
+          lote: d["lote"]?.valor,
+          bairro: d["bairro"]?.valor,
+        },
+        json.cadastro,
+      );
+      const { divergentes } = resumoConfronto(confrontos);
+
+      // Preenche primeiro: é o que o analista veio buscar.
+      setD((prev) => {
+        const novo: Record<string, Campo> = {
+          ...prev,
+          coordenadas: {
+            valor: json.coordenadas,
+            origem: "urbis" as Origem,
+            fonte: `Mapa Fácil — IPTU ${json.iptuEncontrado ?? iptu}`,
+          },
+        };
+        const carimbo = new Date().toLocaleString("pt-BR");
+        const linhas = [
+          `=== COORDENADAS pelo Mapa Fácil (${carimbo}) ===`,
+          `IPTU consultado: ${iptu}${json.exato ? "" : ` — casou por aproximação com ${json.iptuEncontrado}`}`,
+          `Coordenadas: ${json.coordenadas}`,
+          ...(divergentes.length
+            ? [
+                `⚠ Endereço a conferir — o cadastro do Mapa Fácil pode estar desatualizado:`,
+                ...divergentes.map((c) => `   ${c.rotulo}: LIP "${c.lip}" × Mapa Fácil "${c.mapa}"`),
+              ]
+            : ["Endereço confere com o cadastro."]),
+        ].join("\n");
+        const obsAtual = novo["observacoes"]?.valor ?? "";
+        novo["observacoes"] = {
+          valor: obsAtual ? linhas + "\n\n" + obsAtual : linhas,
+          origem: "urbis" as Origem,
+          fonte: "Mapa Fácil",
+        };
+        autoSalvar(novo);
+        return novo;
+      });
+
+      registrar({
+        modulo: "LIP", acao: "LIP_COORDENADAS_MAPA_FACIL", processo_codigo: idUrl, origem: "IA",
+        detalhe: { iptu, coordenadas: json.coordenadas, divergencias: divergentes.map((c) => c.campo) },
+      });
+
+      /* NO SLOT 5, o painel abre SEMPRE — inclusive quando tudo bate (26/08/2026, pedido do
+       * Fábio). Antes só aparecia havendo divergência: no 48533 o LIP já estava na mesma grafia
+       * do cadastro, então a busca preenchia a coordenada, mostrava um toast e sumia — e o
+       * analista ficava sem o caminho para o Mapa Fácil justamente onde queria ir olhar o lote.
+       * Conferência que bate também é informação.
+       *
+       * Nos demais slots o comportamento antigo fica INTACTO (só abre havendo o que conferir):
+       * esta tela é um arquivo só para os 15 slots, e a autorização desta sessão é do Slot 5 —
+       * mudar o fluxo do Slot 1 aqui seria mexer nele sem pedido (ver CLAUDE.md). Para estender,
+       * basta o Fábio pedir para aquele slot. */
+      const abrirPainelSempre = ehSlot5;
+      if (abrirPainelSempre || divergentes.length > 0 || !json.exato) {
+        setConflitoMapa({
+          coordenadas: json.coordenadas,
+          iptu: json.iptuEncontrado ?? iptu,
+          exato: json.exato,
+          cadastro: json.cadastro,
+          confrontos,
+        });
+      }
+      if (divergentes.length > 0 || !json.exato) {
+        mostrarToast(`📍 Coordenadas preenchidas — ${divergentes.length} campo(s) de endereço a conferir.`, "info");
+      } else {
+        mostrarToast("📍 Coordenadas preenchidas — endereço confere com o cadastro.", "sucesso");
+      }
+    } catch (e: any) {
+      mostrarToast(`🗺 Falha ao consultar o Mapa Fácil: ${e?.message ?? "erro inesperado"}`, "erro");
+    } finally {
+      setBuscandoCoord(false);
+    }
+  }
+
+  async function buscarBairros(q: string) {
+    setBairroBusca(q);
+    if (q.length < 2) { setBairrosBusca([]); return; }
+    const res = await fetch(`/api/logradouros?tipo=bairros&q=${encodeURIComponent(q)}`);
+    const json = await res.json();
+    if (json.ok) setBairrosBusca(json.data);
+  }
+  async function selecionarBairro(bairro: string) {
+    setBairroBusca(bairro); setBairrosBusca([]);
+    u("bairro", bairro);
+    setLogradouroBusca(""); setLogradourosBusca([]); setDadosLogradouro(null);
+  }
+  async function buscarLogradouros(q: string, bairro: string) {
+    setLogradouroBusca(q);
+    if (q.length < 2 || !bairro) { setLogradourosBusca([]); return; }
+    const res = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairro)}&q=${encodeURIComponent(q)}`);
+    const json = await res.json();
+    if (json.ok) setLogradourosBusca(json.data);
+  }
+  async function selecionarLogradouro(logradouro: string, bairro: string) {
+    setLogradouroBusca(logradouro); setLogradourosBusca([]);
+    u("logradouro", logradouro);
+    const res = await fetch(`/api/logradouros?bairro=${encodeURIComponent(bairro)}&logradouro=${encodeURIComponent(logradouro)}`);
+    const json = await res.json();
+    if (json.ok) setDadosLogradouro(json.data);
+  }
+
+  function navegarParaProcesso() {
+    const id = novoProcesso.trim();
+    if (!id) return;
+    const tipoNorm = tipoNavegacao;
+    router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipoNorm)}`);
+    setNovoProcesso("");
+  }
+
+  function iniciarProgresso() {
+    setProgresso(0);
+    let p = 0;
+    progressoRef.current = setInterval(() => {
+      p += Math.random() * 3;
+      if (p >= 80) { p = 80; if (progressoRef.current) clearInterval(progressoRef.current); }
+      setProgresso(Math.round(p));
+    }, 300);
+  }
+
+  /** Desliga a rampa por tempo — usada quando o servidor passa a informar o andamento de verdade. */
+  function pararProgressoFalso() {
+    if (progressoRef.current) { clearInterval(progressoRef.current); progressoRef.current = null; }
+  }
+
+  function finalizarProgresso() {
+    if (progressoRef.current) clearInterval(progressoRef.current);
+    setProgresso(100);
+    setTimeout(() => setProgresso(0), 1500);
+  }
+
+  // Formata um documento do mapa S2 de forma defensiva (nome/tipo, SEI, página)
+  function formatarDocLeitura(d: any): string {
+    if (!d) return "";
+    if (typeof d === "string") return d;
+    const nome = d.nome || d.tipo || d.documento || d.descricao || "Documento";
+    const sei = d.sei || d.numero_sei || d.numeroSei || d.numero || null;
+    const pag = d.pagina || d.paginas || d.pag || d.pages || null;
+    const partes: string[] = [];
+    if (sei) partes.push(`SEI ${sei}`);
+    if (pag) partes.push(`pág. ${pag}`);
+    return partes.length ? `${nome} (${partes.join(", ")})` : String(nome);
+  }
+
+  // Empilha um bloco no campo Observações do LIP: o mais recente EM CIMA, o anterior desce.
+  function anexarObsLip(bloco: string) {
+    setD((prev) => {
+      const novo = { ...prev };
+      const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
+      novo["observacoes"] = { valor: obsAtual ? bloco + "\n\n" + obsAtual : bloco, origem: "urbis", fonte: "LIP" };
+      autoSalvar(novo);
+      return novo;
+    });
+  }
+
+  async function aguardarJobS3(jobId: string): Promise<any> {
+    if (!jobId) throw new Error("S3: jobId ausente");
+    return new Promise((resolve, reject) => {
+      let tentativas = 0;
+      const MAX = 144; // 144 × 5s = 12 minutos
+      const interval = setInterval(async () => {
+        tentativas++;
+        try {
+          const poll = await fetch(`/api/regularizacao-sei/lip/s3/status?jobId=${encodeURIComponent(jobId)}`);
+          if (!poll.ok) { return; } // erro de rede, continua polling
+          const data = await poll.json();
+          console.log(`[S3-poll] tentativa=${tentativas} status=${data.status} temResultado=${!!data.resultado}`);
+          if (data.status === "concluido") {
+            if (!data.resultado) { return; } // ainda salvando, aguarda próximo ciclo
+            clearInterval(interval);
+            resolve(data.resultado);
+          } else if (data.status === "erro") {
+            clearInterval(interval);
+            reject(new Error("S3: " + (data.erro || "Erro no processamento")));
+          } else if (tentativas >= MAX) {
+            clearInterval(interval);
+            reject(new Error("S3: Timeout — processamento demorou mais de 12 minutos"));
+          }
+        } catch (e) {
+          console.warn(`[S3-poll] erro tentativa ${tentativas}:`, e);
+        }
+      }, 5000);
+    });
+  }
+
+  /* ─────────────────────────────────────────────────────────────────────────
+   * LER PASTA — triagem local do slot 5, ANTES de gastar Gemini.
+   *
+   * O `lerLip` manda cada arquivo por S1+S2+S3, ou seja três chamadas ao
+   * Gemini por arquivo. Apontar a pasta inteira sem filtrar custaria trinta
+   * chamadas e mandaria o DWG e os documentos pessoais escaneados junto.
+   *
+   * Aqui nada vai para a rede: a pasta é a rodada (raiz = 1ª análise, cada
+   * subpasta a seguinte), o hash derruba arquivo repetido, e três papéis
+   * ficam fora por decisão do analista — documentos pessoais e declaração de
+   * responsabilidade são escopo da CHEADV, e o DWG não é legível.
+   *
+   * Ver docs/PROMPT_LEITURA_PASTA_SLOT5.md
+   * ───────────────────────────────────────────────────────────────────────── */
+  function aoEscolherArquivosLeitura(arquivos: File[]) {
+    const jaPreenchido = Object.values(d).some(
+      (v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido"
+    );
+    if (jaPreenchido) setLeituraPendente(arquivos);
+    else lerLip(arquivos, "substituir");
+  }
+
+  /**
+   * `origem`: Bloco B do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — quando
+   * "LER ARQUIVOS INDIVIDUAIS" (Slot 1/2) junta os arquivos num PDF só e chama esta MESMA função
+   * (em vez do pipeline separado de `processarVCP`), o cabeçalho da OBS precisa dizer que a
+   * origem foi arquivos individuais, não "LER PROCESSO" — e listar os nomes originais, já que
+   * `arquivos` aqui chega como 1 único File juntado. Sem `origem`, o texto sai idêntico ao de
+   * sempre (nenhum chamador existente passa esse parâmetro).
+   */
+  async function lerLip(
+    arquivos: File[],
+    modo: "substituir" | "sugerir" = "substituir",
+    origem?: { rotulo: string; arquivos: string[] },
+  ) {
+    const _t0Leitura = Date.now();
+    const _dataLeitura = new Date().toLocaleString("pt-BR");
+    let _docsLeitura: any[] = [];
+    let _incompatLeitura: string[] = [];
+    let _veredicto: VeredictoMarcoTemporal | null = null;
+    /** Bloco E do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md. */
+    let _macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" | null = null;
+    try {
+      setLendoLip(true);
+      setTempoLeitura(0);
+      if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
+      tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
+      setProgresso(5);
+      mostrarToast(
+        origem
+          ? `📄 Iniciando leitura de ${origem.arquivos.length} arquivo(s) juntos...`
+          : `📄 Iniciando leitura de ${arquivos.length} arquivo(s)...`,
+        "info",
+      );
+
+      const resultados = [];
+      for (const arquivo of arquivos) {
+        resultados.push(await (async (arquivo) => {
+          // 1.5. Fase 8 — "não pagar duas vezes": mesmo arquivo (bytes idênticos) já lido antes
+          // pula S1/S2/S3 inteiros. Melhor esforço: qualquer falha aqui (rede, tabela ainda não
+          // migrada) cai no caminho de sempre, nunca bloqueia a leitura.
+          let hashArquivo: string | null = null;
+          try {
+            hashArquivo = await hashCompletoBytes(await arquivo.arrayBuffer());
+            // Slot, assunto e processo entram na chave: sem eles o mesmo PDF lido no Slot 1
+            // devolvia a extração do Slot 1 para o Slot 2, e editar o prompt não surtia efeito.
+            const cacheQuery = new URLSearchParams({
+              hash: hashArquivo, codigo: idUrl, tipoProcesso: tipoUrl,
+              assuntoId: assuntoIdRef.current ?? "",
+            });
+            const cacheRes = await fetch(`/api/regularizacao-sei/lip/cache-gemini?${cacheQuery}`).then(r => r.json());
+            if (cacheRes.ok && cacheRes.encontrado) {
+              mostrarToast("♻️ Documento já lido antes — reaproveitando, sem custo novo", "info");
+              registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_REAPROVEITADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name, hash: hashArquivo } });
+              return {
+                campos: cacheRes.campos ?? {},
+                alertasMAC: cacheRes.alertasMAC ?? [],
+                validacoes: cacheRes.validacoes ?? {},
+                pendencias: cacheRes.pendencias ?? [],
+                marcoTemporal: cacheRes.marcoTemporal ?? null,
+                tipoProcesso: cacheRes.tipoProcesso ?? null,
+                // Cache antigo (de antes do Bloco E) não tem essa chave — vira null, sem quebrar.
+                macSugestao: cacheRes.macSugestao ?? null,
+                documentos: cacheRes.documentos ?? [],
+              };
+            }
+          } catch { /* cache indisponível — segue a leitura normalmente */ }
+
+          // 2. S1 — Upload para Gemini File API (streaming direto)
+          // Tamanho não bloqueia mais por si: acima do teto do modelo padrão a leitura sobe
+          // sozinha para o modelo que suporta (Fase 2 — lib/modeloGemini.ts). O que ainda barra é
+          // o teto do servidor, e para esse caso a saída é fatiar o PDF, não comprimir.
+          if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
+            throw new Error(`PDF "${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita. Use o Fatiador de PDF SEI (menu principal) para separar os documentos e leia por partes.`);
+          }
+          const avisoModelo = avisoModeloArquivoGrande(arquivo.size);
+          if (avisoModelo) mostrarToast(`⚠️ ${avisoModelo}`, "info");
+          setProgresso(20);
+          mostrarToast("📤 S1: Enviando PDF para Gemini...", "info");
+          // O tipo vai junto: print de tela (PNG/JPG) precisa chegar ao
+          // Gemini como imagem, não como PDF.
+          const tipoArquivo = arquivo.type || "application/pdf";
+          const s1Res = await fetch("/api/regularizacao-sei/lip/s1", {
+            method: "POST",
+            headers: {
+              "Content-Type": tipoArquivo,
+              "X-File-Type": tipoArquivo,
+              "X-File-Size": arquivo.size.toString(),
+              "X-File-Name": arquivo.name,
+              "X-Processo-Codigo": idUrl,
+              "X-Slot": tipoUrl,
+            },
+            body: arquivo,
+          });
+          const s1Data = await s1Res.json();
+          if (!s1Data.ok) throw new Error("S1: " + (s1Data.erro || "Erro ao enviar PDF"));
+          const { fileUri } = s1Data;
+
+          // 3. S2 — Mapa de documentos
+          setProgresso(45);
+          mostrarToast("🗂 S2: Mapeando documentos do processo...", "info");
+          const s2Res = await fetch("/api/regularizacao-sei/lip/s2", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }),
+          });
+          const s2Data = await s2Res.json();
+          const documentos = s2Data.ok ? (s2Data.documentos ?? []) : [];
+
+          // 4. S3 — Extração inteligente do LIP
+          registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_INICIADA", processo_codigo: idUrl, origem: "IA", detalhe: { arquivo: arquivo.name } });
+          setProgresso(70);
+          mostrarToast("🧠 S3: Preenchendo LIP com IA...", "info");
+          const pdfBase64 = await new Promise<string>((res) => {
+            const r = new FileReader();
+            r.onload = () => res((r.result as string).split(",")[1]);
+            r.readAsDataURL(arquivo);
+          });
+          const s3Init = await fetch("/api/regularizacao-sei/lip/s3", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, tamanhoBytes: arquivo.size }),
+          }).then(r => r.json());
+          if (!s3Init.ok) {
+            if (s3Init.erro === "LIMITE_DIARIO_GEMINI" || s3Init.erro === "BUDGET_EXCEDIDO") {
+              try { await fetch("/api/regularizacao-sei/lip/registrar-evento", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: idUrl, fileName: arquivo.name, status: "LIMITE" }) }); } catch (_) {}
+            }
+            throw new Error("S3: " + (s3Init.erro || "Erro ao iniciar leitura"));
+          }
+          mostrarToast("⏳ Lendo PDF com IA... isso pode levar alguns minutos", "info");
+          const s3Data = await aguardarJobS3(s3Init.jobId);
+
+          registrar({ modulo: "LIP", acao: "LIP_ANALISE_IA_CONCLUIDA", processo_codigo: idUrl, origem: "IA", detalhe: { campos: Object.keys(s3Data.campos ?? {}).length, alertas: (s3Data.alertasMAC ?? []).length } });
+          const resultadoLeitura = {
+            campos: s3Data.campos ?? {},
+            alertasMAC: s3Data.alertasMAC ?? [],
+            validacoes: s3Data.validacoes ?? {},
+            pendencias: s3Data.pendencias ?? [],
+            marcoTemporal: s3Data.marcoTemporal ?? null,
+            tipoProcesso: s3Data.tipoProcesso ?? null,
+            macSugestao: s3Data.macSugestao ?? null,
+            documentos,
+          };
+          // Fase 8 — grava no cache pro PRÓXIMO reimport do mesmo arquivo não custar de novo.
+          // Melhor esforço: nunca espera nem derruba a leitura que já terminou com sucesso.
+          if (hashArquivo) {
+            fetch("/api/regularizacao-sei/lip/cache-gemini", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ hash: hashArquivo, processoCodigo: idUrl, resultado: resultadoLeitura, tipoProcesso: tipoUrl, assuntoId: assuntoIdRef.current ?? "" }),
+            }).catch(() => {});
+          }
+          return resultadoLeitura;
+        })(arquivo));
+      }
+
+      // Coleta documentos e incompatibilidades de todos os arquivos lidos
+      for (const r of resultados) {
+        if (Array.isArray((r as any).documentos)) _docsLeitura.push(...(r as any).documentos);
+        if (Array.isArray((r as any).pendencias)) _incompatLeitura.push(...(r as any).pendencias);
+        if (Array.isArray((r as any).alertasMAC)) _incompatLeitura.push(...(r as any).alertasMAC);
+      }
+
+      // Bloco E: "processado depois vence", mesmo critério do resto da função — com 1 arquivo só
+      // (o caso normal, inclusive depois do Bloco B) é só o resultado dele mesmo.
+      for (const r of resultados) {
+        const m = (r as any).macSugestao;
+        if (m) _macSugestao = m;
+      }
+
+      // ── Marco temporal (LC 314/2018) ──────────────────────────────
+      // Vale o pior veredito entre os arquivos lidos: basta uma vistoria
+      // reprovar para o processo não passar. O veredito é do fiscal — o
+      // URBIS só lê o último laudo e repassa.
+      const _comMarco = resultados
+        .map((r) => avaliarMarcoTemporalDoSlot((r as any).tipoProcesso ?? tipoUrl, (r as any).marcoTemporal))
+        .filter((v): v is VeredictoMarcoTemporal => v !== null);
+      _veredicto =
+        _comMarco.find((v) => v.naoApta === true) ??
+        _comMarco.find((v) => v.naoApta === null) ??
+        _comMarco[0] ??
+        null;
+      if (_veredicto?.naoApta === true) {
+        setAlertaMarco(_veredicto);
+        registrar({
+          modulo: "LIP",
+          acao: "LIP_MARCO_TEMPORAL_REPROVADO",
+          processo_codigo: idUrl,
+          origem: "IA",
+          detalhe: { marco: _veredicto.marco.data, leitura: _veredicto.leitura },
+        });
+      }
+
+      setProgresso(90);
+
+      const mesclado: Record<string, { valor: string; fonte: string }> = {};
+      for (const { campos } of resultados) {
+        for (const chave of Object.keys(campos)) {
+          const item = campos[chave];
+          if (!mesclado[chave]?.valor && item?.valor && item.valor !== "NP") {
+            mesclado[chave] = item;
+          }
+        }
+      }
+
+      if (modo === "sugerir") {
+        /* Nada entra no formulário: cada valor vira sugestão no seu campo, com
+         * botão de aceitar. O que o analista já tinha fica intacto. */
+        const sugestoes: Record<string, string> = {};
+        Object.keys(mesclado).forEach((chave) => {
+          const item = mesclado[chave];
+          if (item?.valor && item.valor !== "NP") sugestoes[chave] = item.valor;
+        });
+        setVcpSugestoes(sugestoes);
+      } else {
+        setVcpSugestoes({});
+        setD((prev) => {
+          const novo = { ...prev };
+          Object.keys(mesclado).forEach((chave) => {
+            const item = mesclado[chave];
+            if (!item?.valor) return;
+            // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
+            novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          });
+          corrigirSeiFisico(novo, idUrl);
+          autoSalvar(novo);
+          return novo;
+        });
+      }
+
+      const preenchidos = Object.values(mesclado).filter((v: any) => v?.valor && v.valor !== "NP").length;
+
+      // ── Registro da leitura (Observações) — status, documentos, incompatibilidades, tempo ──
+      const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
+      const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const _linhasDoc = _docsLeitura.length
+        ? _docsLeitura.map((d) => `  • ${formatarDocLeitura(d)}`).join("\n")
+        : "  • (mapa de documentos não retornado pela IA)";
+      const _incompatUnicas = Array.from(new Set(_incompatLeitura.filter(Boolean).map(String)));
+      const _linhasIncompat = _incompatUnicas.length
+        ? _incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n")
+        : "  • Nenhuma incompatibilidade apontada pela IA.";
+      const _linhasMarco = _veredicto
+        ? "\n" + [
+            `⚖️ Marco temporal (LC nº 314/2018 — limite ${_veredicto.marco.data}):`,
+            `  ${_veredicto.naoApta === true ? "⛔" : _veredicto.naoApta === false ? "✅" : "⚠"} ${_veredicto.mensagem}`,
+            `  • Conclusão da obra segundo a vistoria: ${_veredicto.leitura.dataConclusaoObra || "Não informado"}`,
+            `  • Parecer do fiscal: ${_veredicto.leitura.parecerFiscal || "Não informado"}`,
+            ...(_veredicto.leitura.fonte ? [`  • Fonte: ${_veredicto.leitura.fonte}`] : []),
+            ...(_veredicto.leitura.trecho ? [`  • Trecho: "${_veredicto.leitura.trecho}"`] : []),
+          ].join("\n")
+        : "";
+      // Bloco E: só aparece quando a ponte de fato tentou rodar (interruptor ligado + slot
+      // elegível) — "desligado"/null vira silêncio total, pra não gerar ruído numa leitura comum
+      // enquanto o interruptor tiver que ficar desligado pela maior parte do tempo.
+      const _linhaMacSugestao =
+        _macSugestao === "gravada" ? "\n🔗 Checklist do MAC: sugestão gravada — abra o MAC para aplicar."
+        : _macSugestao === "sem_analise_mac" ? "\n🔗 Checklist do MAC: sem sugestão — a análise do MAC ainda não foi criada para este processo."
+        : _macSugestao === "falhou" ? "\n🔗 Checklist do MAC: tentou gerar a sugestão e falhou — conferir manualmente."
+        : "";
+      const _cabecalho = origem
+        ? `━━━ LEITURA DO PROCESSO (LIP) — ${origem.rotulo} ━━━\n📎 Arquivos: ${origem.arquivos.join(", ")}\n`
+        : `━━━ LEITURA DO PROCESSO (LIP) ━━━\n`;
+      const _bloco =
+        _cabecalho +
+        `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Modo: ${modo.toUpperCase()} | Duração: ${_mm}:${_ss} | ${preenchidos} campo(s) ${modo === "sugerir" ? "sugerido(s)" : "preenchido(s)"}\n` +
+        `📄 Documentos analisados (${_docsLeitura.length}):\n${_linhasDoc}\n` +
+        `🔎 Incompatibilidades:\n${_linhasIncompat}` +
+        _linhasMarco +
+        _linhaMacSugestao;
+      anexarObsLip(_bloco);
+
+      mostrarToast(
+        modo === "sugerir"
+          ? `✅ ${preenchidos} sugestões nos campos — nada foi sobrescrito. Aceite uma a uma.`
+          : `✅ LIP preenchido! ${preenchidos} campos extraídos.`,
+        "sucesso",
+      );
+    } catch (e: any) {
+      mostrarToast("❌ Erro: " + e.message, "erro");
+      const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
+      const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
+      const _ss = String(_seg % 60).padStart(2, "0");
+      const _pctLido = typeof progresso === "number" ? progresso : 0;
+      const _cabecalhoErro = origem
+        ? `━━━ LEITURA DO PROCESSO (LIP) — ${origem.rotulo} ━━━\n📎 Arquivos: ${origem.arquivos.join(", ")}\n`
+        : `━━━ LEITURA DO PROCESSO (LIP) ━━━\n`;
+      const _blocoErro =
+        _cabecalhoErro +
+        `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_mm}:${_ss} | Progresso: ${_pctLido}%\n` +
+        `⚠ Motivo: ${e.message}`;
+      anexarObsLip(_blocoErro);
+    } finally {
+      if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
+      setTempoLeitura(0);
+      setLendoLip(false);
+      finalizarProgresso();
+    }
+  }
+
+  function detectarTipoArquivo(nome: string): string {
+    const n = nome.toUpperCase();
+    if (n.includes("VISTORIA") || n.includes("FISCAL")) return "VISTORIA";
+    if (n.includes("USO")) return "USO_SOLO";
+    if (n.includes("CHEADV")) return "CHEADV";
+    if (n.includes("PROJETO") || n.includes("LEVANTAMENTO") || n.includes("PLANTA")) return "PROJETO";
+    if (n.includes("CERTIDAO") || n.includes("CERTIDÃO") || n.includes("MATRICULA")) return "CERTIDAO";
+    if (n.includes("ART") || n.includes("RRT")) return "ART";
+    if (n.includes("LAUDO")) return "LAUDO";
+    if (n.includes("BUSCA")) return "BUSCA";
+    if (n.includes("EMBARGO")) return "EMBARGO";
+    if (n.includes("ONEROSA") || n.includes("OUTORGA")) return "ONEROSA";
+    if (n.includes("PROCURACAO") || n.includes("PROCURAÇÃO")) return "PROCURACAO";
+    if (n.includes("DESPACHO")) return "DESPACHO";
+    return "OUTRO";
+  }
+
+  function extrairSEIArquivo(nome: string): string | null {
+    const m = nome.match(/\b(\d{7,})\b/);
+    return m ? m[1] : null;
+  }
+
+  /**
+   * Bloco B do plano docs/PLANO_LEITURA_INDIVIDUAL_E_ACEITE_SLOT2.md — Slot 1 (Regularização) e
+   * Slot 2 (Aceite) juntam os arquivos escolhidos num PDF só e leem pelo MESMO caminho de
+   * "LER PROCESSO" (`lerLip`), em vez do pipeline antigo (1 chamada por arquivo, isolado, mais
+   * abaixo em `processarVCP`). Corrige na raiz o "Não" que o modelo dá quando só não viu o
+   * documento — ver o cabeçalho de `juntarArquivosLeitura.ts`. Outros slots (ex.: Slot 5) NÃO
+   * usam este caminho: `marcoTemporalDoTipo` só reconhece "regularizacao*"/"aceite*", então
+   * qualquer outro `tipoUrl` cai direto no `processarVCP` de sempre, intocado.
+   */
+  async function processarVCPComoLeituraUnica() {
+    setVcpProcessando(true);
+    setModalVCP(false);
+    try {
+      const nomes = vcpArquivos.map((a) => a.name);
+      mostrarToast(`📎 Juntando ${vcpArquivos.length} arquivo(s) para ler como um só...`, "info");
+      const arquivoJuntado = await juntarArquivosComoFile(
+        vcpArquivos,
+        `${idUrl} - arquivos individuais (${vcpArquivos.length}).pdf`,
+      );
+      if (arquivoJuntado.size > LIMITE_BYTES_PLATAFORMA) {
+        throw new Error(
+          `Os ${vcpArquivos.length} arquivos somam ${(arquivoJuntado.size / 1024 / 1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA / 1024 / 1024}MB o servidor não aceita numa leitura só. Leia em dois lotes menores.`,
+        );
+      }
+      // Mesma regra de modo que o VCP antigo usava: só pergunta substituir/sugerir quando já
+      // existe algo preenchido por IA/manual; processo vazio sempre substitui (nada a perder).
+      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido");
+      const modoFinal: "substituir" | "sugerir" = lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir";
+      await lerLip([arquivoJuntado], modoFinal, { rotulo: "ARQUIVOS INDIVIDUAIS", arquivos: nomes });
+      setVcpModo(null);
+      setVcpArquivos([]);
+    } catch (e: any) {
+      mostrarToast("❌ Erro ao juntar/ler arquivos: " + (e?.message ?? e), "erro");
+    } finally {
+      setVcpProcessando(false);
+    }
+  }
+
+  async function processarVCP() {
+    if (vcpArquivos.length === 0) return;
+    if (marcoTemporalDoSlot(tipoUrl) !== null) return processarVCPComoLeituraUnica();
+    setVcpProcessando(true);
+    setModalVCP(false);
+    setTempoLeitura(0);
+    tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
+    try {
+      mostrarToast(`📄 VCP: Processando ${vcpArquivos.length} arquivo(s)...`, "info");
+      // 1. Processar cada PDF via Gemini serializado (S1→S2→S3)
+      const total = vcpArquivos.length;
+      const resultados: { nome: string; tipo: string; sei: string | null; campos: Record<string, any> }[] = [];
+      for (let i = 0; i < total; i++) {
+        const arquivo = vcpArquivos[i];
+        setProgresso(Math.round(10 + (i / total) * 60));
+        mostrarToast(`📄 VCP: Lendo ${arquivo.name} (${i + 1}/${total})...`, "info");
+        if (arquivo.size > LIMITE_BYTES_PLATAFORMA) {
+          throw new Error(`"${arquivo.name}" tem ${(arquivo.size/1024/1024).toFixed(0)}MB — acima de ${LIMITE_BYTES_PLATAFORMA/1024/1024}MB o servidor não aceita.`);
+        }
+        const avisoModeloVcp = avisoModeloArquivoGrande(arquivo.size);
+        if (avisoModeloVcp) mostrarToast(`⚠️ ${avisoModeloVcp}`, "info");
+
+        // Fase 8 — "não pagar duas vezes", mesmo cache da leitura de processo inteiro
+        // (app/api/regularizacao-sei/lip/cache-gemini). Melhor esforço: qualquer falha cai no caminho de sempre.
+        let hashArquivoVcp: string | null = null;
+        let camposVcpDoCache: Record<string, any> | null = null;
+        try {
+          hashArquivoVcp = await hashCompletoBytes(await arquivo.arrayBuffer());
+          const cacheQueryVcp = new URLSearchParams({
+            hash: hashArquivoVcp, codigo: idUrl, tipoProcesso: tipoUrl,
+            assuntoId: assuntoIdRef.current ?? "",
+          });
+          const cacheResVcp = await fetch(`/api/regularizacao-sei/lip/cache-gemini?${cacheQueryVcp}`).then(r => r.json());
+          if (cacheResVcp.ok && cacheResVcp.encontrado) camposVcpDoCache = cacheResVcp.campos ?? {};
+        } catch { /* cache indisponível — segue a leitura normalmente */ }
+
+        if (camposVcpDoCache) {
+          mostrarToast(`♻️ VCP: ${arquivo.name} já lido antes — reaproveitando`, "info");
+          resultados.push({
+            nome: arquivo.name, tipo: detectarTipoArquivo(arquivo.name),
+            sei: extrairSEIArquivo(arquivo.name), campos: camposVcpDoCache,
+          });
+          continue;
+        }
+
+        const tipoVcp = arquivo.type || "application/pdf";
+        const s1Res = await fetch("/api/regularizacao-sei/lip/s1", {
+          method: "POST",
+          headers: { "Content-Type": tipoVcp, "X-File-Type": tipoVcp, "X-File-Size": arquivo.size.toString(), "X-File-Name": arquivo.name, "X-Processo-Codigo": idUrl, "X-Slot": tipoUrl },
+          body: arquivo,
+        });
+        const s1Data = await s1Res.json();
+        if (!s1Data.ok) throw new Error("S1: " + s1Data.erro);
+        const s2Res = await fetch("/api/regularizacao-sei/lip/s2", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }) });
+        const s2Data = await s2Res.json();
+        const pdfBase64vcp = await new Promise<string>((res) => {
+          const r = new FileReader();
+          r.onload = () => res((r.result as string).split(",")[1]);
+          r.readAsDataURL(arquivo);
+        });
+        const s3VcpInit = await fetch("/api/regularizacao-sei/lip/s3", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileUri: s1Data.fileUri, documentos: s2Data.documentos ?? [], codigo: idUrl, fileName: arquivo.name, pdfBase64: pdfBase64vcp, assunto_id: assuntoIdRef.current, tamanhoBytes: arquivo.size }) }).then(r => r.json());
+        if (!s3VcpInit.ok) throw new Error("S3: " + (s3VcpInit.erro || "Erro ao iniciar leitura"));
+        mostrarToast(`⏳ VCP: Processando ${arquivo.name} com IA...`, "info");
+        const s3VcpData = await aguardarJobS3(s3VcpInit.jobId);
+        resultados.push({
+          nome: arquivo.name,
+          tipo: detectarTipoArquivo(arquivo.name),
+          sei: extrairSEIArquivo(arquivo.name),
+          campos: s3VcpData.campos ?? {},
+        });
+        if (hashArquivoVcp) {
+          fetch("/api/regularizacao-sei/lip/cache-gemini", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ hash: hashArquivoVcp, processoCodigo: idUrl, resultado: { campos: s3VcpData.campos ?? {} }, tipoProcesso: tipoUrl, assuntoId: assuntoIdRef.current ?? "" }),
+          }).catch(() => {});
+        }
+      }
+      setProgresso(80);
+      mostrarToast("🔍 VCP: Cruzando dados entre documentos...", "info");
+      // 2. Mesclar campos no LIP
+      const mesclado: Record<string, { valor: string; fonte: string }> = {};
+      for (const { campos } of resultados) {
+        for (const chave of Object.keys(campos)) {
+          const item = campos[chave];
+          if (!mesclado[chave]?.valor && item?.valor && item.valor !== "NP") mesclado[chave] = item;
+        }
+      }
+      // 3. S4 — cruzamento
+      const s4Res = await fetch("/api/regularizacao-sei/lip/s4", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ arquivos: resultados, tipoProcesso: tipoUrl }) });
+      const s4Data = await s4Res.json();
+      setProgresso(95);
+      // 4. Salvar campos mesclados + OBS
+      const lipJaPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual" || v?.origem === "inferido");
+      const modoFinal = lipJaPreenchido ? (vcpModo ?? "substituir") : "substituir";
+      const agora = new Date().toLocaleTimeString("pt-BR");
+      const nomeArquivos = vcpArquivos.map((a: File) => a.name).join(", ");
+      const logCabecalho = `=== VCP ${agora} | Modo: ${modoFinal.toUpperCase()} | Arquivos: ${nomeArquivos} ===`;
+      if (modoFinal === "sugerir") {
+        const sugestoes: Record<string, string> = {};
+        Object.keys(mesclado).forEach((chave) => {
+          const item = mesclado[chave];
+          if (item?.valor && item.valor !== "NP") sugestoes[chave] = item.valor;
+        });
+        // Sugestões do S4 (divergências) — primeira opção diferente do valor atual
+        if (s4Data.sugestoesVCP) {
+          for (const [chave, info] of Object.entries(s4Data.sugestoesVCP as Record<string, { opcoes: string[]; descricao: string }>)) {
+            const valAtual = (d[chave]?.valor ?? "").toUpperCase();
+            const opcaoDiferente = info.opcoes.find(o => o.toUpperCase() !== valAtual);
+            if (opcaoDiferente) sugestoes[chave] = opcaoDiferente;
+          }
+        }
+        setVcpSugestoes(sugestoes);
+        setD((prev) => {
+          const novo = { ...prev };
+          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+          const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
+          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
+          autoSalvar(novo);
+          return novo;
+        });
+      } else {
+        setVcpSugestoes({});
+        setD((prev) => {
+          const novo = { ...prev };
+          Object.keys(mesclado).forEach((chave) => {
+            const item = mesclado[chave];
+            if (!item?.valor) return;
+            // pipeline antigo (IA sobre documento inteiro): não produz visão localizada
+            novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
+          });
+          corrigirSeiFisico(novo, idUrl);
+          const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
+          const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
+          novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
+          autoSalvar(novo);
+          return novo;
+        });
+      }
+      // Gravar tempo na OBS
+      const tempoFinal = tempoLeitura;
+      const mm = String(Math.floor(tempoFinal / 60)).padStart(2, '0');
+      const ss = String(tempoFinal % 60).padStart(2, '0');
+      setD((prev) => {
+        const novo = { ...prev };
+        const obsAtual = (novo['observacoes']?.valor ?? '').trim();
+        const linhaTemp = `⏱ VCP concluído em ${mm}:${ss} — ${vcpArquivos.length} arquivo(s) lido(s).`;
+        novo['observacoes'] = { valor: obsAtual ? obsAtual + '\n' + linhaTemp : linhaTemp, origem: 'urbis', fonte: 'VCP' };
+        autoSalvar(novo);
+        return novo;
+      });
+      setVcpModo(null);
+      const totalInc = s4Data.total ?? 0;
+      mostrarToast(totalInc > 0 ? `⚠️ VCP concluído: ${totalInc} inconsistência(s) na aba OBS.` : "✅ VCP concluído: nenhuma inconsistência encontrada.", "sucesso");
+    } catch (e: any) {
+      mostrarToast("❌ VCP: " + e.message, "erro");
+      const agoraErrVCP = new Date().toLocaleString("pt-BR");
+      setD((prev) => {
+        const novo = { ...prev };
+        const obsAtual = (novo["observacoes"]?.valor ?? "").trim();
+        const linhaErro = `❌ ERRO VCP (${agoraErrVCP}): ${e.message}`;
+        novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n" + linhaErro : linhaErro, origem: "urbis", fonte: "VCP" };
+        autoSalvar(novo);
+        return novo;
+      });
+    } finally {
+      if (tempoLeituraRef.current) { clearInterval(tempoLeituraRef.current); tempoLeituraRef.current = null; }
+      setVcpProcessando(false);
+      finalizarProgresso();
+    }
+  }
+
+  async function handleDespachoInterno() {
+    setGerandoDI(true);
+    try {
+      // Slot 1: a mesma rota de sempre (/api/despacho-interno). Os outros slots têm a sua.
+      const res = await fetch("/api/despacho-interno", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ codigo: idUrl, tipoProcesso: tipoUrl, numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoIdRef.current, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find((p) => p.id === padraoSelecionadoDI)?.titulo || null }),
+          });
+      if (!res.ok) throw new Error("Erro");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `DespachoInterno_${idUrl}_${numDI}.docx`; a.click();
+      URL.revokeObjectURL(url);
+      // Confirma o número apenas após download bem-sucedido — e nunca na
+      // reemissão, onde o número já foi consumido na primeira vez.
+      const _num = parseInt(numDI, 10);
+      if (!isNaN(_num) && !reemitindoDI) {
+        for (let i = 0; i < 3; i++) {
+          try {
+            const _c = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=commit&numero=${_num}`, { credentials: "include" });
+            if (_c.ok || (await _c.json()).ok) break;
+          } catch { /* continua */ }
+        }
+      }
+      setModalDI(false);
+    } catch { alert("Erro ao gerar despacho interno"); } finally { setGerandoDI(false); }
+  }
+    async function salvar() {
+    setErroCampos(false);
+    try {
+      setSalvando(true); setStatusSalvo("salvando");
+      const res = await fetch("/api/regularizacao-sei/processo/salvar", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: idUrl, dados: d, tipo: tipoUrl }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json?.ok) {
+        if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
+          mostrarToast("⚠️ Sua sessão expirou. Faça login em uma nova aba e tente salvar novamente.", "erro");
+        } else {
+          mostrarToast("Erro ao salvar: " + (json?.erro || "desconhecido"), "erro");
+        }
+        setStatusSalvo("erro"); return;
+      }
+      snapRef.current = d;
+      setStatusSalvo("salvo");
+      await carregarHistorico();
+      setTimeout(() => setStatusSalvo("idle"), 3000);
+    } catch (e: any) {
+      mostrarToast("Erro: " + (e?.message || "desconhecido"), "erro");
+      setStatusSalvo("erro");
+    } finally { setSalvando(false); }
+  }
+
+  async function restaurar(evento: EventoHistorico) {
+    if (!evento.snapshot) { mostrarToast("Snapshot não disponível.", "erro"); return; }
+    try {
+      setRestaurando(evento.id);
+      const res = await fetch("/api/regularizacao-sei/processo/restaurar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auditoria_id: evento.id, codigo: idUrl }),
+      });
+      const json = await res.json();
+      if (!json?.ok) { mostrarToast("Erro ao restaurar: " + json.erro, "erro"); return; }
+      setD((prev) => {
+        const novo = { ...prev };
+        for (const chave in novo) {
+          const salvo = json.dados[chave];
+          if (salvo && typeof salvo === "object" && "valor" in salvo && "origem" in salvo) {
+            novo[chave] = { valor: salvo.valor ?? "", origem: salvo.origem ?? "manual", fonte: salvo.fonte };
+          }
+        }
+        novo.processo = { valor: idUrl, origem: "urbis" };
+        snapRef.current = novo;
+        return novo;
+      });
+      setConfirmando(null);
+      setEventoAberto(null);
+      await carregarHistorico();
+      setStatusSalvo("salvo");
+      mostrarToast("✅ Processo restaurado com sucesso!", "sucesso");
+      setTimeout(() => setStatusSalvo("idle"), 3000);
+    } catch (e: any) {
+      mostrarToast("Erro: " + e.message, "erro");
+    } finally {
+      setRestaurando(null);
+    }
+  }
+
+  const totalPadrao = Object.entries(d).filter(([k, c]) => k !== "coordenadas" && c.origem === "padrao" && c.valor.trim() === "").length;
+  /* Valor deduzido por modelo que o analista ainda não assumiu. Enquanto estiver nesta lista, o
+   * valor está no formulário mas NÃO vale no laudo — quem fundamenta alvará é o analista, não o
+   * modelo. Confirmar (Enter no campo) converte para `manual` e tira daqui. */
+  const camposInferidosPendentes = Object.entries(d)
+    .filter(([, c]) => c.origem === "inferido" && c.valor.trim() !== "")
+    .map(([k]) => k);
+
+  function renderCampo(campo: CampoDB) {
+    const val = d[campo.chave] ?? padrao(campo.valor_padrao || "");
+    const isPadrao = val.origem === "padrao";
+    const fonte = val.fonte;
+    const ehCoordenadas = campo.chave === "coordenadas";
+    const temValor = val.valor.trim() !== "";
+    const mostrarBotaoMaps = ehCoordenadas && temValor;
+    const mostrarBuscaCoordenadas = ehCoordenadas && coordenadasMapaFacilHabilitado;
+    // Coordenadas são opcionais — não disparam marcação CONFERIR.
+    const mostrarConferir = !ehCoordenadas && isPadrao && !temValor;
+    // Campo que o analista afirmou não ter ("X" digitado, não vazio por
+    // padrão) — sinal próprio, coexiste com CONFERIR: um campo pode nascer
+    // vazio (padrão) e o analista trocar por X depois, ou vice-versa nunca
+    // acontece, mas os dois indicadores respondem a coisas diferentes.
+    const ehX = val.valor.trim().toUpperCase() === "X";
+    const badgeX = ehX && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
+    const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
+    // Destaque do Laudo: só existe Laudo definido pra Regularização SEI
+    // (slot 1) e Aceite SEI (slot 2) — outros slots (ex.: slot_05,
+    // Aprovação de Projeto) usam as MESMAS chaves de campo (proprietario,
+    // areaTotal etc.) mas ainda não têm um Laudo próprio, então não fazem
+    // parte dessa checagem. Por padrão, todo campo em CAMPOS_LAUDO nesses
+    // dois slots fica verde clarinho; o analista pode desligar campo a
+    // campo (não fica "verde pra sempre") — ver toggleDestaqueLaudo.
+    const laudoDefinidoNesteSlot = true;
+    const noLaudo = laudoDefinidoNesteSlot && CAMPOS_LAUDO.has(campo.chave);
+    const laudoAtivo = noLaudo && !laudoOcultos.includes(campo.chave);
+    const bgLaudo = laudoAtivo ? "bg-green-50" : "";
+    const badgeLaudo = noLaudo && (
+      <button type="button" onClick={() => toggleDestaqueLaudo(campo.chave)}
+        title={laudoAtivo ? "Este campo alimenta o Laudo — clique pra tirar o destaque" : "Destaque do Laudo desligado — clique pra religar"}
+        className={`ml-1 text-[9px] font-bold px-1 py-0.5 rounded border align-middle ${laudoAtivo ? "bg-green-100 border-green-400 text-green-700" : "bg-[var(--bg-secondary)] border-[var(--border)] text-[var(--text-muted)]"}`}>
+        LAUDO
+      </button>
+    );
+    // Caixa de recarga — Slot 1 (Regularização SEI) apenas. O corte dos 250m²
+    // da LC 314/2018 (Art. 2º §4º) é conta do sistema, não do analista e não da
+    // IA: comparação numérica sobre a área que já está no LIP. Abaixo do corte
+    // a caixa é DISPENSADA e o campo vazio não vira exigência (a rota de save
+    // também deixa de pré-marcar os itens do MAC — ver lib/caixaRecargaSlot1.ts).
+    // Outros slots não passam por aqui: o Slot 5 tem lei e regra próprias.
+    // Slot 1 (Regularização SEI) tem a mesma nota, pela regra do PRÓPRIO arquivo.
+    const notaCaixa =
+      campo.chave === "caixa" || campo.chave === "artCx"
+        ? avaliarCaixaRecargaDosDados(d)
+        : null;
+    const notaCaixaClasse =
+      notaCaixa?.dispensadaPorArea === true
+        ? "border-green-400 bg-green-50 text-green-800"
+        : notaCaixa?.dispensadaPorArea === false
+          ? "border-amber-400 bg-amber-50 text-amber-800"
+          : "border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-muted)]";
+    const blocoNotaCaixa = notaCaixa && (
+      <div className={`mb-1 p-2 rounded border text-[11px] leading-snug ${notaCaixaClasse}`}>
+        {notaCaixa.dispensadaPorArea === true ? "✔ " : notaCaixa.dispensadaPorArea === false ? "⚠ " : "ℹ "}
+        {notaCaixa.mensagem}
+      </div>
+    );
+    // "janelinha" de ajuda no rótulo — só pra lembrar a regra, não é validação
+    const textoAjuda = AJUDA_CAMPOS[campo.chave];
+    const badgeAjuda = textoAjuda && (
+      <span title={textoAjuda} tabIndex={0}
+        className="ml-1 inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-[var(--border-strong)] text-[9px] text-[var(--text-muted)] cursor-help align-middle">
+        i
+      </span>
+    );
+    if (campo.tipo === "textarea" || campo.chave === "observacoes") {
+      return (
+        <div key={campo.id} className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}{badgeLaudo}
+          </label>
+          <textarea value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+            placeholder={campo.placeholder || campo.label} rows={10}
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-vertical ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
+          {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
+        </div>
+      );
+    }
+
+    if (campo.tipo === "select" && campo.opcoes && campo.opcoes.length > 0) {
+      return (
+        <div key={campo.id} className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+            {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}{badgeLaudo}
+          </label>
+          {blocoNotaCaixa}
+          <select value={val.valor} onChange={(e) => u(campo.chave, e.target.value)}
+            className={`w-full rounded border p-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`}>
+            <option value="">— selecione —</option>
+            {campo.opcoes.map((op) => <option key={op} value={op}>{op}</option>)}
+          </select>
+          {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
+        </div>
+      );
+    }
+
+    return (
+      <div key={campo.id} className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500 font-semibold uppercase tracking-wide">
+          {campo.label}{badgeAjuda}{mostrarConferir && <span className="ml-1 text-orange-500 font-bold">⚠ CONFERIR</span>}{badgeX}
+          {/* Alimentado tanto pelo VCP quanto pela leitura em modo "sugerir" —
+              por isso o rótulo não cita mais um dos dois. */}
+          {temSugestaoVCP && <span className="ml-1 text-yellow-500 font-bold">⚡ SUGESTÃO</span>}{badgeLaudo}
+        </label>
+        {blocoNotaCaixa}
+        {temSugestaoVCP && (
+          <div className="mb-1 p-2 rounded border border-yellow-400 bg-yellow-50 text-xs flex items-center gap-2">
+            <span className="text-yellow-700">⚡ Sugestão da leitura: <strong>{vcpSugestoes[campo.chave]}</strong></span>
+            <button onClick={() => { u(campo.chave, vcpSugestoes[campo.chave]); setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; }); }}
+              className="ml-auto px-2 py-0.5 rounded bg-yellow-400 hover:bg-yellow-500 text-white font-bold text-xs">Aceitar</button>
+            <button onClick={() => setVcpSugestoes(prev => { const n = {...prev}; delete n[campo.chave]; return n; })}
+              className="px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-xs">Manter</button>
+          </div>
+        )}
+        <div className="relative">
+          <input value={val.valor} onFocus={() => { valorAnteriorRef.current[campo.chave] = val.valor; }} onChange={(e) => {
+            const v = e.target.value;
+            if (campo.chave === "iptu") { u(campo.chave, v.replace(/\D/g, "")); return; }
+            if (campo.chave === "cau") {
+              // CAU-AXXXXXXX ou CAU AXXXXXXX → normaliza para CAU AXXXXXXX
+              const norm = v.toUpperCase().replace(/[^A-Z0-9\s\-]/g, "");
+              u(campo.chave, norm); return;
+            }
+            if (campo.chave === "crea") {
+              // CREA XXXXX/UF → aceita números, letras, barra, hífen
+              const norm = v.toUpperCase().replace(/[^A-Z0-9\/\-\s]/g, "");
+              u(campo.chave, norm); return;
+            }
+            u(campo.chave, v);
+          }}
+            onBlur={(e) => {
+              if (campo.chave === "cau") { u(campo.chave, e.target.value.toUpperCase().trim()); }
+              else if (campo.chave === "crea") u(campo.chave, normalizarRegistro(e.target.value, "crea"));
+              const anterior = valorAnteriorRef.current[campo.chave] ?? "";
+              const atual = e.target.value;
+              if (atual !== anterior) {
+                registrar({ modulo: "LIP", acao: "LIP_CAMPO_ALTERADO", processo_codigo: idUrl, origem: "MANUAL",
+                  detalhe: { campo: campo.chave, label: campo.label, valor_anterior: anterior, valor_novo: atual } });
+              }
+              // Rotina padrão de dicas do URBI: ao preencher o responsável
+              // técnico, consulta o histórico factual dele (Módulo
+              // Profissionais) e, se houver algo relevante, dispara a
+              // dica. Silencioso em qualquer falha — nunca atrapalha o save.
+              if ((campo.chave === "nome_responsavel_arq" || campo.chave === "nome_responsavel_eng") && atual.trim() && atual !== anterior) {
+                const qs = new URLSearchParams({
+                  nome: atual.trim(),
+                  cau: d.cau?.valor ?? "",
+                  crea: d.crea?.valor ?? "",
+                  processo_atual: idUrl,
+                });
+                fetch(`/api/profissionais/historico?${qs.toString()}`)
+                  .then((r) => (r.ok ? r.json() : null))
+                  .then((json) => {
+                    if (json?.ok && json.encontrado && json.mensagem) {
+                      window.dispatchEvent(new CustomEvent("urbi:dica", { detail: { processoId: idUrl, mensagem: json.mensagem } }));
+                    }
+                  })
+                  .catch(() => {});
+              }
+            }}
+            onKeyDown={(e) => e.key === "Enter" && confirmar(campo.chave)}
+            placeholder={campo.placeholder || campo.label}
+            className={`w-full rounded border p-2 ${mostrarBuscaCoordenadas ? (temValor ? "pr-24" : "pr-10") : (mostrarBotaoMaps ? "pr-9" : "")} text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${cor(val.origem)} ${borderCor(val.origem, val.valor)} ${bgLaudo}`} />
+          {/* Buscar no Mapa Fácil aparece com o campo VAZIO também — é justamente
+              quando o analista precisa dele. Os atalhos de mapa abaixo só fazem
+              sentido havendo coordenada. Só nos slots autorizados — ver
+              `coordenadasMapaFacilHabilitado`. */}
+          {mostrarBuscaCoordenadas && (
+            <button
+              type="button"
+              onClick={buscarCoordenadas}
+              disabled={buscandoCoord}
+              title="Buscar coordenadas no Mapa Fácil pelo IPTU"
+              aria-label="Buscar coordenadas no Mapa Fácil pelo IPTU"
+              className={`absolute ${temValor ? "right-16" : "right-2"} top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50`}
+            >{buscandoCoord ? "⏳" : "🗺"}</button>
+          )}
+          {mostrarBotaoMaps && (
+            <>
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(parseCoords(val.valor))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no Google Maps"
+              aria-label="Abrir coordenadas no Google Maps"
+              className="absolute right-8 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            >📍</a>
+
+            <a
+              href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(val.valor))}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir no Google Earth"
+              aria-label="Abrir coordenadas no Google Earth"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-base leading-none px-1 rounded hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            >🌍</a>
+            </>
+          )}
+        </div>
+        {fonte && val.origem === "original" && <span className="text-xs text-gray-400 italic">📍 {fonte}</span>}
+      </div>
+    );
+  }
+
+  const legenda = [
+    { cor: "bg-[var(--text-primary)]", label: "Original (documento)" },
+    { cor: "bg-[#2563EB]", label: "Urbis (automático)" },
+    { cor: "bg-[#7C3AED]", label: "Inferido por visão (conferir!)" },
+    { cor: "bg-[var(--accent)]", label: "Manual (digitado)" },
+    { cor: "bg-[#EA580C]", label: "Padrão (conferir!)" },
+    { cor: "bg-green-200 border border-green-400", label: "Fundo verde = alimenta o Laudo" },
+  ];
+  // "Preenchido" é o que alguém de fato preencheu — leitura da IA ou
+  // digitação. Valor padrão não conta: com 59 padrões na Aprovação de
+  // Projeto, o LIP abria dizendo que 59 campos já estavam preenchidos,
+  // o que inflava o percentual e escondia o trabalho que faltava.
+  const camposPreenchidos = Object.entries(d).filter(
+    ([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "" && c.origem !== "padrao",
+  );
+  const totalPadraoComValor = Object.entries(d).filter(
+    ([k, c]) => k !== "coordenadas" && c.valor?.trim() !== "" && c.origem === "padrao",
+  ).length;
+  const totalPreenchidos = camposPreenchidos.length;
+  const totalUrbis = camposPreenchidos.filter(([_, c]) => c.origem === "urbis").length;
+  /* Denominador pedido pelo Fábio (26/08/2026): "97 lidos" sozinho não diz de quanto. O total é
+   * o número de campos que a ficha TEM — é ele que mostra o tamanho do que ainda falta. */
+  const totalCampos = Object.keys(d).filter((k) => k !== "coordenadas").length;
+  const pctIA = totalPreenchidos > 0 ? Math.round((totalUrbis / totalPreenchidos) * 100) : 0;
+  /* EFICIÊNCIA DA LEITURA — pedido do Fábio (26/08/2026). O anel de fora responde "do que está
+   * preenchido, quanto veio do sistema" e por isso marca 100% mesmo com metade da ficha vazia.
+   * Esta é a pergunta que importa: dos campos que o LIP TEM, quantos a leitura conseguiu
+   * preencher. É ela que mostra se a leitura está melhorando de um processo para o outro. */
+  const pctLido = totalCampos > 0 ? Math.round((totalUrbis / totalCampos) * 100) : 0;
+
+  if (carregandoAbas) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-primary)] flex items-center justify-center">
+        <p className="text-[var(--text-muted)]">Carregando estrutura do formulário...</p>
+      </div>
+    );
+  }
+
+  const abaAtual = abasDB[aba];
+  const isUltimaAba = aba === abasDB.length - 1;
+
+  return (
+    <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
+      {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      {alertaMarco && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+            <h2 className="text-lg font-bold text-red-400 mb-1">⛔ MARCO TEMPORAL NÃO ATENDIDO</h2>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Lei Complementar nº 314, de 05 de novembro de 2018 — {alertaMarco.marco.rotulo}: limite {alertaMarco.marco.data}
+            </p>
+            <p className="text-sm text-[var(--text-primary)] mb-4">
+              Segundo a <strong>última vistoria fiscal</strong>, a edificação <strong>não está apta</strong>:
+              a estrutura não estava concluída antes de {alertaMarco.marco.data}.
+            </p>
+            <p className="text-sm text-red-300 font-semibold mb-4">
+              Este processo deve ser INDEFERIDO por não atender ao marco temporal da
+              Lei Complementar nº 314/2018 — não há necessidade de analisá-lo.
+            </p>
+            <div className="bg-[var(--bg-secondary)] rounded-lg p-3 mb-4 text-xs space-y-1">
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--text-muted)]">Conclusão da obra segundo a vistoria:</span>{" "}
+                <strong className="text-[var(--text-primary)]">{alertaMarco.leitura.dataConclusaoObra || "Não informado"}</strong>
+              </p>
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--text-muted)]">Parecer do fiscal:</span>{" "}
+                <strong className="text-[var(--text-primary)]">{alertaMarco.leitura.parecerFiscal || "Não informado"}</strong>
+              </p>
+              {alertaMarco.leitura.fonte && (
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text-muted)]">Fonte:</span> {alertaMarco.leitura.fonte}
+                </p>
+              )}
+              {alertaMarco.leitura.trecho && (
+                <p className="text-[var(--text-muted)] italic pt-1 border-t border-[var(--border)]">
+                  “{alertaMarco.leitura.trecho}”
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Confira o laudo antes de decidir — o URBIS apenas repassa o que o fiscal registrou.
+              O registro completo ficou nas Observações do LIP.
+            </p>
+            <button onClick={() => setAlertaMarco(null)}
+              className="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 rounded-lg text-sm">
+              Entendi
+            </button>
+          </div>
+        </div>
+      )}
+      {modalLimparLip && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-red-400 mb-2">⚠️ ATENÇÃO — AÇÃO IRREVERSÍVEL</h2>
+            <p className="text-sm text-[var(--text-primary)] mb-2">
+              Você está prestes a <strong>apagar todos os dados do LIP</strong> deste processo —
+              os <strong>{Object.values(d).filter((c) => c?.valor?.trim()).length} campo(s)</strong> preenchidos,
+              lidos ou digitados.
+            </p>
+            <p className="text-sm text-red-300 font-semibold mb-2">
+              Não há desfazer. O que foi lido da pasta só volta rodando o LER PASTA de novo; o que
+              você digitou à mão, só digitando outra vez.
+            </p>
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Exporte o Excel antes se quiser poder restaurar.
+            </p>
+            <label className="block text-xs font-semibold text-[var(--text-secondary)] mb-1">
+              Para confirmar, escreva <b className="text-red-400">LIMPAR</b> abaixo:
+            </label>
+            <input autoFocus value={confirmaLimparLip}
+              onChange={(e) => setConfirmaLimparLip(e.target.value.toUpperCase())}
+              placeholder="LIMPAR"
+              className="w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm font-mono mb-4 focus:outline-none focus:ring-2 focus:ring-red-600" />
+            <div className="flex gap-3">
+              <button onClick={() => { setModalLimparLip(false); setConfirmaLimparLip(""); }}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm">
+                Cancelar
+              </button>
+              <button
+                disabled={confirmaLimparLip.trim() !== "LIMPAR"}
+                onClick={async () => {
+                  setD({});
+                  setModalLimparLip(false);
+                  setConfirmaLimparLip("");
+                  /* GRAVA. Antes isto só fazia setD({}) — a tela zerava, o banco não, e os campos
+                   * voltavam no próximo carregamento como se nada tivesse acontecido. */
+                  try {
+                    await fetch("/api/regularizacao-sei/processo/salvar", {
+                      method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ id: idUrl, dados: {}, tipo: tipoUrl }),
+                    });
+                    mostrarToast("🗑️ LIP zerado e gravado.");
+                  } catch {
+                    mostrarToast("⚠ LIP zerado na tela, mas a gravação falhou — recarregue antes de continuar.");
+                  }
+                }}
+                className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Confirmar — Limpar tudo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* MHD — HISTÓRICO DOCUMENTAL. Módulo satélite: o LIP só consulta. */}
+      {mhd && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setMhd(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl w-full max-w-4xl max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-[var(--bg-card)] border-b border-[var(--border)] p-4">
+              <p className="text-base font-bold text-[var(--text-primary)]">🗂 Histórico Documental (MHD)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">
+                {mhd.ativo
+                  ? `${mhd.totais.documentos} documento(s) · ${mhd.totais.versoes} versão(ões) · ${mhd.totais.paginasIA} página(s) enviadas à IA no total`
+                  : "módulo ainda não instalado"}
+              </p>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {!mhd.ativo && (
+                <p className="text-xs text-[#EA580C]">{mhd.aviso}</p>
+              )}
+
+              {mhd.ativo && !mhd.documentos.length && (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Nenhum documento na memória ainda. Ele começa a se encher na próxima leitura de pasta.
+                </p>
+              )}
+
+              {mhd.documentos.map((d: any) => (
+                <div key={d.id} className="border border-[var(--border)] rounded-lg p-3">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    {d.rotulo} <span className="text-[var(--text-muted)] font-normal">· {d.versoes.length} versão(ões)</span>
+                  </p>
+                  <div className="mt-1 space-y-1">
+                    {d.versoes.map((v: any) => (
+                      <div key={v.id} className="text-xs text-[var(--text-secondary)] flex flex-wrap gap-x-2">
+                        <span className={v.vigente ? "text-[#16A34A] font-semibold" : "text-[var(--text-muted)]"}>
+                          v{v.versao}{v.vigente ? " (vigente)" : ""}
+                        </span>
+                        <span>{v.nome_arquivo}</span>
+                        <span className="text-[var(--text-muted)]">
+                          rodada {v.rodada}
+                          {v.revisao ? ` · ${v.revisao}` : ""}
+                          {v.data_documento ? ` · emitido ${v.data_documento}` : ""}
+                          {v.paginas ? ` · ${v.paginas}p` : ""}
+                          {` · ${v.origem}`}
+                          {v.custo_paginas_ia ? ` · ${v.custo_paginas_ia}p de IA` : " · sem IA"}
+                        </span>
+                        <span className="text-[var(--text-muted)]">
+                          lido em {new Date(v.lido_em).toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {!!mhd.eventos?.length && (
+                <div>
+                  <p className="text-sm font-bold text-[var(--text-primary)] mb-1">Linha do tempo</p>
+                  <div className="space-y-1">
+                    {mhd.eventos.map((e: any) => (
+                      <p key={e.id} className="text-xs text-[var(--text-secondary)]">
+                        <span className="text-[var(--text-muted)]">
+                          {new Date(e.criado_em).toLocaleString("pt-BR")}
+                        </span>{" "}
+                        <span className="text-[var(--text-muted)]">[{e.tipo}]</span> {e.titulo}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-[var(--bg-card)] border-t border-[var(--border)] p-4 flex justify-end">
+              <button onClick={() => setMhd(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PROPOSTA DA LEITURA DA PASTA (slot 5) — nada entra no LIP sem passar por aqui */}
+
+      {/* O LIP já tem conteúdo — perguntar antes de gravar por cima. Só aparece
+          nesse caso; processo novo vai direto para a leitura. */}
+      {leituraPendente && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setLeituraPendente(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Este LIP já está preenchido</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              {leituraPendente.length} arquivo(s) prontos para leitura. Como devo tratar o que já está no LIP —
+              inclusive o que você corrigiu à mão?
+            </p>
+
+            <div className="flex flex-col gap-2 mb-4">
+              <button
+                onClick={() => { const fs = leituraPendente; setLeituraPendente(null); lerLip(fs, "sugerir"); }}
+                className="text-left p-3 rounded border border-[var(--border)] hover:border-[var(--accent)] transition-colors"
+              >
+                <span className="block text-sm font-bold text-[var(--text-primary)]">💡 Sugerir — não sobrescreve nada</span>
+                <span className="block text-xs text-[var(--text-secondary)] mt-0.5">
+                  O que a IA ler aparece como sugestão em cada campo, com botão de aceitar. Suas correções ficam de pé.
+                </span>
+              </button>
+              <button
+                onClick={() => { const fs = leituraPendente; setLeituraPendente(null); lerLip(fs, "substituir"); }}
+                className="text-left p-3 rounded border border-[var(--border)] hover:border-orange-400 transition-colors"
+              >
+                <span className="block text-sm font-bold text-[var(--text-primary)]">🔁 Substituir — grava por cima</span>
+                <span className="block text-xs text-orange-500 mt-0.5">
+                  ⚠️ Todo campo que a IA retornar troca o valor atual, inclusive o que você digitou.
+                </span>
+              </button>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => setLeituraPendente(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resultado da busca de coordenadas. NÃO bloqueia nada: a coordenada já foi
+          gravada antes deste painel aparecer. Ele existe para mostrar o confronto
+          campo a campo e levar o analista ao Mapa Fácil, que dá a palavra final.
+          No Slot 5 abre sempre; nos demais, só havendo o que conferir. */}
+      {conflitoMapa && (() => {
+        // Título e texto mudam conforme o resultado: afirmar "endereço a conferir" num processo em
+        // que os quatro campos bateram seria mentir para o analista.
+        const temDivergencia = conflitoMapa.confrontos.some((c) => c.situacao === "diverge");
+        const precisaAtencao = temDivergencia || !conflitoMapa.exato;
+        return (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setConflitoMapa(null)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-xl shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">
+              {precisaAtencao ? "🗺 Coordenadas preenchidas — endereço a conferir" : "🗺 Coordenadas preenchidas — endereço confere"}
+            </h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              As coordenadas <strong className="text-[var(--text-primary)]">{conflitoMapa.coordenadas}</strong> já estão no
+              LIP.{" "}
+              {precisaAtencao
+                ? "O que segue é só conferência: o cadastro do Mapa Fácil costuma estar desatualizado, principalmente no bairro e no nome da via. A palavra final é sua."
+                : "Todos os campos de endereço batem com o cadastro do município. Os botões abaixo continuam à mão se você quiser olhar o lote no mapa."}
+            </p>
+
+            {!conflitoMapa.exato && (
+              <p className="text-sm bg-orange-50 border border-orange-300 text-orange-800 rounded p-2 mb-3">
+                O IPTU informado não tem inscrição idêntica no cadastro — casou por aproximação com <strong>{conflitoMapa.iptu}</strong>.
+              </p>
+            )}
+
+            <table className="w-full text-sm mb-4">
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                  <th className="text-left py-1">Campo</th>
+                  <th className="text-left py-1">No LIP (Uso do Solo)</th>
+                  <th className="text-left py-1">No Mapa Fácil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflitoMapa.confrontos.map((c) => (
+                  <tr key={c.campo} className="border-t border-[var(--border)]">
+                    <td className="py-1.5 pr-2 whitespace-nowrap">
+                      {c.situacao === "bate" ? "✅" : c.situacao === "diverge" ? "⚠️" : "—"} {c.rotulo}
+                    </td>
+                    <td className={`py-1.5 pr-2 ${c.situacao === "diverge" ? "font-bold text-orange-700" : "text-[var(--text-secondary)]"}`}>
+                      {c.lip || <span className="italic text-[var(--text-muted)]">vazio</span>}
+                    </td>
+                    <td className={`py-1.5 ${c.situacao === "diverge" ? "font-bold text-orange-700" : "text-[var(--text-secondary)]"}`}>
+                      {c.mapa || <span className="italic text-[var(--text-muted)]">vazio</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <p className="text-xs text-[var(--text-muted)] mb-3">
+              Para conferir no portal: o IPTU <strong className="text-[var(--text-primary)]">{conflitoMapa.iptu}</strong> já
+              vai copiado para a área de transferência — no Mapa Fácil, escolha “Cadastro Imobiliário (IPTU)” na
+              lupa e cole.
+            </p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConflitoMapa(null)}
+                className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >Fechar</button>
+              <a
+                href={`https://maps.google.com/?q=${encodeURIComponent(conflitoMapa.coordenadas)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="px-4 py-2 rounded font-bold text-sm bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >📍 Ver no Google Maps</a>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(conflitoMapa.iptu).catch(() => {});
+                  /* Deep link pro Mapa Fácil já com o IPTU buscado — pedido do Fábio (26/08/2026).
+                   * Tentativa original usava `?query=1==<iptu>` (índice de fonte do widget Search
+                   * do ArcGIS Web AppBuilder), nunca confirmada ao vivo (serviço fora do ar em
+                   * 26/08). TESTADO ao vivo em 16/09/2026 e é inviável: o site é um app JS que
+                   * ignora COMPLETAMENTE a query string — navegar direto pra essa URL abre a home
+                   * com a busca vazia, nada é pré-preenchido. Também não basta digitar o IPTU cru
+                   * na lupa: sem escolher a fonte certa primeiro, ele busca em "Todos" e destaca
+                   * ruas (sistema viário), não o lote — índice real de "Cadastro Imobiliário
+                   * (IPTU)" no menu é 2, não 1 como o comentário anterior assumia (e de qualquer
+                   * forma o índice não pode ser passado pela URL). Não existe deep link possível
+                   * aqui — só abrir a home; o IPTU já copiado pro clipboard e a instrução na tela
+                   * pra escolher "Cadastro Imobiliário (IPTU)" na lupa são o caminho real. */
+                  window.open("https://portalmapa.goiania.go.gov.br/mapafacil/", "_blank", "noopener,noreferrer");
+                }}
+                className="px-4 py-2 rounded font-bold text-sm bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"
+              >🗺 Abrir o Mapa Fácil</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
+
+      {modalVCP && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setModalVCP(false)}>
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-6 w-full max-w-lg shadow-2xl" onClick={e => e.stopPropagation()}>
+            {(() => { const lipPreenchido = Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual"); return (
+            <>
+            <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">📎 Verificação Cruzada de PDFs</h2>
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              ⚠️ Nomeie os arquivos indicando o tipo e o número SEI do documento.<br/>
+              Exemplos: <span className="font-mono text-[var(--accent)]">VISTORIA 9184440.pdf</span>, <span className="font-mono text-[var(--accent)]">USO 6979846.pdf</span>, <span className="font-mono text-[var(--accent)]">CHEADV 9045907.pdf</span>, <span className="font-mono text-[var(--accent)]">PROJETO 8792319.pdf</span>
+            </p>
+            <div
+              className={`border-2 border-dashed rounded-xl p-6 text-center mb-4 transition-colors ${vcpDragOver ? "border-[var(--accent)] bg-[var(--accent)]/10" : "border-[var(--border)] hover:border-[var(--accent)]"}`}
+              onDragOver={e => { e.preventDefault(); setVcpDragOver(true); }}
+              onDragLeave={() => setVcpDragOver(false)}
+              onDrop={e => { e.preventDefault(); setVcpDragOver(false); const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith(".pdf")); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); }}
+            >
+              <p className="text-[var(--text-secondary)] text-sm mb-2">Arraste os PDFs aqui</p>
+              <label className="cursor-pointer text-xs text-[var(--accent)] underline">
+                ou clique para selecionar
+                <input type="file" accept=".pdf,image/*" multiple className="hidden" onChange={e => { const files = Array.from(e.target.files || []); setVcpArquivos(prev => { const nomes = prev.map(p => p.name); return [...prev, ...files.filter(f => !nomes.includes(f.name))]; }); e.target.value = ""; }} />
+              </label>
+            </div>
+            {vcpArquivos.length > 0 && (
+              <div className="mb-4 max-h-48 overflow-y-auto space-y-1">
+                {vcpArquivos.map((f, i) => {
+                  const n = f.name.toUpperCase();
+                  const tipo = n.includes("VISTORIA")||n.includes("FISCAL") ? "VISTORIA" : n.includes("USO") ? "USO_SOLO" : n.includes("CHEADV") ? "CHEADV" : n.includes("PROJETO")||n.includes("LEVANTAMENTO") ? "PROJETO" : n.includes("CERTIDAO")||n.includes("CERTIDÃO") ? "CERTIDAO" : n.includes("ART")||n.includes("RRT") ? "ART" : n.includes("LAUDO") ? "LAUDO" : n.includes("BUSCA") ? "BUSCA" : n.includes("EMBARGO") ? "EMBARGO" : n.includes("ONEROSA") ? "ONEROSA" : "OUTRO";
+                  const sei = f.name.match(/\b(\d{7,})\b/)?.[1] ?? null;
+                  return (
+                    <div key={i} className="flex items-center justify-between bg-[var(--bg-secondary)] rounded px-3 py-1.5 text-xs">
+                      <span className="text-[var(--text-primary)] truncate max-w-[60%]">{f.name}</span>
+                      <span className="text-[var(--accent)] font-mono ml-2">{tipo}{sei ? ` · ${sei}` : " · sem SEI"}</span>
+                      <button onClick={() => setVcpArquivos(prev => prev.filter((_, j) => j !== i))} className="ml-2 text-[var(--text-muted)] hover:text-red-400">✕</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && (
+              <div className="mb-4 bg-[var(--bg-secondary)] rounded-xl p-3">
+                <p className="text-xs text-[var(--text-secondary)] font-semibold mb-2">LIP já preenchido — o que fazer com os campos extraídos?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setVcpModo("substituir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${vcpModo === "substituir" ? "bg-[var(--primary)] text-white border-[var(--primary)]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]"}`}>
+                    🔄 Substituir tudo
+                  </button>
+                  <button onClick={() => setVcpModo("sugerir")} className={`flex-1 py-2 rounded text-xs font-bold border transition-colors ${vcpModo === "sugerir" ? "bg-[var(--primary)] text-white border-[var(--primary)]" : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]"}`}>
+                    💡 Sugerir valores
+                  </button>
+                </div>
+                {vcpModo === "substituir" && <p className="text-xs text-orange-400 mt-1">⚠️ Todos os campos do LIP serão sobrescritos.</p>}
+                {vcpModo === "sugerir" && <p className="text-xs text-green-400 mt-1">✅ Sugestões aparecem em cada campo — você decide o que aceitar.</p>}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setModalVCP(false)} className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Cancelar</button>
+              <button
+                disabled={vcpArquivos.length === 0 || (Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && !vcpModo)}
+                onClick={processarVCP}
+                className={`px-4 py-2 rounded font-bold text-sm ${(vcpArquivos.length === 0 || (Object.values(d).some((v: any) => v?.origem === "urbis" || v?.origem === "manual") && !vcpModo)) ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white"}`}
+              >
+                🔍 Processar ({vcpArquivos.length} arquivo{vcpArquivos.length !== 1 ? "s" : ""})
+              </button>
+            </div>
+            </> ); })()}
+          </div>
+        </div>
+      )}
+      {modalDI && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-[var(--text-primary)] font-bold text-lg">
+                {reemitindoDI ? `🔄 Reemitir Despacho Interno nº ${numDI}` : "📨 Despacho Interno"}
+              </h2>
+              <button onClick={() => setModalDI(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xl">✕</button>
+            </div>
+            {reemitindoDI && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800 font-medium">
+                ⚠ Reemitindo dentro dos 15 min da emissão original — mesmo número, não consome novo da série.
+              </div>
+            )}
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Nº Despacho</label>
+                  <input value={numDICarregando ? "" : numDI} onChange={e => setNumDI(e.target.value)} placeholder={numDICarregando ? "Buscando..." : "Ex: 042"} disabled={numDICarregando} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60" />
+                  {numDIBloqueio && <p className="text-xs text-[var(--error)] mt-1">{numDIBloqueio}</p>}
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Data</label>
+                  <input value={dataDI} onChange={e => setDataDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Destinatário</label>
+                <select value={destinoDI} onChange={e => setDestinoDI(e.target.value)} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  <option value="">Selecione...</option>
+                  <option value="GERECCO">GERECCO</option>
+                  <option value="GERAED">GERAED</option>
+                  <option value="GERAGP">GERAGP</option>
+                  <option value="DIRAAP">DIRAAP</option>
+                  <option value="outro">Outro...</option>
+                </select>
+                {destinoDI === "outro" && (
+                  <input value={destinoCustomDI} onChange={e => setDestinoCustomDI(e.target.value)} placeholder="Informe o destinatário" className="mt-2 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                )}
+              </div>
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">Conteúdo</label>
+                  {padroesDI.length > 0 && (
+                    <select value={padraoSelecionadoDI} onChange={e => {
+                      const id = e.target.value;
+                      setPadraoSelecionadoDI(id);
+                      const p = padroesDI.find(x => x.id === id);
+                      if (p) {
+                        setCorpoDI(p.corpo);
+                        if (p.destinatario_padrao) {
+                          const fixo = ["GERECCO", "GERAED", "GERAGP", "DIRAAP"].includes(p.destinatario_padrao);
+                          setDestinoDI(fixo ? p.destinatario_padrao : "outro");
+                          if (!fixo) setDestinoCustomDI(p.destinatario_padrao);
+                        }
+                      }
+                    }} className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="">Usar um padrão...</option>
+                      {padroesDI.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                    </select>
+                  )}
+                </div>
+                <textarea value={corpoDI} onChange={e => setCorpoDI(e.target.value)} rows={5} placeholder="Redija o conteúdo do despacho interno..." className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={handleDespachoInterno} disabled={gerandoDI || !numDI || !!numDIBloqueio || !destinoDI || !corpoDI}
+                className="flex-1 bg-indigo-700 hover:bg-indigo-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2.5 rounded-lg text-sm transition-colors">
+                {gerandoDI ? "⏳ Gerando..." : reemitindoDI ? "🔄 Reemitir e Baixar" : "📨 Gerar e Baixar"}
+              </button>
+              <button onClick={() => setModalDI(false)}
+                className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2.5 px-4 rounded-lg text-sm transition-colors">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CABEÇALHO */}
+      <div className="flex items-start justify-between mb-6 gap-4">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+          <button onClick={() => router.push("/")}
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🏠 Home
+          </button>
+          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🚪 Sair
+          </button>
+          <button onClick={() => router.push("/processos")}
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            ← Pilha de Processo
+          </button>
+          <button onClick={async () => {
+              if (indoParaMac) return;
+              // Só bloqueia se houver campos marcados com X (pendências reais)
+              if (totalPadrao > 0) { setConfirmarMac(true); return; }
+              setIndoParaMac(true);
+              try {
+                await salvar();
+                const rotaMac = rotaMacDoSlot(tipoUrl);
+                router.push(`${rotaMac}/${encodeURIComponent(idUrl)}`);
+              } finally { setIndoParaMac(false); }
+            }} disabled={indoParaMac}
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+            {indoParaMac ? "Indo..." : "MAC →"}
+          </button>
+          <button onClick={async () => {
+              if (indoParaMac) return;
+              setIndoParaMac(true);
+              try {
+                await salvar();
+                const rotaMac2 = rotaMacDoSlot(tipoUrl);
+                window.open(`${rotaMac2}/${encodeURIComponent(idUrl)}`, "_blank");
+              } finally { setIndoParaMac(false); }
+            }} disabled={indoParaMac}
+            className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-50 text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors border border-[var(--border)]">
+            MAC ↗
+          </button>
+          <button onClick={async () => {
+              setNumDIBloqueio(null);
+              setNumDICarregando(true);
+              try {
+                // Reemissão: só dentro de 15 min do último despacho interno
+                // deste processo — depois disso pede número novo. O
+                // criado_em vem do MDP porque é o único timestamp real.
+                let _reaproveitarDI = false;
+                let _ultimoNumeroDI: string | null = null;
+                try {
+                  const _rm = await fetch(`/api/mdp?processo=${encodeURIComponent(idUrl)}`, { credentials: "include" });
+                  const _jm = await _rm.json();
+                  const _regsDI = (_jm?.data || []).filter((r: any) => r.tipo === "interno");
+                  const _regDI = _regsDI[0]; // já vem ordenado por criado_em desc
+                  if (_regDI?.criado_em && (Date.now() - new Date(_regDI.criado_em).getTime()) / 60000 <= 15) {
+                    _reaproveitarDI = true;
+                    _ultimoNumeroDI = String(_regDI.numero);
+                  }
+                } catch { /* falha na checagem — segue pro caminho de número novo */ }
+                if (_reaproveitarDI && _ultimoNumeroDI) {
+                  setReemitindoDI(true);
+                  setNumDI(_ultimoNumeroDI);
+                  setNumDIBloqueio(null);
+                } else {
+                  setReemitindoDI(false);
+                  const _r = await fetch(`/api/numeracao/proximo?tipo=despacho&processo=${encodeURIComponent(idUrl)}&modo=peek`, { credentials: "include" });
+                  const _j = await _r.json();
+                  if (_j.ok) { setNumDI(String(_j.numero).padStart(3, "0")); setNumDIBloqueio(null); }
+                  else { setNumDI(""); setNumDIBloqueio(_j.esgotado ? "Faixa esgotada. Acesse Configurações → Numeração." : "Nenhuma faixa cadastrada. Acesse Configurações → Numeração."); }
+                }
+              } catch { setNumDI(""); setNumDIBloqueio("Erro ao buscar número de despacho."); }
+              finally { setNumDICarregando(false); }
+              setModalDI(true);
+            }}
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+            📨 Despacho Interno
+          </button>
+          {perfisUsuario.includes("Administrador") && (
+            <button onClick={() => router.push("/admin/lip")}
+              className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+              ⚙️ Gerenciar LIP
+            </button>
+          )}
+          <a
+            href={`/api/regularizacao-sei/processo/exportar-lip?codigo=${encodeURIComponent(idUrl)}&tipo=${tipoUrl}`}
+            download
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+            📊 Exportar Excel
+          </a>
+          <button
+            type="button"
+            onClick={() => inputImportRef.current?.click()}
+            disabled={importando || !idUrl}
+            className="mt-1 bg-[var(--primary)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
+            {importando ? "⏳ Importando..." : "📥 Importar Excel"}
+          </button>
+          <input
+            ref={inputImportRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importarExcel(f);
+            }}
+          />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setModalLimparLip(true)}
+            className="mt-1 bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
+            🗑️ Limpar LIP
+          </button>
+          <button
+            type="button"
+            onClick={toggleLipIncompleto}
+            disabled={!processoDbId || salvandoLipIncompleto}
+            title="Marca este processo com destaque vermelho na pilha de processos, pra lembrar de terminar o LIP depois"
+            className={`mt-1 px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 ${
+              lipIncompleto
+                ? "bg-red-100 border border-red-400 text-red-700 hover:bg-red-200"
+                : "bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-red-400"
+            }`}>
+            {lipIncompleto ? "🔴 LIP não concluído" : "⚪ Marcar LIP não concluído"}
+          </button>
+          {/* Botão "LIP não concluído" — no Slot 1 por pedido explícito do Fábio, 08/09/2026. */}
+          {(
+
+            <button
+              type="button"
+              onClick={finalizarLip}
+              disabled={!processoDbId || finalizandoLip}
+              title="Marca o LIP como finalizado por enquanto (mesmo incompleto) e já exporta o Excel"
+              className={`mt-1 px-3 py-1.5 rounded text-sm font-medium transition-colors disabled:opacity-50 ${
+                lipFinalizado
+                  ? "bg-[var(--success-bg)] border border-[var(--success)] text-[var(--success)]"
+                  : "bg-[var(--bg-secondary)] border border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--success)]"
+              }`}>
+              {finalizandoLip ? "⏳ Finalizando..." : lipFinalizado ? "✅ LIP finalizado" : "🏁 Finalizar LIP"}
+            </button>
+          )}
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">📋 LIP - Leitura Inteligente de Processo</h1>
+            <p className="text-[var(--text-muted)] text-sm mt-1">
+              {perfilNum.rotulo}: <span className="text-[var(--accent)] font-mono">{idUrl || "—"}</span>
+              {" · "}<span className="text-[var(--text-muted)]">{nomeAssunto ?? rotuloTipo(tipoUrl)}</span>
+            </p>
+            {d.proprietario?.valor && (
+              <p className="text-[var(--text-muted)] text-sm mt-0.5">{d.proprietario.valor}</p>
+            )}
+            {analiseAtualLIP && (() => {
+              const emitidos = [
+                analiseAtualLIP.numero_despacho ? `Despacho nº ${analiseAtualLIP.numero_despacho}` : null,
+                analiseAtualLIP.numero_parecer ? `Parecer nº ${analiseAtualLIP.numero_parecer}` : null,
+              ].filter(Boolean);
+              return emitidos.length > 0 ? (
+                <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+                  Análise {analiseAtualLIP.numero_analise} concluída — {emitidos.join(" e ")}
+                </p>
+              ) : (
+                <p className="text-[var(--accent)] text-xs font-bold mt-0.5">
+                  Análise {analiseAtualLIP.numero_analise} em andamento
+                </p>
+              );
+            })()}
+            {laudoEmitido && (
+              <p className="text-[var(--success)] text-xs font-bold mt-0.5">
+                📊 Laudo emitido em {laudoEmitido.data}{laudoEmitido.numero_analise ? ` (Análise ${laudoEmitido.numero_analise})` : ""}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <div className="text-xs h-5">
+            {statusSalvo === "salvando" && <span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}
+            {statusSalvo === "salvo" && <span className="text-[var(--success)]">✓ Salvo automaticamente</span>}
+            {statusSalvo === "erro" && <span className="text-[var(--error)]">✗ Erro ao salvar</span>}
+          </div>
+          <div className="hidden md:flex flex-row items-center gap-4">
+            <div className="flex flex-col gap-1 text-xs">
+              {legenda.map((l) => (
+                <div key={l.label} className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${l.cor}`} />
+                  <span className="text-[var(--text-muted)]">{l.label}</span>
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-col gap-1 text-xs border-l border-[var(--border)] pl-4">
+              {[
+                { emoji: "🗜️", label: "Comprimir PDF", url: "https://www.ilovepdf.com/pt/comprimir_pdf" },
+                { emoji: "🗺️", label: "Mapa Fácil", url: "https://portalmapa.goiania.go.gov.br/mapafacil/" },
+                { emoji: "🚫", label: "Embargos", url: "https://www.goiania.go.gov.br/sistemas/sisce/html/sisce00001f0.htm" },
+                { emoji: "📋", label: "Consultar Uso", url: "https://www10.goiania.go.gov.br/siusoweb/ConsultarIntegridadeUsoSolo.aspx" },
+              ].map((u) => (
+                <a key={u.label} href={u.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors cursor-pointer">
+                  <span>{u.emoji}</span>
+                  <span>{u.label}</span>
+                </a>
+              ))}
+            </div>
+            {/* MONITOR IA — dois anéis LADO A LADO, mesmo tamanho (pedido do Fábio, 26/08/2026).
+                Empilhar os dois números no centro de um anel só confundia: o de fora responde uma
+                pergunta e o de dentro outra, e não dava para saber qual era qual. */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-3">
+                {([
+                  { pct: pctIA, cor: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444", rotulo: "do preenchido" },
+                  { pct: pctLido, cor: "#2563EB", rotulo: "eficiência" },
+                ] as const).map((a) => (
+                  <div key={a.rotulo} className="flex flex-col items-center gap-0.5">
+                    <svg width="72" height="72" viewBox="0 0 72 72">
+                      <circle cx="36" cy="36" r="30" fill="none" stroke="var(--border)" strokeWidth="7" />
+                      <circle cx="36" cy="36" r="30" fill="none" stroke={a.cor} strokeWidth="7"
+                        strokeDasharray={`${(a.pct / 100) * 2 * Math.PI * 30} ${2 * Math.PI * 30}`}
+                        strokeLinecap="round" transform="rotate(-90 36 36)" />
+                      <text x="36" y="41" textAnchor="middle" fontSize="17" fontWeight="bold" fill={a.cor}>
+                        {a.pct}%
+                      </text>
+                    </svg>
+                    <span className="text-[9px] font-semibold" style={{ color: a.cor }}>{a.rotulo}</span>
+                  </div>
+                ))}
+              </div>
+              <span className="text-xs text-[var(--text-muted)] font-semibold">Monitor IA</span>
+              <span className="text-[10px] text-[var(--text-muted)] text-center leading-tight">
+                {totalUrbis} de {totalCampos} lidos · {totalPreenchidos - totalUrbis} digitados
+                {totalPadraoComValor > 0 && <><br /><span className="text-[#EA580C]">{totalPadraoComValor} no padrão</span></>}
+                {/* Uma legenda por linha, como no MAC: em linha única o card estica. */}
+                <span className="text-[9px] opacity-80 flex flex-col gap-0.5 mt-0.5 max-w-[190px] text-left mx-auto">
+                  <span><b style={{ color: pctIA >= 70 ? "#22c55e" : pctIA >= 40 ? "#eab308" : "#ef4444" }}>do preenchido</b> = quanto veio do sistema</span>
+                  <span><b className="text-[#2563EB]">eficiência</b> = lidos ÷ campos do LIP</span>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* NAVEGAÇÃO */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4 flex items-center gap-2 flex-wrap">
+        <span className="text-[var(--text-muted)] text-sm whitespace-nowrap">🔍 Ir para {perfilNumNavegacao.rotuloCurto}:</span>
+        <input value={novoProcesso} onChange={(e) => setNovoProcesso(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && navegarParaProcesso()}
+          placeholder={perfilNumNavegacao.exemplo}
+          className="flex-1 min-w-[180px] bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+        <select value={tipoNavegacao} onChange={(e) => setTipoNavegacao(e.target.value as TipoProcesso)}
+          className="bg-[var(--bg-secondary)] border border-[var(--border-strong)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+          {(assuntosAtivos.length ? assuntosAtivos : [{ slug: tipoUrl, nome: nomeAssunto ?? rotuloTipo(tipoUrl) }]).map((a) => (
+            <option key={a.slug} value={a.slug}>{a.nome}</option>
+          ))}
+        </select>
+        <button onClick={navegarParaProcesso} disabled={!novoProcesso.trim()}
+          className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-40 text-[var(--accent-fg)] px-4 py-1.5 rounded text-sm font-medium transition-colors whitespace-nowrap">
+          Cadastrar
+        </button>
+      </div>
+
+      {/* ALERTA DE FLUXO — Fase 12 do plano de leitura de PDF. Só leitura, custo zero, escopo
+          Slot 1/2. Mostra tempo parado quando passa do limiar; nunca escreve nada. */}
+      {idUrl && <AlertaFluxo codigo={idUrl} tipoProcesso={tipoUrl} />}
+
+      {/* VIGIA DO PROCESSO — só leitura, custo zero. Mostra fato verificável
+          com a origem de cada um, e a triagem por evidência. Nunca escreve
+          nada no processo. */}
+      {idUrl && <VigiaProcesso codigo={idUrl} />}
+
+      {/* Organizador de PDF SEI do Slot 1: removido em 11/09/2026 (decisão do Fábio), substituído
+          pela tela própria /fatiador-sei. O componente antigo segue em
+          components/regularizacao/OrganizadorSeiRegularizacao.tsx, sem uso. */}
+      {/* Organizador de Documentos — Slot 5, só leitura sobre o MHD (ver componente).
+          Não é fatiador: o Slot 5 já recebe arquivos separados, não um PDF único do SEI. */}
+
+      {/* BLOCO LIP */}
+      <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-4 mb-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <p className="text-sm font-bold text-[var(--text-primary)]">📄 Leitura Inteligente do LIP</p>
+            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+              {ehSlot5
+                ? "Escolha a pasta do processo — a pasta é a rodada (raiz = 1ª análise, cada subpasta a seguinte)"
+                : "Upload do PDF — preenche os campos automaticamente"}
+            </p>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <label className={`cursor-pointer px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip || lendoPasta ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}>
+              {lendoLip ? "⏳ Lendo..." : lendoPasta ? "⏳ Lendo a pasta..." : ehSlot5 ? "📁 LER PASTA" : `📎 LER PROCESSO ${(nomeAssunto ?? rotuloTipo(tipoUrl)).toUpperCase()}`}
+              {/* No slot 5 o analista escolhe a PASTA do processo, não os arquivos: a pasta é a
+                  rodada de análise (raiz = 1ª, cada subpasta a seguinte). `webkitdirectory` desce
+                  nas subpastas e cada File chega com webkitRelativePath, de onde sai a rodada. */}
+              <input ref={inputFileRef} type="file" accept={ehSlot5 ? undefined : ".pdf,image/*"} multiple className="hidden" disabled={lendoLip || lendoPasta}
+                {...(ehSlot5 ? { webkitdirectory: "", directory: "" } as any : {})}
+                onChange={(e) => { const fs = Array.from(e.target.files || []); if (fs.length) aoEscolherArquivosLeitura(fs); e.target.value = ""; }} />
+            </label>
+            <button
+              disabled={lendoLip}
+              onClick={() => { setVcpArquivos([]); setModalVCP(true); }}
+              className={`px-4 py-2 rounded font-bold text-sm transition-colors ${lendoLip ? "bg-[var(--bg-secondary)] text-[var(--text-muted)] cursor-not-allowed" : "bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold"}`}
+            >
+              📎 LER ARQUIVOS INDIVIDUAIS
+            </button>
+            {/* MHD — módulo satélite, vale para todo slot e todo assunto */}
+            <button
+              disabled={carregandoMhd}
+              onClick={abrirMHD}
+              title="Histórico Documental — o que já foi lido, versões e alterações"
+              className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+            >
+              {carregandoMhd ? "⏳ Abrindo..." : "🗂 HISTÓRICO DOCUMENTAL"}
+            </button>
+            {ehSlot5 && (
+              <button
+                onClick={() => router.push(`/logradouro/${encodeURIComponent(idUrl)}?voltar=${encodeURIComponent(`/lip-regularizacao-sei/${idUrl}`)}&rotulo=${encodeURIComponent("Voltar ao LIP")}`)}
+                title="Cadastro de Logradouros — largura de via, calçada e hierarquia viária"
+                className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >
+                🗺️ Via / Logradouro
+              </button>
+            )}
+            {ehSlot5 && (
+              <button
+                onClick={() => router.push(`/manuais/slot5?doc=lip&voltar=${encodeURIComponent(`/lip-regularizacao-sei/${idUrl}`)}&rotulo=${encodeURIComponent("Voltar ao LIP")}`)}
+                title="Manual de referência do LIP — Slot 5 (leitura na tela)"
+                className="px-4 py-2 rounded font-bold text-sm transition-colors bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
+              >
+                📘 Manual do LIP
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {progresso > 0 && (
+        <div className="bg-[var(--bg-card)] border border-[var(--border)] rounded-xl p-3 mb-4">
+          <div className="flex justify-between text-xs text-[var(--text-secondary)] mb-1">
+            <span className="truncate pr-2">
+              {lendoPasta ? (docLendo ? `📁 ${docLendo}` : "📁 Lendo a pasta...") : "🤖 Lendo PDF com IA..."}
+            </span>
+            <span className="flex gap-2">
+              <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
+              <span>{progresso}%</span>
+            </span>
+          </div>
+          <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
+            <div className="bg-purple-500 h-2 rounded-full transition-all duration-300" style={{ width: `${progresso}%` }} />
+          </div>
+        </div>
+      )}
+
+      {carregando && <div className="bg-yellow-900 border border-yellow-500 text-yellow-300 px-4 py-2 rounded mb-4 text-sm">⏳ Carregando dados do processo...</div>}
+      {camposInferidosPendentes.length > 0 && (
+        <div className="mb-4 bg-violet-950 border border-violet-500 text-violet-200 px-4 py-2 rounded text-sm">
+          🔍 <strong>{camposInferidosPendentes.length} campo(s) deduzido(s) por visão computacional</strong> —
+          o valor foi <em>inferido de uma imagem</em>, não lido de texto. Confira contra a prancha e pressione{" "}
+          <strong>Enter</strong> no campo para assumi-lo. Enquanto não confirmar, não vale no laudo.
+          <div className="text-xs text-violet-300 mt-1">{camposInferidosPendentes.join(" · ")}</div>
+        </div>
+      )}
+
+      {totalPadrao > 0 && (
+        <div className="mb-4">
+          <div
+            className="bg-orange-900 border border-orange-500 text-orange-200 px-4 py-2 rounded text-sm cursor-pointer flex items-center justify-between hover:bg-orange-800 transition-colors"
+            onClick={() => setMostrarPendentes(!mostrarPendentes)}
+          >
+            <span>⚠️ <strong>{totalPadrao} campo(s)</strong> em laranja precisam ser conferidos. Pressione <strong>Enter</strong> para confirmar.</span>
+            <span className="ml-4 text-[var(--warning)]">{mostrarPendentes ? "▲ Fechar" : "▼ Ver campos"}</span>
+          </div>
+          {mostrarPendentes && (
+            <div className="bg-orange-950 border border-orange-500 border-t-0 rounded-b px-4 py-3 text-sm">
+              {abasDB.map((a, i) => {
+                const pendentes = a.lip_campos.filter(c => d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === "");
+                if (pendentes.length === 0) return null;
+                return (
+                  <div key={a.id} className="mb-2">
+                    <button
+                      onClick={() => { setAba(i); setMostrarPendentes(false); }}
+                      className="text-orange-300 font-semibold hover:text-orange-100 underline text-xs mb-1"
+                    >
+                      {a.nome} →
+                    </button>
+                    <ul className="ml-3 list-disc list-inside">
+                      {pendentes.map(c => (
+                        <li key={c.chave} className="text-orange-200 text-xs">{c.label}</li>
+                      ))}
+                    </ul>
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      {erroCampos && <div className="bg-red-900 border border-red-500 text-red-200 px-4 py-2 rounded mb-4 text-sm">❌ Confira todos os campos em laranja antes de salvar!</div>}
+
+      {/* ABAS */}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {abasDB.map((a, i) => {
+          const temPendente = a.lip_campos.some(
+            (c) => c.chave !== "coordenadas" && d[c.chave]?.origem === "padrao" && (d[c.chave]?.valor ?? "").trim() === ""
+          );
+          // Campo marcado com X (o analista afirmou que não tem aquele
+          // documento/dado) — sinal próprio da bolinha laranja de CONFERIR
+          // (vazio por padrão). Uma aba pode ter os dois ao mesmo tempo;
+          // as duas bolinhas aparecem juntas, cada uma no seu canto.
+          const temX = a.lip_campos.some(
+            (c) => (d[c.chave]?.valor ?? "").trim().toUpperCase() === "X"
+          );
+          return (
+            <button key={a.id} onClick={() => setAba(i)}
+              className={`relative px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                aba === i ? "bg-[var(--accent)] text-[var(--accent-fg)]" :
+                (temPendente || temX) ? "bg-[#FEE2E2] border border-[#991B1B] text-[#991B1B] hover:bg-[#FECACA]" :
+                "bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"
+              }`}>
+              {a.nome}
+              {temPendente && <span className="absolute -top-1 -right-1 w-2 h-2 bg-orange-400 rounded-full border border-slate-900" />}
+              {temX && <span className="absolute -top-1 -left-1 flex items-center justify-center w-3.5 h-3.5 bg-red-600 rounded-full border border-slate-900 text-white text-[8px] font-bold leading-none">X</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* FORMULÁRIO */}
+      {abaAtual && (
+        <div className="bg-white text-black p-5 rounded-xl shadow-lg space-y-4">
+          <div className="flex items-start justify-between mb-2">
+            <div>
+              <h2 className="text-lg font-bold text-slate-800">{abaAtual.nome}</h2>
+              {abaAtual.dica && <p className="text-xs text-[var(--text-muted)] mt-0.5">💡 {abaAtual.dica}</p>}
+            </div>
+            <span className="text-xs bg-slate-100 text-[var(--text-muted)] px-2 py-1 rounded">{aba + 1} / {abasDB.length}</span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {abaAtual.lip_campos.map((campo) => renderCampo(campo))}
+          </div>
+        </div>
+      )}
+
+      {/* NAVEGAÇÃO ABAS */}
+      <div className="flex items-center gap-3 mt-4">
+        <button onClick={() => setAba((a) => a - 1)} disabled={aba === 0}
+          className="bg-[var(--bg-secondary)] hover:bg-slate-500 disabled:opacity-40 px-4 py-2 rounded font-medium text-sm transition-colors">
+          ← Voltar
+        </button>
+        {!isUltimaAba && (
+          <button onClick={() => setAba((a) => a + 1)}
+            className="bg-[var(--success)] hover:bg-[var(--accent-hover)] px-4 py-2 rounded font-medium text-sm transition-colors">
+            Próxima →
+          </button>
+        )}
+        <button onClick={salvar} disabled={salvando}
+          className="ml-auto bg-yellow-500 hover:bg-yellow-400 disabled:opacity-50 px-6 py-2 rounded font-bold text-black text-sm transition-colors">
+          {salvando ? "Salvando..." : "💾 Salvar"}
+        </button>
+      </div>
+
+      {/* PROGRESSO */}
+      <div className="mt-4">
+        <div className="flex justify-between text-xs text-[var(--text-muted)] mb-1">
+          <span>Progresso</span><span>{aba + 1} de {abasDB.length} abas</span>
+        </div>
+        <div className="w-full bg-[var(--bg-secondary)] rounded-full h-1.5">
+          <div className="bg-[var(--accent)] h-1.5 rounded-full transition-all duration-300"
+            style={{ width: `${((aba + 1) / abasDB.length) * 100}%` }} />
+        </div>
+      </div>
+
+      {/* HISTÓRICO */}
+      <div className="mt-8">
+        <h3 className="text-sm font-bold text-[var(--text-secondary)] mb-4 uppercase tracking-wide">🕐 Histórico de Alterações</h3>
+        {historico.length === 0 ? (
+          <p className="text-[var(--text-muted)] text-sm">Nenhuma alteração registrada ainda.</p>
+        ) : (
+          <div className="relative">
+            <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-[var(--bg-secondary)]" />
+            <div className="flex flex-col gap-4">
+              {historico.map((ev, idx) => {
+                const diasUnicos = [...new Set(historico.map(e => diaKey(e.criado_em)))];
+                const indiceDia = diasUnicos.indexOf(diaKey(ev.criado_em));
+                const cores = corPorIndiceDia(indiceDia);
+                const opacidade = opacidadeEvento(idx, historico.length);
+                const aberto = eventoAberto === ev.id;
+                const esteConfirmando = confirmando === ev.id;
+                const esteRestaurando = restaurando === ev.id;
+                return (
+                  <div key={ev.id} className="relative flex items-start gap-4 pl-10">
+                    <div className={`absolute left-2 w-5 h-5 rounded-full border-2 ${cores.border} cursor-pointer transition-transform hover:scale-125 flex items-center justify-center`}
+                      style={{ opacity: opacidade }}
+                      onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}>
+                      <div className={`w-2.5 h-2.5 rounded-full ${cores.bg}`} />
+                    </div>
+                    <div className="flex-1" style={{ opacity: opacidade }}>
+                      <button onClick={() => { setEventoAberto(aberto ? null : ev.id); setConfirmando(null); }}
+                        className={`text-xs font-mono ${cores.text} hover:underline`}>
+                        {formatarDataCompleta(ev.criado_em)} — {ev.operacao === "LIP_LEITURA" ? `📄 LIP lido por IA — ${ev.meta?.camposPreenchidos ?? 0} campos extraídos` : ev.campos.length > 0 ? `${ev.campos.length} campo(s) alterado(s)` : ev.operacao}
+                      </button>
+                      {aberto && (
+                        <div className="mt-2 bg-[var(--bg-card)] border border-[var(--border)] rounded-lg p-3 text-xs">
+                          {ev.operacao === "LIP_LEITURA" ? (
+                            <div className="text-[var(--text-secondary)] space-y-1">
+                              <p>📄 <span className="text-[var(--text-muted)]">Arquivo:</span> {ev.meta?.arquivo ?? "—"}</p>
+                              <p>✅ <span className="text-[var(--text-muted)]">Campos preenchidos:</span> {ev.meta?.camposPreenchidos ?? 0}</p>
+                              <p>🟢 <span className="text-[var(--text-muted)]">Status:</span> {ev.meta?.status ?? "—"}</p>
+                            </div>
+                          ) : ev.campos.length > 0 ? (
+                            <table className="w-full mb-3">
+                              <thead>
+                                <tr className="text-[var(--text-muted)]">
+                                  <th className="text-left pb-1 font-semibold">Campo</th>
+                                  <th className="text-left pb-1 font-semibold">De</th>
+                                  <th className="text-left pb-1 font-semibold">Para</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {ev.campos.map((c, i) => (
+                                  <tr key={i} className="border-t border-[var(--border)]">
+                                    <td className="py-1 text-[var(--text-secondary)] pr-3">{c.campo}</td>
+                                    <td className="py-1 text-[var(--text-muted)] pr-3 font-mono">{c.de || "—"}</td>
+                                    <td className="py-1 text-green-400 font-mono">{c.para || "—"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="text-[var(--text-muted)] mb-3">Processo criado.</p>
+                          )}
+                          {ev.snapshot && !esteConfirmando && (
+                            <button onClick={() => setConfirmando(ev.id)}
+                              className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                              ↩ Restaurar para este momento
+                            </button>
+                          )}
+                          {esteConfirmando && (
+                            <div className="bg-[var(--bg-secondary)] border border-orange-500 rounded p-3 mt-2">
+                              <p className="text-orange-300 text-xs font-semibold mb-2">
+                                ⚠️ Tem certeza? Todas as alterações feitas após este momento serão revertidas.
+                              </p>
+                              <div className="flex gap-2">
+                                {perfisUsuario.some(p => ["Administrador","Diretora","Diretor"].includes(p)) ? (
+                                  <>
+                                    <button onClick={() => restaurar(ev)} disabled={!!esteRestaurando}
+                                      className="bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      {esteRestaurando ? "Restaurando..." : "✓ Confirmar restauração"}
+                                    </button>
+                                    <button onClick={() => setConfirmando(null)}
+                                      className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                      Cancelar
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => setConfirmando(null)}
+                                    className="bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] text-xs font-bold px-3 py-1.5 rounded transition-colors">
+                                    Cancelar
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+
+
+
+
+
+      {confirmarMac && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[var(--bg-card)] border border-orange-600 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <h2 className="text-orange-400 font-bold text-lg mb-3">⚠️ Campos pendentes no LIP</h2>
+            <p className="text-[var(--text-secondary)] text-sm mb-5">Existem campos em laranja não conferidos. Deseja ir para o MAC mesmo assim?</p>
+            <div className="flex gap-3">
+              <button onClick={async () => {
+                  if (indoParaMac) return;
+                  setConfirmarMac(false); setIndoParaMac(true);
+                  try {
+                    await salvar();
+                    const rotaMac3 = rotaMacDoSlot(tipoUrl);
+                    router.push(`${rotaMac3}/${encodeURIComponent(idUrl)}`);
+                  } finally { setIndoParaMac(false); }
+                }} disabled={indoParaMac}
+                className="flex-1 bg-orange-700 hover:bg-orange-600 disabled:opacity-50 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                {indoParaMac ? "Indo..." : "Ir assim mesmo"}
+              </button>
+              <button onClick={() => setConfirmarMac(false)}
+                className="flex-1 bg-[var(--bg-secondary)] hover:bg-slate-500 text-[var(--text-primary)] font-bold py-2 rounded-lg text-sm">
+                Voltar e conferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

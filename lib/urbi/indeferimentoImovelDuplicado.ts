@@ -29,6 +29,10 @@ export type ResultadoIndeferimentoAutomatico =
 
 function rotasPorTipo(tipoProcesso: string): { despacho: string; analise: string } {
   const t = tipoProcesso.toLowerCase();
+  // Slots 3 e 4 (PED, 16/10/2026): rotas PRÓPRIAS. Sem este desvio, `slot_03` não começa com
+  // "regularizacao" e cairia nas rotas do Aceite SEI (Slot 2). Os demais slots seguem como antes.
+  if (t.trim() === "slot_03") return { despacho: "/api/despacho-regularizacao-ped", analise: "/api/analise-regularizacao-ped" };
+  if (t.trim() === "slot_04") return { despacho: "/api/despacho-aceite-ped", analise: "/api/analise-aceite-ped" };
   return t.startsWith("regularizacao")
     ? { despacho: "/api/despacho-regularizacao", analise: "/api/analise-regularizacao" }
     : { despacho: "/api/despacho-aceite-sei", analise: "/api/analise-aceite-sei" };
@@ -91,7 +95,10 @@ export async function executarIndeferimentoImovelDuplicado(
     const numeroParecer = String(jPeek.numero).padStart(3, "0");
     const dataEmissao = new Date().toLocaleDateString("pt-BR");
 
-    const outroTipo = conflito.tipoProcesso.toLowerCase().startsWith("regularizacao") ? "Regularização SEI" : "Aceite SEI";
+    const tipoConflito = conflito.tipoProcesso.toLowerCase().trim();
+    const outroTipo = tipoConflito === "slot_03" ? "Regularização PED"
+      : tipoConflito === "slot_04" ? "Aceite PED"
+      : tipoConflito.startsWith("regularizacao") ? "Regularização SEI" : "Aceite SEI";
     const observacoes = `Detectado automaticamente pelo URBI: o processo ${conflito.codigo} (${outroTipo}, status ${conflito.status}) já trata do mesmo imóvel.`;
 
     const analisesHistorico = listaAnalises

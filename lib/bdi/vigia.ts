@@ -12,6 +12,8 @@
  * logo abaixo, e mudar um número muda a triagem inteira.
  */
 import { compararAreas } from "@/lib/compatibilidadeArea";
+// Slot 3 (Regularização PED, 16/10/2026): compatibilidade de área pela regra do PRÓPRIO arquivo.
+import { compararAreas as compararAreasSlot3 } from "@/lib/regularizacaoPed/compatibilidadeArea";
 import { confrontarEndereco } from "@/lib/cadastroMapaFacil";
 
 /** De onde saiu cada aviso. Aparece na tela junto do aviso. */
@@ -480,7 +482,12 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
    * Slot 3/4 (PED, futuro) amanhã, sempre pelo mesmo prefixo do tipo. Slot 5 (Aprovação de
    * Projeto) atende outra legislação e NUNCA entra aqui — pedido explícito do Fábio, 10/09/2026.
    */
-  const aplicaCondicoesBloqueio = ehRegularizacao || tipo.startsWith("aceite");
+  // Slots 3 e 4 (PED, 16/10/2026): slug EXATO, nunca prefixo. O Slot 3 espelha o que o Slot 1
+  // faz (ehRegularizacao) e o Slot 4 o que o Slot 2 faz — cada um com os interruptores próprios,
+  // que a rota já entrega em `e.regras`.
+  const ehSlot3 = tipo === "slot_03";
+  const ehSlot4 = tipo === "slot_04";
+  const aplicaCondicoesBloqueio = ehRegularizacao || tipo.startsWith("aceite") || ehSlot3 || ehSlot4;
   /**
    * COND_USO_SOLO e COND_BUSCA_ENDERECO leem AUSÊNCIA de campo como sinal ("sem uso do solo",
    * "sem busca") — diferente das outras condições, que só disparam com um valor negativo
@@ -504,8 +511,9 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
         bloqueante: true,
       });
     }
-    if (ehRegularizacao) {
-      const veredicto = compararAreas({
+    const compararAreasDoSlot = ehRegularizacao ? compararAreas : ehSlot3 ? compararAreasSlot3 : null;
+    if (compararAreasDoSlot) {
+      const veredicto = compararAreasDoSlot({
         projeto: parseObjCampo(e.processo.dados, "areaTotal"),
         laudo: parseObjCampo(e.processo.dados, "areaLaudo"),
         art: parseObjCampo(e.processo.dados, "areaArt"),
@@ -542,7 +550,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     });
   }
 
-  if (regra("COND_USO_SOLO").ativo && ehRegularizacao && materialLido) {
+  if (regra("COND_USO_SOLO").ativo && (ehRegularizacao || ehSlot3) && materialLido) {
     const usoSolo = valorCampo(e.processo.dados, "usoSolo");
     const usoDefinido = valorCampo(e.processo.dados, "usoDefinido");
     if (!usoSolo && !usoDefinido) {
@@ -579,7 +587,7 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     const carimbo = valorCampo(e.processo.dados, "carimboTipoProjeto");
     const carimboNorm = carimbo.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     if (carimboNorm) {
-      const esperado = ehRegularizacao ? "regulariza" : tipo.startsWith("aceite") ? "aceite" : null;
+      const esperado = ehRegularizacao || ehSlot3 ? "regulariza" : tipo.startsWith("aceite") || ehSlot4 ? "aceite" : null;
       if (esperado && !carimboNorm.includes(esperado)) {
         avisos.push({
           id: "cond_assunto_errado",
@@ -609,7 +617,9 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
 
   if (regra("COND_IMOVEL_DUPLICADO").ativo && aplicaCondicoesBloqueio && e.imovelConflito) {
     const conf = e.imovelConflito;
-    const outroTipo = conf.tipoProcesso.toLowerCase().startsWith("regularizacao") ? "Regularização SEI" : "Aceite SEI";
+    const tipoConf = conf.tipoProcesso.toLowerCase().trim();
+    const outroTipo = tipoConf === "slot_03" ? "Regularização PED" : tipoConf === "slot_04" ? "Aceite PED"
+      : tipoConf.startsWith("regularizacao") ? "Regularização SEI" : "Aceite SEI";
     const porQue = conf.criterio === "iptu" ? "mesmo IPTU" : "mesmo logradouro, quadra e lote";
     avisos.push({
       id: "cond_imovel_duplicado",

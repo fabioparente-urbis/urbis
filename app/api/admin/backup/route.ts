@@ -84,6 +84,7 @@ const TABELAS: Record<Exclude<Tipo, "tudo">, string[]> = {
     "urbi_historico",
     "urbi_sugestoes",
     "urbi_regras_bloqueio",
+    "urbi_regras_bloqueio_slot",
     "urbi_radar_retratos",
     "urbi_radar_execucoes",
     "urbi_atendimento_ativo",
@@ -117,6 +118,7 @@ const ORDEM_IMPORT_TUDO: string[] = [
   "urbi_config",
   "urbi_legislacao",
   "urbi_regras_bloqueio",
+  "urbi_regras_bloqueio_slot",
   "urbis_config",
   "urbis_numeracao_faixas",
   // Processos e dependentes diretos
@@ -187,6 +189,8 @@ function tabelasDe(tipo: Tipo): string[] {
 const CHAVE_UPSERT: Record<string, string> = {
   urbi_atendimento_ativo: "processo_codigo",
   urbi_regras_bloqueio: "chave",
+  // Slots 3 e 4 (PED): PK composta.
+  urbi_regras_bloqueio_slot: "slot,chave",
 };
 
 function chaveUpsertDe(tabela: string): string {

@@ -158,6 +158,7 @@ const SECOES: Secao[] = [
       "urbi_historico",
       "urbi_sugestoes",
       "urbi_regras_bloqueio",
+      "urbi_regras_bloqueio_slot",
       "urbi_radar_retratos",
       "urbi_radar_execucoes",
       "urbi_atendimento_ativo",

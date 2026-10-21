@@ -957,6 +957,8 @@ export default function UrbiChat({ usuario, aberto: abertoProp, setAberto, modo 
         const tipo = j.data?.processo?.tipo_processo ?? "";
         const rotaMac = tipo === "slot_05" ? "/analise-aprovacao-projeto"
           : tipo === "aceite_sei" ? "/analise-aceite-sei"
+          : tipo === "slot_03" ? "/analise-regularizacao-ped"
+          : tipo === "slot_04" ? "/analise-aceite-ped"
           : "/analise-regularizacao";
         const href = `${rotaMac}/${encodeURIComponent(processoCodigo!)}${
           primeira?.itemId ? `?item=${encodeURIComponent(primeira.itemId)}` : ""

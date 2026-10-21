@@ -1,6 +1,8 @@
 import { montarDossieTecnicoRegularizacao } from "./regularizacao";
 import { montarDossieTecnicoAceiteSei } from "./aceiteSei";
 import { montarDossieTecnicoSlot5 } from "./slot5";
+import { montarDossieTecnicoRegularizacaoPed } from "./regularizacaoPed";
+import { montarDossieTecnicoAceitePed } from "./aceitePed";
 import type { DossieTecnicoSlot } from "./tipos";
 import type { EntradaAdaptador } from "./entrada";
 
@@ -17,6 +19,8 @@ export function montarDossieTecnico(tipoProcesso: string | null | undefined, ent
     case "regularizacao": return montarDossieTecnicoRegularizacao(entrada);
     case "aceite_sei": return montarDossieTecnicoAceiteSei(entrada);
     case "slot_05": return montarDossieTecnicoSlot5(entrada);
+    case "slot_03": return montarDossieTecnicoRegularizacaoPed(entrada);
+    case "slot_04": return montarDossieTecnicoAceitePed(entrada);
     default: return null; // slot desconhecido/futuro sem adaptador ainda — dossiê declara base insuficiente, não inventa
   }
 }

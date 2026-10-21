@@ -128,6 +128,8 @@ function Secao({ titulo, descricao, acao, children }: { titulo: string; descrica
 const NOME_TIPO_PROCESSO: Record<string, string> = {
   regularizacao: "Regularização SEI",
   aceite_sei: "Aceite SEI",
+  slot_03: "Regularização PED",
+  slot_04: "Aceite PED",
   slot_05: "Aprovação de Projeto",
 };
 function nomeTipoProcesso(tp: string): string {
