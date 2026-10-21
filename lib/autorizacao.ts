@@ -121,6 +121,16 @@ export type UsuarioAtivo = UsuarioReq & {
   ehAdministrador: boolean;
 };
 
+type LinhaCadastro = {
+  id: string;
+  nome: string;
+  email: string;
+  perfil: string | null;
+  perfis: string[] | null;
+  gerencia: string | null;
+  status: string;
+};
+
 export type Barreira =
   | { ok: true; usuario: UsuarioAtivo }
   | { ok: false; resposta: NextResponse };
@@ -191,21 +201,22 @@ export async function exigirUsuarioAtivo(
     .select("id, nome, email, perfil, perfis, gerencia, status")
     .eq("email", authData.user.email)
     .maybeSingle();
-  if (!data) return recusa(401, "SESSAO_EXPIRADA");
-  if ((data as any).status !== "Ativo") return recusa(401, "USUARIO_INATIVO");
+  const linha = data as LinhaCadastro | null;
+  if (!linha) return recusa(401, "SESSAO_EXPIRADA");
+  if (linha.status !== "Ativo") return recusa(401, "USUARIO_INATIVO");
 
   // `perfis` é o canônico; `perfil` (legado) entra na união, como em lib/auth.ts.
-  const perfis: string[] = Array.isArray((data as any).perfis) ? ((data as any).perfis as string[]).filter(Boolean) : [];
-  if ((data as any).perfil && !perfis.includes((data as any).perfil)) perfis.push((data as any).perfil);
+  const perfis: string[] = Array.isArray(linha.perfis) ? linha.perfis.filter(Boolean) : [];
+  if (linha.perfil && !perfis.includes(linha.perfil)) perfis.push(linha.perfil);
 
   return {
     ok: true,
     usuario: {
-      id: (data as any).id,
-      nome: (data as any).nome,
-      email: (data as any).email,
+      id: linha.id,
+      nome: linha.nome,
+      email: linha.email,
       perfis,
-      gerencia: (data as any).gerencia ?? null,
+      gerencia: linha.gerencia ?? null,
       irrestrito: isPerfilIrrestrito(perfis),
       gerenciaDoPerfil: gerenciaDoPerfil(perfis) ?? null,
       ehAdministrador: perfis.includes("Administrador"),

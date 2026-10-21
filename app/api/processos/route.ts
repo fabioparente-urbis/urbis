@@ -339,16 +339,18 @@ export async function GET(req: NextRequest) {
     // de /api/admin/usuarios só para isso. Agora o nome sai daqui, e só dos analistas dos processos
     // que este usuário já tem direito de ver — inclusive de quem foi desativado, com a marca
     // `analista_ativo: false`, para o processo antigo não ficar com "—".
-    const idsAnalistas = Array.from(new Set(resultado.map((p: any) => p.analista_id).filter(Boolean))) as string[];
+    const idsAnalistas = Array.from(new Set(resultado.map((p) => p.analista_id).filter(Boolean))) as string[];
     const nomePorId = new Map<string, { nome: string; ativo: boolean }>();
     if (idsAnalistas.length > 0) {
       const { data: analistas } = await supabase
         .from("usuarios")
         .select("id, nome, status")
         .in("id", idsAnalistas);
-      for (const a of analistas ?? []) nomePorId.set((a as any).id, { nome: (a as any).nome, ativo: (a as any).status === "Ativo" });
+      for (const a of (analistas ?? []) as { id: string; nome: string; status: string }[]) {
+        nomePorId.set(a.id, { nome: a.nome, ativo: a.status === "Ativo" });
+      }
     }
-    resultado = resultado.map((p: any) => ({
+    resultado = resultado.map((p) => ({
       ...p,
       analista_nome: p.analista_id ? nomePorId.get(p.analista_id)?.nome ?? null : null,
       analista_ativo: p.analista_id ? nomePorId.get(p.analista_id)?.ativo ?? null : null,
@@ -377,11 +379,11 @@ export async function PUT(req: NextRequest) {
     if (!barreira.ok) return barreira.resposta;
     const eu = barreira.usuario;
 
-    const body = await req.json().catch(() => null);
+    const body: unknown = await req.json().catch(() => null);
     if (!body || typeof body !== "object") return NextResponse.json({ ok: false, erro: "Corpo inválido" }, { status: 400 });
-    const { id, lip_incompleto, lip_finalizado, laudo_campos_ocultos } = body as any;
-    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
-    if ((body as any).analista_id !== undefined || (body as any).status !== undefined) {
+    const { id, lip_incompleto, lip_finalizado, laudo_campos_ocultos, analista_id, status } = body as Record<string, unknown>;
+    if (typeof id !== "string" || !id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    if (analista_id !== undefined || status !== undefined) {
       return NextResponse.json(
         { ok: false, erro: "Atribuição e status não são alterados por esta rota. Use a atribuição da Pilha." },
         { status: 400 },
@@ -395,16 +397,16 @@ export async function PUT(req: NextRequest) {
     // Mesma visibilidade da Pilha (GET acima): irrestrito vê tudo; gerente, os processos dos
     // analistas lotados na gerência; demais, só os próprios. Processo sem analista: qualquer
     // usuário ativo (comportamento de hoje na tela do processo recém-cadastrado).
-    const dono = (proc as any).analista_id as string | null;
+    const dono = (proc as { analista_id: string | null }).analista_id;
     let pode = eu.irrestrito || !dono || dono === eu.id;
     const gerenciaGerente = eu.perfis.some((p) => p && p.startsWith("Gerência ")) ? (eu.gerenciaDoPerfil ?? eu.gerencia) : null;
     if (!pode && gerenciaGerente) {
       const { data: analista } = await supabase.from("usuarios").select("gerencia").eq("id", dono).maybeSingle();
-      pode = (analista as any)?.gerencia === gerenciaGerente;
+      pode = (analista as { gerencia: string | null } | null)?.gerencia === gerenciaGerente;
     }
     if (!pode) return NextResponse.json({ ok: false, erro: "Sem permissao para acessar este processo" }, { status: 403 });
 
-    const atualizacao: any = { atualizado_em: new Date().toISOString() };
+    const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     if (lip_incompleto !== undefined) atualizacao.lip_incompleto = lip_incompleto === true;
     if (lip_finalizado !== undefined) {
       atualizacao.lip_finalizado = lip_finalizado === true;
@@ -417,8 +419,8 @@ export async function PUT(req: NextRequest) {
     const { error } = await supabase.from("processos").update(atualizacao).eq("id", id);
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, erro: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
 

@@ -89,7 +89,7 @@ export default function UsuariosPage() {
         setMeuPerfis(perfis);
         // Cosmético: quem não é Administrador não tem o que fazer aqui — a proteção de verdade é
         // no servidor (/api/admin/usuarios recusa com 403).
-        if (!perfis.includes("Administrador")) router.push("/");
+        if (!perfis.includes("Administrador")) window.location.replace("/");
       }
     } catch { /* mantem [] -> trata como nao-admin */ }
   }

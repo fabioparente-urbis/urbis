@@ -23,15 +23,16 @@ export async function POST(req: NextRequest) {
   if (typeof id !== "string" || !UUID.test(id))
     return NextResponse.json({ ok: false, erro: "ID obrigatório" }, { status: 400 });
 
-  const { data: usuario } = await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from("usuarios").select("id, nome, email, status").eq("id", id).maybeSingle();
+  const usuario = data as { id: string; nome: string; email: string; status: string } | null;
   if (!usuario?.email) return NextResponse.json({ ok: false, erro: "Usuário não encontrado" }, { status: 404 });
-  if ((usuario as any).status !== "Ativo")
+  if (usuario.status !== "Ativo")
     return NextResponse.json({ ok: false, erro: "Usuário inativo — reative o cadastro antes de redefinir a senha." }, { status: 400 });
 
   let reg;
   try {
-    reg = await registrarIntencao(req, b.usuario, "enviar_reset_senha", { id: usuario.id, nome: (usuario as any).nome });
+    reg = await registrarIntencao(req, b.usuario, "enviar_reset_senha", { id: usuario.id, nome: usuario.nome });
   } catch {
     return NextResponse.json({ ok: false, erro: "Registro de auditoria indisponível — nada foi enviado. Tente novamente." }, { status: 503 });
   }

@@ -34,6 +34,21 @@ const COLUNAS = [
 ].join(", ");
 
 const STATUS_VALIDOS = ["Ativo", "Inativo"] as const;
+
+/** Linha de `usuarios` como a rota a lê (mesmas colunas de COLUNAS). */
+type LinhaUsuario = {
+  id: string; nome: string; email: string;
+  matricula: string | null; telefone: string | null; cargo: string | null; cau_crea: string | null;
+  perfil: string | null; perfis: string[] | null; gerencia: string | null; status: string;
+  reducao_meta: number | null; urbi_ativo: boolean | null; urbi_modo_audio: string | null;
+  criado_em: string; ultimo_acesso: string | null; descadastrado_em: string | null;
+};
+/** Corpo JSON recebido do navegador — nada é confiável até ser validado campo a campo. */
+type Corpo = Record<string, unknown>;
+
+function mensagemDe(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const SENHA_MINIMA = 8;
@@ -100,7 +115,7 @@ async function registrarViradaDeMeta(usuarioId: string, perfisAntes: string[], p
  * e garante "Administrador" no array quando o nome for o ADMIN_FIXO.
  * `perfil` (singular) é tratado como fallback quando `perfis` não vem.
  */
-function normalizarPerfis(input: { nome?: string; perfil?: string; perfis?: unknown }): string[] {
+function normalizarPerfis(input: { nome?: string; perfil?: unknown; perfis?: unknown }): string[] {
   const raw: string[] = Array.isArray(input.perfis)
     ? (input.perfis as unknown[]).map((p) => String(p).trim()).filter(Boolean)
     : input.perfil
@@ -137,7 +152,7 @@ function textoOpcional(v: unknown): string | null {
   return s ? s.slice(0, 200) : null;
 }
 
-function perfisDe(linha: any): string[] {
+function perfisDe(linha: Pick<LinhaUsuario, "perfil" | "perfis"> | null): string[] {
   const arr: string[] = Array.isArray(linha?.perfis) ? linha.perfis.filter(Boolean) : [];
   if (linha?.perfil && !arr.includes(linha.perfil)) arr.push(linha.perfil);
   return arr;
@@ -176,10 +191,10 @@ async function enviarResetSenha(req: NextRequest, email: string): Promise<string
   return error ? error.message : null;
 }
 
-async function lerCorpo(req: NextRequest): Promise<any | null> {
+async function lerCorpo(req: NextRequest): Promise<Corpo | null> {
   try {
-    const b = await req.json();
-    return b && typeof b === "object" ? b : null;
+    const b: unknown = await req.json();
+    return b && typeof b === "object" && !Array.isArray(b) ? (b as Corpo) : null;
   } catch {
     return null;
   }
@@ -219,7 +234,7 @@ export async function POST(req: NextRequest) {
   const invalidos = perfisInvalidos(perfis);
   if (invalidos.length) return erro(400, `Perfil não reconhecido: ${invalidos.join(", ")}.`);
 
-  const status = body.status === undefined || body.status === "" ? "Ativo" : body.status;
+  const status = body.status === undefined || body.status === "" ? "Ativo" : String(body.status);
   if (!(STATUS_VALIDOS as readonly string[]).includes(status)) return erro(400, "Status inválido (use Ativo ou Inativo).");
 
   // Regra: perfil Administrador só para o nome fixo
@@ -279,17 +294,18 @@ export async function POST(req: NextRequest) {
     await supabase.auth.admin.deleteUser(authData.user.id);
     await registrarResultado(reg, "falha", {}, dbError?.message ?? "cadastro não inserido");
     // Propaga code (23505 = unique_violation) para a UI tratar.
-    return erro(500, "Falha ao gravar o cadastro.", { code: (dbError as any)?.code });
+    return erro(500, "Falha ao gravar o cadastro.", { code: dbError?.code });
   }
 
   let aviso: string | undefined;
   if (status === "Inativo") {
     try { await banirConta(authData.user.id); }
-    catch (e: any) { aviso = "Cadastro criado como Inativo, mas o bloqueio da conta de acesso falhou."; console.error(e?.message); }
+    catch (e) { aviso = "Cadastro criado como Inativo, mas o bloqueio da conta de acesso falhou."; console.error(mensagemDe(e)); }
   }
 
-  await registrarResultado({ ...reg, alvo: { id: (inserido as any).id, nome } }, aviso ? "falha_parcial" : "sucesso", diferencas({}, novo), aviso ?? null);
-  return NextResponse.json({ ok: true, id: (inserido as any).id, ...(aviso ? { aviso } : {}) });
+  const idNovo = (inserido as { id: string }).id;
+  await registrarResultado({ ...reg, alvo: { id: idNovo, nome } }, aviso ? "falha_parcial" : "sucesso", diferencas({}, novo), aviso ?? null);
+  return NextResponse.json({ ok: true, id: idNovo, ...(aviso ? { aviso } : {}) });
 }
 
 // ─── PUT: editar / desativar / reativar / trocar senha ─────────────────────
@@ -305,7 +321,7 @@ export async function PUT(req: NextRequest) {
 
   const { data: atual } = await supabase.from("usuarios").select(COLUNAS).eq("id", id).maybeSingle();
   if (!atual) return erro(404, "Usuário não encontrado.");
-  const a = atual as any;
+  const a = atual as unknown as LinhaUsuario;
   const perfisAtuais = perfisDe(a);
 
   // D5: troca de e-mail só na etapa E4 (identidade estável + confirmação pelo novo endereço).
@@ -335,7 +351,7 @@ export async function PUT(req: NextRequest) {
   if (perfis.includes("Administrador") && nome !== ADMIN_FIXO)
     return erro(400, `O perfil Administrador é exclusivo de "${ADMIN_FIXO}".`);
 
-  const status = body.status !== undefined ? body.status : a.status;
+  const status = body.status !== undefined ? String(body.status) : a.status;
   if (!(STATUS_VALIDOS as readonly string[]).includes(status) && status !== a.status)
     return erro(400, "Status inválido (use Ativo ou Inativo).");
 
@@ -402,7 +418,7 @@ export async function PUT(req: NextRequest) {
   if (dbError) {
     await registrarResultado(reg, "falha", {}, dbError.message);
     // Propaga code (23505 = unique_violation) para a UI tratar.
-    return erro(500, "Falha ao gravar o cadastro.", { code: (dbError as any).code });
+    return erro(500, "Falha ao gravar o cadastro.", { code: dbError.code });
   }
 
   // Entrou ou saiu da chefia? Registra a vigência a partir deste mês.
@@ -416,8 +432,8 @@ export async function PUT(req: NextRequest) {
     let conta: { id: string } | null = null;
     try {
       conta = await buscarContaAuthPorEmail(a.email);
-    } catch (e: any) {
-      pendentes.push(`consulta à conta de acesso falhou (${e?.message ?? "erro"})`);
+    } catch (e) {
+      pendentes.push(`consulta à conta de acesso falhou (${mensagemDe(e)})`);
     }
     if (!conta && pendentes.length === 0) pendentes.push("conta de acesso não localizada no Auth");
 
@@ -436,7 +452,7 @@ export async function PUT(req: NextRequest) {
           }
         }
         if (senha) await definirSenha(conta.id, senha);
-      } catch (e: any) {
+      } catch (e) {
         pendentes.push(e instanceof ErroAuth ? e.message : "falha na conta de acesso");
       }
     }
@@ -471,7 +487,7 @@ export async function DELETE(req: NextRequest) {
   let nomeAlvo: string | null = null;
   if (id) {
     const { data } = await supabase.from("usuarios").select("nome").eq("id", id).maybeSingle();
-    nomeAlvo = (data as any)?.nome ?? null;
+    nomeAlvo = (data as { nome: string } | null)?.nome ?? null;
   }
   try {
     const reg = await registrarIntencao(req, b.usuario, "exclusao_bloqueada", { id, nome: nomeAlvo });
