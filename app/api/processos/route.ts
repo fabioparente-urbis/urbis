@@ -360,20 +360,59 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * PUT /api/processos — marcações da ficha que a tela do processo grava direto: `lip_incompleto`,
+ * `lip_finalizado`, `laudo_campos_ocultos` (ProcessoClient.tsx).
+ *
+ * Até 21/10/2026 esta rota não tinha autenticação e também aceitava `analista_id` e `status`:
+ * qualquer pessoa na internet reatribuía qualquer processo, contornando /api/processo/atribuir.
+ * Nenhuma tela usava esses dois campos aqui. Agora (C1/P7):
+ *   · sessão validada + cadastro ativo + origem do URBIS;
+ *   · só quem enxerga o processo na Pilha pode marcá-lo (mesma regra do GET acima);
+ *   · `analista_id` e `status` são RECUSADOS com 400 — atribuição só por /api/processo/atribuir.
+ */
 export async function PUT(req: NextRequest) {
   try {
-    const { id, status, analista_id, lip_incompleto, lip_finalizado, laudo_campos_ocultos } = await req.json();
+    const barreira = await exigirUsuarioAtivo(req, { mutacao: true });
+    if (!barreira.ok) return barreira.resposta;
+    const eu = barreira.usuario;
+
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return NextResponse.json({ ok: false, erro: "Corpo inválido" }, { status: 400 });
+    const { id, lip_incompleto, lip_finalizado, laudo_campos_ocultos } = body as any;
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    if ((body as any).analista_id !== undefined || (body as any).status !== undefined) {
+      return NextResponse.json(
+        { ok: false, erro: "Atribuição e status não são alterados por esta rota. Use a atribuição da Pilha." },
+        { status: 400 },
+      );
+    }
+
+    const { data: proc } = await supabase
+      .from("processos").select("id, analista_id").eq("id", id).is("excluido_em", null).maybeSingle();
+    if (!proc) return NextResponse.json({ ok: false, erro: "Processo não encontrado." }, { status: 404 });
+
+    // Mesma visibilidade da Pilha (GET acima): irrestrito vê tudo; gerente, os processos dos
+    // analistas lotados na gerência; demais, só os próprios. Processo sem analista: qualquer
+    // usuário ativo (comportamento de hoje na tela do processo recém-cadastrado).
+    const dono = (proc as any).analista_id as string | null;
+    let pode = eu.irrestrito || !dono || dono === eu.id;
+    const gerenciaGerente = eu.perfis.some((p) => p && p.startsWith("Gerência ")) ? (eu.gerenciaDoPerfil ?? eu.gerencia) : null;
+    if (!pode && gerenciaGerente) {
+      const { data: analista } = await supabase.from("usuarios").select("gerencia").eq("id", dono).maybeSingle();
+      pode = (analista as any)?.gerencia === gerenciaGerente;
+    }
+    if (!pode) return NextResponse.json({ ok: false, erro: "Sem permissao para acessar este processo" }, { status: 403 });
 
     const atualizacao: any = { atualizado_em: new Date().toISOString() };
-    if (status !== undefined) atualizacao.status = status;
-    if (analista_id !== undefined) atualizacao.analista_id = analista_id;
-    if (lip_incompleto !== undefined) atualizacao.lip_incompleto = lip_incompleto;
+    if (lip_incompleto !== undefined) atualizacao.lip_incompleto = lip_incompleto === true;
     if (lip_finalizado !== undefined) {
-      atualizacao.lip_finalizado = lip_finalizado;
-      atualizacao.lip_finalizado_em = lip_finalizado ? new Date().toISOString() : null;
+      atualizacao.lip_finalizado = lip_finalizado === true;
+      atualizacao.lip_finalizado_em = lip_finalizado === true ? new Date().toISOString() : null;
     }
-    if (Array.isArray(laudo_campos_ocultos)) atualizacao.laudo_campos_ocultos = laudo_campos_ocultos;
+    if (Array.isArray(laudo_campos_ocultos)) {
+      atualizacao.laudo_campos_ocultos = laudo_campos_ocultos.filter((c: unknown) => typeof c === "string").slice(0, 500);
+    }
 
     const { error } = await supabase.from("processos").update(atualizacao).eq("id", id);
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
