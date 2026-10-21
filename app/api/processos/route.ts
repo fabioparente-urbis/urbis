@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
+import { exigirUsuarioAtivo } from "@/lib/autorizacao";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
 import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
@@ -16,9 +17,16 @@ const SENTINELA_ID_VAZIO = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await autenticar(req);
-    if (auth instanceof NextResponse) return auth;
-    const { userId, irrestrito, perfis, gerencia } = auth;
+    // Sessão validada no Auth + cadastro ATIVO (C1, 21/10/2026): conta desativada com sessão
+    // antiga deixa de ver a Pilha na hora. A gerência segue a regra de lib/auth.ts: a do perfil
+    // de gerente, senão a de lotação.
+    const barreira = await exigirUsuarioAtivo(req);
+    if (!barreira.ok) return barreira.resposta;
+    const eu = barreira.usuario;
+    const userId = eu.id;
+    const irrestrito = eu.irrestrito;
+    const perfis = eu.perfis;
+    const gerencia = eu.gerenciaDoPerfil ?? eu.gerencia;
 
     const { searchParams } = new URL(req.url);
     const busca = searchParams.get("busca") || "";
@@ -326,6 +334,25 @@ export async function GET(req: NextRequest) {
     if (situacaoFiltro) {
       resultado = resultado.filter((p: any) => p.situacao_geral === situacaoFiltro);
     }
+
+    // Nome do analista de cada processo (C1, 21/10/2026). A Pilha lia a lista inteira de usuários
+    // de /api/admin/usuarios só para isso. Agora o nome sai daqui, e só dos analistas dos processos
+    // que este usuário já tem direito de ver — inclusive de quem foi desativado, com a marca
+    // `analista_ativo: false`, para o processo antigo não ficar com "—".
+    const idsAnalistas = Array.from(new Set(resultado.map((p: any) => p.analista_id).filter(Boolean))) as string[];
+    const nomePorId = new Map<string, { nome: string; ativo: boolean }>();
+    if (idsAnalistas.length > 0) {
+      const { data: analistas } = await supabase
+        .from("usuarios")
+        .select("id, nome, status")
+        .in("id", idsAnalistas);
+      for (const a of analistas ?? []) nomePorId.set((a as any).id, { nome: (a as any).nome, ativo: (a as any).status === "Ativo" });
+    }
+    resultado = resultado.map((p: any) => ({
+      ...p,
+      analista_nome: p.analista_id ? nomePorId.get(p.analista_id)?.nome ?? null : null,
+      analista_ativo: p.analista_id ? nomePorId.get(p.analista_id)?.ativo ?? null : null,
+    }));
 
     return NextResponse.json({ ok: true, data: resultado });
   } catch (e: any) {

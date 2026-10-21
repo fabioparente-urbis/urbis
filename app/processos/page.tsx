@@ -26,6 +26,10 @@ type Processo = {
   criado_em: string;
   atualizado_em: string;
   analista_id: string | null;
+  /** Nome do analista, resolvido por /api/processos só para os processos visíveis (C1). */
+  analista_nome?: string | null;
+  /** false quando o analista foi desativado — o nome continua aparecendo, com a marca. */
+  analista_ativo?: boolean | null;
   dados?: Record<string, any>;
   tags?: ProcessoTag[];
   lip_incompleto?: boolean;
@@ -189,11 +193,19 @@ function rotuloTag(t: ProcessoTag): string {
   }
 }
 
+/**
+ * Pessoa que pode receber um processo — vem de /api/usuarios/diretorio, que só devolve
+ * id, nome e gerência, no escopo de quem pergunta (C1, 21/10/2026). Antes a Pilha baixava o
+ * cadastro completo de todos os usuários de /api/admin/usuarios.
+ */
 type Usuario = {
   id: string;
   nome: string;
-  perfil: string;
+  gerencia?: string | null;
 };
+
+/** Analista que aparece nos processos carregados (inclusive desativado). */
+type AnalistaVisto = { id: string; nome: string; ativo: boolean };
 
 
 const TIPO_COR: Record<string, string> = {
@@ -252,6 +264,9 @@ function ProcessosConteudo() {
   const router = useRouter();
   const [processos, setProcessos] = useState<Processo[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  // Acumula os analistas dos processos já carregados, para o filtro "Analista" não encolher
+  // quando a própria lista estiver filtrada por um analista.
+  const [analistasVistos, setAnalistasVistos] = useState<Map<string, AnalistaVisto>>(new Map());
   const [carregando, setCarregando] = useState(true);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState("");
@@ -316,16 +331,30 @@ function ProcessosConteudo() {
       if (analista) params.set("analista", analista);
       const res = await fetch(`/api/processos?${params}`);
       const json = await res.json();
-      if (json.ok) setProcessos(json.data);
+      if (json.ok) {
+        setProcessos(json.data);
+        setAnalistasVistos((prev) => {
+          const m = new Map(prev);
+          for (const p of json.data as Processo[]) {
+            if (p.analista_id && p.analista_nome) m.set(p.analista_id, { id: p.analista_id, nome: p.analista_nome, ativo: p.analista_ativo !== false });
+          }
+          return m;
+        });
+      }
     } finally {
       setCarregando(false);
     }
   }
 
-  async function carregarUsuarios() {
-    const res = await fetch("/api/admin/usuarios");
-    const json = await res.json();
-    if (json.ok) setUsuarios(json.data);
+  /** Quem pode receber processos, no escopo de quem está logado (só gerente, Diretora e Administrador). */
+  async function carregarDiretorio() {
+    try {
+      const res = await fetch("/api/usuarios/diretorio");
+      const json = await res.json();
+      if (json.ok) setUsuarios(json.data);
+    } catch {
+      // sem diretório, o seletor de atribuição mostra só o analista atual
+    }
   }
 
   async function carregarPerfil() {
@@ -342,7 +371,8 @@ function ProcessosConteudo() {
     }
   }
 
-  useEffect(() => { carregarUsuarios(); carregarPerfil(); }, []);
+  useEffect(() => { carregarPerfil(); }, []);
+  useEffect(() => { if (podeFiltrarAnalista) carregarDiretorio(); }, [podeFiltrarAnalista]);
   useEffect(() => { carregar(); }, [busca, tipo, situacao, analista]);
 
   // A URL manda nos campos: o que o URBI pediu vira o estado visível dos
@@ -375,6 +405,18 @@ function ProcessosConteudo() {
    * EXATAMENTE a mesma chave que o `<select>` que existia antes escrevia.
    * Nenhuma regra de filtragem mudou; só o jeito de chegar nela.
    */
+  /**
+   * Opções do filtro "Analista": quem pode receber processo no meu escopo (diretório) + quem
+   * aparece nos processos que eu vejo (inclusive desativados e de fora da gerência). Antes vinha
+   * da lista completa de usuários do sistema.
+   */
+  const opcoesAnalista: AnalistaVisto[] = useMemo(() => {
+    const m = new Map<string, AnalistaVisto>();
+    for (const u of usuarios) m.set(u.id, { id: u.id, nome: u.nome, ativo: true });
+    for (const a of analistasVistos.values()) if (!m.has(a.id)) m.set(a.id, a);
+    return Array.from(m.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [usuarios, analistasVistos]);
+
   const catalogoFiltros: OpcaoFiltro[] = useMemo(() => {
     const t = (chave: string, valor: unknown, grupo: string, rotulo: string): OpcaoFiltro =>
       ({ id: `triagem:${chave}:${String(valor)}`, grupo, rotulo, alvo: "triagem", chave, valor });
@@ -421,8 +463,8 @@ function ProcessosConteudo() {
       t("triagem", "mais_simples", "Triagem", "Mais simples para começar"),
 
       ...(podeFiltrarAnalista
-        ? usuarios.map((u): OpcaoFiltro =>
-            ({ id: `analista::${u.id}`, grupo: "Analista", rotulo: u.nome, alvo: "analista", valor: u.id }))
+        ? opcoesAnalista.map((u): OpcaoFiltro =>
+            ({ id: `analista::${u.id}`, grupo: "Analista", rotulo: u.ativo ? u.nome : `${u.nome} (inativo)`, alvo: "analista", valor: u.id }))
         : []),
 
       t("ordenar", "esforco", "Ordenar", "Esforço (mais rápido primeiro)"),
@@ -433,7 +475,7 @@ function ProcessosConteudo() {
       t("ordenar", "data_desc", "Ordenar", "Mais novos"),
       t("ordenar", "data_asc", "Ordenar", "Mais antigos"),
     ];
-  }, [assuntos, usuarios, podeFiltrarAnalista]);
+  }, [assuntos, opcoesAnalista, podeFiltrarAnalista]);
 
   /** Etiquetas do que está ativo — montadas do estado real, não de um espelho. */
   const chipsAtivos: ChipAtivo[] = useMemo(() => {
@@ -559,9 +601,11 @@ function ProcessosConteudo() {
     }
   }
 
-  function nomeAnalista(id: string | null) {
-    if (!id) return "—";
-    return usuarios.find((u) => u.id === id)?.nome || "—";
+  function nomeAnalista(p: Processo) {
+    if (!p.analista_id) return "—";
+    const nome = p.analista_nome ?? analistasVistos.get(p.analista_id)?.nome ?? usuarios.find((u) => u.id === p.analista_id)?.nome;
+    if (!nome) return "—";
+    return p.analista_ativo === false ? `${nome} (inativo)` : nome;
   }
 
   return (
@@ -671,7 +715,7 @@ function ProcessosConteudo() {
                     </div>
                   )}
                   <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
-                  <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p></div>
+                  <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p)}</p></div>
                   {PROCESSOS_ANALISES_OCULTAS.has(numero) && (
                     <p title={AVISO_ANALISES_OCULTAS}
                       className="text-[var(--warning)] text-[11px] mt-1 leading-snug cursor-help">
@@ -838,7 +882,11 @@ function ProcessosConteudo() {
                 <select value={novoAnalista} onChange={(e) => setNovoAnalista(e.target.value)}
                   className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
                   <option value="">Sem analista</option>
-                  {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome} — {u.perfil}</option>)}
+                  {/* O analista atual sempre aparece, mesmo fora do escopo do diretório ou inativo. */}
+                  {editando.analista_id && !usuarios.some((u) => u.id === editando.analista_id) && (
+                    <option value={editando.analista_id}>{nomeAnalista(editando)} — atual</option>
+                  )}
+                  {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}{u.gerencia ? ` — ${u.gerencia}` : ""}</option>)}
                 </select>
               </div>
             </div>
