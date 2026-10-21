@@ -43,7 +43,7 @@ export async function montarDossieFactual(
 
   const { data: processo, error: erroProcesso } = await supabaseAdmin
     .from("processos")
-    .select("id, codigo, tipo_processo, assunto_id, porte, area_construida, dados, tags, analista_id, gerencia, criado_em, atualizado_em, analise_iniciada_em, analise_concluida_em, lip_incompleto, mac_incompleto")
+    .select("id, codigo, tipo_processo, assunto_id, porte, area_construida, dados, tags, analista_id, gerencia, criado_em, atualizado_em, analise_iniciada_em, analise_concluida_em, lip_incompleto, lip_finalizado, mac_incompleto")
     .eq("codigo", codigo)
     .is("excluido_em", null)
     .maybeSingle();
@@ -289,7 +289,9 @@ export async function montarDossieFactual(
   const sitMacDossie = situacaoMac(ultimaPassada, tags as any);
   const situacoes = {
     geral: situacaoGeral(resumoCampos, ultimaPassada, tags as any, (processo as any).lip_incompleto === true),
-    lip: situacaoLip(resumoCampos, (processo as any).lip_incompleto === true, sitMacDossie.classe === "Arquivado/indeferido"),
+    lip: situacaoLip(resumoCampos, (processo as any).lip_incompleto === true, sitMacDossie.classe === "Arquivado/indeferido", {
+      laudoEmitido: sitMacDossie.classe === "Encerrado", lipFinalizado: (processo as any).lip_finalizado === true,
+    }),
     mac: sitMacDossie,
   };
 
