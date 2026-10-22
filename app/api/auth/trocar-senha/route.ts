@@ -8,6 +8,12 @@ import { usuarioDaRequisicao } from "@/lib/autorizacao";
  * e-mail de reset (que depende do envio do Supabase, fora do nosso controle). Exige a senha
  * atual para confirmar que é o dono da conta, mesma checagem de /api/auth/login
  * (signInWithPassword com o client anônimo — nunca comparamos senha em texto).
+ *
+ * C1 (22/10/2026): a conta alterada é a DA SESSÃO, identificada pelo id que o Supabase Auth
+ * devolve ao validar o token — não mais por uma busca de e-mail em `listUsers()`, que só via
+ * as 50 primeiras contas e diferenciava maiúsculas (respondia "Usuário não encontrado no Auth"
+ * para contas além da 1ª página, como as recriadas na reativação). Nada vem do navegador
+ * além das senhas: não há como apontar outra conta.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -22,21 +28,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erro: "A nova senha deve ter pelo menos 8 caracteres" }, { status: 400 });
     }
 
-    const { data: linha } = await supabaseAdmin.from("usuarios").select("email").eq("id", usuario.id).maybeSingle();
-    const email = (linha as any)?.email;
-    if (!email) return NextResponse.json({ ok: false, erro: "Usuário não encontrado" }, { status: 404 });
+    // Conta de acesso da própria sessão: id e e-mail como o Auth os conhece.
+    const token = req.cookies.get("urbis_token")?.value;
+    const { data: authData, error: authError } = token
+      ? await supabaseAdmin.auth.getUser(token)
+      : { data: null, error: new Error("sem token") };
+    const conta = authData?.user;
+    if (authError || !conta?.id || !conta.email) {
+      return NextResponse.json({ ok: false, erro: "Sessão não encontrada" }, { status: 401 });
+    }
 
-    const { error: erroSenhaAtual } = await createClient(
+    const { data: login, error: erroSenhaAtual } = await createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    ).auth.signInWithPassword({ email, password: senhaAtual });
-    if (erroSenhaAtual) return NextResponse.json({ ok: false, erro: "Senha atual incorreta" }, { status: 401 });
+    ).auth.signInWithPassword({ email: conta.email, password: senhaAtual });
+    // A senha atual tem de ser DESTA conta (mesmo id da sessão).
+    if (erroSenhaAtual || login?.user?.id !== conta.id) {
+      return NextResponse.json({ ok: false, erro: "Senha atual incorreta" }, { status: 401 });
+    }
 
-    const { data: lista, error: erroLista } = await supabaseAdmin.auth.admin.listUsers();
-    const authUser = erroLista ? null : lista.users.find((u) => u.email === email);
-    if (!authUser) return NextResponse.json({ ok: false, erro: "Usuário não encontrado no Auth" }, { status: 404 });
-
-    const { error: erroTroca } = await supabaseAdmin.auth.admin.updateUserById(authUser.id, { password: novaSenha });
+    const { error: erroTroca } = await supabaseAdmin.auth.admin.updateUserById(conta.id, { password: novaSenha });
     if (erroTroca) return NextResponse.json({ ok: false, erro: erroTroca.message }, { status: 500 });
 
     return NextResponse.json({ ok: true });
