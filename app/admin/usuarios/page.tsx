@@ -131,7 +131,7 @@ export default function UsuariosPage() {
     });
   }
 
-  async function salvar(confirmacoes: { reaproveitarContaOrfa?: boolean; criarContaAcesso?: boolean } = {}) {
+  async function salvar(confirmacoes: { criarContaAcesso?: boolean } = {}) {
     if (!form.nome || !form.email) { setErro("Nome e email obrigatórios."); return; }
     if (!editando && !senha) { setErro("Senha obrigatória para novo usuário."); return; }
     try {
@@ -154,14 +154,10 @@ export default function UsuariosPage() {
         }),
       });
       const json = await res.json();
-      // Situações que o servidor só resolve com confirmação explícita do Administrador (C1).
-      if (!json.ok && json.code === "CONTA_ORFA" && !confirmacoes.reaproveitarContaOrfa) {
-        if (confirm(`${json.erro}\n\nReaproveitar a conta de acesso existente com a senha informada?`)) {
-          setSalvando(false);
-          return salvar({ ...confirmacoes, reaproveitarContaOrfa: true });
-        }
-        setErro(json.erro); return;
-      }
+      // Conflito com conta do Auth já existente: o URBIS não vincula nem reaproveita (C1). A mensagem
+      // traz os dados da conta e o procedimento de investigação — nenhuma ação automática.
+      if (!json.ok && json.code === "CONTA_CONFLITO") { setErro(json.erro); return; }
+      // Cadastro sem conta de acesso: criar uma conta NOVA só com confirmação explícita.
       if (!json.ok && json.code === "SEM_CONTA_AUTH" && !confirmacoes.criarContaAcesso) {
         if (confirm(`${json.erro}\n\nCriar agora a conta de acesso com a senha informada?`)) {
           setSalvando(false);

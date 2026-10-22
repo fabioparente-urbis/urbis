@@ -19,21 +19,43 @@ export class ErroAuth extends Error {
   jaExiste = false;
 }
 
+/** Dados da conta do Auth usados para decidir e para a investigação de conflito. */
+export type ContaAuth = {
+  id: string;
+  criada_em: string | null;
+  ultimo_acesso: string | null;
+  email_confirmado: boolean;
+  bloqueada: boolean;
+};
+
 /** Conta do Auth pelo e-mail. `null` = não existe. Lança `ErroAuth` se a consulta falhar. */
-export async function buscarContaAuthPorEmail(email: string): Promise<{ id: string } | null> {
+export async function buscarContaAuthPorEmail(email: string): Promise<ContaAuth | null> {
   const alvo = email.trim().toLowerCase();
   for (let page = 1; page <= MAX_PAGINAS; page++) {
     const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: POR_PAGINA });
     if (error) throw new ErroAuth(`consulta ao Auth falhou: ${error.message}`);
     const usuarios = data?.users ?? [];
     const achado = usuarios.find((u) => (u.email ?? "").toLowerCase() === alvo);
-    if (achado) return { id: achado.id };
+    if (achado) {
+      const ate = (achado as { banned_until?: string | null }).banned_until;
+      return {
+        id: achado.id,
+        criada_em: achado.created_at ?? null,
+        ultimo_acesso: achado.last_sign_in_at ?? null,
+        email_confirmado: !!achado.email_confirmed_at,
+        bloqueada: !!ate && new Date(ate).getTime() > Date.now(),
+      };
+    }
     if (usuarios.length < POR_PAGINA) return null;
   }
   throw new ErroAuth("consulta ao Auth excedeu o número máximo de páginas");
 }
 
 /**
+ * Não existe "desbloquear" aqui de propósito (C1/P5): desbloquear faria a senha e as sessões
+ * antigas voltarem a valer. Reativar SUBSTITUI a conta — ver reativarAcessoSeguro() em
+ * app/api/admin/usuarios/route.ts.
+ *
  * Bloqueio no Auth para conta desativada: impede login e renovação da sessão. O token de acesso
  * já emitido ainda vale até expirar (~1 h) nas rotas que não conferem `status` — as do C1
  * conferem a cada requisição (lib/autorizacao.ts → exigirUsuarioAtivo).
@@ -41,11 +63,6 @@ export async function buscarContaAuthPorEmail(email: string): Promise<{ id: stri
 export async function banirConta(authId: string): Promise<void> {
   const { error } = await supabaseAdmin.auth.admin.updateUserById(authId, { ban_duration: "876000h" });
   if (error) throw new ErroAuth(`bloqueio no Auth falhou: ${error.message}`);
-}
-
-export async function desbanirConta(authId: string): Promise<void> {
-  const { error } = await supabaseAdmin.auth.admin.updateUserById(authId, { ban_duration: "none" });
-  if (error) throw new ErroAuth(`desbloqueio no Auth falhou: ${error.message}`);
 }
 
 export async function definirSenha(authId: string, senha: string): Promise<void> {

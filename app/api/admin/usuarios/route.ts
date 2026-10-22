@@ -4,8 +4,8 @@ import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { exigirAdministradorAtivo, type UsuarioAtivo } from "@/lib/autorizacao";
 import { registrarIntencao, registrarResultado, diferencas, type AcaoAdmin } from "@/lib/adminAuditoria";
 import {
-  buscarContaAuthPorEmail, banirConta, desbanirConta, definirSenha, senhaDescartavel, ErroAuth,
-  criarConta, contaEstaBloqueada, excluirConta,
+  buscarContaAuthPorEmail, banirConta, definirSenha, senhaDescartavel, ErroAuth,
+  criarConta, contaEstaBloqueada, excluirConta, type ContaAuth,
 } from "@/lib/contasAuth";
 import { PERFIS_DISPONIVEIS } from "@/lib/perfis";
 
@@ -305,10 +305,11 @@ export async function POST(req: NextRequest) {
     return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
   }
 
-  // 1. Conta de acesso. Cadastro Inativo: a conta já nasce bloqueada.
+  // 1. Conta de acesso NOVA. Cadastro Inativo: a conta já nasce bloqueada.
+  //    Nunca se vincula uma conta do Auth que já exista (C1, revisão final): se o e-mail já tem
+  //    conta, o cadastro é BLOQUEADO para investigação — ver conflitoDeConta().
   const inativo = status === "Inativo";
   let authId: string;
-  let reaproveitada = false;
   try {
     authId = await criarConta(email, senha, inativo);
   } catch (e) {
@@ -316,41 +317,20 @@ export async function POST(req: NextRequest) {
       await registrarResultado(reg, "falha", {}, mensagemDe(e));
       return erro(502, "Nada foi criado: a conta de acesso não pôde ser criada no Auth. Tente novamente.");
     }
-    // O e-mail já tem conta no Auth, mas não tem cadastro no URBIS (conferido acima): conta
-    // órfã, sobra de um cadastro interrompido. Só é reaproveitada com confirmação explícita.
-    if (body.reaproveitarContaOrfa !== true) {
-      await registrarResultado(reg, "falha", {}, "conta de acesso órfã encontrada — aguardando confirmação para reaproveitar");
-      return erro(409, `Já existe uma conta de acesso para ${email} no Auth, sem cadastro no URBIS (sobra de um cadastro interrompido). Nada foi criado. Para reaproveitá-la com a senha informada, confirme a operação.`, { code: "CONTA_ORFA" });
-    }
-    let orfa: { id: string } | null = null;
-    try { orfa = await buscarContaAuthPorEmail(email); } catch (e2) {
-      await registrarResultado(reg, "falha", {}, mensagemDe(e2));
-      return erro(502, "Nada foi criado: não foi possível consultar a conta de acesso órfã. Tente novamente.");
-    }
-    if (!orfa) {
-      await registrarResultado(reg, "falha", {}, "conta órfã não localizada na releitura");
-      return erro(502, "Nada foi criado: a conta de acesso órfã não foi localizada. Tente cadastrar de novo.");
-    }
-    try {
-      await definirSenha(orfa.id, senha);
-      if (inativo) await banirConta(orfa.id); else await desbanirConta(orfa.id);
-    } catch (e3) {
-      await registrarResultado(reg, "falha", {}, mensagemDe(e3));
-      return erro(502, "Nada foi criado: a conta de acesso órfã não pôde ser preparada (senha/bloqueio). A conta continua órfã, sem cadastro — tente de novo.");
-    }
-    authId = orfa.id;
-    reaproveitada = true;
+    const conflito = await conflitoDeConta(email);
+    await registrarResultado(reg, "falha", { conflito_conta_auth: conflito.detalhe }, "e-mail já tem conta no Auth sem cadastro no URBIS — cadastro bloqueado para investigação");
+    return erro(409, conflito.mensagem, { code: "CONTA_CONFLITO", conflito: conflito.detalhe });
   }
 
-  /** Desfaz a conta de acesso criada nesta chamada. Devolve a mensagem de erro, ou null se desfez. */
+  /** Desfaz a conta de acesso criada NESTA chamada (o id veio do criarConta acima). */
   const desfazerConta = async (): Promise<string | null> => {
-    if (reaproveitada) return null; // conta já existia antes desta chamada: continua órfã, como estava
     try { await excluirConta(authId); return null; } catch (e) { return mensagemDe(e); }
   };
   const estadoOrfa = (motivo: string) =>
-    `ESTADO PARCIAL: ${motivo} A conta de acesso de ${email} ficou criada no Auth SEM cadastro no URBIS` +
+    `ESTADO PARCIAL: ${motivo} A conta de acesso de ${email} (id ${authId}) ficou criada no Auth SEM cadastro no URBIS` +
     `${inativo ? " e SEM bloqueio confirmado" : ""}. Ela não consegue usar o URBIS (sem cadastro, toda rota recusa), mas existe. ` +
-    `Recuperação: cadastre de novo com o mesmo e-mail — o sistema detecta a conta órfã e oferece reaproveitá-la.`;
+    `Recuperação: no painel do Supabase (Authentication → Users), localize ${email}, confira que o id é ${authId} ` +
+    `(criada agora pelo URBIS, registrada na auditoria) e exclua essa conta; depois cadastre de novo.`;
 
   // 2. Cadastro Inativo: confirma no Auth que a conta está mesmo bloqueada (nem toda versão do
   //    Auth aplica o bloqueio na criação); se não estiver, bloqueia; se não der, desfaz tudo.
@@ -364,7 +344,7 @@ export async function POST(req: NextRequest) {
     if (!bloqueada) {
       const falhaDesfazer = await desfazerConta();
       if (falhaDesfazer) {
-        await registrarResultado(reg, "falha_parcial", {}, `bloqueio não confirmado (${motivo || "conta continua livre"}); desfazer a conta falhou: ${falhaDesfazer}`);
+        await registrarResultado(reg, "falha_parcial", { conta_auth_id: authId }, `bloqueio não confirmado (${motivo || "conta continua livre"}); desfazer a conta falhou: ${falhaDesfazer}`);
         return erro(502, estadoOrfa("o bloqueio da conta de acesso não pôde ser confirmado e desfazer a conta também falhou."), { parcial: true, code: "CONTA_ORFA_CRIADA" });
       }
       await registrarResultado(reg, "falha", {}, `bloqueio não confirmado (${motivo || "conta continua livre"}); conta desfeita`);
@@ -377,20 +357,106 @@ export async function POST(req: NextRequest) {
   if (dbError || !inserido) {
     const falhaDesfazer = await desfazerConta();
     if (falhaDesfazer) {
-      await registrarResultado(reg, "falha_parcial", {}, `cadastro não gravado (${dbError?.message ?? "sem retorno"}); desfazer a conta falhou: ${falhaDesfazer}`);
+      await registrarResultado(reg, "falha_parcial", { conta_auth_id: authId }, `cadastro não gravado (${dbError?.message ?? "sem retorno"}); desfazer a conta falhou: ${falhaDesfazer}`);
       return erro(502, estadoOrfa("o cadastro não foi gravado e desfazer a conta de acesso falhou."), { parcial: true, code: "CONTA_ORFA_CRIADA" });
     }
-    await registrarResultado(reg, "falha", {}, `${dbError?.message ?? "cadastro não inserido"}${reaproveitada ? " (conta órfã reaproveitada continua órfã)" : "; conta de acesso desfeita"}`);
+    await registrarResultado(reg, "falha", {}, `${dbError?.message ?? "cadastro não inserido"}; conta de acesso desfeita`);
     // Propaga code (23505 = unique_violation) para a UI tratar.
-    return erro(500, reaproveitada
-      ? "Nada foi criado: o cadastro não pôde ser gravado. A conta de acesso órfã continua existindo, como antes — tente de novo."
-      : "Nada foi criado: o cadastro não pôde ser gravado e a conta de acesso foi desfeita. Tente novamente.", { code: dbError?.code });
+    return erro(500, "Nada foi criado: o cadastro não pôde ser gravado e a conta de acesso foi desfeita. Tente novamente.", { code: dbError?.code });
   }
 
   const idNovo = (inserido as { id: string }).id;
-  const avisos = reaproveitada ? [`A conta de acesso que já existia para ${email} foi reaproveitada, com a senha informada.`] : [];
-  await registrarResultado({ ...reg, alvo: { id: idNovo, nome } }, "sucesso", { ...diferencas({}, novo), ...(reaproveitada ? { conta_orfa_reaproveitada: true } : {}) });
-  return NextResponse.json({ ok: true, id: idNovo, ...(avisos.length ? { avisos } : {}) });
+  await registrarResultado({ ...reg, alvo: { id: idNovo, nome } }, "sucesso", diferencas({}, novo));
+  return NextResponse.json({ ok: true, id: idNovo });
+}
+
+/**
+ * O e-mail já tem conta no Auth, mas nenhum cadastro no URBIS. O URBIS NÃO vincula, NÃO troca a
+ * senha e NÃO exclui essa conta: a titularidade dela é desconhecida (pode ter sido criada pelo
+ * cadastro público do Supabase, que está ligado, ou sobrado de uma exclusão antiga) e trocar a
+ * senha não encerra sessões abertas. Devolve os dados que permitem investigar — inclusive se a
+ * conta foi criada pelo próprio URBIS numa tentativa interrompida (registro em admin_auditoria).
+ */
+async function conflitoDeConta(email: string): Promise<{ mensagem: string; detalhe: Record<string, unknown> }> {
+  let conta: Awaited<ReturnType<typeof buscarContaAuthPorEmail>> = null;
+  try { conta = await buscarContaAuthPorEmail(email); } catch { /* segue sem detalhes */ }
+  let origemUrbis: { criado_em: string } | null = null;
+  if (conta) {
+    const { data } = await supabase
+      .from("admin_auditoria").select("criado_em")
+      .eq("alteracoes->>conta_auth_id", conta.id).eq("resultado", "falha_parcial")
+      .order("criado_em", { ascending: true }).limit(1);
+    origemUrbis = (data as { criado_em: string }[] | null)?.[0] ?? null;
+  }
+  const fmt = (d: string | null | undefined) => (d ? new Date(d).toLocaleString("pt-BR") : "nunca");
+  const detalhe = {
+    conta_auth_id: conta?.id ?? null,
+    criada_em: conta?.criada_em ?? null,
+    ultimo_acesso: conta?.ultimo_acesso ?? null,
+    email_confirmado: conta?.email_confirmado ?? null,
+    bloqueada: conta?.bloqueada ?? null,
+    criada_pelo_urbis_em_tentativa_interrompida: origemUrbis?.criado_em ?? null,
+  };
+  const origem = origemUrbis
+    ? `Ela foi criada pelo PRÓPRIO URBIS numa tentativa de cadastro interrompida em ${fmt(origemUrbis.criado_em)} (registrada na auditoria).`
+    : "A origem dela é DESCONHECIDA para o URBIS (pode ter sido criada pelo cadastro público do Supabase ou ter sobrado de uma exclusão antiga).";
+  const mensagem =
+    `Nada foi criado: já existe uma conta de acesso para ${email} no Supabase Auth, sem cadastro no URBIS. ` +
+    `Por segurança, o URBIS não vincula, não troca a senha e não exclui essa conta. ` +
+    `Conta: id ${conta?.id ?? "?"}, criada em ${fmt(conta?.criada_em)}, último acesso ${fmt(conta?.ultimo_acesso)}, ` +
+    `e-mail ${conta?.email_confirmado ? "confirmado" : "NÃO confirmado"}. ${origem} ` +
+    `Procedimento: 1) confirme com a pessoa se ela criou essa conta; ` +
+    `2) no painel do Supabase (Authentication → Users), localize ${email} e confira o id; ` +
+    `3) se a conta não for reconhecida, ou for sobra do próprio URBIS, EXCLUA-A pelo painel — a exclusão encerra todas as sessões dela; ` +
+    `4) cadastre de novo pelo URBIS, que criará uma conta nova e limpa.`;
+  return { mensagem, detalhe };
+}
+
+/**
+ * Reativação segura do acesso (C1/P5, revisão final).
+ *
+ * Desbloquear a conta antiga NÃO serve: no Supabase, nem o bloqueio nem a troca de senha
+ * encerram sessões já abertas, e um token de renovação antigo pode voltar a valer. Por isso a
+ * conta de acesso do próprio cadastro é SUBSTITUÍDA: a antiga é bloqueada (garantia, se ainda
+ * não estiver) e APAGADA — o que remove todas as sessões dela — e uma nova é criada, com a senha
+ * informada ou, sem senha, com uma senha que ninguém conhece + e-mail de redefinição.
+ *
+ * Garantia em toda falha: o acesso fica bloqueado.
+ *   · não deu para apagar a antiga → ela continua lá, bloqueada; se nem o bloqueio foi
+ *     garantido, `reverterStatus` pede à rota que desfaça a reativação no cadastro;
+ *   · apagou a antiga mas não criou a nova → a pessoa fica sem conta (não entra).
+ */
+async function reativarAcessoSeguro(
+  req: NextRequest, antiga: ContaAuth, email: string, senha: string | null,
+): Promise<{ avisos: string[] } | { pendente: string; recuperar: string; reverterStatus: boolean }> {
+  let antigaBloqueada = antiga.bloqueada;
+  if (!antigaBloqueada) {
+    try { await banirConta(antiga.id); antigaBloqueada = true; } catch { /* tratado abaixo */ }
+  }
+  try {
+    await excluirConta(antiga.id);
+  } catch (e) {
+    return antigaBloqueada
+      ? { pendente: `substituição da conta de acesso (a conta antiga não pôde ser apagada: ${mensagemDe(e)}; ela continua BLOQUEADA)`,
+          recuperar: "abra o usuário e clique em Salvar sem alterar nada para tentar de novo", reverterStatus: false }
+      : { pendente: `substituição da conta de acesso (a conta antiga não pôde ser apagada nem bloqueada: ${mensagemDe(e)})`,
+          recuperar: "tente reativar de novo mais tarde", reverterStatus: true };
+  }
+  try {
+    await criarConta(email, senha ?? senhaDescartavel(), false);
+  } catch (e) {
+    if (e instanceof ErroAuth && e.jaExiste) {
+      const c = await conflitoDeConta(email);
+      return { pendente: "criação da conta de acesso nova bloqueada: o e-mail passou a ter outra conta no Auth", recuperar: c.mensagem, reverterStatus: false };
+    }
+    return { pendente: `criação da conta de acesso nova (${mensagemDe(e)}); a pessoa está SEM conta de acesso`,
+             recuperar: "abra o usuário, digite uma Nova senha e salve — confirme a criação da conta de acesso", reverterStatus: false };
+  }
+  if (senha) return { avisos: ["Acesso reativado com uma conta de acesso nova e a senha informada. Sessões e senha antigas não valem mais."] };
+  const falhaEnvio = await enviarResetSenha(req, email);
+  return { avisos: [falhaEnvio
+    ? "Acesso reativado com uma conta de acesso nova (sessões e senha antigas não valem mais), mas o e-mail de redefinição NÃO foi enviado. A pessoa só entra depois que você definir uma senha em Editar → Nova senha."
+    : "Acesso reativado com uma conta de acesso nova: sessões e senha antigas não valem mais. A pessoa recebeu um e-mail para criar a senha."] };
 }
 
 // ─── PUT: editar / desativar / reativar / trocar senha ─────────────────────
@@ -494,7 +560,7 @@ export async function PUT(req: NextRequest) {
 
   // ── Conta de acesso conferida ANTES de gravar qualquer coisa. ──
   const precisaConta = desativando || reativando || !!senha || Object.keys(alteracoes).length === 0;
-  let conta: { id: string } | null = null;
+  let conta: ContaAuth | null = null;
   let consultaFalhou: string | null = null;
   if (precisaConta) {
     try {
@@ -505,8 +571,16 @@ export async function PUT(req: NextRequest) {
     // Senha (e "salvar sem alterar") dependem da conta: sem consultar, nada é feito.
     // Desativar NÃO é barrado: é a ação de segurança mais urgente; o status vale na hora e o
     // bloqueio no Auth vira pendência explícita logo abaixo.
-    if (consultaFalhou && (senha || Object.keys(alteracoes).length === 0)) {
+    // Reativar também não: sem consultar a conta, não há como garantir que a senha antiga não volte a valer (P5).
+    if (consultaFalhou && (senha || reativando || Object.keys(alteracoes).length === 0)) {
       return erro(502, `Nada foi alterado: não foi possível consultar a conta de acesso (${consultaFalhou}). Tente novamente.`);
+    }
+    // Conta com e-mail NÃO confirmado não foi criada pelo URBIS (o URBIS sempre cria contas já
+    // confirmadas): é do cadastro público do Supabase, de titularidade desconhecida. Gravar senha
+    // nela entregaria o cadastro a quem a criou — bloqueia e manda investigar.
+    if (conta && senha && !conta.email_confirmado) {
+      const c = await conflitoDeConta(a.email);
+      return erro(409, c.mensagem, { code: "CONTA_CONFLITO", conflito: c.detalhe });
     }
     if (!conta && senha && !criarContaAcesso) {
       return erro(409, `Nada foi alterado: este cadastro não tem conta de acesso no Auth, então a senha não tem onde ser gravada. Para criar a conta de acesso com a senha informada, confirme a operação.`, { code: "SEM_CONTA_AUTH" });
@@ -529,16 +603,23 @@ export async function PUT(req: NextRequest) {
     } catch {
       return erro(503, "Registro de auditoria indisponível — nada foi alterado. Tente novamente.");
     }
-    try {
-      if (deveEstarBloqueada) await banirConta(conta.id); else await desbanirConta(conta.id);
-    } catch (e) {
-      await registrarResultado(regSync, "falha", {}, mensagemDe(e));
-      return erro(502, `Nada foi alterado: o ${deveEstarBloqueada ? "bloqueio" : "desbloqueio"} da conta de acesso falhou de novo (${mensagemDe(e)}). Tente mais tarde.`);
+    if (deveEstarBloqueada) {
+      try { await banirConta(conta.id); } catch (e) {
+        await registrarResultado(regSync, "falha", {}, mensagemDe(e));
+        return erro(502, `Nada foi alterado: o bloqueio da conta de acesso falhou de novo (${mensagemDe(e)}). Tente mais tarde.`);
+      }
+      await registrarResultado(regSync, "sucesso", { bloqueio_no_auth: { antes: bloqueada, depois: true } });
+      return NextResponse.json({ ok: true, avisos: ["O bloqueio da conta de acesso, que estava pendente, foi aplicado agora."] });
     }
-    await registrarResultado(regSync, "sucesso", { bloqueio_no_auth: { antes: bloqueada, depois: deveEstarBloqueada } });
-    return NextResponse.json({ ok: true, avisos: [deveEstarBloqueada
-      ? "O bloqueio da conta de acesso, que estava pendente, foi aplicado agora."
-      : "O desbloqueio da conta de acesso, que estava pendente, foi aplicado agora."] });
+    // Cadastro Ativo com a conta ainda bloqueada (reativação que ficou pendente): NUNCA só
+    // desbloquear — isso faria a senha e as sessões antigas voltarem a valer (P5).
+    const r = await reativarAcessoSeguro(req, conta, a.email, null);
+    if ("pendente" in r) {
+      await registrarResultado(regSync, "falha", {}, r.pendente);
+      return erro(502, `O acesso continua BLOQUEADO: ${r.pendente}. ${r.recuperar}`, { parcial: true });
+    }
+    await registrarResultado(regSync, "sucesso", { conta_acesso: "substituida" });
+    return NextResponse.json({ ok: true, avisos: r.avisos });
   }
 
   let reg;
@@ -591,26 +672,31 @@ export async function PUT(req: NextRequest) {
       }
     }
   }
-  if (reativando && !consultaFalhou) {
+  let senhaJaAplicada = false;
+  if (reativando) {
     if (!conta && !(senha && criarContaAcesso)) avisos.push("Este cadastro não tem conta de acesso no Auth — para a pessoa entrar, defina uma nova senha (o sistema oferece criar a conta).");
     else if (conta) {
-      try {
-        await desbanirConta(conta.id);
-        // P5: reativar exige nova senha — a antiga pode ter vazado no período inativo.
-        if (!senha) {
-          await definirSenha(conta.id, senhaDescartavel());
-          const falhaEnvio = await enviarResetSenha(req, a.email);
-          avisos.push(falhaEnvio
-            ? "Conta reativada, mas o e-mail de redefinição de senha não foi enviado. Defina uma senha em Editar → Nova senha, ou use o botão Senha."
-            : "Conta reativada. A pessoa recebeu um e-mail para criar uma nova senha.");
+      const r = await reativarAcessoSeguro(req, conta, a.email, senha);
+      senhaJaAplicada = true;
+      if ("pendente" in r) {
+        pendentes.push(r.pendente);
+        recuperar.push(r.recuperar);
+        if (r.reverterStatus) {
+          // Não foi possível garantir o bloqueio da conta antiga: desfaz a reativação no cadastro,
+          // para que o login (que confere o status) continue barrando a pessoa.
+          const { error: errRev } = await supabase.from("usuarios")
+            .update({ status: a.status, descadastrado_em: a.descadastrado_em }).eq("id", id);
+          if (errRev) {
+            pendentes.push(`desfazer a reativação no cadastro falhou (${errRev.message}) — ATENÇÃO: o cadastro está Ativo e a conta de acesso antiga pode estar desbloqueada`);
+            recuperar.push("mude o status para Inativo e salve; se não for possível, bloqueie a conta no painel do Supabase (Authentication → Users → Ban user)");
+          } else {
+            pendentes.push("a reativação foi DESFEITA no cadastro (status voltou a Inativo)");
+          }
         }
-      } catch (e) {
-        pendentes.push(`desbloqueio do acesso (${mensagemDe(e)})`);
-        recuperar.push("abra o usuário e clique em Salvar sem alterar nada — o sistema reaplica o desbloqueio; depois defina uma nova senha");
-      }
+      } else avisos.push(...r.avisos);
     }
   }
-  if (senha) {
+  if (senha && !senhaJaAplicada) {
     try {
       if (conta) await definirSenha(conta.id, senha);
       else {
@@ -619,8 +705,14 @@ export async function PUT(req: NextRequest) {
         alteracoes.conta_acesso = "criada";
       }
     } catch (e) {
-      pendentes.push(conta ? `nova senha (${mensagemDe(e)})` : `criação da conta de acesso (${mensagemDe(e)})`);
-      recuperar.push("digite a nova senha de novo e salve");
+      if (!conta && e instanceof ErroAuth && e.jaExiste) {
+        const c = await conflitoDeConta(a.email);
+        pendentes.push("criação da conta de acesso bloqueada: o e-mail já tem uma conta no Auth de origem não confirmada");
+        recuperar.push(c.mensagem);
+      } else {
+        pendentes.push(conta ? `nova senha (${mensagemDe(e)})` : `criação da conta de acesso (${mensagemDe(e)})`);
+        recuperar.push("digite a nova senha de novo e salve");
+      }
     }
   }
 
