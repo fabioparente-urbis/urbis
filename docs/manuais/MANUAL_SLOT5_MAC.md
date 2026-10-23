@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.50
-**Data:** 2026-10-19
+**Versão:** 1.51
+**Data:** 2026-10-23
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -97,6 +97,15 @@ tela de MAC própria, se for para manter paridade com o Slot 1/2).
 Dentro de cada item aberto: texto da exigência, botões Conforme/Não Conforme/Não se Aplica, campo
 de observação sempre visível (não expansível — decisão do Fábio), vínculos com BIP (lei/artigo) e
 LIP (campo de origem).
+
+### 3.1.1 Abertura da tela — já na análise seguinte (23/10/2026)
+
+Ao entrar no MAC, a tela abre **na análise posterior à anterior** quando a última análise já foi
+emitida (tem despacho ou parecer), não está indeferida/arquivada e ainda há vaga no limite do slot
+(coluna "Análises" do admin). Isso roda **depois** dos filtros automáticos, que continuam gravando na
+análise anterior. Usa o mesmo caminho do botão da próxima análise (`iniciarNovaAnalise`: nasce em
+branco, herdando só os "não se aplica", e a linha é criada no banco). Se a última não foi emitida, foi
+indeferida ou o limite foi atingido, abre na última, como antes.
 
 ### 3.2 Ícone de origem por item
 
@@ -1498,6 +1507,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.51 | 2026-10-23 | Seção 3.1.1: o MAC abre já na análise seguinte quando a última foi emitida, não é indeferida/arquivada e há vaga no limite (igual nos Slots 1, 2, 3 e 4) |
 | 1.50 | 2026-10-19 | Seção 8.8: quantidade de análises configurável por slot no admin (1 a 10, coluna "Análises" na tabela de Assuntos de /admin/configuracoes); a penúltima (aviso) é a N-1 e a última a N; rota de criar análise respeita o limite. Limite da tabela de 5 etapas registrado. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.49. |
 | 1.49 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **← Pilha de Processo**, depois de 🚪 Sair (igual ao do LIP), leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 a 4. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.48. |
 | 1.48 | 2026-10-16 | Seção 3 (caixa no topo), 4.3 e 8.2: com o LIP do Slot 5 virando programa próprio, os botões de voltar ao LIP abrem `/lip-aprovacao-projeto/<id>`, a legenda de foto usa a rota do Slot 5, a outorga roda na rota de salvar própria e o despacho interno do LIP sai só pela rota do Slot 5. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |

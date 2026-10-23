@@ -450,6 +450,25 @@ export default function MacPage() {
       } else {
         await carregarItensModelo("00000000-0000-0000-0000-000000000001");
       }
+
+      // Pedido do Fábio (23/10/2026): ao entrar no MAC, já abrir na análise
+      // SEGUINTE quando a última já foi emitida (despacho/parecer) e ainda há
+      // vaga no limite do slot. Análise não emitida, indeferida/arquivada ou no
+      // limite: continua abrindo na última, como antes. É o mesmo caminho do botão
+      // da próxima análise (gravação pelo autosave).
+      const maisRecente = [...json.data].sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+      const emitida = !!(maisRecente?.numero_despacho || maisRecente?.numero_parecer);
+      const encerrada = ["indeferido", "arquivado"].includes(String(maisRecente?.status ?? ""));
+      if (maisRecente?.modelo_id && emitida && !encerrada) {
+        let limite = limiteAnalises;
+        try {
+          const rl = await fetch("/api/mac/limite-analises", { cache: "no-store" });
+          const jl = await rl.json();
+          const n = Number(jl?.data?.["slot_03"]);
+          if (jl?.ok && n >= 1) limite = n;
+        } catch {}
+        if (json.data.length < limite) iniciarNovaAnalise(json.data, limite);
+      }
     } else {
       // Sem análise — abre modal de seleção de modelo
       await carregarModelos(tipo, assunto);
@@ -1346,15 +1365,17 @@ export default function MacPage() {
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
   }
 
-  function iniciarNovaAnalise() {
-    if (analises.length >= limiteAnalises) {
-      mostrarToast(`Limite de ${limiteAnalises} análises atingido.`);
+  // `listaBase`/`limite` só vêm da abertura da tela, onde o state `analises` e o
+  // limite ainda estão no valor inicial (a closure de carregar() é antiga).
+  function iniciarNovaAnalise(listaBase: any[] = analises, limite: number = limiteAnalises) {
+    if (listaBase.length >= limite) {
+      mostrarToast(`Limite de ${limite} análises atingido.`);
       return;
     }
     // `analises` vem da API ordenada por numero_analise DESC, então a posição
     // final do array é a análise 1 — não a mais recente. Buscar pelo maior
     // numero_analise torna a cópia independente da ordenação.
-    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    const ultima = [...listaBase].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
     macCarregadoRef.current = false;

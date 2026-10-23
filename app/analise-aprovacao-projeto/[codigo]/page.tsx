@@ -826,6 +826,25 @@ export default function AnaliseAprovacaoProjeto() {
         setMacIncompleto(d.macIncompleto === true);
         setAnalises(d.analises ?? []);
         const atual: Analise | undefined = (d.analises ?? [])[0];
+        // Pedido do Fábio (23/10/2026): ao entrar, abre já na análise SEGUINTE quando a última foi
+        // emitida (despacho/parecer), não está indeferida/arquivada e ainda há vaga no limite.
+        // Mesmo caminho do botão da próxima análise (iniciarNovaAnalise, que grava a linha).
+        let abrirProxima: number | null = null;
+        let limiteAbertura = limiteAnalises;
+        if (atual && (atual.numero_despacho || atual.numero_parecer)
+            && !["indeferido", "arquivado"].includes(String(atual.status ?? ""))) {
+          let limite = limiteAnalises;
+          try {
+            const rl = await fetch("/api/mac/limite-analises", { cache: "no-store" });
+            const jl = await rl.json();
+            const n = Number(jl?.data?.["slot_05"]);
+            if (jl?.ok && n >= 1) limite = n;
+          } catch { /* mantém o limite padrão */ }
+          if (cancelado) return;
+          limiteAbertura = limite;
+          const maior = Math.max(...(d.analises as Analise[]).map((x) => Number(x.numero_analise) || 0));
+          if (atual.numero_analise === maior && (d.analises as Analise[]).length < limite) abrirProxima = maior + 1;
+        }
         const marcasAtuais = atual?.itens ?? {};
         aceitesRef.current = (atual?.aceites ?? {}) as Aceites;
         const decisoesSalvas: Record<string, "aceito" | "recusado"> =
@@ -915,6 +934,9 @@ export default function AnaliseAprovacaoProjeto() {
           // Sem aviso quando nada mudou: abrir a tela não pode gerar um toast toda vez. O painel
           // "🎛️ Ver filtros" continua mostrando o que foi avaliado.
         }
+
+        // Só depois dos filtros: eles gravam na análise `atual`, não na nova.
+        if (abrirProxima !== null && !cancelado) iniciarNovaAnalise(abrirProxima, d.analises ?? [], limiteAbertura);
       } catch (e) {
         if (!cancelado) setErro(String(e));
       } finally {
@@ -1157,11 +1179,12 @@ export default function AnaliseAprovacaoProjeto() {
     carregarHistorico(alvo.id);
   }
 
-  function iniciarNovaAnalise(n: number) {
-    if (analises.length >= limiteAnalises) { notificar(`Limite de ${limiteAnalises} análises atingido.`); return; }
+  // `listaBase` só vem da abertura da tela, onde o state `analises` da closure ainda é o inicial.
+  function iniciarNovaAnalise(n: number, listaBase: Analise[] = analises, limite: number = limiteAnalises) {
+    if (listaBase.length >= limite) { notificar(`Limite de ${limite} análises atingido.`); return; }
     // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a herança
     // independente da ordenação da API.
-    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    const ultima = [...listaBase].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setAnalise(null);
     analiseRef.current = null;
     criandoAnalise.current = null;
