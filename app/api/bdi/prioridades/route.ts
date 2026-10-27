@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { autenticar } from "@/lib/auth";
 import { montarAvisos, triar, resumirCampos, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { descontarCampoFantasmaSlot5, situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { descontarCampoFantasmaSlot5, lipFinalizadoValeComoCompleto, situacaoGeral, situacaoLip, situacaoMac, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 // ============================================================
 // BDI — Co-Analista por evidência (02/09/2026)
@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from("processos")
-    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags, lip_incompleto", { count: "exact" })
+    .select("codigo, tipo_processo, assunto_id, area_construida, dados, tags, lip_incompleto, lip_finalizado", { count: "exact" })
     .is("excluido_em", null)
     .order("atualizado_em", { ascending: false })
     .range(offset, offset + limite - 1);
@@ -230,7 +230,8 @@ export async function GET(req: NextRequest) {
     // --- as 3 situações (lib/bdi/situacao.ts), idênticas às da Pilha
     const sitGeral = situacaoGeral(campos, ultimaPassada, tags, (p as any).lip_incompleto === true);
     const sitMac = situacaoMac(ultimaPassada, tags);
-    const sitLip = situacaoLip(campos, (p as any).lip_incompleto === true, sitMac.classe === "Arquivado/indeferido");
+    const sitLip = situacaoLip(campos, (p as any).lip_incompleto === true, sitMac.classe === "Arquivado/indeferido",
+      lipFinalizadoValeComoCompleto(p.tipo_processo, (p as any).lip_finalizado));
 
     // --- o que falta preencher: nomes de campo, nunca o valor
     const resumoCampos = resumirCampos(dados);
