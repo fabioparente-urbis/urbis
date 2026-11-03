@@ -85,20 +85,18 @@ export async function GET(req: NextRequest) {
 
     let resultado = data ?? [];
     if (buscaLimpa) {
+      const palavrasBusca = buscaLimpa.split(/\s+/).filter(Boolean);
       resultado = resultado.filter((p: any) => {
         const codigo = (p.codigo || "").toLowerCase();
         const numeroSei = (p.numero_sei || "").toLowerCase();
         const interessado = (p.dados?.proprietario?.valor || "").toLowerCase();
+        const processoFisico = String(p.dados?.processoFisico?.valor || "").toLowerCase();
         const tags = Array.isArray(p.tags) ? p.tags : [];
-        const temDespachoBatendo = tags.some((t: any) =>
-          (t.numero_despacho || "").toLowerCase().includes(buscaLimpa)
-        );
-        return (
-          codigo.includes(buscaLimpa) ||
-          numeroSei.includes(buscaLimpa) ||
-          interessado.includes(buscaLimpa) ||
-          temDespachoBatendo
-        );
+        const despachos = tags.map((t: any) => (t.numero_despacho || "").toLowerCase()).join(" ");
+        // Cada palavra digitada precisa aparecer em algum campo (em qualquer
+        // ordem): "maria cristina araujo" acha "MARIA CRISTINA DE ARAUJO".
+        const alvo = [codigo, numeroSei, interessado, processoFisico, despachos].join(" | ");
+        return palavrasBusca.every((w) => alvo.includes(w));
       });
     }
 
