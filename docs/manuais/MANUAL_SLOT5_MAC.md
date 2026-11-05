@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.53
+**Versão:** 1.54
 **Data:** 2026-11-05
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1507,6 +1507,7 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.54 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.53, seção 30.1), o S1 passou a recusar processo de outro slot antes de gastar a IA. |
 | 1.53 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.52, seção 30), entrou o botão "⏹ Parar leitura" no LER PASTA/LER PROCESSO. |
 | 1.52 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.51), o botão do painel de coordenadas passou de "Ver no Google Maps" para "Ver no Google Earth". |
 | 1.51 | 2026-10-23 | Seção 3.1.1: o MAC abre já na análise seguinte quando a última foi emitida, não é indeferida/arquivada e há vaga no limite (igual nos Slots 1, 2, 3 e 4) |

@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.52
+**Versão:** 1.53
 **Data:** 2026-11-05
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1347,10 +1347,15 @@ pasta; nas etapas S1/S2/S3 do PDF, também a espera do job é encerrada), as eta
 tinha iniciado a chamada da IA daquela etapa, ela pode terminar lá (e ser cobrada), mas o resultado é
 descartado. Mesmo botão nos Slots 1 a 4 (cada um na sua ficha).
 
+### 30.1 Tipo errado é recusado no S1 (05/11/2026)
+
+A rota `/api/aprovacao-projeto/lip/s1` passou a recusar, antes de subir o PDF para o Gemini, o processo que existe e não é do Slot 5 (`Esta leitura é do Slot 5 (Aprovação de Projeto); o processo é "..."`). Antes a recusa só vinha no S3, depois de gastar o S1 e o S2. Sem código ou sem processo cadastrado, nada muda (o S3 decide). Mesma conferência nos Slots 1 a 4, cada um na sua rota.
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.53 | 2026-11-05 | Seção 30.1: o S1 do Slot 5 recusa processo de outro slot antes de gastar a IA. Conferido contra o MAC da mesma data: sem mudança (`MANUAL_SLOT5_MAC.md` v1.54). |
 | 1.52 | 2026-11-05 | Seção 30: botão "⏹ Parar leitura" no LER PASTA e no LER PROCESSO (cancela a chamada, não grava nada, registra na OBS). Conferido contra o MAC da mesma data: sem mudança (`MANUAL_SLOT5_MAC.md` v1.53). |
 | 1.51 | 2026-11-05 | Seção 6.5: o botão do painel de coordenadas (tabela LIP × Mapa Fácil) passou de "Ver no Google Maps" para "Ver no Google Earth" (`earth.google.com/web/search/<coordenadas>`), pedido do Fábio. Só o destino do link mudou; nenhuma regra do LIP. Conferido contra o MAC da mesma data (`MANUAL_SLOT5_MAC.md` v1.52): sem mudança. |
 | 1.50 | 2026-10-23 | Conferido: o LIP não mudou. O MAC passou a abrir já na análise seguinte quando a última foi emitida. Ver `MANUAL_SLOT5_MAC.md` v1.51. |
