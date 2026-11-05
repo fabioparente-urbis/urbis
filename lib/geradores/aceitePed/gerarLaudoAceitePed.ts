@@ -197,6 +197,15 @@ function areaNumerica(bruto: string): number | string {
   return Number.isFinite(n) ? n : bruto;
 }
 
+/** Número de Pavimentos / Unidades = SÓ o número inteiro (Fábio, 05/11/2026: "Sub-Solo + 4 Pavimentos"
+ *  → 4; "4 salas comerciais" → 4). Sem número reconhecível, devolve o texto como veio. */
+function apenasInteiro(bruto: string, chave: string): string {
+  const t = String(bruto ?? "").trim();
+  if (!t || /^\d+$/.test(t) || t.toUpperCase() === "NP") return t;
+  const m = (chave === "pav" ? t.match(/(\d+)\s*(?:pavimentos?|pav\b|pvtos?)/i) : null) ?? t.match(/\d+/);
+  return m ? (m[1] ?? m[0]) : t;
+}
+
 const CHAVES_AREA = new Set([
   "areaVerticalRecuo", "areaVerticalForaRecuo", "areaNaoVerticalRecuo",
   "areaNaoVerticalForaRecuo", "areaTerreno", "areaExistente",
@@ -230,10 +239,22 @@ export function resolverComprovacao(d: DadosLip): { tipo: string; origem: "foto"
   if (foto && foto !== "NP") {
     return { tipo: `Imagem aérea / Google Earth (SEI ${foto})`, origem: "foto" };
   }
-  if (tipoDeclarado && tipoDeclarado !== "NP") {
-    return { tipo: tipoDeclarado, origem: "documento" };
-  }
   const dataEnerg = valor(d, "dataEnergizacao");
+  if (tipoDeclarado && tipoDeclarado !== "NP") {
+    /* A data da energização vai pro laudo (Fábio, 05/11/2026): sem ela o laudo diz só o tipo do
+     * documento, e é a data que prova a existência antes do marco. */
+    const temData = dataEnerg && dataEnerg !== "NP" && !tipoDeclarado.includes(dataEnerg);
+    /* SEI e folha dos autos do documento (Fábio, 05/11/2026: "com a folha") — ex.:
+     * "Declaração de Energização (10/10/1978) — SEI 7103712, fl. 32". */
+    const sei = valor(d, "seiComprovacao");
+    const folhaBruta = valor(d, "folhaComprovacao");
+    const folha = folhaBruta && folhaBruta !== "NP"
+      ? (/^\d+$/.test(folhaBruta) ? `fl. ${folhaBruta}` : folhaBruta)
+      : "";
+    const ref = [sei && sei !== "NP" ? `SEI ${sei}` : "", folha].filter(Boolean).join(", ");
+    const base = temData ? `${tipoDeclarado} (${dataEnerg})` : tipoDeclarado;
+    return { tipo: ref ? `${base} — ${ref}` : base, origem: "documento" };
+  }
   if (dataEnerg && dataEnerg !== "NP") {
     return { tipo: `Declaração de energização (${dataEnerg})`, origem: "documento" };
   }
@@ -278,7 +299,9 @@ export function escreverLaudoAceitePed(
   for (const [chave, celula] of Object.entries(MAPA_PAINEL)) {
     const bruto = valor(dados, chave);
     if (!bruto) continue;
-    painel.getCell(celula).value = CHAVES_AREA.has(chave) ? areaNumerica(bruto) : bruto;
+    painel.getCell(celula).value = CHAVES_AREA.has(chave)
+      ? areaNumerica(chave === "pav" || chave === "unid" ? apenasInteiro(bruto, chave) : bruto)
+      : bruto;
   }
 
   // Processo: o LIP pode não ter o campo preenchido; o código do

@@ -156,6 +156,141 @@ function corrigirSeiFisico(novo: Record<string, Campo>, codigo: string): void {
   novo.processo = { valor: codigo, origem: "manual", fonte: "Número informado no cadastro" };
 }
 
+// Regra do Fábio (05/11/2026): se Á. Não Vertical no Recuo + Á. Não Vertical fora do Recuo
+// = Á. do Aceite (TOTAL), nada do aceite é edifício vertical — as duas áreas verticais são
+// obrigatoriamente NP. Só preenche campo vazio (nunca sobrescreve o que o analista digitou).
+// Muta `novo` in-place.
+function completarAreasVerticaisNP(novo: Record<string, Campo>): void {
+  const num = (c?: Campo): number | null => {
+    const bruto = c?.valor == null ? "" : String(c.valor).replace(/m²|m2/gi, "").trim();
+    if (!bruto || bruto.toUpperCase() === "NP") return null;
+    const s = bruto.includes(",") ? bruto.replace(/\./g, "").replace(",", ".") : bruto;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  };
+  const total = num(novo.areaAceite);
+  const dentro = num(novo.areaNaoVerticalRecuo);
+  const fora = num(novo.areaNaoVerticalForaRecuo);
+  if (total === null || dentro === null || fora === null || total <= 0) return;
+  if (Math.abs(dentro + fora - total) > 0.01) return;
+  for (const chave of ["areaVerticalRecuo", "areaVerticalForaRecuo"]) {
+    const atual = novo[chave]?.valor;
+    if (atual === undefined || atual === null || String(atual).trim() === "") {
+      novo[chave] = { valor: "NP", origem: "urbis", fonte: "Regra: Não Vertical (no Recuo + fora do Recuo) = Á. do Aceite (TOTAL)" };
+    }
+  }
+}
+
+// Regras do Fábio (05/11/2026): se há Nº SEI da Procuração / do Embargo / da Onerosa, o "Tem …?"
+// correspondente é obrigatoriamente Sim. Preenche vazio e corrige o que a leitura (IA/padrão) pôs
+// diferente; nunca desfaz escolha manual. Também normaliza "SIM"/"NÃO" (a IA escreve em caixa
+// alta, mas as opções do select são "Sim"/"Não" — caixa alta não casa e a tela mostra "selecione").
+// Muta `novo` in-place.
+function ajustarSimNaoPorNumeroSei(novo: Record<string, Campo>): void {
+  const pares: Array<[string, string, string]> = [
+    ["procuracao", "seiProcuracao", "Procuração"],
+    ["embargo", "seiEmbargo", "Embargo"],
+    ["onerosa", "numero_do_sei_da_onerosa", "Onerosa"],
+  ];
+  for (const [flag, chaveSei, nome] of pares) {
+    const atual = novo[flag];
+    const bruto = String(atual?.valor ?? "").trim();
+    const norm = bruto.toLowerCase();
+    if (norm === "sim" || norm === "não" || norm === "nao") {
+      const certo = norm === "sim" ? "Sim" : "Não";
+      if (bruto !== certo) novo[flag] = { ...(atual as Campo), valor: certo };
+    }
+    const sei = String(novo[chaveSei]?.valor ?? "").trim();
+    if (!/\d/.test(sei)) {
+      /* Onerosa é fato (Fábio, 05/11/2026): sem Nº SEI da onerosa, "Tem Onerosa?" = Não — mesmo que
+       * a leitura tenha calculado SIM pelas áreas. Só o embargo/procuração NÃO seguem isto (para
+       * eles a ausência de número não prova nada). Nunca desfaz escolha manual. */
+      if (flag === "onerosa" && novo[flag]?.origem !== "manual" && String(novo[flag]?.valor ?? "").trim() !== "Não") {
+        novo[flag] = { valor: "Não", origem: "urbis", fonte: "Regra: sem Nº SEI da Onerosa" };
+      }
+      continue;
+    }
+    const a = novo[flag];
+    if (a?.origem === "manual" && String(a.valor ?? "").trim() !== "") continue;
+    if (String(a?.valor ?? "").trim() === "Sim") continue;
+    novo[flag] = { valor: "Sim", origem: "urbis", fonte: `Regra: há Nº SEI da ${nome}` };
+  }
+}
+
+// Regra do Fábio (05/11/2026): Certidão de Remembramento e de Limites e Confrontações raramente
+// existem nos processos — se a leitura não achou, o valor é NP (não fica "Conferir" vazio).
+// Só preenche campo vazio. Muta `novo` in-place.
+function certidoesRarasNP(novo: Record<string, Campo>): void {
+  /* Unidade Territorial é do Uso do Solo, que o Aceite não exige (Fábio, 05/11/2026): sem Uso do
+   * Solo no processo, NP. */
+  const uso = String(novo.numeroUso?.valor ?? "").trim().toUpperCase();
+  if ((uso === "" || uso === "NP") && String(novo.vistoriaUnidadeTerritorial?.valor ?? "").trim() === "") {
+    novo.vistoriaUnidadeTerritorial = { valor: "NP", origem: "padrao" };
+  }
+  /* Número de Pavimentos / Unidades: só o número (Fábio, 05/11/2026). Não desfaz valor manual. */
+  for (const chave of ["pav", "unid"]) {
+    const c = novo[chave];
+    const t = String(c?.valor ?? "").trim();
+    if (!c || !t || c.origem === "manual" || /^\d+$/.test(t) || t.toUpperCase() === "NP") continue;
+    const m = (chave === "pav" ? t.match(/(\d+)\s*(?:pavimentos?|pav\b|pvtos?)/i) : null) ?? t.match(/\d+/);
+    if (m) novo[chave] = { ...c, valor: m[1] ?? m[0] };
+  }
+  /* Faixa de Ampliação (Fábio, 05/11/2026): sem corredor viário a faixa é ZERO, não NP. Não desfaz
+   * valor manual. */
+  if (String(novo.corredor?.valor ?? "").trim().toLowerCase() === "não" || String(novo.corredor?.valor ?? "").trim().toLowerCase() === "nao") {
+    const fx = String(novo.faixa?.valor ?? "").trim().toUpperCase();
+    if ((fx === "" || fx === "NP") && novo.faixa?.origem !== "manual") {
+      novo.faixa = { valor: "0", origem: "urbis", fonte: "Regra: sem corredor viário a faixa de ampliação é 0" };
+    }
+  }
+  for (const chave of ["remembramento", "certLimites"]) {
+    if (String(novo[chave]?.valor ?? "").trim() === "") {
+      novo[chave] = { valor: "NP", origem: "padrao" };
+    }
+  }
+  /* ART/RRT de EXECUÇÃO da caixa de recarga (Fábio, 05/11/2026): sem caixa apresentada, não há ART
+   * de execução — NP. Com caixa "Sim" e campo vazio fica vazio (é pendência real). */
+  if (String(novo.caixa?.valor ?? "").trim().toLowerCase() !== "sim") {
+    for (const chave of ["artCx", "nroArtCx"]) {
+      if (String(novo[chave]?.valor ?? "").trim() === "") novo[chave] = { valor: "NP", origem: "padrao" };
+    }
+  }
+}
+
+// Formato do número SEI (Fábio, 05/11/2026): documento SEI é só número de 7 ou 8 dígitos
+// (ex.: 7103712, 10574830). O que a leitura escrever fora disso num campo "DOC SEI" não é SEI:
+// o campo fica vazio para o analista conferir, e o texto lido vai para a fonte (nada some em
+// silêncio). "ART CREA-GO nº 1020260230308" em artLev → o número vai para nroArtLev se estiver vazio.
+// O SEI da busca de arquivo é o mesmo nos dois campos (pag e nadaConsta). Nunca mexe em valor manual.
+// Muta `novo` in-place.
+const CHAVES_DOC_SEI = [
+  "certidao", "levantamento", "artLev", "artCx", "laudo", "vistoria", "remembramento", "certLimites",
+  "foto", "nadaConsta", "pag", "comaer", "seiComprovacao", "seiProcuracao", "seiEmbargo",
+  "numero_do_sei_da_onerosa", "seiCheadv",
+];
+function validarFormatoSei(novo: Record<string, Campo>): void {
+  const ehSei = (v: string) => /^\d{7,8}$/.test(v);
+  for (const chave of CHAVES_DOC_SEI) {
+    const c = novo[chave];
+    const t = String(c?.valor ?? "").trim();
+    if (!c || !t || c.origem === "manual" || t.toUpperCase() === "NP" || ehSei(t)) continue;
+    const soDigitos = t.replace(/[.\-\s]/g, "");
+    if (ehSei(soDigitos)) { novo[chave] = { ...c, valor: soDigitos }; continue; }
+    if (chave === "artLev" && !String(novo.nroArtLev?.valor ?? "").trim()) {
+      const m = t.match(/\d{6,}/);
+      if (m) novo.nroArtLev = { valor: m[0], origem: "urbis", fonte: `Movido de "DOC SEI — ART/RRT": ${t}` };
+    }
+    novo[chave] = { valor: "", origem: "urbis", fonte: `Lido "${t}" — não é número SEI (7 ou 8 dígitos); conferir` };
+  }
+  const pag = String(novo.pag?.valor ?? "").trim();
+  const nada = String(novo.nadaConsta?.valor ?? "").trim();
+  if (ehSei(pag) && !ehSei(nada) && novo.nadaConsta?.origem !== "manual") {
+    novo.nadaConsta = { valor: pag, origem: "urbis", fonte: "Mesmo SEI do Encaminhamento da busca (Pág. do SEI)" };
+  } else if (ehSei(nada) && !ehSei(pag) && novo.pag?.origem !== "manual") {
+    novo.pag = { valor: nada, origem: "urbis", fonte: "Mesmo SEI do Encaminhamento da busca (Nada Consta)" };
+  }
+}
+
 /** O que a busca no Mapa Fácil deixou para o analista conferir. */
 type ResultadoMapaFacil = {
   coordenadas: string;
@@ -1217,6 +1352,10 @@ export default function LipAceitePed() {
             novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
           });
           corrigirSeiFisico(novo, idUrl);
+          completarAreasVerticaisNP(novo);
+          ajustarSimNaoPorNumeroSei(novo);
+          certidoesRarasNP(novo);
+          validarFormatoSei(novo);
           autoSalvar(novo);
           return novo;
         });
@@ -1486,6 +1625,10 @@ export default function LipAceitePed() {
             novo[chave] = { valor: item.valor, origem: "urbis", fonte: item.fonte };
           });
           corrigirSeiFisico(novo, idUrl);
+          completarAreasVerticaisNP(novo);
+          ajustarSimNaoPorNumeroSei(novo);
+          certidoesRarasNP(novo);
+          validarFormatoSei(novo);
           const obsAtual = (prev["observacoes"]?.valor ?? "").trim();
           const obsNova = logCabecalho + (s4Data.ok && s4Data.obsTexto ? "\n" + s4Data.obsTexto : "");
           novo["observacoes"] = { valor: obsAtual ? obsAtual + "\n\n" + obsNova : obsNova, origem: "urbis", fonte: "VCP" };
