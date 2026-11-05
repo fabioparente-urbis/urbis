@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.50
-**Data:** 2026-10-23
+**Versão:** 1.52
+**Data:** 2026-11-05
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -498,7 +498,7 @@ os processos de teste do banco — `123456`, `1234567`, `44556` — têm coorden
 
 ### 6.5 O painel de resultado passou a abrir sempre no Slot 5 (26/08/2026)
 
-Achado do teste acima. O painel de confronto (tabela LIP × Mapa Fácil + botões "Ver no Google Maps"
+Achado do teste acima. O painel de confronto (tabela LIP × Mapa Fácil + botões "Ver no Google Earth" (era "Ver no Google Maps" até 05/11/2026)
 e "Abrir o Mapa Fácil") só abria **quando havia divergência ou o IPTU casava por aproximação**:
 
 ```
@@ -1337,10 +1337,22 @@ Medido em 01/10/2026 com o modelo real: 47737 → SIM (12×30, 360 m², lote 07,
 desmembramento). As chaves `certidao*` e `situacao*` são auxiliares: a rota as descarta e só o
 veredito chega à ficha.
 
+## 30. Botão "⏹ Parar leitura" (05/11/2026)
+
+Enquanto o **LER PASTA** ou o **LER PROCESSO** está lendo, a barra de progresso ganha o botão vermelho
+**⏹ Parar leitura**. Ao clicar: a chamada em andamento é cancelada na hora (`AbortController` no envio da
+pasta; nas etapas S1/S2/S3 do PDF, também a espera do job é encerrada), as etapas seguintes não começam e
+**nada é gravado na ficha**. A OBS ganha um bloco com o motivo "Leitura interrompida pelo analista
+(botão Parar leitura)". Limite conhecido: o cancelamento corta a conexão no navegador; se o servidor já
+tinha iniciado a chamada da IA daquela etapa, ela pode terminar lá (e ser cobrada), mas o resultado é
+descartado. Mesmo botão nos Slots 1 a 4 (cada um na sua ficha).
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.52 | 2026-11-05 | Seção 30: botão "⏹ Parar leitura" no LER PASTA e no LER PROCESSO (cancela a chamada, não grava nada, registra na OBS). Conferido contra o MAC da mesma data: sem mudança (`MANUAL_SLOT5_MAC.md` v1.53). |
+| 1.51 | 2026-11-05 | Seção 6.5: o botão do painel de coordenadas (tabela LIP × Mapa Fácil) passou de "Ver no Google Maps" para "Ver no Google Earth" (`earth.google.com/web/search/<coordenadas>`), pedido do Fábio. Só o destino do link mudou; nenhuma regra do LIP. Conferido contra o MAC da mesma data (`MANUAL_SLOT5_MAC.md` v1.52): sem mudança. |
 | 1.50 | 2026-10-23 | Conferido: o LIP não mudou. O MAC passou a abrir já na análise seguinte quando a última foi emitida. Ver `MANUAL_SLOT5_MAC.md` v1.51. |
 | 1.49 | 2026-10-19 | Conferido: o LIP não mudou. O MAC passou a ter quantidade de análises configurável no admin (a penúltima avisa, a última indefere). Ver `MANUAL_SLOT5_MAC.md` v1.50. |
 | 1.48 | 2026-10-19 | Conferido: o LIP não mudou. O MAC ganhou o botão ← Pilha de Processo (volta direto à Pilha de Processos). Ver `MANUAL_SLOT5_MAC.md` v1.49. |

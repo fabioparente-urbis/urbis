@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.51
-**Data:** 2026-10-23
+**Versão:** 1.53
+**Data:** 2026-11-05
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1507,6 +1507,8 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.53 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.52, seção 30), entrou o botão "⏹ Parar leitura" no LER PASTA/LER PROCESSO. |
+| 1.52 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.51), o botão do painel de coordenadas passou de "Ver no Google Maps" para "Ver no Google Earth". |
 | 1.51 | 2026-10-23 | Seção 3.1.1: o MAC abre já na análise seguinte quando a última foi emitida, não é indeferida/arquivada e há vaga no limite (igual nos Slots 1, 2, 3 e 4) |
 | 1.50 | 2026-10-19 | Seção 8.8: quantidade de análises configurável por slot no admin (1 a 10, coluna "Análises" na tabela de Assuntos de /admin/configuracoes); a penúltima (aviso) é a N-1 e a última a N; rota de criar análise respeita o limite. Limite da tabela de 5 etapas registrado. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.49. |
 | 1.49 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **← Pilha de Processo**, depois de 🚪 Sair (igual ao do LIP), leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 a 4. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.48. |
