@@ -286,7 +286,9 @@ export async function GET(req: NextRequest) {
       // da Pilha quer ver LIP e MAC lado a lado, não só o resumo.
       const sitGeral = situacaoGeral(campos, ultimaPassada, tags, p.lip_incompleto === true);
       const sitMac = situacaoMac(ultimaPassada, tags);
-      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido");
+      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido", {
+        laudoEmitido: sitMac.classe === "Encerrado", lipFinalizado: p.lip_finalizado === true,
+      });
       return {
         ...p,
         triagem: triar(entrada).classe,
