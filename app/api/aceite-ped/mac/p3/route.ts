@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     // Confirma que o processo existe (mesma checagem que o S3 faz no final)
     const { data: proc } = await supabaseAdmin
       .from("processos")
-      .select("id")
+      .select("id, dados")
       .eq("codigo", codigo)
       .maybeSingle();
     if (!proc?.id) {
@@ -224,7 +224,42 @@ Por isso:
    veio (pelo nome do arquivo ou pelo nº SEI que ele contém).
 ---`
       : "";
-    const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado + blocoLote;
+    /* Fatos que a ficha do LIP deste processo já tem (Fábio, 05/11/2026: no 25.28.000001552-8 o MAC
+     * "aprovou tudo" — marcou conforme certidão de limites que não existe, memorial de caixa que não
+     * há e imagem aérea ausente). O MAC lia o PDF sem saber o que o LIP já apurou. Vai como contexto:
+     * o MAC decide pelo PDF, e o que contrariar a ficha vai em incompatibilidades. */
+    const CAMPOS_FATO: Array<[string, string]> = [
+      ["areaAceite", "Á. do Aceite (prancha)"], ["areaArt", "Área na ART/RRT"],
+      ["areaVistoria", "Área na vistoria"], ["areaTerreno", "Área do terreno"],
+      ["areaNaoVerticalRecuo", "Á. não vertical no recuo"], ["areaNaoVerticalForaRecuo", "Á. não vertical fora do recuo"],
+      ["pav", "Nº de pavimentos"], ["unid", "Nº de unidades"],
+      ["caixa", "Caixa de recarga apresentada?"], ["remembramento", "Certidão de remembramento (SEI)"],
+      ["certLimites", "Certidão de limites e confrontações (SEI)"], ["foto", "Imagem aérea anterior a 1995 (SEI)"],
+      ["tipoComprovacao", "Comprovação do tempo de existência"], ["dataEnergizacao", "Data de energização"],
+      ["seiComprovacao", "SEI da comprovação"], ["folhaComprovacao", "Folha da comprovação"],
+      ["embargo", "Tem embargo?"], ["seiEmbargo", "SEI do embargo"],
+      ["onerosa", "Tem outorga onerosa (documento)?"], ["numero_do_sei_da_onerosa", "SEI da onerosa"],
+      ["corredor", "Corredor viário?"], ["faixa", "Faixa de ampliação"], ["numeroUso", "Uso do Solo (SEI)"],
+      ["procuracao", "Tem procuração?"], ["tombado", "Área tombada?"],
+    ];
+    const dadosLip = ((proc as any)?.dados ?? {}) as Record<string, { valor?: string; origem?: string }>;
+    const linhasFato = CAMPOS_FATO
+      .map(([k, rot]) => {
+        const v = String(dadosLip[k]?.valor ?? "").trim();
+        /* Padrão é chute de fábrica — fica de fora, exceto NP, que as regras do LIP gravam
+         * como "não possui" depois da leitura (certidões, caixa, unidade territorial). */
+        if (!v || (dadosLip[k]?.origem === "padrao" && v.toUpperCase() !== "NP")) return null;
+        return `- ${rot}: ${v}${dadosLip[k]?.origem === "manual" ? " (conferido pelo analista)" : ""}`;
+      })
+      .filter(Boolean);
+    const blocoFatosLip = linhasFato.length
+      ? `\n\n---\n===== FATOS JÁ APURADOS NA FICHA DO LIP DESTE PROCESSO =====
+Use estes fatos para julgar os itens (NP = não possui / não se aplica). Se o PDF contrariar algum
+deles, siga o PDF e registre a divergência em "incompatibilidades".
+${linhasFato.join("\n")}
+---`
+      : "";
+    const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado + blocoLote + blocoFatosLip;
     console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars${documentoIsolado ? " (documento isolado)" : ""}${modoLote ? ` (lote, ${arquivosSubidos.length} arquivos)` : ""}`);
 
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
