@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assuntoIdDoSlot4 } from "@/lib/aceitePed/assuntoDoSlot";
 import { escolherModeloPorTamanho, ehModeloDeArquivoGrande, LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 import { createClient } from "@supabase/supabase-js";
+import { indexarRodapes, provaConfere } from "@/lib/pdf/rodapeSei";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -262,6 +263,12 @@ ${linhasFato.join("\n")}
     const promptFinal = promptData.conteudo + ctxChecklist + blocoDocumentoIsolado + blocoLote + blocoFatosLip;
     console.log(`[P3_MAC] Prompt tamanho: ${promptFinal.length} chars${documentoIsolado ? " (documento isolado)" : ""}${modoLote ? ` (lote, ${arquivosSubidos.length} arquivos)` : ""}`);
 
+    /* Rodapé do PDF lido em paralelo com o Gemini: é com ele que a prova de cada item é conferida
+     * depois (Fábio, 05/11/2026). Nunca lança — falhou, a conferência só não acontece. */
+    const indiceRodapePromise = Promise.all(arquivos.map(async (f) => new Uint8Array(await f.arrayBuffer())))
+      .then((bufs) => indexarRodapes(bufs))
+      .catch(() => ({ paginas: [], temRodapeSei: false }));
+
     // 3) Chama Gemini 2.5 Flash com PDF + prompt
     // Igual ao S3 do LIP (app/api/lip/s3/route.ts): sob sobrecarga o Gemini
     // devolve 503 OU 200 com prosa em vez do JSON pedido. Sem retry aqui, uma
@@ -347,9 +354,40 @@ ${linhasFato.join("\n")}
         ? dados.itens
         : dados;
     const documentosLidos: any[] = Array.isArray(dados?.documentos) ? dados.documentos : [];
-    const incompatibilidades: string[] = Array.isArray(dados?.incompatibilidades)
-      ? dados.incompatibilidades.filter(Boolean).map(String)
-      : [];
+    const indiceRodape = await indiceRodapePromise;
+    /* Prova de cada resposta (Fábio, 05/11/2026). Conferida contra o rodapé do PDF: SEI citado
+     * tem de estar na página citada. Sem rodapé do SEI no arquivo, não há como conferir — a prova
+     * é exigida, mas fica marcada como "não conferida". */
+    type Prova = { documento: string; sei: string; pagina: number; trecho: string; conferida: boolean | null };
+    const lerProva = (p: any): Omit<Prova, "conferida"> | null => {
+      if (!p || typeof p !== "object") return null;
+      const sei = String(p.sei ?? "").replace(/\D/g, "");
+      const pagina = Number(String(p.pagina ?? "").replace(/\D/g, ""));
+      const trecho = String(p.trecho ?? "").trim();
+      if (!sei || !pagina || !trecho) return null;
+      return { documento: String(p.documento ?? "").trim() || "Documento", sei, pagina, trecho };
+    };
+    const conferir = (p: Omit<Prova, "conferida">): Prova => ({
+      ...p,
+      conferida: indiceRodape.temRodapeSei ? provaConfere(indiceRodape, p.sei, p.pagina) : null,
+    });
+    const refProva = (p: Prova) => `${p.documento}, SEI ${p.sei}, pág. ${p.pagina}`;
+    const incompatibilidades: string[] = (Array.isArray(dados?.incompatibilidades) ? dados.incompatibilidades : [])
+      .filter(Boolean)
+      .map((x: any) => {
+        if (typeof x === "string") return `[sem prova — conferir] ${x}`;
+        const texto = String(x?.texto ?? "").trim();
+        if (!texto) return null;
+        const bruta = lerProva(x);
+        if (!bruta) return `[sem prova — conferir] ${texto}`;
+        const p = conferir(bruta);
+        if (p.conferida === false) return `[prova não confere com o PDF — conferir] ${texto} (${refProva(p)})`;
+        return `${texto} (${refProva(p)}: "${p.trecho}")`;
+      })
+      .filter((x: string | null): x is string => !!x);
+    const provasBrutas: Record<string, any> = dados && typeof dados.provas === "object" && dados.provas ? dados.provas : {};
+    const provasOut: Record<string, Prova> = {};
+    const itensSemProva: Array<{ id: string; respostaIa: string; motivo: string }> = [];
 
     const STATUS_VALIDOS = new Set<StatusItem>([
       "conforme",
@@ -373,9 +411,30 @@ ${linhasFato.join("\n")}
         else status = null;
       }
       if (!STATUS_VALIDOS.has(status)) status = null;
+      /* "conforme"/"nao_conforme" sem prova que confira volta em branco para o analista —
+       * nunca some em silêncio: vai em itensSemProva com o motivo. */
+      if (status === "conforme" || status === "nao_conforme") {
+        const bruta = lerProva(provasBrutas[id]);
+        if (!bruta) {
+          itensSemProva.push({ id, respostaIa: status, motivo: "a IA não mostrou documento, página e trecho" });
+          status = null;
+        } else {
+          const p = conferir(bruta);
+          if (p.conferida === false) {
+            itensSemProva.push({ id, respostaIa: status, motivo: `prova não confere com o PDF (${refProva(p)})` });
+            status = null;
+          } else {
+            provasOut[id] = p;
+          }
+        }
+      } else if (status === "nao_aplica") {
+        const bruta = lerProva(provasBrutas[id]);
+        if (bruta) provasOut[id] = conferir(bruta);
+      }
       itensOut[id] = status;
       fontesOut[id] = "p2";
     }
+    if (itensSemProva.length) console.log(`[P3_MAC] ${itensSemProva.length} item(ns) sem prova devolvidos ao analista.`);
 
     const preenchidos = Object.values(itensOut).filter((v) => v !== null).length;
     console.log(`[P3_MAC] Concluido. ${preenchidos} item(ns) preenchido(s).`);
@@ -390,6 +449,7 @@ ${linhasFato.join("\n")}
         dados_depois: {
           arquivo: arquivos.length === 1 ? arquivos[0].name : `${arquivos.length} arquivos: ${arquivos.map((a) => a.name).join(", ")}`,
           itensPreenchidos: preenchidos,
+          itensSemProva: itensSemProva.length,
           status: "OK",
         },
       });
@@ -401,6 +461,9 @@ ${linhasFato.join("\n")}
       fontes: fontesOut,
       documentos: documentosLidos,
       incompatibilidades,
+      provas: provasOut,
+      itensSemProva,
+      provaConferidaNoPdf: indiceRodape.temRodapeSei,
     });
   } catch (e: any) {
     console.error("[P3_MAC] Erro:", e?.message);

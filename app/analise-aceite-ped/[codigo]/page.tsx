@@ -48,6 +48,30 @@ type Modelo = {
   assunto_id: string | null;
 };
 
+/* Provas da leitura do MAC (Fábio, 05/11/2026): cada item que a IA marcou vem com documento, SEI,
+ * página e trecho, conferidos no rodapé do PDF pela rota. Vai para as Observações da análise (fica
+ * guardado) e os itens sem prova são listados — voltaram em branco para o analista decidir. */
+function blocoProvasMac(
+  provas: Record<string, any>,
+  semProva: Array<{ id: string; respostaIa: string; motivo: string }>,
+  itensChecklist: Array<{ id: string; texto: string }>,
+  conferidaNoPdf: boolean | undefined,
+): string {
+  const textoDe = (id: string) => {
+    const t = itensChecklist.find((i) => i.id === id)?.texto ?? id;
+    return t.length > 90 ? t.slice(0, 90) + "…" : t;
+  };
+  const rot: Record<string, string> = { conforme: "conforme", nao_conforme: "não conforme", nao_aplica: "não se aplica" };
+  const linhasProva = Object.entries(provas || {}).map(([id, p]: [string, any]) =>
+    `  • ${textoDe(id)} → ${p.documento}, SEI ${p.sei}, pág. ${p.pagina}${p.conferida === null ? " (não conferida: PDF sem rodapé do SEI)" : ""}: "${p.trecho}"`);
+  const linhasSem = (semProva || []).map((x) =>
+    `  ⚠ ${textoDe(x.id)} — a IA disse "${rot[x.respostaIa] ?? x.respostaIa}", mas ${x.motivo}`);
+  let out = "";
+  if (linhasSem.length) out += `\n🧾 Itens SEM PROVA — voltaram em branco para você decidir (${linhasSem.length}):\n${linhasSem.join("\n")}`;
+  if (linhasProva.length) out += `\n🧾 Provas da leitura${conferidaNoPdf === false ? " (PDF sem rodapé do SEI — não deu para conferir)" : " (conferidas no rodapé do PDF)"} (${linhasProva.length}):\n${linhasProva.join("\n")}`;
+  return out;
+}
+
 export default function MacPage() {
   const params = useParams();
   const router = useRouter();
@@ -1514,6 +1538,9 @@ export default function MacPage() {
       const fontesAcumuladas: Record<string, "p2"> = {};
       const documentosTodos: any[] = [];
       const incompatTodas: string[] = [];
+      const provasTodas: Record<string, any> = {};
+      const semProvaTodos: Array<{ id: string; respostaIa: string; motivo: string }> = [];
+      let provaConferidaTodas: boolean | undefined = undefined;
       /** Qual arquivo respondeu cada item — só para descrever conflito na OBS. */
       const origemDoItem: Record<string, string> = {};
       const conflitos: string[] = [];
@@ -1567,6 +1594,9 @@ export default function MacPage() {
         });
         if (Array.isArray(json.documentos)) documentosTodos.push(...json.documentos);
         if (Array.isArray(json.incompatibilidades)) incompatTodas.push(...json.incompatibilidades);
+        Object.assign(provasTodas, json.provas || {});
+        if (Array.isArray(json.itensSemProva)) semProvaTodos.push(...json.itensSemProva);
+        if (typeof json.provaConferidaNoPdf === "boolean") provaConferidaTodas = (provaConferidaTodas ?? true) && json.provaConferidaNoPdf;
       }
 
       setProgressoP2(95);
@@ -1609,11 +1639,12 @@ export default function MacPage() {
         `🔎 Incompatibilidades:\n${incompatUnicas.length ? incompatUnicas.map((p) => `  ⚠ ${p}`).join("\n") : "  • Nenhuma incompatibilidade apontada pela IA."}` +
         (conflitos.length
           ? `\n⚖️ Itens com resposta divergente entre documentos (ficou a 1ª, confira):\n${conflitos.map((c) => `  • ${c}`).join("\n")}`
-          : "");
+          : "") +
+        blocoProvasMac(provasTodas, semProvaTodos, checklistItens, provaConferidaTodas);
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
       macCarregadoRef.current = true;
       registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
-      mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s) — revise e aceite.`);
+      mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s)${semProvaTodos.length ? `, ${semProvaTodos.length} sem prova voltaram em branco` : ""} — revise e aceite.`);
     } catch (err: any) {
       const _seg = Math.round((Date.now() - _inicio) / 1000);
       const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
@@ -2214,11 +2245,12 @@ export default function MacPage() {
                       `━━━ LEITURA DO PROCESSO (MAC) ━━━\n` +
                       `✅ Status: LEITURA CONCLUÍDA | ${_dataLeitura} | Duração: ${_min}:${_seg} | ${total} item(ns) sugerido(s)\n` +
                       `📄 Documentos analisados (${_docs.length}):\n${_linhasDoc}\n` +
-                      `🔎 Incompatibilidades:\n${_linhasInc}`;
+                      `🔎 Incompatibilidades:\n${_linhasInc}` +
+                      blocoProvasMac(json.provas || {}, Array.isArray(json.itensSemProva) ? json.itensSemProva : [], checklistItens, json.provaConferidaNoPdf);
                     setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsLeitura : _obsLeitura);
                     macCarregadoRef.current = true;
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
-                    mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
+                    mostrarToast(`🤖 P3 sugeriu ${total} item(ns)${Array.isArray(json.itensSemProva) && json.itensSemProva.length ? `, ${json.itensSemProva.length} sem prova voltaram em branco` : ""} — revise e aceite.`);
                   } catch (err: any) {
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
