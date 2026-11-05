@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { situacaoGeral, situacaoLip, lipFinalizadoValeComoCompleto, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -286,7 +286,8 @@ export async function GET(req: NextRequest) {
       // da Pilha quer ver LIP e MAC lado a lado, não só o resumo.
       const sitGeral = situacaoGeral(campos, ultimaPassada, tags, p.lip_incompleto === true);
       const sitMac = situacaoMac(ultimaPassada, tags);
-      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido");
+      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido",
+        lipFinalizadoValeComoCompleto(p.tipo_processo, p.lip_finalizado));
       return {
         ...p,
         triagem: triar(entrada).classe,
