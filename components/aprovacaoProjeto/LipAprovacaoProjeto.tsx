@@ -279,6 +279,10 @@ export default function LipAprovacaoProjeto() {
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
+  // Botão \"Parar leitura\": cancela o que está em voo e impede as próximas etapas.
+  const pararLeituraRef = useRef(false);
+  const abortLeituraRef = useRef<AbortController | null>(null);
+  const cancelarEsperaRef = useRef<(() => void) | null>(null);
   const [modalVCP, setModalVCP] = useState(false);
   const [lendoPasta, setLendoPasta] = useState(false);
   // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
@@ -920,6 +924,12 @@ export default function LipAprovacaoProjeto() {
     });
   }
 
+  function pararLeitura() {
+    pararLeituraRef.current = true;
+    abortLeituraRef.current?.abort();
+    cancelarEsperaRef.current?.();
+  }
+
   async function aguardarJobS3(jobId: string): Promise<any> {
     if (!jobId) throw new Error("S3: jobId ausente");
     return new Promise((resolve, reject) => {
@@ -947,6 +957,7 @@ export default function LipAprovacaoProjeto() {
           console.warn(`[S3-poll] erro tentativa ${tentativas}:`, e);
         }
       }, 5000);
+      cancelarEsperaRef.current = () => { clearInterval(interval); reject(new Error("LEITURA_INTERROMPIDA")); };
     });
   }
 
@@ -972,6 +983,8 @@ export default function LipAprovacaoProjeto() {
     const _quando = new Date().toLocaleString("pt-BR");
     try {
       setLendoPasta(true);
+      pararLeituraRef.current = false;
+      abortLeituraRef.current = new AbortController();
       setDocsLocalizados({}); // leitura nova, achados avulsos da anterior não valem mais
       setTempoLeitura(0);
       if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
@@ -988,7 +1001,7 @@ export default function LipAprovacaoProjeto() {
         fd.append("caminhos", (f as any).webkitRelativePath || f.name);
       }
 
-      const r = await fetch("/api/aprovacao-projeto/lip/ler-pasta", { method: "POST", body: fd });
+      const r = await fetch("/api/aprovacao-projeto/lip/ler-pasta", { method: "POST", body: fd, signal: abortLeituraRef.current?.signal });
       if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
 
       /* A rota responde NDJSON: uma linha por evento, o andamento durante a leitura e o resultado
@@ -1053,6 +1066,7 @@ export default function LipAprovacaoProjeto() {
         detalhe: { arquivos: arquivos.length, campos: Object.keys(data.campos ?? {}).length, ms: data.msLeitura },
       });
     } catch (e: any) {
+      if (pararLeituraRef.current) e = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
       /* LEITURA QUE FALHA TEM QUE DEIXAR RASTRO. O toast some em segundos e a proposta nunca
        * chega, então até agora uma falha não gerava registro nenhum — o analista ficava sem saber
        * se leu e não achou nada, ou se nem chegou a ler. O bloco de erro vai para a OBS na hora,
@@ -1373,6 +1387,8 @@ export default function LipAprovacaoProjeto() {
     let _macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" | null = null;
     try {
       setLendoLip(true);
+      pararLeituraRef.current = false;
+      abortLeituraRef.current = new AbortController();
       setTempoLeitura(0);
       if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
       tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
@@ -1386,6 +1402,7 @@ export default function LipAprovacaoProjeto() {
 
       const resultados = [];
       for (const arquivo of arquivos) {
+        if (pararLeituraRef.current) throw new Error("LEITURA_INTERROMPIDA");
         resultados.push(await (async (arquivo) => {
           // 1.5. Fase 8 — "não pagar duas vezes": mesmo arquivo (bytes idênticos) já lido antes
           // pula S1/S2/S3 inteiros. Melhor esforço: qualquer falha aqui (rede, tabela ainda não
@@ -1433,6 +1450,7 @@ export default function LipAprovacaoProjeto() {
           const tipoArquivo = arquivo.type || "application/pdf";
           const s1Res = await fetch("/api/aprovacao-projeto/lip/s1", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: {
               "Content-Type": tipoArquivo,
               "X-File-Type": tipoArquivo,
@@ -1452,6 +1470,7 @@ export default function LipAprovacaoProjeto() {
           mostrarToast("🗂 S2: Mapeando documentos do processo...", "info");
           const s2Res = await fetch("/api/aprovacao-projeto/lip/s2", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }),
           });
@@ -1469,6 +1488,7 @@ export default function LipAprovacaoProjeto() {
           });
           const s3Init = await fetch("/api/aprovacao-projeto/lip/s3", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, tamanhoBytes: arquivo.size }),
           }).then(r => r.json());
@@ -1629,7 +1649,9 @@ export default function LipAprovacaoProjeto() {
         "sucesso",
       );
     } catch (e: any) {
-      mostrarToast("❌ Erro: " + e.message, "erro");
+      const _interrompida = pararLeituraRef.current;
+      if (_interrompida) e = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
+      mostrarToast(_interrompida ? "⏹ Leitura interrompida." : "❌ Erro: " + e.message, _interrompida ? "info" : "erro");
       const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
       const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
@@ -2811,10 +2833,10 @@ export default function LipAprovacaoProjeto() {
                 className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >Fechar</button>
               <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(conflitoMapa.coordenadas)}`}
+                href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(conflitoMapa.coordenadas))}`}
                 target="_blank" rel="noopener noreferrer"
                 className="px-4 py-2 rounded font-bold text-sm bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
-              >📍 Ver no Google Maps</a>
+              >🌍 Ver no Google Earth</a>
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(conflitoMapa.iptu).catch(() => {});
@@ -3327,6 +3349,9 @@ export default function LipAprovacaoProjeto() {
             <span className="flex gap-2">
               <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
               <span>{progresso}%</span>
+              {(lendoLip || lendoPasta) && (
+                <button onClick={pararLeitura} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é gravado na ficha">⏹ Parar leitura</button>
+              )}
             </span>
           </div>
           <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">

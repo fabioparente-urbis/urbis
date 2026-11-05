@@ -5,6 +5,8 @@
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
 import { registrarChamadaIA } from "@/lib/iaUso";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { ehRegularizacaoSeiExato } from "@/lib/regularizacaoSei/identidade";
 import { escolherModeloPorTamanho, ehModeloDeArquivoGrande, LIMITE_BYTES_PLATAFORMA, LIMITE_BYTES_MODELO_PADRAO } from "@/lib/modeloGemini";
 export const maxDuration = 120;
 
@@ -16,6 +18,24 @@ export async function POST(req: NextRequest) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey)
       return NextResponse.json({ ok: false, erro: "GEMINI_API_KEY não configurada" }, { status: 500 });
+
+    // Tipo errado se recusa AQUI, antes de subir o PDF: o S3 já recusava, mas só depois de a IA gastar
+    // o S1 e o S2 (minutos e custo) — ver S3. Só barra processo que existe e é de outro slot; sem
+    // código ou sem processo segue como sempre (o S3 decide).
+    if (processoCodigo) {
+      const { data: procTipo } = await supabaseAdmin
+        .from("processos")
+        .select("tipo_processo")
+        .eq("codigo", processoCodigo)
+        .maybeSingle();
+      const tipoProcesso = (procTipo as any)?.tipo_processo ?? null;
+      if (procTipo && !ehRegularizacaoSeiExato(tipoProcesso)) {
+        return NextResponse.json(
+          { ok: false, erro: `Esta leitura é do Slot 1 (Regularização SEI); o processo é "${tipoProcesso ?? "desconhecido"}".` },
+          { status: 400 },
+        );
+      }
+    }
 
     const contentLength = req.headers.get("x-file-size") || "0";
     const fileSizeBytes = parseInt(contentLength);

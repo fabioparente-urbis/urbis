@@ -171,11 +171,25 @@ export default function Home() {
     }
     setErro("");
     const id = normalizarNumero(numero);
-    await fetch("/api/processo/salvar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, tipo }),
-    });
+    // A resposta TEM que ser conferida: antes o erro (ex.: número já existente em outro tipo ou na
+    // Lixeira) era ignorado e a tela abria uma ficha de um processo que não existia.
+    let resp: Response;
+    let json: any = null;
+    try {
+      resp = await fetch("/api/processo/salvar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, tipo }),
+      });
+      json = await resp.json().catch(() => null);
+    } catch {
+      setErro("Não foi possível falar com o servidor. Nada foi cadastrado; tente de novo.");
+      return;
+    }
+    if (!resp.ok || !json?.ok) {
+      setErro(json?.erro || "Não foi possível cadastrar o processo. Nada foi criado.");
+      return;
+    }
     router.push(`/processo/${encodeURIComponent(id)}?tipo=${encodeURIComponent(tipo)}`);
   }
 
