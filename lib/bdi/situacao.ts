@@ -66,6 +66,18 @@ export type ResumoCamposLip = {
 };
 
 /**
+ * "Finalizar LIP" vale como LIP Completo? Só no Slot 1 (Regularização SEI, `regularizacao`) —
+ * autorizado pelo Fábio em 27/10/2026 só para esse slot. Igualdade exata, nunca prefixo
+ * (`regularizacao_*` não entra). Os outros slots seguem cobrando campo vazio.
+ */
+export function lipFinalizadoValeComoCompleto(
+  tipoProcesso: string | null | undefined,
+  lipFinalizado: boolean | null | undefined,
+): boolean {
+  return lipFinalizado === true && String(tipoProcesso ?? "").toLowerCase() === "regularizacao";
+}
+
+/**
  * `pag` ("Pág. do SEI (Busca Arq.)") só existe como campo na tela do Slot 1 e do Slot 2. O LIP cria a
  * chave vazia em TODO processo, então num processo do Slot 5 ela vira um "campo vazio" que o analista
  * não enxerga nem consegue preencher — MVO 50724 ficou vermelho na Pilha por causa dela (30/09/2026).
@@ -146,11 +158,27 @@ export function situacaoLip(
    * emitido): só o que o Fábio decidiu.
    */
   macArquivadoOuIndeferido?: boolean,
+  /**
+   * Pedido do Fábio, 27/10/2026 (processo 25.5.000018749-5: "Finalizar LIP" clicado, 100 de 101
+   * campos preenchidos, card vermelho na Pilha). Passe `lipFinalizadoValeComoCompleto(...)` —
+   * só o Slot 1 — e o "Finalizar LIP" passa a valer como Completo mesmo com campo vazio. A marca
+   * "LIP não concluído" (marcadoIncompleto) continua ganhando: é o analista dizendo que falta algo.
+   */
+  finalizadoValeComoCompleto?: boolean,
 ): ClassificacaoComMotivo<SituacaoLip> {
   if (macArquivadoOuIndeferido) {
     return {
       classe: "Completo",
       motivo: "Processo arquivado/indeferido no MAC — LIP pendente deixa de contar como pendência, mesmo com campo vazio (processos.tags).",
+    };
+  }
+  if (finalizadoValeComoCompleto && !marcadoIncompleto) {
+    const vazios = campos?.campos_vazios ?? 0;
+    return {
+      classe: "Completo",
+      motivo: vazios > 0
+        ? `Analista clicou "Finalizar LIP" — vale como concluído mesmo com ${vazios} campo(s) vazio(s) (processos.lip_finalizado, só Slot 1).`
+        : "Analista clicou \"Finalizar LIP\" (processos.lip_finalizado, só Slot 1).",
     };
   }
   if (!campos || campos.campos_totais === 0) {
