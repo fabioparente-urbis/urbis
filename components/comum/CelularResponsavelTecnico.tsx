@@ -18,6 +18,7 @@ export default function CelularResponsavelTecnico({ dados }: { dados: Record<str
   const [orig, setOrig] = useState("");
   const [msg, setMsg] = useState("");
   const [ocupado, setOcupado] = useState(false);
+  const [aberto, setAberto] = useState(false);
   const ultima = useRef("");
 
   useEffect(() => {
@@ -50,16 +51,28 @@ export default function CelularResponsavelTecnico({ dados }: { dados: Record<str
     setOcupado(false);
   }
 
+  // Altura zero + posição absoluta: o campo nunca empurra a ficha para baixo.
+  // Fica fechado; só abre ao clicar no cadeado.
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-xs">
-      <label className="font-semibold text-[var(--text-secondary)]">🔒 Celular do Responsável Técnico ou outro contato</label>
-      <input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="(00) 00000-0000"
-        className="w-44 rounded bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-1 text-sm" />
-      <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome (responsável, despachante…)"
-        className="w-56 rounded bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-1 text-sm" />
-      <button onClick={salvar} disabled={ocupado || celular + "|" + nome === orig}
-        className="rounded bg-[var(--bg-secondary)] px-3 py-1 font-bold disabled:opacity-40">Salvar</button>
-      <span className="text-[var(--text-muted)]">{msg || "só você vê — não vai para documentos nem outros usuários"}</span>
+    <div className="relative h-0 z-40">
+      <div className="absolute right-0 top-0 flex flex-col items-end">
+        <button onClick={() => setAberto((a) => !a)} title="Contato do responsável (só você vê)"
+          className="rounded bg-[var(--bg-card)] border border-[var(--border)] px-2 py-0.5 text-xs opacity-60 hover:opacity-100">
+          🔒{celular || nome ? " contato" : ""}
+        </button>
+        {aberto && (
+          <div className="mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2 text-xs shadow-xl max-w-[90vw]">
+            <label className="font-semibold text-[var(--text-secondary)]">Celular do Responsável Técnico ou outro contato</label>
+            <input value={celular} onChange={(e) => setCelular(e.target.value)} placeholder="(00) 00000-0000"
+              className="w-44 rounded bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-1 text-sm" />
+            <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome (responsável, despachante…)"
+              className="w-56 rounded bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-1 text-sm" />
+            <button onClick={salvar} disabled={ocupado || celular + "|" + nome === orig}
+              className="rounded bg-[var(--bg-secondary)] px-3 py-1 font-bold disabled:opacity-40">Salvar</button>
+            <span className="text-[var(--text-muted)]">{msg || "só você vê"}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
