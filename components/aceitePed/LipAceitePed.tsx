@@ -266,7 +266,7 @@ function certidoesRarasNP(novo: Record<string, Campo>): void {
 // Muta `novo` in-place.
 const CHAVES_DOC_SEI = [
   "certidao", "levantamento", "artLev", "artCx", "laudo", "vistoria", "remembramento", "certLimites",
-  "foto", "nadaConsta", "pag", "comaer", "seiComprovacao", "seiProcuracao", "seiEmbargo",
+  "foto", "nadaConsta", "pag", "comaer", "seiComprovacao", "docSeiEnergizacao", "seiProcuracao", "seiEmbargo",
   "numero_do_sei_da_onerosa", "seiCheadv",
 ];
 function validarFormatoSei(novo: Record<string, Campo>): void {
@@ -1788,7 +1788,9 @@ export default function LipAceitePed() {
     // vazio (padrão) e o analista trocar por X depois, ou vice-versa nunca
     // acontece, mas os dois indicadores respondem a coisas diferentes.
     const ehX = val.valor.trim().toUpperCase() === "X";
-    const badgeX = ehX && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
+    // "Área conforme Laudo Técnico" (areaLaudo): o interessado não é obrigado a informar a área no
+    // laudo — "X" ali só quer dizer "não citou", não é irregularidade. Sem selo vermelho (Fábio, 12/11/2026).
+    const badgeX = ehX && campo.chave !== "areaLaudo" && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
     // Destaque do Laudo: só existe Laudo definido pra Regularização SEI
     // (slot 1) e Aceite SEI (slot 2) — outros slots (ex.: slot_05,

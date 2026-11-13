@@ -236,14 +236,10 @@ export function resolverComprovacao(d: DadosLip): { tipo: string; origem: "foto"
     /* A data da energização vai pro laudo (Fábio, 05/11/2026): sem ela o laudo diz só o tipo do
      * documento, e é a data que prova a existência antes do marco. */
     const temData = dataEnerg && dataEnerg !== "NP" && !tipoDeclarado.includes(dataEnerg);
-    /* SEI e folha dos autos do documento (Fábio, 05/11/2026: "com a folha") — ex.:
-     * "Declaração de Energização (10/10/1978) — SEI 7103712, fl. 32". */
+    /* SEI do documento — ex.: "Declaração de Energização (10/10/1978) — SEI 7103712".
+     * (Campo "folha da comprovação" retirado a pedido do Fábio, 06/11/2026.) */
     const sei = valor(d, "seiComprovacao");
-    const folhaBruta = valor(d, "folhaComprovacao");
-    const folha = folhaBruta && folhaBruta !== "NP"
-      ? (/^\d+$/.test(folhaBruta) ? `fl. ${folhaBruta}` : folhaBruta)
-      : "";
-    const ref = [sei && sei !== "NP" ? `SEI ${sei}` : "", folha].filter(Boolean).join(", ");
+    const ref = sei && sei !== "NP" ? `SEI ${sei}` : "";
     const base = temData ? `${tipoDeclarado} (${dataEnerg})` : tipoDeclarado;
     return { tipo: ref ? `${base} — ${ref}` : base, origem: "documento" };
   }

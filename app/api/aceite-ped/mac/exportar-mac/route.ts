@@ -12,6 +12,12 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/* Marcadores das duas caixas de observação que NÃO são por aba do checklist (12/11/2026 — o backup
+ * deixava as duas de fora): o texto da aba "📝 OBS" e o quadro "Observações das análises" do topo.
+ * A importação reconhece estes nomes; nenhuma aba de checklist se chama assim. */
+const ABA_OBS_GERAL = "[OBS GERAL]";
+const ABA_QUADRO_ANALISES = "[OBSERVAÇÕES DAS ANÁLISES]";
+
 const statusLabel: Record<string, string> = {
   conforme: "✅ Conforme",
   nao_conforme: "❌ Não Conforme",
@@ -48,7 +54,12 @@ async function buildSheet(analise: any) {
     "Referencia": item.ref || "",
     "Status": statusLabel[mapaRespostas[item.id]] || "— Nao respondido",
   }));
-  const linhas = obsEntradas.length > 0 ? [...obsRows, ...separador, ...checklistRows] : checklistRows;
+  const extras: { Aba: string; Item: string; Referencia: string; Status: string }[] = [];
+  if (String(analise.observacoes ?? "").trim())
+    extras.push({ "Aba": ABA_OBS_GERAL, "Item": String(analise.observacoes), "Referencia": "", "Status": "" });
+  if (String(analise.historico_analises ?? "").trim())
+    extras.push({ "Aba": ABA_QUADRO_ANALISES, "Item": String(analise.historico_analises), "Referencia": "", "Status": "" });
+  const linhas = obsEntradas.length + extras.length > 0 ? [...obsRows, ...extras, ...separador, ...checklistRows] : checklistRows;
   const ws = XLSX.utils.json_to_sheet(linhas);
   ws["!cols"] = [{ wch: 30 }, { wch: 80 }, { wch: 20 }, { wch: 20 }];
   return ws;
@@ -71,7 +82,7 @@ async function handleGET(req: NextRequest) {
   if (todas && codigoParam) {
     const { data: lista } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, itens")
+      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, observacoes, historico_analises, itens")
       .eq("processo_codigo", codigoParam)
       .order("numero_analise", { ascending: true });
 
@@ -104,7 +115,7 @@ async function handleGET(req: NextRequest) {
   if (analiseId) {
     const { data: d } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, itens")
+      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, observacoes, historico_analises, itens")
       .eq("id", analiseId)
       .maybeSingle();
     analise = d;
@@ -113,7 +124,7 @@ async function handleGET(req: NextRequest) {
   if (!analise && codigoParam) {
     const { data: d } = await supabase
       .from("analises_mac")
-      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, itens")
+      .select("id, processo_codigo, tipo_processo, numero_analise, modelo_id, observacoes_por_aba, observacoes, historico_analises, itens")
       .eq("processo_codigo", codigoParam)
       .order("numero_analise", { ascending: false })
       .limit(1)

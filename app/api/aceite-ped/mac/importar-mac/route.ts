@@ -43,7 +43,7 @@ async function importarSheet(
 
   const { data: analise } = await supabase
     .from("analises_mac")
-    .select("id, modelo_id, itens, observacoes_por_aba")
+    .select("id, modelo_id, itens, observacoes_por_aba, observacoes, historico_analises")
     .eq("id", analiseId)
     .maybeSingle();
 
@@ -71,6 +71,13 @@ async function importarSheet(
   let atualizados = 0;
   const naoEncontrados: string[] = [];
   const obsPorAba: Record<string, string> = { ...((analise as any).observacoes_por_aba || {}) };
+  /* 12/11/2026 — a observação do arquivo SUBSTITUI a da aba (antes era somada: cada importação
+   * duplicava o texto). Só as abas que vêm no arquivo são trocadas; as demais ficam como estão.
+   * As duas caixas fora das abas só são restauradas se o arquivo as trouxer (backup antigo não as
+   * tem e não pode apagar o que está na tela). */
+  const obsImportadas: Record<string, string[]> = {};
+  let obsGeral: string | null = null;
+  let quadroAnalises: string | null = null;
   const itensJson: Record<string, "conforme" | "nao_conforme" | "nao_aplica"> = {
     ...((analise as any).itens || {}),
   };
@@ -84,7 +91,13 @@ async function importarSheet(
     if (!status) {
       const aba = String(row["Aba"] ?? "").trim();
       const obs = String(row["Item"] ?? "").trim();
-      if (aba && obs) obsPorAba[aba] = (obsPorAba[aba] ? obsPorAba[aba] + "\n" : "") + obs;
+      if (aba === "[OBS GERAL]") { obsGeral = obs; continue; }
+      if (aba === "[OBSERVAÇÕES DAS ANÁLISES]") { quadroAnalises = obs; continue; }
+      // Linha de CHECKLIST sem status ("— Nao respondido") não é observação: antes o texto do item
+      // era colado na observação da aba.
+      const ehItemDoChecklist = !!idxPorGrupoTexto.get(`${grupoTxt}::${itemTxt}`) || (idxPorTexto.get(itemTxt)?.length === 1);
+      if (ehItemDoChecklist || norm(row["Status"]).includes("nao respondido")) continue;
+      if (aba && obs) (obsImportadas[aba] = obsImportadas[aba] || []).push(obs);
       continue;
     }
 
@@ -99,9 +112,14 @@ async function importarSheet(
     atualizados++;
   }
 
+  for (const [aba, partes] of Object.entries(obsImportadas)) obsPorAba[aba] = partes.join("\n");
+
+  const atualizacao: Record<string, any> = { itens: itensJson, observacoes_por_aba: obsPorAba, atualizado_em: new Date().toISOString() };
+  if (obsGeral !== null) atualizacao.observacoes = obsGeral;
+  if (quadroAnalises !== null) atualizacao.historico_analises = quadroAnalises;
   await supabase
     .from("analises_mac")
-    .update({ itens: itensJson, observacoes_por_aba: obsPorAba, atualizado_em: new Date().toISOString() })
+    .update(atualizacao)
     .eq("id", analiseId);
 
   return { atualizados, naoEncontrados };
