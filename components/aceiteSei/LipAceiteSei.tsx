@@ -9,6 +9,7 @@
 // numeração, cadastros. Mudar este arquivo NÃO muda a ficha dos outros slots, e vice-versa.
 // ============================================================
 "use client";
+import CelularResponsavelTecnico from "@/components/comum/CelularResponsavelTecnico";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -2017,6 +2018,7 @@ export default function LipAceiteSei() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <CelularResponsavelTecnico dados={d} />
       {alertaMarco && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-lg shadow-2xl">
