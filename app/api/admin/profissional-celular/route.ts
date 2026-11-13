@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
   const sp = new URL(req.url).searchParams;
   const id = await resolver({ nomeEng: sp.get("nomeEng") ?? "", crea: sp.get("crea") ?? "", nomeArq: sp.get("nomeArq") ?? "", cau: sp.get("cau") ?? "" });
   if (!id) return NextResponse.json({ ok: true, celular: "", profissional: false });
-  const { data } = await supabaseAdmin.from("profissional_celular").select("celular").eq("profissional_id", id).maybeSingle();
-  return NextResponse.json({ ok: true, celular: data?.celular ?? "", profissional: true });
+  const { data } = await supabaseAdmin.from("profissional_celular").select("celular, contato_nome").eq("profissional_id", id).maybeSingle();
+  return NextResponse.json({ ok: true, celular: data?.celular ?? "", nome: data?.contato_nome ?? "", profissional: true });
 }
 
 export async function PUT(req: NextRequest) {
@@ -61,6 +61,7 @@ export async function PUT(req: NextRequest) {
   if (ctx instanceof NextResponse) return ctx;
   const b = await req.json().catch(() => ({}));
   const celular = String(b.celular ?? "").trim().slice(0, 30);
+  const nomeContato = String(b.nomeContato ?? "").trim().slice(0, 120);
   let id = await resolver(b);
   if (!id) {
     // Profissional ainda não cadastrado: cria o mínimo, sem validar.
@@ -75,13 +76,13 @@ export async function PUT(req: NextRequest) {
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     id = data.id;
   }
-  if (!celular) {
+  if (!celular && !nomeContato) {
     await supabaseAdmin.from("profissional_celular").delete().eq("profissional_id", id!);
-    return NextResponse.json({ ok: true, celular: "" });
+    return NextResponse.json({ ok: true, celular: "", nome: "" });
   }
   const { error } = await supabaseAdmin.from("profissional_celular").upsert({
-    profissional_id: id, celular, atualizado_por: ctx.userId, atualizado_em: new Date().toISOString(),
+    profissional_id: id, celular, contato_nome: nomeContato || null, atualizado_por: ctx.userId, atualizado_em: new Date().toISOString(),
   });
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, celular });
+  return NextResponse.json({ ok: true, celular, nome: nomeContato });
 }
