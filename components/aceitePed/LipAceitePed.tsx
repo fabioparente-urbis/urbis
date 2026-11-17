@@ -13,6 +13,7 @@ import CelularResponsavelTecnico from "@/components/comum/CelularResponsavelTecn
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
@@ -2021,6 +2022,7 @@ export default function LipAceitePed() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
+      <AvisoEnviadoSei codigo={idUrl} modo="faixa" />
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
       <CelularResponsavelTecnico dados={d} />
       {alertaMarco && (

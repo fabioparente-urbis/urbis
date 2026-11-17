@@ -16,6 +16,7 @@
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import type {
   RelatorioImportado as RelatorioContraConferencia,
   AchadoImportado,
@@ -1364,6 +1365,7 @@ export default function AnaliseAprovacaoProjeto() {
       a.click();
       URL.revokeObjectURL(url);
       setModalDI(false);
+      window.dispatchEvent(new Event("urbis:documento-emitido"));
 
       registrar({
         modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo,
@@ -1513,6 +1515,7 @@ export default function AnaliseAprovacaoProjeto() {
     resultados.forEach((r, i) => {
       if (r.status === "rejected" || !r.value.ok) falhas.push(nomes[i]);
     });
+    window.dispatchEvent(new Event("urbis:documento-emitido"));
     if (falhas.length) notificar(`⚠ Despacho emitido, mas falhou registrar em: ${falhas.join(", ")}.`);
   }
 
@@ -1736,6 +1739,7 @@ export default function AnaliseAprovacaoProjeto() {
       ]);
       const nomes = ["MRP", "MDP", "tag do processo"];
       const falhas = resultados.flatMap((x, i) => (x.status === "rejected" || !x.value.ok ? [nomes[i]] : []));
+      window.dispatchEvent(new Event("urbis:documento-emitido"));
       notificar(
         `Indeferimento (parecer nº ${numeroParecer}) baixado.`
         + (falhas.length ? ` ⚠ Falhou registrar em: ${falhas.join(", ")}.` : "")
@@ -1844,6 +1848,15 @@ export default function AnaliseAprovacaoProjeto() {
         ax.click();
         ax.remove();
       }, 800);
+      // Despacho exporta também o Excel do LIP (pedido do Fábio, 17/11/2026), depois do Excel do MAC.
+      setTimeout(() => {
+        const al = document.createElement("a");
+        al.href = `/api/aprovacao-projeto/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=slot_05`;
+        al.download = "";
+        document.body.appendChild(al);
+        al.click();
+        al.remove();
+      }, 1600);
 
       // Documento na mão: agora sim consome o número e grava data/número na análise — MAS NUNCA na
       // reemissão, onde o número já foi consumido na primeira vez (mesma regra do Slot 1).
@@ -2873,6 +2886,7 @@ export default function AnaliseAprovacaoProjeto() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <AvisoEnviadoSei codigo={codigo} modo="popup" />
       {/* ─── Barra de pendências LIP/MAC — mesmo padrão do Slot 1 ─────── */}
       {(pendenciasLip.length > 0 || naoRespondidos.length > 0) && (
         <div style={{ position: "sticky", top: 0, zIndex: 100 }}>

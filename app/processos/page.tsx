@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { aplicarFiltrosLocais, queryParaFiltros, type FiltrosPilha, type EsforcoProvavelPilha } from "@/lib/urbi/navegacao";
 import CaixaFiltros, { type OpcaoFiltro, type ChipAtivo } from "@/components/pilha/CaixaFiltros";
 import { useRouter } from "next/navigation";
+import LembreteProcesso, { type Lembrete } from "@/components/pilha/LembreteProcesso";
 import { isPerfilIrrestrito, PERFIS_GERENCIA } from "@/lib/perfis";
 import { explicarTag } from "@/lib/urbi/explicarTag";
 
@@ -57,6 +58,8 @@ type Processo = {
   acao_bloqueante_motivo?: string | null;
   /** Números de documento deste processo que existem no MDP (`/api/processos`, 08/09/2026). */
   documentos_mdp?: string[];
+  /** Despacho/parecer emitido e ainda não confirmado como enviado ao SEI (Slots 2-5). */
+  nao_enviado_sei?: boolean;
   /** "Finalizar LIP" (08/09/2026) — analista decidiu parar por aqui e seguir pro MAC. */
   lip_finalizado?: boolean;
   /** Carimbo "Finalizado" (10/09/2026, lib/bdi/situacao.ts) — laudo emitido ou indeferido/
@@ -306,6 +309,18 @@ function ProcessosConteudo() {
     );
   }
 
+  // Lembretes pessoais por processo (só autor, gerente, diretor e adm — filtrado no servidor).
+  const [lembretes, setLembretes] = useState<Lembrete[]>([]);
+  useEffect(() => {
+    fetch("/api/processo/lembrete").then((r) => r.json()).then((j) => { if (j.ok) setLembretes(j.lembretes); }).catch(() => {});
+  }, []);
+  function lembreteSalvo(codigo: string, texto: string) {
+    setLembretes((prev) => {
+      const resto = prev.filter((l) => !(l.processo === codigo && l.meu));
+      return texto ? [...resto, { id: `meu-${codigo}`, processo: codigo, autor: "", texto, atualizadoEm: new Date().toISOString(), meu: true }] : resto;
+    });
+  }
+
   async function carregar() {
     try {
       setCarregando(true);
@@ -358,7 +373,9 @@ function ProcessosConteudo() {
   // Recorte de apresentação sobre a lista que a API já devolveu — e a API é
   // quem aplica a permissão. Filtrar aqui não amplia o que a pessoa enxerga.
   const filtrosAtivos: FiltrosPilha = { ...filtrosUrl, ...filtrosTriagem };
-  const processosVisiveis = aplicarFiltrosLocais(processos as any[], filtrosAtivos) as typeof processos;
+  const [soNaoEnviadoSei, setSoNaoEnviadoSei] = useState(false);
+  const processosVisiveis = (aplicarFiltrosLocais(processos as any[], filtrosAtivos) as typeof processos)
+    .filter((p) => !soNaoEnviadoSei || p.nao_enviado_sei);
 
   function limparTriagem() {
     setFiltrosTriagem({});
@@ -579,6 +596,10 @@ function ProcessosConteudo() {
           </div>
         </div>
         <span className="text-[var(--text-muted)] text-sm">{processosVisiveis.length} processo(s)</span>
+        <label className="text-sm text-red-700 flex items-center gap-1 cursor-pointer">
+          <input type="checkbox" checked={soNaoEnviadoSei} onChange={(e) => setSoNaoEnviadoSei(e.target.checked)} />
+          Só não enviados ao SEI
+        </label>
       </div>
 
       {/* FILTROS — caixa única (10/09/2026). Substituiu 16 caixinhas: as 4 do
@@ -616,6 +637,9 @@ function ProcessosConteudo() {
                     {numero}
                     {processoFisico && <span className="text-[var(--text-muted)] font-normal"> · Físico: {processoFisico}</span>}
                   </p>
+                  {p.nao_enviado_sei && (
+                    <span className="inline-block mt-1 mr-1 text-xs font-bold px-2 py-0.5 rounded bg-red-100 text-red-700 border border-red-300">🚫 NÃO ENVIADO AO SEI</span>
+                  )}
                   {Array.isArray(p.tags) && p.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {(p.tags.filter((t, idx, arr) =>
@@ -672,6 +696,7 @@ function ProcessosConteudo() {
                   )}
                   <p className="text-[var(--text-secondary)] text-sm mt-0.5 truncate">{proprietario}</p>
                   <div className="flex items-center gap-2 mt-0.5"><p className="text-[var(--text-muted)] text-xs">{nomeAnalista(p.analista_id)}</p></div>
+                  <LembreteProcesso codigo={p.codigo} lembretes={lembretes.filter((l) => l.processo === p.codigo)} onSalvo={lembreteSalvo} />
                   {PROCESSOS_ANALISES_OCULTAS.has(numero) && (
                     <p title={AVISO_ANALISES_OCULTAS}
                       className="text-[var(--warning)] text-[11px] mt-1 leading-snug cursor-help">

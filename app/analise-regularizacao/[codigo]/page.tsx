@@ -1205,6 +1205,11 @@ export default function MacPage() {
         }, 800);
       }
 
+      // Despacho exporta também o Excel do LIP (pedido do Fábio, 17/11/2026), depois do Excel do MAC.
+      setTimeout(() => {
+        window.open(`/api/regularizacao-sei/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "regularizacao"}`, "_blank");
+      }, 1600);
+
       /**
        * Backup ao concluir a análise — 08/09/2026, ideia do Fábio: "o URBI poderia recomendar
        * exportar o LIP e o MAC ao concluir uma análise pra ter backup de reserva".
