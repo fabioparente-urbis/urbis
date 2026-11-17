@@ -6,6 +6,7 @@
 // Trocas feitas: '/api/analise-aceite-sei' → '/api/analise-aceite-ped'; '/api/despacho-aceite-sei' → '/api/despacho-aceite-ped'; '/api/mac/aceite-sei/despacho-interno' → '/api/mac/aceite-ped/despacho-interno'; '|| "aceite_sei"' → '|| "slot_04"'; ': "regularizacao";' → ': "slot_04";'; '/analise-aceite-sei/${codigo}' → '/analise-aceite-ped/${codigo}'; '@/components/mac/aceiteSei/BotaoGerarLaudoAceiteSei' → '@/components/mac/aceitePed/BotaoGerarLaudoAceitePed'; 'BotaoGerarLaudoAceiteSei' → 'BotaoGerarLaudoAceitePed'; 'MAC — Aceite SEI' → 'MAC — Aceite PED'
 // ============================================================
 "use client";
+import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
 import { useAuditoria } from "@/hooks/useAuditoria";
@@ -1070,6 +1071,11 @@ export default function MacPage() {
         }, 800);
       }
 
+      // Despacho exporta também o Excel do LIP (pedido do Fábio, 17/11/2026), depois do Excel do MAC.
+      setTimeout(() => {
+        window.open(`/api/aceite-ped/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "slot_04"}`, "_blank");
+      }, 1600);
+
       /**
        * Backup ao concluir a análise — 08/09/2026, ideia do Fábio: "o URBI poderia recomendar
        * exportar o LIP e o MAC ao concluir uma análise pra ter backup de reserva".
@@ -1139,7 +1145,7 @@ export default function MacPage() {
           },
         }),
       })
-        .then((r) => { if (!r.ok) mostrarToast("⚠️ Despacho gerado, mas não foi registrado no MDP. Avise o suporte."); })
+        .then((r) => { window.dispatchEvent(new Event("urbis:documento-emitido")); if (!r.ok) mostrarToast("⚠️ Despacho gerado, mas não foi registrado no MDP. Avise o suporte."); })
         .catch(() => mostrarToast("⚠️ Despacho gerado, mas não foi registrado no MDP. Avise o suporte."));
 
       // Grava tag permanente no processo (STEP 2a)
@@ -1476,6 +1482,7 @@ export default function MacPage() {
       a.download = `DespachoInterno_${codigo}_${numDI}.docx`; a.click();
       URL.revokeObjectURL(url); setModalDespachoInterno(false);
       registrar({ modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo, detalhe: { numero: numDI } });
+      window.dispatchEvent(new Event("urbis:documento-emitido"));
 
       // Consome o número SOMENTE após o download bem-sucedido (peek não commita).
       const _numCommitDI = parseInt(numDI, 10);
@@ -1669,6 +1676,7 @@ export default function MacPage() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] flex flex-col">
+      <AvisoEnviadoSei codigo={codigo} modo="popup" />
       {(pendentesLIPItems.length > 0 || naoRespondidos.length > 0) && (
         <div style={{ position:"sticky", top:0, zIndex:100 }}>
           <div
@@ -2638,7 +2646,7 @@ export default function MacPage() {
                       conteudo: { motivos, observacoes: obs || "" },
                     }),
                   })
-                    .then((r) => { if (!r.ok) mostrarToast("⚠️ Indeferimento gerado, mas não foi registrado no MDP. Avise o suporte."); })
+                    .then((r) => { window.dispatchEvent(new Event("urbis:documento-emitido")); if (!r.ok) mostrarToast("⚠️ Indeferimento gerado, mas não foi registrado no MDP. Avise o suporte."); })
                     .catch(() => mostrarToast("⚠️ Indeferimento gerado, mas não foi registrado no MDP. Avise o suporte."));
 
                   await gravarTag({

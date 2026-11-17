@@ -1,3 +1,4 @@
+import { pendentesSei } from "@/lib/mdpEnviadoSei";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
@@ -194,6 +195,8 @@ export async function GET(req: NextRequest) {
      * — é o que a tag da Pilha tem em mãos pra decidir se vira link ou não. Sem isso a tag levaria
      * o analista pra uma tela vazia, que é pior do que não levar a lugar nenhum.
      */
+    // "Enviou no SEI?": códigos com despacho/parecer emitido e não confirmado (Slots 2-5).
+    const naoEnviadoSei = new Set((await pendentesSei(codigos)).map((x) => x.processo_codigo));
     const documentosMdpPorCodigo = new Map<string, string[]>();
     if (codigos.length > 0) {
       const { data: linhasMdp } = await supabase
@@ -319,6 +322,7 @@ export async function GET(req: NextRequest) {
         /** Números de documento deste processo que existem no MDP — a tag da Pilha só vira link
          *  pro MDP quando o número dela está aqui. */
         documentos_mdp: documentosMdpPorCodigo.get(p.codigo) ?? [],
+        nao_enviado_sei: naoEnviadoSei.has(p.codigo),
       };
     });
 

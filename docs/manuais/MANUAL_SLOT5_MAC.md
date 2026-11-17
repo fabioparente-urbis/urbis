@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.54
-**Data:** 2026-11-05
+**Versão:** 1.56
+**Data:** 2026-11-17
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -839,7 +839,10 @@ Limpeza pendente, nunca pedida explicitamente.
 
 ---
 
-### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026)
+### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026) e o do LIP (17/11/2026)
+
+Desde 17/11/2026, logo depois do Excel do MAC a tela baixa também o Excel do LIP do processo (vale nos 5 slots).
+
 
 Regra copiada do Slot 1 a pedido do Fábio: "MAC só finaliza com a exportação de documento". Em
 `emitirDespacho()` (`analise-aprovacao-projeto/[codigo]/page.tsx`), logo depois que o `.docx` do
@@ -1503,10 +1506,21 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 ---
 
+## 31. "Enviou no SEI?" — confirmação após emitir (13/11/2026)
+
+Depois de emitir despacho, despacho interno ou parecer de indeferimento, a tela do MAC mostra um
+pop-up piscando "Enviou no SEI?" com o botão **SIM** (componente `components/mdp/AvisoEnviadoSei.tsx`).
+O clique grava dia e hora do servidor em `mdp_registros.enviado_sei_em` (rota `POST /api/mdp/enviado-sei`;
+só quem emitiu ou o Administrador confirma). Dá para fechar com "responder depois": fica pendente.
+Registros anteriores à migration `2026_11_13c_mdp_enviado_sei.sql` foram marcados como tratados.
+O Laudo não entra. O Slot 1 ainda não usa isto (aguarda autorização).
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.56 | 2026-11-17 | Seção 8.5: emitir despacho baixa também o Excel do LIP (5 slots). LIP conferido (`MANUAL_SLOT5_LIP.md` v1.55). |
+| 1.55 | 2026-11-13 | Seção 31: pop-up "Enviou no SEI?" após emitir despacho/parecer; registra dia e hora. LIP ajustado (`MANUAL_SLOT5_LIP.md` v1.54). |
 | 1.54 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.53, seção 30.1), o S1 passou a recusar processo de outro slot antes de gastar a IA. |
 | 1.53 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.52, seção 30), entrou o botão "⏹ Parar leitura" no LER PASTA/LER PROCESSO. |
 | 1.52 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.51), o botão do painel de coordenadas passou de "Ver no Google Maps" para "Ver no Google Earth". |
