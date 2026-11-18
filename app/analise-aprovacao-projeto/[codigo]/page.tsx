@@ -2589,7 +2589,17 @@ export default function AnaliseAprovacaoProjeto() {
    * A fase "analisando" é a chamada única ao Gemini (1-3min) — sem progresso real possível ali,
    * então uma rampa por tempo (até 92%) preenche a espera, igual à barra do LIP.
    */
+  // Botão "Parar leitura" (igual ao do LIP): cancela a chamada em voo; nada é aplicado nos itens.
+  const abortPastaRef = useRef<AbortController | null>(null);
+  const pararPastaRef = useRef(false);
+  function pararLeituraPasta() {
+    pararPastaRef.current = true;
+    abortPastaRef.current?.abort();
+  }
+
   async function lerPastaIA(arquivos: File[]) {
+    pararPastaRef.current = false;
+    abortPastaRef.current = new AbortController();
     setLendoPasta(true);
     setProgressoPasta(0);
     setTempoPasta(0);
@@ -2613,7 +2623,7 @@ export default function AnaliseAprovacaoProjeto() {
         fd.append(`arquivo_${i}`, f);
         fd.append(`caminho_${i}`, (f as any).webkitRelativePath || f.name);
       });
-      const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd });
+      const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd, signal: abortPastaRef.current.signal });
       if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
 
       const leitor = r.body.getReader();
@@ -2743,7 +2753,7 @@ export default function AnaliseAprovacaoProjeto() {
         );
       }
     } catch (e: any) {
-      notificar(`Erro na leitura: ${e?.message ?? e}`);
+      notificar(pararPastaRef.current ? "⏹ Leitura interrompida — nada foi aplicado." : `Erro na leitura: ${e?.message ?? e}`);
     } finally {
       pararRampa();
       if (tempoPastaRef.current) { clearInterval(tempoPastaRef.current); tempoPastaRef.current = null; }
@@ -3201,6 +3211,9 @@ export default function AnaliseAprovacaoProjeto() {
                   {String(Math.floor(tempoPasta / 60)).padStart(2, "0")}:{String(tempoPasta % 60).padStart(2, "0")}
                 </span>
                 <span>{progressoPasta}%</span>
+                {lendoPasta && (
+                  <button type="button" onClick={pararLeituraPasta} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é aplicado nos itens">⏹ Parar leitura</button>
+                )}
               </span>
             </div>
             <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">

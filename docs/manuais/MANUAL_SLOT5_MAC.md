@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.56
-**Data:** 2026-11-17
+**Versão:** 1.57
+**Data:** 2026-11-18
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -122,6 +122,8 @@ depois mostram o ícone certo.
 Os números do painel (Conforme/Não Conforme/N.A./Pendentes/por filtro/por IA/por você) são
 clicáveis — abrem a lista dos itens daquele balde; clicar num item da lista manda para o grupo dele
 e destaca por 2 segundos.
+
+**Parar leitura** (18/11/2026): enquanto o LER PASTA (IA) roda, a barra de progresso mostra o botão vermelho "⏹ Parar leitura". Ele cancela a chamada no navegador e nada é aplicado nos itens (aviso "Leitura interrompida"). O servidor pode concluir a chamada ao Gemini por conta própria, então o custo já gasto não volta.
 
 **LER PASTA (IA) com progresso real**: a rota (`app/api/mac/slot-05/ler-pasta/route.ts`) usa
 NDJSON (mesmo formato de `/api/lip/ler-pasta`) — evento por fase (catalogando → enviando cada PDF
@@ -1519,6 +1521,7 @@ O Laudo não entra. O Slot 1 ainda não usa isto (aguarda autorização).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.57 | 2026-11-18 | LER PASTA (IA) ganhou o botão vermelho **⏹ Parar leitura**, na barra de progresso (igual ao do LIP): cancela a chamada em voo e nada é aplicado nos itens. Mesmo botão nos MACs dos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.56). |
 | 1.56 | 2026-11-17 | Seção 8.5: emitir despacho baixa também o Excel do LIP (5 slots). LIP conferido (`MANUAL_SLOT5_LIP.md` v1.55). |
 | 1.55 | 2026-11-13 | Seção 31: pop-up "Enviou no SEI?" após emitir despacho/parecer; registra dia e hora. LIP ajustado (`MANUAL_SLOT5_LIP.md` v1.54). |
 | 1.54 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.53, seção 30.1), o S1 passou a recusar processo de outro slot antes de gastar a IA. |
