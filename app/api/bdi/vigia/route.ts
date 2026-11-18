@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/supabaseAdmin";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { montarAvisos, triar, acharImovelConflitante, type EntradaVigia, type Aviso, type CandidatoImovel } from "@/lib/bdi/vigia";
+import { lerDispensasAtivas, estaDispensado, registrarCondicoes, slotTemCondicoes, type OrigemCondicao } from "@/lib/urbi/condicoesProcesso";
 import { lerRegrasBloqueio, lerRegrasBloqueioDoSlot, temRegrasProprias } from "@/lib/urbi/regrasBloqueio";
 
 /** "DD/MM/AAAA" (formato usado em mdp_registros.data_despacho) → Date, ou null se ilegível. */
@@ -18,8 +19,8 @@ function parseDataBR(v: string | null | undefined): Date | null {
  * CUSTO ZERO: só consulta o banco. Nenhuma chamada a Gemini, Groq, ElevenLabs
  * ou qualquer serviço cobrado.
  *
- * SÓ LEITURA: nenhum insert, update ou delete. Não escreve observação, não
- * muda status, não encosta no processo.
+ * SÓ LEITURA no processo: não escreve observação, não muda status. A única escrita é o
+ * retrato das condições bloqueantes (`urbi_condicoes_processo`), e só com `?registrar=lip|mac`.
  *
  * PERMISSÃO: o processo é carregado e passa por verificarOwnership — analista
  * só enxerga o que é dele; Administrador e Diretora passam. Sem isso, o vigia
@@ -220,9 +221,25 @@ export async function GET(req: NextRequest) {
     imovelConflito,
   };
 
+  let avisos = [...montarAvisos(entrada), ...avisosExtras];
+
+  // Condições bloqueantes gravadas por processo (18/11/2026, Slots 1-4): `?registrar=lip` ao
+  // abrir o LIP (recalcula), `?registrar=mac` ao abrir o MAC (revisa). Só nesses dois momentos se
+  // grava — o sinal do URBI que consulta este endpoint de tempos em tempos não escreve nada.
+  // Condição dispensada (mesma evidência) some daqui também, então o aviso grande do MAC respeita
+  // a dispensa. Evidência mudou → o hash muda → a condição volta e o URBI chama de novo.
+  if (slotTemCondicoes((processo as any).tipo_processo)) {
+    const registrar = new URL(req.url).searchParams.get("registrar");
+    if (registrar === "lip" || registrar === "mac") {
+      await registrarCondicoes(codigo, avisos, registrar as OrigemCondicao);
+    }
+    const disp = (await lerDispensasAtivas([codigo])).get(codigo);
+    avisos = avisos.filter((a) => !(a.bloqueante && estaDispensado(a, disp)));
+  }
+
   return NextResponse.json({
     ok: true,
-    avisos: [...montarAvisos(entrada), ...avisosExtras],
+    avisos,
     triagem: triar(entrada),
   });
 }
