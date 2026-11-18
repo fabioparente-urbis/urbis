@@ -1,4 +1,5 @@
 "use client";
+import CaixaMarcoTemporal from "@/components/urbi/CaixaMarcoTemporal";
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
 import { filtrosDoAssunto, type FiltroMac } from "@/lib/macFiltros";
@@ -2790,6 +2791,8 @@ export default function MacPage() {
             })}
           </div>
 
+          {/* Marco Temporal atendido? — Sim desliga o aviso do URBI (18/11/2026) */}
+          <CaixaMarcoTemporal codigo={codigo} />
           {/* Botão Via / Logradouro */}
           <button
             onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-regularizacao/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}

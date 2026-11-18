@@ -116,6 +116,12 @@ export async function GET(req: NextRequest) {
 
   const avisosExtras: Aviso[] = [];
   let marcoTemporalReprovado = false;
+  // "Marco Temporal atendido? Sim" marcado no MAC desliga o aviso. Tabela ausente → segue sem.
+  let marcoTemporalAtendidoAnalista = false;
+  try {
+    const { data: mt } = await supabase.from("processo_marco_temporal").select("valor").eq("processo_codigo", codigo).maybeSingle();
+    marcoTemporalAtendidoAnalista = (mt as any)?.valor === "sim";
+  } catch { /* tabela ainda não criada */ }
   let marcoTemporalEvidencia: EntradaVigia["marcoTemporalEvidencia"] = null;
   if (regras.COND_MARCO_TEMPORAL.ativo && aplicaCondicoesBloqueio) {
     // Pega o evento MAIS RECENTE (não "algum dia já existiu") — achado real em 08/09/2026: o
@@ -208,6 +214,7 @@ export async function GET(req: NextRequest) {
     numeracao: (numeracao ?? []) as any,
     regras,
     marcoTemporalReprovado,
+    marcoTemporalAtendidoAnalista,
     marcoTemporalEvidencia,
     diasSemUltimaEmissao,
     imovelConflito,
