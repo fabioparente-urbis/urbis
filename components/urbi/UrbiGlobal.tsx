@@ -39,7 +39,7 @@ function lerUrbiAbertoSalvo(pathname: string): boolean {
 export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
   const pathname = usePathname();
-  const [urbiAberto, setUrbiAberto] = useState<boolean>(() => lerUrbiAbertoSalvo(pathname));
+  const [urbiAberto, setUrbiAberto] = useState<boolean>(() => (pathname.startsWith("/analise-") ? false : lerUrbiAbertoSalvo(pathname)));
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const [processoCodigo, setProcessoCodigo] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
@@ -88,7 +88,15 @@ export default function UrbiGlobal() {
     [estadoSinal, dicaRtSinal]
   );
   const { registrar } = useAuditoria();
-  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => lerOverlayDispensadoSalvo(pathname));
+  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => {
+    // MAC (/analise-*) aberto do zero (página carregada, não troca interna): o aviso dispensado
+    // antes NÃO fica lembrado — Fábio, 18/11/2026. Cobre a ida LIP → MAC com recarga completa.
+    if (pathname.startsWith("/analise-")) {
+      try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${pathname}`); sessionStorage.removeItem(`urbi:aberto:${pathname}`); } catch {}
+      return false;
+    }
+    return lerOverlayDispensadoSalvo(pathname);
+  });
   const overlayLogadoRef = useRef<string | null>(null); // processoCodigo já logado como DETECTADA nesta tela
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
@@ -128,7 +136,18 @@ export default function UrbiGlobal() {
       if (anterior.startsWith("/analise-")) {
         try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${anterior}`); } catch {}
       }
-      setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
+      if (pathname.startsWith("/analise-")) {
+        // Entrou no MAC vindo de outra tela (ex.: LIP): tem que ser EXATAMENTE como a primeira vez —
+        // card do aviso de volta e chat do URBI fechado (aberto, o card nem aparece).
+        try {
+          sessionStorage.removeItem(`urbi:bloqueioDispensado:${pathname}`);
+          sessionStorage.removeItem(`urbi:aberto:${pathname}`);
+        } catch {}
+        setOverlayDispensado(false);
+        setUrbiAberto(false);
+      } else {
+        setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
+      }
     }
     pathnameAnteriorRef.current = pathname;
   }, [pathname]);
