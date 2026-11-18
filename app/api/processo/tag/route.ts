@@ -18,7 +18,7 @@ import { autenticar } from "@/lib/auth";
  */
 
 type TagInput = {
-  tipo: "despacho" | "indeferimento" | "arquivamento" | "laudo";
+  tipo: "despacho" | "despacho_interno" | "indeferimento" | "arquivamento" | "laudo";
   numero_analise?: number;
   numero_despacho?: string;
   data?: string;
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     if (!codigo || !tagIn?.tipo) {
       return NextResponse.json({ ok: false, erro: "codigo e tag.tipo obrigatorios" }, { status: 400 });
     }
-    const tiposValidos = new Set(["despacho", "indeferimento", "arquivamento", "laudo"]);
+    const tiposValidos = new Set(["despacho", "despacho_interno", "indeferimento", "arquivamento", "laudo"]);
     if (!tiposValidos.has(tagIn.tipo)) {
       return NextResponse.json({ ok: false, erro: "tipo de tag invalido" }, { status: 400 });
     }

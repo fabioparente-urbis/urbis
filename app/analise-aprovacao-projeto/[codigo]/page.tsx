@@ -1410,6 +1410,7 @@ export default function AnaliseAprovacaoProjeto() {
           processo_codigo: codigo,
           tipo_despacho: "DESPACHO_INTERNO",
           numero_despacho: numDI,
+          numero_analise: analise?.numero_analise ?? null,
           area_construida: areaParaNumero(processo?.areaTotal),
           interessado: processo?.proprietario ?? null,
           bairro: processo?.bairro ?? null,
@@ -1417,6 +1418,15 @@ export default function AnaliseAprovacaoProjeto() {
           assunto_id: ASSUNTO_ID_SLOT5,
           tipo_processo: TIPO_PROCESSO_SLOT5,
           auto_gerado: true,
+        }),
+      }).catch(() => null);
+
+      // Tag "Com despacho interno" no card da Pilha — igual aos Slots 1-4, com a análise aberta.
+      fetch("/api/processo/tag", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo,
+          tag: { tipo: "despacho_interno", numero_analise: analise?.numero_analise, numero_despacho: numDI, data: dataDI },
         }),
       }).catch(() => null);
 

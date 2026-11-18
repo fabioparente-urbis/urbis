@@ -733,6 +733,14 @@ export default function MacPage() {
     setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
+        // Entrar no MAC e sair sem fazer nada NÃO grava análise vazia (pedido do Fábio, 18/11/2026):
+        // sem isto, só escolher o checklist já criava a análise no banco, e ao voltar o MAC abria nela
+        // direto — sem perguntar o checklist de novo. Só grava quando há algo preenchido.
+        if (status === "em_andamento" && Object.keys(itens || {}).length === 0 && !(observacoes || "").trim()
+            && Object.keys(observacoesPorAba || {}).length === 0 && Object.keys(fontes || {}).length === 0) {
+          setStatusSalvo("");
+          return;
+        }
         // Trava de concorrência: se já há um POST de análise nova em curso,
         // não dispara outro (evita criar duas análises com o mesmo número).
         // Ao criar com sucesso, a trava permanece — os próximos saves caem no
@@ -1474,7 +1482,7 @@ export default function MacPage() {
        * assunto da Regularização. Agora é "aceite_sei". */
       const res = await fetch("/api/mac/aceite-ped/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "slot_04", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "slot_04", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, analise_id: analiseAtual?.id, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
       });
       if (!res.ok) {
         /* Railway serve por HTTP/2 e `res.statusText` vem sempre vazio — o
