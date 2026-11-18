@@ -88,7 +88,15 @@ export default function UrbiGlobal() {
     [estadoSinal, dicaRtSinal]
   );
   const { registrar } = useAuditoria();
-  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => lerOverlayDispensadoSalvo(pathname));
+  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => {
+    // MAC (/analise-*) aberto do zero (página carregada, não troca interna): o aviso dispensado
+    // antes NÃO fica lembrado — Fábio, 18/11/2026. Cobre a ida LIP → MAC com recarga completa.
+    if (pathname.startsWith("/analise-")) {
+      try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${pathname}`); } catch {}
+      return false;
+    }
+    return lerOverlayDispensadoSalvo(pathname);
+  });
   const overlayLogadoRef = useRef<string | null>(null); // processoCodigo já logado como DETECTADA nesta tela
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
