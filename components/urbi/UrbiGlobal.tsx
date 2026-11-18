@@ -122,6 +122,12 @@ export default function UrbiGlobal() {
    */
   useEffect(() => {
     if (pathnameAnteriorRef.current !== null && pathnameAnteriorRef.current !== pathname) {
+      // Telas do MAC (/analise-*): sair e voltar começa do zero — o aviso grande dispensado ao
+      // sair NÃO fica lembrado (pedido do Fábio, 18/11/2026). Só o MAC; o resto do sistema mantém.
+      const anterior = pathnameAnteriorRef.current;
+      if (anterior.startsWith("/analise-")) {
+        try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${anterior}`); } catch {}
+      }
       setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
     }
     pathnameAnteriorRef.current = pathname;

@@ -110,6 +110,18 @@ export default function MacPage() {
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerP2, setTimerP2] = useState(0);
   const timerP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Botão "Parar leitura" do MAC (igual ao do LIP): cancela a chamada em voo; nada é aplicado nos itens.
+  const abortP2Ref = useRef<AbortController | null>(null);
+  const pararP2Ref = useRef(false);
+  function novoAbortP2(): AbortSignal {
+    pararP2Ref.current = false;
+    abortP2Ref.current = new AbortController();
+    return abortP2Ref.current.signal;
+  }
+  function pararLeituraMac() {
+    pararP2Ref.current = true;
+    abortP2Ref.current?.abort();
+  }
   const inputP2Ref = useRef<HTMLInputElement>(null);
   // LER ARQUIVOS INDIVIDUAIS do MAC — mesma ideia do VCP do LIP: em vez de um
   // PDF único (que só cabe se o processo inteiro estiver compactado), o
@@ -721,6 +733,14 @@ export default function MacPage() {
     setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
+        // Entrar no MAC e sair sem fazer nada NÃO grava análise vazia (pedido do Fábio, 18/11/2026):
+        // sem isto, só escolher o checklist já criava a análise no banco, e ao voltar o MAC abria nela
+        // direto — sem perguntar o checklist de novo. Só grava quando há algo preenchido.
+        if (status === "em_andamento" && Object.keys(itens || {}).length === 0 && !(observacoes || "").trim()
+            && Object.keys(observacoesPorAba || {}).length === 0 && Object.keys(fontes || {}).length === 0) {
+          setStatusSalvo("");
+          return;
+        }
         // Trava de concorrência: se já há um POST de análise nova em curso,
         // não dispara outro (evita criar duas análises com o mesmo número).
         // Ao criar com sucesso, a trava permanece — os próximos saves caem no
@@ -1462,7 +1482,7 @@ export default function MacPage() {
        * assunto da Regularização. Agora é "aceite_sei". */
       const res = await fetch("/api/mac/aceite-ped/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "slot_04", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "slot_04", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, analise_id: analiseAtual?.id, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
       });
       if (!res.ok) {
         /* Railway serve por HTTP/2 e `res.statusText` vem sempre vazio — o
@@ -1577,7 +1597,7 @@ export default function MacPage() {
         // Diz ao P3 que este é UM documento de um conjunto — sem isto o modelo
         // trata "não vejo aqui" como "ausente do processo". Ver a rota.
         fd.append("modoLeitura", "documento_isolado");
-        const res = await fetch("/api/aceite-ped/mac/p3", { method: "POST", body: fd });
+        const res = await fetch("/api/aceite-ped/mac/p3", { method: "POST", body: fd, signal: novoAbortP2() });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
           throw new Error(`${arquivo.name}: ${json?.erro || res.statusText || "falha na leitura"}`);
@@ -1653,6 +1673,7 @@ export default function MacPage() {
       registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
       mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s)${semProvaTodos.length ? `, ${semProvaTodos.length} sem prova voltaram em branco` : ""} — revise e aceite.`);
     } catch (err: any) {
+      if (pararP2Ref.current) err = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
       const _seg = Math.round((Date.now() - _inicio) / 1000);
       const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
@@ -1661,7 +1682,7 @@ export default function MacPage() {
         `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_ss}\n` +
         `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
-      mostrarToast(`Erro: ${err?.message || "falha"}`);
+      mostrarToast(pararP2Ref.current ? "⏹ Leitura interrompida." : `Erro: ${err?.message || "falha"}`);
     } finally {
       if (timerP2Ref.current) { clearInterval(timerP2Ref.current); timerP2Ref.current = null; }
       setProgressoP2(0);
@@ -2117,6 +2138,7 @@ export default function MacPage() {
                 <span className="flex gap-2">
                   <span>{progressoP2}%</span>
                   <span className="text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
+                  <button type="button" onClick={pararLeituraMac} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é aplicado nos itens">⏹ Parar leitura</button>
                 </span>
               </div>
               <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
@@ -2207,7 +2229,7 @@ export default function MacPage() {
                     ));
                     if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
                     if (assuntoId) fd.append("assunto_id", assuntoId);
-                    const res = await fetch("/api/aceite-ped/mac/p3", { method: "POST", body: fd });
+                    const res = await fetch("/api/aceite-ped/mac/p3", { method: "POST", body: fd, signal: novoAbortP2() });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
                       /* Railway serve por HTTP/2 — `res.statusText` vem SEMPRE vazio nesse
@@ -2260,6 +2282,7 @@ export default function MacPage() {
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns)${Array.isArray(json.itensSemProva) && json.itensSemProva.length ? `, ${json.itensSemProva.length} sem prova voltaram em branco` : ""} — revise e aceite.`);
                   } catch (err: any) {
+      if (pararP2Ref.current) err = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
                     const _seg = String(_tempoLeitura % 60).padStart(2, "0");
@@ -2268,7 +2291,7 @@ export default function MacPage() {
                       `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_seg} | Progresso: ${progressoP2}%\n` +
                       `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
                     setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
-                    mostrarToast(`Erro P3: ${err?.message || "falha"}`);
+                    mostrarToast(pararP2Ref.current ? "⏹ Leitura interrompida." : `Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
                     if (timerP2Ref.current) clearInterval(timerP2Ref.current);

@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.55
-**Data:** 2026-11-17
+**Versão:** 1.57
+**Data:** 2026-11-18
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1362,6 +1362,8 @@ Detalhes no `MANUAL_SLOT5_MAC.md` seção 31.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.57 | 2026-11-18 | Sem mudança no LIP. Conferido: o despacho interno do MAC agora também grava a tag na Pilha e a análise no MRP (ver `MANUAL_SLOT5_MAC.md` v1.58). |
+| 1.56 | 2026-11-18 | Sem mudança no LIP. Conferido: o botão "⏹ Parar leitura" já existia aqui e agora também existe no MAC (ver `MANUAL_SLOT5_MAC.md` v1.57). |
 | 1.55 | 2026-11-17 | Ao emitir despacho no MAC, o Excel do LIP também é baixado (depois do Excel do MAC). Ver `MANUAL_SLOT5_MAC.md` v1.56 seção 8.5. |
 | 1.54 | 2026-11-13 | Seção 31: faixa "NÃO ENVIADO AO SEI" na ficha e selo/filtro na Pilha. Conferido contra o MAC (`MANUAL_SLOT5_MAC.md` v1.55). |
 | 1.53 | 2026-11-05 | Seção 30.1: o S1 do Slot 5 recusa processo de outro slot antes de gastar a IA. Conferido contra o MAC da mesma data: sem mudança (`MANUAL_SLOT5_MAC.md` v1.54). |
