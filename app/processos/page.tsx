@@ -274,12 +274,30 @@ function naAba(p: Processo, aba: Aba): boolean {
   }
 }
 
-/** Faixa colorida à esquerda do card: a urgência bate o olho sem ler nada. */
-function urgencia(p: Processo): "alta" | "media" | null {
+/**
+ * Faixa colorida à esquerda do card (18/11/2026, v2 a pedido do Fábio: "legenda, mais grossa,
+ * mostrar quando não foi digitado nada e quando foi digitado mas ainda tem pendência").
+ * Uma cor por card, a mais grave vence, na ordem da legenda.
+ */
+type Faixa = "urgente" | "prazo" | "pendente" | "vazio" | "aguardando" | "emdia";
+const FAIXAS: { id: Faixa; rotulo: string; dica: string; cor: string }[] = [
+  { id: "urgente", rotulo: "Urgente", dica: "Condição do URBI, documento não enviado ao SEI ou 180 dias de espera atingidos.", cor: "bg-[var(--error)]" },
+  { id: "prazo", rotulo: "Prazo perto", dica: "Aguardando o interessado há 175 a 179 dias.", cor: "bg-[var(--warning)]" },
+  { id: "pendente", rotulo: "Digitado, com pendência", dica: "LIP começado e incompleto, ou MAC aberto sem documento emitido.", cor: "bg-[#f59e0b]" },
+  { id: "vazio", rotulo: "Nada digitado", dica: "LIP ainda não iniciado.", cor: "bg-[repeating-linear-gradient(45deg,var(--border-strong)_0_4px,transparent_4px_8px)]" },
+  { id: "aguardando", rotulo: "Aguardando interessado", dica: "Despacho emitido, dentro do prazo.", cor: "bg-[var(--ia)]" },
+  { id: "emdia", rotulo: "Em dia", dica: "LIP completo e nada pendente com o analista (ou encerrado).", cor: "bg-[var(--success)]" },
+];
+const COR_FAIXA = Object.fromEntries(FAIXAS.map((f) => [f.id, f.cor])) as Record<Faixa, string>;
+
+function faixa(p: Processo): Faixa {
   const d = p.situacao_mac === "Aguardando retorno do interessado" ? diasInteiros(p.dias_aguardando_retorno) : null;
-  if (p.nao_enviado_sei || (p.condicoes_urbi?.length ?? 0) > 0 || (d != null && d >= LIMIAR_PRAZO_ATINGIDO_DIAS)) return "alta";
-  if ((d != null && d >= LIMIAR_ALERTA_DIAS) || p.situacao_lip === "Incompleto") return "media";
-  return null;
+  if (p.nao_enviado_sei || (p.condicoes_urbi?.length ?? 0) > 0 || (d != null && d >= LIMIAR_PRAZO_ATINGIDO_DIAS)) return "urgente";
+  if (d != null && d >= LIMIAR_ALERTA_DIAS) return "prazo";
+  if (p.situacao_mac === "Aguardando retorno do interessado") return "aguardando";
+  if (p.situacao_lip === "Não iniciado" && (!p.situacao_mac || p.situacao_mac === "Não iniciado")) return "vazio";
+  if (p.situacao_lip === "Incompleto" || p.situacao_mac === "Em análise") return "pendente";
+  return "emdia";
 }
 
 /** Selo único (T7): a situação geral; LIP e MAC separados ficam no "passar o mouse". */
@@ -761,6 +779,16 @@ function ProcessosConteudo() {
         Filtros por fatos registrados. “Mais simples” não é previsão de aprovação. Atalho: <kbd className="px-1 rounded border border-[var(--border)]">/</kbd> busca, <kbd className="px-1 rounded border border-[var(--border)]">↑</kbd><kbd className="px-1 rounded border border-[var(--border)]">↓</kbd> + Enter abre.
       </p>
 
+      {/* LEGENDA DA FAIXA */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 px-1 text-xs text-[var(--text-secondary)]">
+        <span className="font-semibold text-[var(--text-muted)]">Faixa:</span>
+        {FAIXAS.map((f) => (
+          <span key={f.id} title={f.dica} className="inline-flex items-center gap-1.5 cursor-help">
+            <span className={`inline-block w-2 h-4 rounded-sm ${f.cor}`} />{f.rotulo}
+          </span>
+        ))}
+      </div>
+
       {/* LISTA */}
       {carregando ? (
         <div className="text-[var(--text-muted)] text-sm text-center py-12">Carregando...</div>
@@ -772,7 +800,8 @@ function ProcessosConteudo() {
             const proprietario = p.dados?.proprietario?.valor || "Interessado não informado";
             const numero = p.codigo || p.numero_sei || "—";
             const processoFisico = p.dados?.processoFisico?.valor;
-            const urg = urgencia(p);
+            const fx = faixa(p);
+            const fxInfo = FAIXAS.find((f) => f.id === fx)!;
             const tags = Array.isArray(p.tags)
               ? p.tags.filter((t, idx, arr) =>
                   arr.findIndex(x => x.tipo === t.tipo && (x.numero_analise ?? null) === (t.numero_analise ?? null)) === idx)
@@ -784,11 +813,9 @@ function ProcessosConteudo() {
               <div key={p.id} data-card tabIndex={0}
                 onClick={() => abrirProcesso(p)}
                 onKeyDown={(e) => aoTeclarCard(e, p)}
-                className={`relative cursor-pointer rounded-xl border bg-[var(--card)] border-[var(--card-border)] hover:border-[var(--border-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] pl-4 pr-3 py-3 transition-colors overflow-hidden ${p.finalizado ? "opacity-75" : ""}`}>
-                {/* Faixa de urgência */}
-                <span aria-hidden className={`absolute left-0 top-0 bottom-0 w-1 ${
-                  urg === "alta" ? "bg-[var(--error)]" : urg === "media" ? "bg-[var(--warning)]" : "bg-transparent"
-                }`} />
+                className={`relative cursor-pointer rounded-xl border bg-[var(--card)] border-[var(--card-border)] hover:border-[var(--border-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] pl-5 pr-3 py-3 transition-colors overflow-hidden ${p.finalizado ? "opacity-75" : ""}`}>
+                {/* Faixa (legenda acima da lista) */}
+                <span title={`${fxInfo.rotulo} — ${fxInfo.dica}`} className={`absolute left-0 top-0 bottom-0 w-2 ${COR_FAIXA[fx]}`} />
 
                 {/* Linha 1 — número · tipo · selo · URBI · SEI · data · ⋯ */}
                 <div className="flex items-center gap-2 flex-wrap">
