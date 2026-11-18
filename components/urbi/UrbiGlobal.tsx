@@ -729,10 +729,16 @@ export default function UrbiGlobal() {
             <div style={{ fontSize: 15, fontWeight: 700, color: "#991b1b", textAlign: "center" }}>
               Antes de continuar analisando este processo…
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-primary, #334155)", textAlign: "center", lineHeight: 1.5 }}>
-              {estadoFinal.itens[0]?.titulo}
-              {estadoFinal.itens.length > 1 ? ` (+ ${estadoFinal.itens.length - 1} outro${estadoFinal.itens.length > 2 ? "s" : ""})` : ""}
-            </div>
+            {/* Mostra TODAS as condições, não "+ N outros" (Fábio, 18/11/2026). */}
+            {estadoFinal.itens.length === 1 ? (
+              <div style={{ fontSize: 13, color: "var(--text-primary, #334155)", textAlign: "center", lineHeight: 1.5 }}>
+                {estadoFinal.itens[0]?.titulo}
+              </div>
+            ) : (
+              <ul style={{ fontSize: 13, color: "var(--text-primary, #334155)", lineHeight: 1.5, margin: 0, paddingLeft: 18, textAlign: "left", width: "100%" }}>
+                {estadoFinal.itens.map((i, idx) => <li key={idx}>{i.titulo}</li>)}
+              </ul>
+            )}
             {(() => {
               const itemImovel = estadoFinal.itens.find(i => i.id === "cond_imovel_duplicado" && i.dados);
               if (!itemImovel) return null;
