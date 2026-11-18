@@ -326,6 +326,8 @@ export type EntradaVigia = {
   regras?: Partial<Record<ChaveRegraBloqueio, RegraBloqueio>>;
   /** true quando existe evento LIP_MARCO_TEMPORAL_REPROVADO para este processo (auditoria_eventos). */
   marcoTemporalReprovado?: boolean;
+  /** true quando o analista marcou "Marco Temporal atendido? Sim" no MAC (tabela processo_marco_temporal). */
+  marcoTemporalAtendidoAnalista?: boolean;
   /**
    * A prova por trás de `marcoTemporalReprovado` — o `detalhe` já gravado no evento de auditoria
    * (`marco`/`leitura`, ver `avaliarMarcoTemporal` em lib/marcoTemporal.ts), com o TRECHO exato do
@@ -532,7 +534,9 @@ export function montarAvisos(e: EntradaVigia): Aviso[] {
     }
   }
 
-  if (regra("COND_MARCO_TEMPORAL").ativo && aplicaCondicoesBloqueio && e.marcoTemporalReprovado) {
+  // "Marco Temporal atendido? Sim" marcado pelo analista no MAC desliga o aviso (Fábio, 18/11/2026).
+  if (regra("COND_MARCO_TEMPORAL").ativo && aplicaCondicoesBloqueio && e.marcoTemporalReprovado
+      && !e.marcoTemporalAtendidoAnalista) {
     const ev = e.marcoTemporalEvidencia;
     const trecho = ev?.trecho?.trim();
     const detalhe = trecho

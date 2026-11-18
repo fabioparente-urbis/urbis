@@ -1,6 +1,7 @@
 "use client";
 // Separação do Slot 2 (16/10/2026, molde da Etapa 2 em docs/URBIS_PLANO_SLOTS_3_4_PED.md): rotas de LIP e MAC
 // próprias do Slot 2 (/api/aceite-sei/*) e ficha do LIP própria (/lip-aceite-sei/). Satélites seguem comuns.
+import CaixaMarcoTemporal from "@/components/urbi/CaixaMarcoTemporal";
 import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
@@ -2542,6 +2543,8 @@ export default function MacPage() {
             })}
           </div>
 
+          {/* Marco Temporal atendido? — Sim desliga o aviso do URBI (18/11/2026) */}
+          <CaixaMarcoTemporal codigo={codigo} />
           {/* Botão Via / Logradouro */}
           <button
             onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-aceite-sei/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}

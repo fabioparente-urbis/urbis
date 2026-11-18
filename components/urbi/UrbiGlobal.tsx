@@ -373,6 +373,15 @@ export default function UrbiGlobal() {
       .catch(() => {});
   }, [pathname]);
 
+  // "urbi:revigiar" — a tela mudou algo que o Vigia lê (ex.: Marco Temporal atendido no MAC):
+  // recalcula o aviso na hora, sem esperar trocar de processo.
+  const [revigiar, setRevigiar] = useState(0);
+  useEffect(() => {
+    const h = () => setRevigiar((n) => n + 1);
+    window.addEventListener("urbi:revigiar", h);
+    return () => window.removeEventListener("urbi:revigiar", h);
+  }, []);
+
   // Sinal de cor: recalcula ao trocar de processo. Fora de uma tela de processo (Home
   // inclusive), não há cor — o avatar volta ao azul padrão.
   useEffect(() => {
@@ -391,7 +400,7 @@ export default function UrbiGlobal() {
       setEstadoSinal(calcularSinaleiro(avisos, acoes));
     });
     return () => { vivo = false; };
-  }, [processoCodigo]);
+  }, [processoCodigo, revigiar]);
 
   const buscarUsuario = () => {
     fetch("/api/auth/me")

@@ -6,6 +6,7 @@
 // Trocas feitas: '/api/analise-aceite-sei' → '/api/analise-aceite-ped'; '/api/despacho-aceite-sei' → '/api/despacho-aceite-ped'; '/api/mac/aceite-sei/despacho-interno' → '/api/mac/aceite-ped/despacho-interno'; '|| "aceite_sei"' → '|| "slot_04"'; ': "regularizacao";' → ': "slot_04";'; '/analise-aceite-sei/${codigo}' → '/analise-aceite-ped/${codigo}'; '@/components/mac/aceiteSei/BotaoGerarLaudoAceiteSei' → '@/components/mac/aceitePed/BotaoGerarLaudoAceitePed'; 'BotaoGerarLaudoAceiteSei' → 'BotaoGerarLaudoAceitePed'; 'MAC — Aceite SEI' → 'MAC — Aceite PED'
 // ============================================================
 "use client";
+import CaixaMarcoTemporal from "@/components/urbi/CaixaMarcoTemporal";
 import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
@@ -2547,6 +2548,8 @@ export default function MacPage() {
             })}
           </div>
 
+          {/* Marco Temporal atendido? — Sim desliga o aviso do URBI (18/11/2026) */}
+          <CaixaMarcoTemporal codigo={codigo} />
           {/* Botão Via / Logradouro */}
           <button
             onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-aceite-ped/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}
