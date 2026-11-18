@@ -32,8 +32,8 @@ export function BotaoCondicaoUrbi({ codigo, condicoes, podeDispensar, onDispensa
         onClick={(e) => { e.stopPropagation(); setAberto(true); }}
         title={`URBI: ${condicoes.length} condição(ões) bloqueante(s) — clique para ver`}
         aria-label={`URBI encontrou ${condicoes.length} condição bloqueante`}
-        className="relative inline-flex items-center gap-1 pl-0.5 pr-1.5 py-0.5 rounded-full border border-[var(--error)] bg-[var(--error-bg)] text-[var(--error)] text-[10px] font-bold hover:ring-2 hover:ring-[var(--error)] shrink-0">
-        <img src="/urbi/poses/urbi-atencao.png" alt="" className="w-5 h-5 object-contain" />
+        className="relative inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full border border-[var(--error)] bg-[var(--error-bg)] text-[var(--error)] text-[11px] font-bold hover:ring-2 hover:ring-[var(--error)] shrink-0">
+        <img src="/urbi/poses/urbi-atencao.png" alt="" className="w-7 h-7 object-contain" />
         {condicoes.length > 1 ? condicoes.length : "!"}
       </button>
       {aberto && (
