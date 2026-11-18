@@ -1,6 +1,6 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.57
+**Versão:** 1.58
 **Data:** 2026-11-18
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1362,6 +1362,7 @@ Detalhes no `MANUAL_SLOT5_MAC.md` seção 31.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.58 | 2026-11-18 | Sem mudança no LIP. Conferido: o MAC ganhou o botão "Limpar Todas as Abas" (ver `MANUAL_SLOT5_MAC.md` v1.59). |
 | 1.57 | 2026-11-18 | Sem mudança no LIP. Conferido: o despacho interno do MAC agora também grava a tag na Pilha e a análise no MRP (ver `MANUAL_SLOT5_MAC.md` v1.58). |
 | 1.56 | 2026-11-18 | Sem mudança no LIP. Conferido: o botão "⏹ Parar leitura" já existia aqui e agora também existe no MAC (ver `MANUAL_SLOT5_MAC.md` v1.57). |
 | 1.55 | 2026-11-17 | Ao emitir despacho no MAC, o Excel do LIP também é baixado (depois do Excel do MAC). Ver `MANUAL_SLOT5_MAC.md` v1.56 seção 8.5. |

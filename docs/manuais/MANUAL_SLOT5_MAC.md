@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.58
+**Versão:** 1.59
 **Data:** 2026-11-18
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -91,6 +91,10 @@ tela de MAC própria, se for para manter paridade com o Slot 1/2).
   falta responder (`ESTADO_GRUPO`)
 - Botões ✅ ❌ ⬜ 🧹 na própria linha do índice, para marcar o grupo inteiro sem precisar abrir
   (`marcarGrupo(grupo, status, salvarAgora)`, salva na hora quando acionado pelo índice)
+- **🧹 Limpar Todas as Abas** (18/11/2026), ao lado do "🧹 Limpar Aba" dentro do grupo aberto: apaga
+  as marcações de todos os grupos da análise aberta, depois de confirmar quantos itens serão
+  apagados; observações não são apagadas; salva na hora (`limparTodasAbas()`). Mesmo botão nos
+  MACs dos Slots 1-4.
 - Numeração **"ÍTEM 1..48"** (a aba de observações é o **"item 49"**) — vocabulário exato pedido
   pelo Fábio: "ÍTEM" com acento, "SUB ITEM" sem, dentro de cada grupo
 
@@ -1523,6 +1527,7 @@ O Laudo não entra. O Slot 1 ainda não usa isto (aguarda autorização).
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.59 | 2026-11-18 | Seção 3.1: botão **🧹 Limpar Todas as Abas** ao lado do "Limpar Aba" — limpa as marcações de todos os grupos, com confirmação; observações ficam. Mesmo botão nos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.58). |
 | 1.58 | 2026-11-18 | Despacho interno do Slot 5 passa a gravar a tag "Com despacho interno" no card da Pilha (com a análise aberta) e a mandar o número da análise ao MRP — igual aos Slots 1-4 (seção 8). Aviso grande do URBI dispensado volta ao reentrar no MAC. O Slot 5 continua gravando a análise ao entrar (filtros automáticos), de propósito. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.57). |
 | 1.57 | 2026-11-18 | LER PASTA (IA) ganhou o botão vermelho **⏹ Parar leitura**, na barra de progresso (igual ao do LIP): cancela a chamada em voo e nada é aplicado nos itens. Mesmo botão nos MACs dos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.56). |
 | 1.56 | 2026-11-17 | Seção 8.5: emitir despacho baixa também o Excel do LIP (5 slots). LIP conferido (`MANUAL_SLOT5_LIP.md` v1.55). |
