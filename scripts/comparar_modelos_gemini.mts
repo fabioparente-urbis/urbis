@@ -23,8 +23,8 @@ const RODADAS = Number(process.argv[4] ?? 2);
 const PAPEIS_UTEIS = ["projeto", "uso_solo", "certidao_matricula", "art_projeto", "art_caixa", "art_execucao", "atendimento"];
 const STATUS_OK = new Set(["conforme", "nao_conforme", "nao_aplica"]);
 
-const PASTA = "/Volumes/SSDFabio/Prefeitura/MINHAS APROVAÇÕES DE PROJETO/MINHAS APROVAÇÕES DE PROJETO/RETORNOS/2026/08.18/50724 1.897.496 MVO AGROPECUARIA LTDA. /Arquivos Iniciais";
-const ATENDIMENTO = "/Volumes/SSDFabio/Prefeitura/MINHAS APROVAÇÕES DE PROJETO/MINHAS APROVAÇÕES DE PROJETO/RETORNOS/2026/08.18/50724 1.897.496 MVO AGROPECUARIA LTDA. /ATENDIMENTO 18.08.pdf";
+const PASTA = process.env.PASTA ?? "/Volumes/SSDFabio/Prefeitura/MINHAS APROVAÇÕES DE PROJETO/MINHAS APROVAÇÕES DE PROJETO/RETORNOS/2026/08.18/50724 1.897.496 MVO AGROPECUARIA LTDA. /Arquivos Iniciais";
+const ATENDIMENTO = process.env.ATENDIMENTO ?? "/Volumes/SSDFabio/Prefeitura/MINHAS APROVAÇÕES DE PROJETO/MINHAS APROVAÇÕES DE PROJETO/RETORNOS/2026/08.18/50724 1.897.496 MVO AGROPECUARIA LTDA. /ATENDIMENTO 18.08.pdf";
 
 const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -61,7 +61,7 @@ async function main() {
   });
   {
     const buffer = new Uint8Array(readFileSync(ATENDIMENTO));
-    arquivos.push({ nome: "ATENDIMENTO 18.08.pdf", rodada: 1, hash: createHash("sha256").update(buffer).digest("hex"), buffer });
+    arquivos.push({ nome: "ATENDIMENTO.pdf", rodada: 1, hash: createHash("sha256").update(buffer).digest("hex"), buffer });
   }
   console.log(`arquivos lidos do disco: ${arquivos.length}`);
 
@@ -95,7 +95,7 @@ async function main() {
     sb.from("analises_mac").select("id, itens").eq("processo_codigo", codigo).eq("tipo_processo", "slot_05").is("excluido_em", null).order("numero_analise", { ascending: false }).limit(1),
   ]);
   const respondidos = ((analises?.[0] as any)?.itens ?? {}) as Record<string, string>;
-  const pendentes = (itensTodos ?? []).filter((i: any) => !respondidos[i.id]);
+  const pendentes = process.env.TODOS ? (itensTodos ?? []).filter((i: any) => respondidos[i.id]) : (itensTodos ?? []).filter((i: any) => !respondidos[i.id]);
   console.log(`\nitens ativos: ${itensTodos?.length} | já respondidos: ${Object.keys(respondidos).length} | pendentes: ${pendentes.length}`);
 
   console.log("\nsubindo PDFs ao Gemini (uma vez, reaproveitado por todos os modelos)...");
@@ -143,7 +143,7 @@ async function main() {
           if (validos.has(id) && STATUS_OK.has(s)) itens[id] = s;
         }
         const segundos = (Date.now() - t0) / 1000;
-        rodadas.push({ modelo, n, segundos, tokens: rj?.usageMetadata?.totalTokenCount, itens });
+        rodadas.push({ modelo, n, segundos, tokens: rj?.usageMetadata?.totalTokenCount, uso: rj?.usageMetadata, itens } as any);
         console.log(`ok ${segundos.toFixed(1)}s, ${Object.keys(itens).length} itens`);
       } catch (e: any) {
         rodadas.push({ modelo, n, erro: e.message });
@@ -161,6 +161,15 @@ async function main() {
     return ids.length ? Math.round((100 * iguais) / ids.length) : 0;
   };
 
+  if (process.env.SAIDA_JSON) {
+    (await import("node:fs")).writeFileSync(process.env.SAIDA_JSON, JSON.stringify({ rodadas, respondidos, pendentes: pendentes.map((p: any) => p.id) }, null, 1));
+    for (const r of rodadas as any[]) {
+      if (!r.itens) continue;
+      const ids = Object.keys(r.itens).filter((id) => respondidos[id]);
+      const iguais = ids.filter((id) => r.itens[id] === respondidos[id]).length;
+      console.log(`[vs análise salva] ${r.modelo} #${r.n}: ${iguais}/${pendentes.length} iguais`);
+    }
+  }
   console.log(`\n== RESUMO (${pendentes.length} itens pendentes; referência = ${MODELOS[0]} rodada 1) ==`);
   for (const r of rodadas) {
     if (r.erro) { console.log(`${r.modelo} #${r.n}: ERRO ${r.erro}`); continue; }
@@ -181,4 +190,5 @@ async function main() {
   }
 }
 
-main().catch((e) => { console.error("ERRO:", e.message); process.exit(1); });
+async function _x(){}
+main().then(()=>{}).catch((e) => { console.error("ERRO:", e.message); process.exit(1); });
