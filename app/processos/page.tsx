@@ -867,11 +867,19 @@ function ProcessosConteudo() {
                       const noMdp = !!(t.numero_despacho && p.documentos_mdp?.includes(t.numero_despacho));
                       return (
                         <span key={t.id ?? `${t.tipo}-${i}`}
-                          title={t.data ? `Emitido em ${formatarDataTag(t.data)}` : undefined}
+                          title={t.numero_despacho && p.documentos_mdp?.includes(t.numero_despacho)
+                            ? "Clique para abrir no MDP" : t.data ? `Emitido em ${formatarDataTag(t.data)}` : undefined}
                           className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded border ${TAG_COR[t.tipo]}`}>
                           <button type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              // 18/11/2026 (Fábio): clicar no despacho/parecer ABRE o MDP daquele
+                              // documento. Só quando o número existe no MDP — sem ele, o URBI explica
+                              // (nunca leva para uma tela vazia).
+                              if (noMdp) {
+                                router.push(`/mdp/${encodeURIComponent(p.codigo)}?numero=${encodeURIComponent(t.numero_despacho!)}`);
+                                return;
+                              }
                               explicar(explicarTag({
                                 familia: "documento", tipo: t.tipo, numero: t.numero_despacho ?? null,
                                 numeroAnalise: t.numero_analise ?? null, data: formatarDataTag(t.data) ?? t.data ?? null, noMdp,
