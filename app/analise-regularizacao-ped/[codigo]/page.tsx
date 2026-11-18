@@ -847,14 +847,14 @@ export default function MacPage() {
       .then(j => { if (j.ok) setHistoricoMac(j.eventos); })
       .finally(() => { carregandoHistoricoRef.current = false; });
   }
-  async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
+  async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false, forcar = false) {
     setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
         // Entrar no MAC e sair sem fazer nada NÃO grava análise vazia (pedido do Fábio, 18/11/2026):
         // sem isto, só escolher o checklist já criava a análise no banco, e ao voltar o MAC abria nela
         // direto — sem perguntar o checklist de novo. Só grava quando há algo preenchido.
-        if (status === "em_andamento" && Object.keys(itens || {}).length === 0 && !(observacoes || "").trim()
+        if (!forcar && status === "em_andamento" && Object.keys(itens || {}).length === 0 && !(observacoes || "").trim()
             && Object.keys(observacoesPorAba || {}).length === 0 && Object.keys(fontes || {}).length === 0) {
           setStatusSalvo("");
           return;
@@ -2243,7 +2243,7 @@ export default function MacPage() {
             <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações do MAC</p>
             <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={20}
               className="flex-1 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-vertical" />
-            <button onClick={() => salvarSilencioso().then(() => mostrarToast("✅ Observações do MAC salvas!"))}
+            <button onClick={() => salvarSilencioso("em_andamento", false, true).then(() => mostrarToast("✅ Observações do MAC salvas!"))}
               className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-medium transition-colors w-fit">
               💾 Salvar Observações
             </button>
