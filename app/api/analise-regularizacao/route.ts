@@ -88,13 +88,16 @@ export async function POST(req: NextRequest) {
     // nasceria como "1" por cima de uma que ja existe.
     const { data: existentes } = await supabase
       .from("analises_mac")
-      .select("numero_analise")
+      .select("numero_analise, excluido_em, itens, observacoes, numero_despacho, numero_parecer, numero_despacho_interno")
       .eq("processo_codigo", processo_codigo)
-      .ilike("tipo_processo", tipoAtual)
-      .order("numero_analise", { ascending: false })
-      .limit(1);
+      .ilike("tipo_processo", tipoAtual);
 
-    const proximoNumero = existentes && existentes.length > 0 ? existentes[0].numero_analise + 1 : 1;
+    // Análise da lixeira que NUNCA teve nada (sem item, observação nem documento) não ocupa número:
+    // entrar no MAC e sair sem fazer nada tem que voltar zerado, não pular pra próxima (Fábio, 18/11/2026).
+    // A que teve conteúdo ou emitiu documento continua contando — o número dela não volta.
+    const _ocupaNumero = (a: any) => !a.excluido_em || Object.keys(a.itens || {}).length > 0
+      || String(a.observacoes || "").trim() !== "" || !!(a.numero_despacho || a.numero_parecer || a.numero_despacho_interno);
+    const proximoNumero = (existentes ?? []).filter(_ocupaNumero).reduce((m: number, a: any) => Math.max(m, Number(a.numero_analise) || 0), 0) + 1;
 
     // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
     const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
