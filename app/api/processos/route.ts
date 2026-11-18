@@ -2,6 +2,8 @@ import { pendentesSei } from "@/lib/mdpEnviadoSei";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
+import { usuarioDaRequisicao, podeAcessarProcesso } from "@/lib/autorizacao";
+import { lerCondicoesParaPilha } from "@/lib/urbi/condicoesProcesso";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
 import { situacaoGeral, situacaoLip, lipFinalizadoValeComoCompleto, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
@@ -13,6 +15,9 @@ const supabase = createClient(
 // Sentinela usada para forcar lista vazia quando a gerencia nao possui
 // analistas cadastrados (evita 'in' com array vazio retornar resultados
 // indesejados pelo driver). UUID nulo nao colidirá com nenhum id real.
+/** Teto da lista. Antes cortava em 200 sem avisar; agora a resposta diz `cortado: true`. */
+const LIMITE_PILHA = 200; // mesmo teto de antes — subir pesa no banco (lição do Radar)
+
 const SENTINELA_ID_VAZIO = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(req: NextRequest) {
@@ -37,7 +42,7 @@ export async function GET(req: NextRequest) {
       // e aparece em /admin/lixeira, de onde pode voltar.
       .is("excluido_em", null)
       .order("atualizado_em", { ascending: false })
-      .limit(200);
+      .limit(LIMITE_PILHA + 1);
 
     // A busca por interessado e numero de despacho depende de campos dentro
     // de jsonb (dados.proprietario / tags[].numero_despacho), que o filtro
@@ -84,7 +89,8 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
-    let resultado = data ?? [];
+    const cortado = (data ?? []).length > LIMITE_PILHA;
+    let resultado = (data ?? []).slice(0, LIMITE_PILHA);
     if (buscaLimpa) {
       const palavrasBusca = buscaLimpa.split(/\s+/).filter(Boolean);
       resultado = resultado.filter((p: any) => {
@@ -267,6 +273,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Condições bloqueantes do URBI (18/11/2026) — só LÊ o retrato gravado ao abrir LIP/MAC.
+    const condicoesPorCodigo = await lerCondicoesParaPilha(codigos);
+
     resultado = resultado.map((p: any) => {
       const entrada: EntradaVigia = {
         processo: {
@@ -323,6 +332,7 @@ export async function GET(req: NextRequest) {
          *  pro MDP quando o número dela está aqui. */
         documentos_mdp: documentosMdpPorCodigo.get(p.codigo) ?? [],
         nao_enviado_sei: naoEnviadoSei.has(p.codigo),
+        condicoes_urbi: condicoesPorCodigo.get(p.codigo) ?? [],
       };
     });
 
@@ -330,7 +340,7 @@ export async function GET(req: NextRequest) {
       resultado = resultado.filter((p: any) => p.situacao_geral === situacaoFiltro);
     }
 
-    return NextResponse.json({ ok: true, data: resultado });
+    return NextResponse.json({ ok: true, data: resultado, cortado, limite: LIMITE_PILHA });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
@@ -340,6 +350,20 @@ export async function PUT(req: NextRequest) {
   try {
     const { id, status, analista_id, lip_incompleto, lip_finalizado, laudo_campos_ocultos } = await req.json();
     if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+
+    // Até 18/11/2026 esta rota gravava SEM conferir quem pedia (achado no estudo da Pilha nova):
+    // qualquer requisição trocava analista ou marcava LIP finalizado. Agora: sessão válida e
+    // permissão sobre o processo (dono, gerência, Diretor/a, Administrador — podeAcessarProcesso).
+    const u = await usuarioDaRequisicao(req);
+    if (!u) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
+    const { data: alvo } = await supabase.from("processos").select("codigo").eq("id", id).maybeSingle();
+    if (!alvo) return NextResponse.json({ ok: false, erro: "Processo não encontrado." }, { status: 404 });
+    const aut = await podeAcessarProcesso(u, (alvo as any).codigo);
+    if (!aut.ok) return NextResponse.json({ ok: false, erro: aut.erro }, { status: aut.status });
+    // Trocar o analista é das chefias (mesma regra da rota /api/processo/atribuir).
+    if (analista_id !== undefined && !u.irrestrito && !u.gerenciaDoPerfil) {
+      return NextResponse.json({ ok: false, erro: "Só chefias trocam o analista." }, { status: 403 });
+    }
 
     const atualizacao: any = { atualizado_em: new Date().toISOString() };
     if (status !== undefined) atualizacao.status = status;

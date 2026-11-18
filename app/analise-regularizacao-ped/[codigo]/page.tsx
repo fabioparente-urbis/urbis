@@ -1017,7 +1017,7 @@ export default function MacPage() {
   useEffect(() => {
     if (!codigo) return;
     let vivo = true;
-    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}&registrar=mac`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!vivo || !j?.ok) return;
