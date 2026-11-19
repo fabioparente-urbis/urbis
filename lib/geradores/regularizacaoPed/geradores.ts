@@ -507,7 +507,7 @@ function dimensoesImagem(buffer: Buffer, tipo: "png" | "jpg"): { width: number; 
   return { width: 420, height: 300 };
 }
 
-export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; fotos?: { base64: string; tipo: "png" | "jpg"; legenda: string }[]; }): Promise<Buffer> {
+export async function gerarIndeferimento(dados: { processo: string; interessado: string; analises: { numero: number; data: string; despacho?: string }[]; naoConformes?: string[]; observacoes?: string; endereco?: string; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; numeroProcessoFisico?: string; assunto?: string; data?: string; fotos?: { base64: string; tipo: "png" | "jpg"; legenda: string }[]; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -524,7 +524,7 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   const children: Paragraph[] = [];
 
   children.push(vazio(160));
-  children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
@@ -586,7 +586,7 @@ export async function gerarIndeferimento(dados: { processo: string; interessado:
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; assunto?: string; data?: string; }): Promise<Buffer> {
+export async function gerarArquivamento(dados: { processo: string; interessado: string; analista?: string; crea?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; numeroParecer?: string; numeroProcessoFisico?: string; assunto?: string; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -603,7 +603,7 @@ export async function gerarArquivamento(dados: { processo: string; interessado: 
   const children: Paragraph[] = [];
 
   children.push(vazio(160));
-  children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
