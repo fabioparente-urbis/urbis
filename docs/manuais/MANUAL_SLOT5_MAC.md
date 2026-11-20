@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.58
-**Data:** 2026-11-18
+**Versão:** 1.60
+**Data:** 2026-11-19
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1519,10 +1519,23 @@ só quem emitiu ou o Administrador confirma). Dá para fechar com "responder dep
 Registros anteriores à migration `2026_11_13c_mdp_enviado_sei.sql` foram marcados como tratados.
 O Laudo não entra. O Slot 1 ainda não usa isto (aguarda autorização).
 
+## 32. URBIS OFFLINE — marcar o checklist sem servidor (19/11/2026)
+
+O checklist do MAC do Slot 5 passa a guardar o que você marca quando o servidor, o banco ou a internet caem.
+- **Salvar:** marcação, fonte e observações de uma análise **que já existe** são guardadas neste computador e reenviadas sozinhas (mesma rota `PUT /api/mac/slot-05/analise`) quando a conexão volta.
+- **Abrir:** sem resposta do servidor, o checklist abre pela cópia do último acesso (180 dias), com as pendências por cima. Nesse modo os filtros automáticos e a abertura da análise seguinte não rodam, e o aviso diz isso.
+- **Selo** ao lado de "Sair": 🟡 aguardando / 🔴 precisa de você. Conflito = o item mudou no servidor enquanto esperava; você escolhe manter o seu ou usar o do servidor (para ver o do servidor, recarregue a página).
+- **Continua exigindo servidor:** criar análise nova, emitir despacho/parecer, numerar, Preencher do LIP, Ler Pasta, indeferir/concluir. A fila só cobre marcações e observações; conflito é conferido só nos itens marcados (não nas observações).
+- Detalhes comuns (backup, logout, sessão expirada) em `MANUAL_SLOT5_LIP.md` seção 32.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.60 | 2026-11-19 | Seção 32: URBIS OFFLINE no checklist — marcações guardadas na fila local, abertura pela cópia, selo e conflito por item |
+| 1.59 | 2026-11-19 | Sem mudança no MAC. Conferido: o URBIS OFFLINE Etapa 1 entrou só na ficha do LIP (seção 32 do `MANUAL_SLOT5_LIP.md`); o checklist do MAC ainda NÃO usa a fila local e continua exigindo servidor para salvar |
 | 1.58 | 2026-11-18 | Despacho interno do Slot 5 passa a gravar a tag "Com despacho interno" no card da Pilha (com a análise aberta) e a mandar o número da análise ao MRP — igual aos Slots 1-4 (seção 8). Aviso grande do URBI dispensado volta ao reentrar no MAC. O Slot 5 continua gravando a análise ao entrar (filtros automáticos), de propósito. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.57). |
 | 1.57 | 2026-11-18 | LER PASTA (IA) ganhou o botão vermelho **⏹ Parar leitura**, na barra de progresso (igual ao do LIP): cancela a chamada em voo e nada é aplicado nos itens. Mesmo botão nos MACs dos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.56). |
 | 1.56 | 2026-11-17 | Seção 8.5: emitir despacho baixa também o Excel do LIP (5 slots). LIP conferido (`MANUAL_SLOT5_LIP.md` v1.55). |
