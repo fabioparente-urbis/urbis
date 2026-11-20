@@ -353,6 +353,8 @@ export default function MacPage() {
         setItens({}); setFontes({}); setAceites({});
         setObservacoes(""); setObservacoesPorAba({});
         setAnaliseAtual(null);
+        // Sem análise em tela, a próxima gravação tem que poder criar de novo.
+        criandoAnaliseRef.current = false;
       }
     } else if (jsonLista.ok && analiseAtual?.id) {
       const restaurada = jsonLista.data.find((a: any) => a.id === analiseAtual.id);
@@ -842,7 +844,14 @@ export default function MacPage() {
     setSalvando(true);
     try {
       if (novaAnalise || !analiseAtual) {
-        const res = await fetch("/api/analise-aceite-ped", {
+        // Mesma trava do salvarSilencioso(). Sem ela, "Deferir tudo" mexia nos itens, o autosave
+        // disparava 400ms depois com a análise ainda não criada e o processo ganhava DUAS análises
+        // de um clique só (visto no Slot 1, 26.5.000008654-7, 18/11/2026).
+        if (criandoAnaliseRef.current) { mostrarToast("Aguarde: a análise está sendo criada."); return; }
+        criandoAnaliseRef.current = true;
+        let res: Response;
+        try {
+          res = await fetch("/api/analise-aceite-ped", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -857,9 +866,14 @@ export default function MacPage() {
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
           }),
-        });
-        const json = await res.json();
-        if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
+          });
+        } catch (e) {
+          criandoAnaliseRef.current = false;
+          throw e;
+        }
+        const json = await res.json().catch(() => null);
+        // Só libera a trava se NÃO criou — igual ao salvarSilencioso(); criada, os próximos saves vão pro PUT.
+        if (!json?.ok) { criandoAnaliseRef.current = false; mostrarToast("Erro: " + (json?.erro || "falha ao criar a análise")); return; }
         mostrarToast("Análise criada!");
         registrar({ modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
         await carregar();

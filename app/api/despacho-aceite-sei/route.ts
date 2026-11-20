@@ -188,9 +188,9 @@ export async function POST(req: NextRequest) {
       const fotosValidas = Array.isArray(fotos)
         ? fotos.filter((f: any) => f?.base64 && (f?.tipo === "png" || f?.tipo === "jpg")).map((f: any) => ({ base64: f.base64, tipo: f.tipo, legenda: String(f.legenda ?? "") }))
         : undefined;
-      buffer = await gerarIndeferimentoAceiteSei({ processo, interessado, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data, fotos: fotosValidas });
+      buffer = await gerarIndeferimentoAceiteSei({ processo, interessado, numeroProcessoFisico, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data, fotos: fotosValidas });
     } else {
-      buffer = await gerarArquivamentoAceiteSei({ processo, interessado, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
+      buffer = await gerarArquivamentoAceiteSei({ processo, interessado, numeroProcessoFisico, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
     }
 
     // Registrar último documento emitido

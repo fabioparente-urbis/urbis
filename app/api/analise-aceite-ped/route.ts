@@ -67,8 +67,14 @@ export async function POST(req: NextRequest) {
     // Análise da lixeira que NUNCA teve nada (sem item, observação nem documento) não ocupa número:
     // entrar no MAC e sair sem fazer nada tem que voltar zerado, não pular pra próxima (Fábio, 18/11/2026).
     // A que teve conteúdo ou emitiu documento continua contando — o número dela não volta.
+    // O texto que a "Leitura do processo" escreve sozinha nas observações NÃO conta como conteúdo:
+    // não foi o analista que escreveu (Fábio, 19/11/2026 — o 26.5.000008654-7 pulou para a
+    // Análise 3 só por causa desse texto). Cada leitura é um bloco separado por linha em branco que
+    // começa com "━━━ LEITURA DO PROCESSO"; tira esses blocos e só conta se sobrar algo.
+    const _obsDoAnalista = (obs: unknown) => String(obs || "").split(/\n[ \t]*\n/)
+      .filter((bloco) => !bloco.trim().startsWith("━━━ LEITURA DO PROCESSO")).join("\n").trim();
     const _ocupaNumero = (a: any) => !a.excluido_em || Object.keys(a.itens || {}).length > 0
-      || String(a.observacoes || "").trim() !== "" || !!(a.numero_despacho || a.numero_parecer || a.numero_despacho_interno);
+      || _obsDoAnalista(a.observacoes) !== "" || !!(a.numero_despacho || a.numero_parecer || a.numero_despacho_interno);
     const proximoNumero = (existentes ?? []).filter(_ocupaNumero).reduce((m: number, a: any) => Math.max(m, Number(a.numero_analise) || 0), 0) + 1;
 
     // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
