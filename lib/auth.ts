@@ -60,11 +60,23 @@ export async function autenticar(
   }
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
-    .select("id, perfil, perfis, gerencia")
+    .select("id, perfil, perfis, gerencia, status")
     .eq("email", authData.user.email)
     .maybeSingle();
   if (error || !usuario) {
     console.error("[autenticar] usuario nao encontrado por email:", authData.user.email, "| erro:", error?.message);
+    return NextResponse.json(
+      { ok: false, erro: "SESSAO_EXPIRADA" },
+      { status: 401 },
+    );
+  }
+  // Inativado no admin = fora na hora, em toda rota (25/10/2026). Antes só o login conferia o
+  // status: quem já tinha sessão aberta — ou o cookie de renovação de 30 dias — seguia passando,
+  // porque bloquear/trocar senha no Supabase não encerra sessões já emitidas (auditoria 21/10).
+  // Mesma regra do login (`status !== "Ativo"`), e o mesmo 401/SESSAO_EXPIRADA que as telas já
+  // tratam como "faça login de novo"; o motivo real fica no log.
+  if (!usuarioAtivo(usuario.status)) {
+    console.error("[autenticar] usuario nao esta Ativo:", authData.user.email, "| status:", usuario.status);
     return NextResponse.json(
       { ok: false, erro: "SESSAO_EXPIRADA" },
       { status: 401 },
@@ -110,10 +122,17 @@ export async function resolverUsuarioIdPorCookie(cookieHeader: string): Promise<
   if (authError || !authData?.user?.email) return null;
   const { data: usuario } = await supabaseAdmin
     .from("usuarios")
-    .select("id")
+    .select("id, status")
     .eq("email", authData.user.email)
     .maybeSingle();
-  return usuario?.id ?? null;
+  // Mesma trava do `autenticar()`: sem ela, um inativado ainda consumiria número da faixa.
+  if (!usuario || !usuarioAtivo(usuario.status)) return null;
+  return usuario.id ?? null;
+}
+
+/** Única regra de "pode entrar": a mesma do login (`app/api/auth/login`), comparação exata. */
+export function usuarioAtivo(status: unknown): boolean {
+  return status === "Ativo";
 }
 
 /** Aplica renovação do cookie urbis_id na response (estende por mais 8h). */
