@@ -1487,12 +1487,23 @@ export default function MacPage() {
    * mas agora é um ato deliberado, com confirmação — e não o padrão silencioso.
    */
   async function copiarAnaliseAnterior(n: number) {
-    const anterior = analises.find((a) => a.numero_analise === n - 1);
-    const alvo = analises.find((a) => a.numero_analise === n);
     setModalCopiarAnalise(null);
-    if (!anterior || !alvo) return;
+    // Lê a lista fresca do servidor: o cache `analises` pode estar defasado
+    // (a análise anterior pode ter sido editada depois de carregada).
+    let lista: any[] = analises;
+    try {
+      const rl = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+      const jl = await rl.json();
+      if (jl.ok && Array.isArray(jl.data)) lista = jl.data;
+    } catch {}
+    const anterior = lista.find((a) => a.numero_analise === n - 1);
+    const alvo = lista.find((a) => a.numero_analise === n);
+    if (!anterior || !alvo) {
+      mostrarToast(`❌ Não achei a Análise ${!anterior ? n - 1 : n} para copiar.`);
+      return;
+    }
 
-    await fetch("/api/analise-regularizacao", {
+    const resPut = await fetch("/api/analise-regularizacao", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1508,6 +1519,11 @@ export default function MacPage() {
         mac_carregado: true,
       }),
     });
+    const jsonPut = await resPut.json().catch(() => null);
+    if (!resPut.ok || !jsonPut?.ok) {
+      mostrarToast(`❌ Não foi possível copiar: ${jsonPut?.erro || resPut.status}`);
+      return;
+    }
     macCarregadoRef.current = true;
 
     const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
