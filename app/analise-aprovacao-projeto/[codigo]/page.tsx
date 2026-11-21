@@ -14,6 +14,9 @@
  */
 
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
+import SeloOffline from "@/components/offline/SeloOffline";
+import { apagarCopiasDoUsuario, guardarCopia, lerCopia } from "@/lib/offline/armazem";
+import { ehQueda, enfileirar, identificarUsuario, pendenciaDoProcesso } from "@/lib/offline/fila";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
@@ -658,6 +661,28 @@ export default function AnaliseAprovacaoProjeto() {
   const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
   const [itemFoco, setItemFoco] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /* URBIS OFFLINE (Etapa 1, MAC do Slot 5): usuário deste computador + fila de salvamento do checklist.
+   * Só cobre marcar/observar numa análise que JÁ existe no banco; criar análise, emitir e filtros
+   * automáticos continuam exigindo servidor. */
+  const [uidOffline, setUidOffline] = useState<string | null>(null);
+  const uidOfflineRef = useRef<string | null>(null);
+  useEffect(() => { void identificarUsuario().then((u) => { uidOfflineRef.current = u; setUidOffline(u); }); }, []);
+  const ROTA_ANALISE = "/api/mac/slot-05/analise";
+  /** Últimos itens que o servidor CONFIRMOU, por id de análise: é a "base" do aviso de conflito. */
+  const itensSincRef = useRef<Record<string, Record<string, unknown>>>({});
+  const guardarNaFila = async (corpo: Record<string, unknown>, baseItens: Record<string, unknown>): Promise<boolean> => {
+    const uid = uidOfflineRef.current ?? (await identificarUsuario());
+    if (!uid || !corpo.id) return false;
+    try {
+      await enfileirar({
+        uid, rota: ROTA_ANALISE, metodo: "PUT", conferir: "mac", id: String(corpo.id), tipo: "mac",
+        rotaConferir: `${ROTA_ANALISE}?codigo=${encodeURIComponent(codigo)}`,
+        rotulo: `Checklist do processo ${codigo}`,
+        corpo, base: baseItens,
+      });
+      return true;
+    } catch { return false; }
+  };
   const [toast, setToast] = useState("");
   /* Contra-conferência: o analista gera um prompt, leva numa IA de fora junto com os PDFs, e traz
    * o relatório de volta. O que volta é PROPOSTA — nenhum achado marca nada sozinho. */
@@ -816,10 +841,37 @@ export default function AnaliseAprovacaoProjeto() {
     // mesma chamada — ela não grava nada, só propõe.
     (async () => {
       try {
-        const r = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" });
-        const d = await r.json();
+        let r: Response | null = null;
+        try { r = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" }); } catch { r = null; }
+        const uid = uidOfflineRef.current ?? (await identificarUsuario());
+        let d: any = null;
+        let offline = false;
+        if (!r || ehQueda(r.status)) {
+          // URBIS OFFLINE: servidor/banco/internet fora → cópia guardada deste computador
+          const copia = uid ? await lerCopia(uid, "mac_slot_05", codigo) : null;
+          if (!copia) { if (!cancelado) setErro("Sem conexão com o servidor e este checklist não tem cópia guardada neste computador."); return; }
+          d = copia.dados;
+          offline = true;
+        } else {
+          d = await r.json();
+          if (d?.ok && uid) void guardarCopia(uid, "mac_slot_05", codigo, d);
+        }
         if (cancelado) return;
         if (!d.ok) { setErro(d.erro); return; }
+        // o que o analista marcou e ainda está na fila vale mais que o servidor/cópia
+        if (uid) {
+          for (const a of (d.analises ?? []) as Analise[]) {
+            itensSincRef.current[String(a.id)] = { ...((a.itens ?? {}) as Record<string, unknown>) };
+            const pend = await pendenciaDoProcesso(uid, ROTA_ANALISE, String(a.id), "mac");
+            const c = pend?.corpo as any;
+            if (pend && pend.estado !== "conflito" && c) {
+              if (c.itens) a.itens = c.itens;
+              if (c.fontes) a.fontes = c.fontes;
+              if (c.observacoes !== undefined) a.observacoes = c.observacoes;
+              if (c.observacoes_por_item) a.observacoes_por_item = c.observacoes_por_item;
+            }
+          }
+        }
 
         setItensChecklist(d.itens ?? []);
         setProcesso(d.processo ?? null);
@@ -868,6 +920,10 @@ export default function AnaliseAprovacaoProjeto() {
             .catch(() => null);
         }
         setCarregando(false);
+        if (offline) {
+          notificar("🟡 Sem conexão: mostrando a cópia deste computador. Filtros automáticos e emissão voltam com a conexão.");
+          return;
+        }
 
         // Roda os filtros e JÁ MARCA os recomendados como "Não se Aplica" nos itens deles.
         // O analista não precisa aceitar um a um: chega com o checklist enxuto e desfaz o que
@@ -1927,8 +1983,15 @@ export default function AnaliseAprovacaoProjeto() {
     novasObsPorItem = estadoRef.current.observacoesPorItem,
   ) => {
     setSalvando(true);
+    let alvoId: string | null = (analise ?? analiseRef.current)?.id ? String((analise ?? analiseRef.current)!.id) : null;
+    const corpoPut = () => ({
+      id: alvoId, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs,
+      observacoes_por_item: novasObsPorItem,
+    });
+    const baseItens = () => ({ ...(itensSincRef.current[String(alvoId)] ?? {}) });
     try {
       const a = await garantirAnalise(novasMarcas, novasFontes);
+      alvoId = String(a.id);
       const r = await fetch("/api/mac/slot-05/analise", {
         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1936,8 +1999,13 @@ export default function AnaliseAprovacaoProjeto() {
           observacoes_por_item: novasObsPorItem,
         }),
       });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      const d = await r.json().catch(() => null);
+      if (!d?.ok && ehQueda(r.status) && await guardarNaFila(corpoPut(), baseItens())) {
+        if (!silencioso) notificar("🟡 Servidor sem resposta: guardei neste computador e envio sozinho quando voltar.");
+        return;
+      }
+      if (!d?.ok) throw new Error(d?.erro ?? "falha ao salvar");
+      itensSincRef.current[String(a.id)] = { ...novasMarcas };
       // Só o salvamento explícito vira evento: o silencioso dispara a cada clique de item e
       // encheria a auditoria de ruído (o item em si já é registrado em MAC_ITEM_MARCADO).
       if (!silencioso) {
@@ -1950,7 +2018,12 @@ export default function AnaliseAprovacaoProjeto() {
       carregarHistorico(a.id);
       if (!silencioso) notificar("✅ Salvo.");
     } catch (e: any) {
-      notificar(`Erro ao salvar: ${e?.message ?? e}`);
+      // sem conexão (fetch lançou): só dá para guardar se a análise já existe no banco
+      if (alvoId && await guardarNaFila(corpoPut(), baseItens())) {
+        if (!silencioso) notificar("🟡 Sem conexão: guardei neste computador e envio sozinho quando voltar.");
+      } else {
+        notificar(`Erro ao salvar: ${e?.message ?? e}`);
+      }
     } finally {
       setSalvando(false);
     }
@@ -2996,10 +3069,11 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
-            <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            <button onClick={async () => { if (uidOffline) await apagarCopiasDoUsuario(uidOffline); await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
+            <SeloOffline uid={uidOffline} />
             <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/processos"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Pilha de Processo

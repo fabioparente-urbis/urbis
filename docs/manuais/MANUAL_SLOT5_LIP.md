@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.58
-**Data:** 2026-11-18
+**Versão:** 1.60
+**Data:** 2026-11-21
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1358,10 +1358,28 @@ emitido sem a confirmação do pop-up do MAC, com botão para confirmar ali. A P
 "NÃO ENVIADO AO SEI" e o filtro "Só não enviados ao SEI" (campo `nao_enviado_sei` de `/api/processos`).
 Detalhes no `MANUAL_SLOT5_MAC.md` seção 31.
 
+## 32. URBIS OFFLINE — salvar sem servidor (19/11/2026)
+
+A ficha do Slot 5 não perde mais o que o analista digita quando o servidor, o banco ou a internet caem.
+- **Salvar:** se o salvamento (automático ou botão) não for respondido (queda, erro 5xx, sessão fora), a alteração fica guardada **neste computador** e é reenviada sozinha, pela mesma rota de sempre, quando a conexão volta (evento "online" e a cada 30 s).
+- **Abrir:** se o servidor não responde, a ficha abre pela **cópia guardada** (vale 180 dias) com o que ficou pendente por cima. Processo nunca aberto neste computador não tem cópia.
+- **Selo** no topo: só aparece quando há algo a dizer — 🟡 N aguardando envio / sem conexão, 🔴 precisa de você. Online e em dia, a tela é idêntica à de antes.
+- **Conflito (🔴):** se um campo mudou no servidor enquanto a alteração esperava, nada é sobrescrito: o selo lista o campo e o analista escolhe "Manter o meu" ou "Usar o do servidor". O descartado fica guardado, não é apagado.
+- **Sessão expirada:** a pendência espera novo login; não é descartada nem enviada como outro usuário.
+- **Backup:** com pendência, o navegador baixa um arquivo `.json` a cada 30 min (a confirmar no Chrome/Safari do Mac).
+- **Sair:** apaga as cópias de consulta; as pendências ficam.
+- **Não funciona offline:** leitura por IA, URBI, gerar documento, numerar/emitir (decisão: documentos só online).
+- **Ainda não feito:** a Lixeira do admin (aba "Offline"), registrar a data do clique no MRP/MAP e service worker (Etapa 2). O MAC do Slot 5 já usa a fila (manual do MAC, seção 32).
+Código: `lib/offline/`, `components/offline/SeloOffline.tsx`; prova: `scripts/testar_offline_etapa1.mts`.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.60 | 2026-11-21 | Sem mudança na ficha. Conferido: o URBIS OFFLINE chegou também ao checklist do MAC (seção 32 do `MANUAL_SLOT5_MAC.md`); a fila genérica ganhou PUT e conferência por item |
+| 1.59 | 2026-11-21 | Seção 32: URBIS OFFLINE Etapa 1 — salvar na fila local, abrir pela cópia, selo 🟡/🔴 e conflito, na ficha do LIP |
 | 1.58 | 2026-11-18 | Sem mudança no LIP. Conferido: o MAC ganhou o botão "Limpar Todas as Abas" (ver `MANUAL_SLOT5_MAC.md` v1.59). |
 | 1.57 | 2026-11-18 | Sem mudança no LIP. Conferido: o despacho interno do MAC agora também grava a tag na Pilha e a análise no MRP (ver `MANUAL_SLOT5_MAC.md` v1.58). |
 | 1.56 | 2026-11-18 | Sem mudança no LIP. Conferido: o botão "⏹ Parar leitura" já existia aqui e agora também existe no MAC (ver `MANUAL_SLOT5_MAC.md` v1.57). |

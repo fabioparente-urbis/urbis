@@ -10,6 +10,9 @@
 // numeração, cadastros. Mudar este arquivo NÃO muda a ficha dos outros slots, e vice-versa.
 // ============================================================
 "use client";
+import SeloOffline from "@/components/offline/SeloOffline";
+import { apagarCopiasDoUsuario, guardarCopia, lerCopia } from "@/lib/offline/armazem";
+import { ehQueda, enfileirar, identificarUsuario, pendenciaDoProcesso, valoresDe } from "@/lib/offline/fila";
 import CelularResponsavelTecnico from "@/components/comum/CelularResponsavelTecnico";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
@@ -267,6 +270,25 @@ export default function LipAprovacaoProjeto() {
   const [logradourosBusca, setLogradourosBusca] = useState<string[]>([]);
   const [dadosLogradouro, setDadosLogradouro] = useState<any>(null);
   const [statusSalvo, setStatusSalvo] = useState<"idle"|"salvando"|"salvo"|"erro">("idle");
+  /* URBIS OFFLINE (Etapa 1, Slot 5): quem é o usuário deste computador, para cópia local e fila. */
+  const [uidOffline, setUidOffline] = useState<string | null>(null);
+  const uidOfflineRef = useRef<string | null>(null);
+  useEffect(() => { void identificarUsuario().then((u) => { uidOfflineRef.current = u; setUidOffline(u); }); }, []);
+  const ROTA_SALVAR = "/api/aprovacao-projeto/processo/salvar";
+  /** Servidor/banco/internet fora: guarda no navegador e reenvia sozinho. Devolve true se guardou. */
+  const guardarNaFila = useCallback(async (estado: Record<string, Campo>): Promise<boolean> => {
+    const uid = uidOffline ?? (await identificarUsuario());
+    if (!uid) return false;
+    try {
+      await enfileirar({
+        uid, rota: ROTA_SALVAR, id: idUrl, tipo: tipoUrl,
+        rotaConferir: `/api/aprovacao-projeto/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`,
+        corpo: { id: idUrl, dados: estado as any, tipo: tipoUrl },
+        base: valoresDe(snapRef.current as any),
+      });
+      return true;
+    } catch { return false; }
+  }, [uidOffline, idUrl, tipoUrl]);
   const [carregando, setCarregando] = useState(true);
   /**
    * Achado do Fábio, 16/09/2026 — bug real de perda de dado: "QUALQUER CLIQUE NA TELA GRAVA"
@@ -468,12 +490,36 @@ export default function LipAprovacaoProjeto() {
     try {
       setCarregando(true);
       carregandoRef.current = true;
-      const res = await fetch(`/api/aprovacao-projeto/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`);
-      const texto = await res.text();
+      /* URBIS OFFLINE (Etapa 1): servidor/banco/internet fora (exceção, 5xx ou 401) → mostra a cópia
+       * local, por cima dela o que o analista salvou e ainda está na fila. Ficha nova (404 etc.)
+       * segue como sempre. */
+      const uid = uidOfflineRef.current ?? (await identificarUsuario());
+      let res: Response | null = null;
+      try { res = await fetch(`/api/aprovacao-projeto/processo/carregar?id=${encodeURIComponent(idUrl)}&tipo=${encodeURIComponent(tipoUrl)}`); } catch { res = null; }
       let json: any = null;
-      try { json = texto ? JSON.parse(texto) : null; } catch {
-        setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+      let doCache = false;
+      if (!res || ehQueda(res.status)) {
+        const copia = uid ? await lerCopia(uid, tipoUrl, idUrl) : null;
+        const pend = uid ? await pendenciaDoProcesso(uid, ROTA_SALVAR, idUrl, tipoUrl) : null;
+        if (copia || pend) {
+          const base: any = (copia?.dados as any) ?? { dados: {} };
+          json = { ok: true, data: { ...base, dados: { ...(base.dados ?? {}), ...((pend?.corpo.dados as any) ?? {}) } } };
+          doCache = true;
+          mostrarToast("🟡 Sem conexão com o servidor: mostrando a cópia guardada neste computador.", "erro");
+        }
+      } else {
+        const texto = await res.text();
+        try { json = texto ? JSON.parse(texto) : null; } catch {
+          setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
+        }
+        if (json?.ok && json?.data?.dados && uid) {
+          // pendência ainda na fila vale mais que o servidor; a cópia de consulta guarda o do servidor
+          void guardarCopia(uid, tipoUrl, idUrl, json.data);
+          const pend = await pendenciaDoProcesso(uid, ROTA_SALVAR, idUrl, tipoUrl);
+          if (pend && pend.estado !== "conflito") json = { ...json, data: { ...json.data, dados: { ...json.data.dados, ...((pend.corpo.dados as any) ?? {}) } } };
+        }
       }
+      void doCache;
       if (!json?.ok || !json?.data?.dados) {
         setD((prev) => ({ ...prev, processo: { valor: idUrl, origem: "urbis" } })); return;
       }
@@ -672,21 +718,29 @@ export default function LipAprovacaoProjeto() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: idUrl, dados: estado, tipo: tipoUrl }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (json?.ok) {
         snapRef.current = estado;
         setStatusSalvo("salvo");
         await carregarHistorico();
         setTimeout(() => setStatusSalvo("idle"), 3000);
+      } else if (ehQueda(res.status) && await guardarNaFila(estado)) {
+        // URBIS OFFLINE: 5xx / 401 / sessão expirada — nada se perde, fica na fila (o selo avisa)
+        snapRef.current = estado;
+        setStatusSalvo("idle");
       } else if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
         mostrarToast("⚠️ Sessão expirada. Faça login em nova aba e salve novamente.", "erro");
         setStatusSalvo("erro");
       } else {
         setStatusSalvo("erro");
       }
-    } catch { setStatusSalvo("erro"); }
+    } catch {
+      // sem conexão com o servidor: guarda na fila; só mostra erro se nem isso foi possível
+      if (await guardarNaFila(estado)) { snapRef.current = estado; setStatusSalvo("idle"); }
+      else setStatusSalvo("erro");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idUrl, tipoUrl]);
+  }, [idUrl, tipoUrl, guardarNaFila]);
 
   const autoSalvar = useCallback((estado: Record<string, Campo>) => {
     pendenteRef.current = estado;
@@ -1949,8 +2003,14 @@ export default function LipAprovacaoProjeto() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: idUrl, dados: d, tipo: tipoUrl }),
       });
-      const json = await res.json();
+      const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
+        if (ehQueda(res.status) && await guardarNaFila(d)) {
+          snapRef.current = d;
+          setStatusSalvo("idle");
+          mostrarToast("🟡 Sem resposta do servidor ou da sessão: guardei neste computador e envio sozinho quando voltar.", "erro");
+          return;
+        }
         if (res.status === 401 || json?.erro === "SESSAO_EXPIRADA") {
           mostrarToast("⚠️ Sua sessão expirou. Faça login em uma nova aba e tente salvar novamente.", "erro");
         } else {
@@ -1963,8 +2023,14 @@ export default function LipAprovacaoProjeto() {
       await carregarHistorico();
       setTimeout(() => setStatusSalvo("idle"), 3000);
     } catch (e: any) {
-      mostrarToast("Erro: " + (e?.message || "desconhecido"), "erro");
-      setStatusSalvo("erro");
+      if (await guardarNaFila(d)) {
+        snapRef.current = d;
+        setStatusSalvo("idle");
+        mostrarToast("🟡 Sem conexão: guardei neste computador e envio sozinho quando voltar.", "erro");
+      } else {
+        mostrarToast("Erro: " + (e?.message || "desconhecido"), "erro");
+        setStatusSalvo("erro");
+      }
     } finally { setSalvando(false); }
   }
 
@@ -3020,7 +3086,7 @@ export default function LipAprovacaoProjeto() {
             className="mt-1 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🏠 Home
           </button>
-          <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+          <button onClick={async () => { if (uidOffline) await apagarCopiasDoUsuario(uidOffline); await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
             className="mt-1 bg-red-800 hover:bg-red-700 text-red-200 hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
             🚪 Sair
           </button>
@@ -3187,6 +3253,7 @@ export default function LipAprovacaoProjeto() {
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
+          <SeloOffline uid={uidOffline} aoResolver={() => { void carregarProcesso(); }} />
           <div className="text-xs h-5">
             {statusSalvo === "salvando" && <span className="text-[var(--warning)] animate-pulse">⏳ Salvando...</span>}
             {statusSalvo === "salvo" && <span className="text-[var(--success)]">✓ Salvo automaticamente</span>}
