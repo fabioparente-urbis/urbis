@@ -1,7 +1,7 @@
 # URBIS MOBILE — plano (foco em segurança)
 
-**Versão:** 0.6 (planejamento, nada implementado)
-**Data:** 25/10/2026
+**Versão:** 0.7 (planejamento, nada implementado; decisões 1-10 e 12 tomadas)
+**Data:** 20/11/2026
 **Pedidos do Fábio (25/10):**
 1. versão do URBIS para instalar na tela de início do celular (iPhone de preferência), botão
    **MOBILE** no fim da Home com instruções para iPhone e Android, estética própria, avaliar o
@@ -132,6 +132,9 @@ A ideia é ter **várias portas fechadas em sequência**, para que falhar uma n�
 - Limite de tentativas de login (por e-mail e por endereço de rede), com aviso ao admin.
 - **`autenticar()` passa a conferir `usuarios.status = 'Ativo'`** em toda chamada. Inativou,
   parou na hora, em todas as rotas. (v0.4)
+  **FEITO em 21/11/2026** (branch `sec/autenticar-status-ativo`, ainda não publicado): `autenticar()`,
+  `resolverUsuarioIdPorCookie()` e `usuarioDaRequisicao()` barram quem não é "Ativo". Medido: 6 de 6
+  usuários "Ativo"; prova em `scripts/testar_autenticar_inativo.mts`.
 - **Testar a autorização das APIs atuais** antes de qualquer tela nova: cada rota, com sessão de
   cada perfil e sem sessão. É o portão de saída da Fase S. (v0.4)
 - **Decidir o domínio definitivo** antes de qualquer passkey: a passkey fica presa ao domínio, e
@@ -256,8 +259,8 @@ A ideia é ter **várias portas fechadas em sequência**, para que falhar uma n�
   mostrado dentro do URBIS, no computador. Nunca digite a senha do URBIS em página aberta por
   link recebido."**
 - Página MOBILE mostra o endereço oficial por extenso, para conferir.
-- Domínio próprio (P10, adiado na auditoria) ajuda muito aqui: endereço da prefeitura é mais
-  difícil de imitar que endereço de hospedagem.
+- Domínio próprio (P10, adiado na auditoria) ajuda muito aqui: um endereço próprio e curto é mais
+  difícil de imitar que endereço de hospedagem (v0.7: o domínio será do Fábio, nunca da prefeitura).
 
 ---
 
@@ -388,6 +391,18 @@ robô. Se um dia for feito:
 
 ## 11. Decisões que são suas
 
+> **DECIDIDO (Fábio, 20/11/2026: "concordo com tudo")** — aceitas as recomendações abaixo nos itens
+> 1 a 10 e 12: Fase S antes de tudo; sessão do celular 12h; Face ID de novo após 5 min parado;
+> aparelho novo com aprovação do admin no piloto; piloto só Fábio + 1 gestor; nome do requerente
+> escondido ("toque para ver"); tag de prioridade só depois do piloto; marca d'água com o nome do
+> usuário; contribuinte fora por enquanto; login do Chrome no Android aceito como está; fotos, voz
+> e contribuinte com decisão própria depois do piloto.
+> **Item 11 (domínio) — resposta do Fábio, 20/11/2026:** "esse programa nunca pertencerá à
+> prefeitura… se for vendido será vendido para os servidores". Logo, **o domínio nunca será da
+> prefeitura**; qualquer domínio é do Fábio/dos servidores. Resta só escolher QUAL domínio dele
+> (o endereço atual de hospedagem ou um próprio), e isso precisa estar fixado antes da primeira
+> passkey — trocar depois obriga todo mundo a recadastrar.
+
 1. **Fase S antes de qualquer coisa do mobile?** (recomendado: sim, sem exceção)
 2. **Duração da sessão do celular**: 12h (recomendado), 8h ou 24h?
 3. **Face ID de novo após quanto tempo parado**: 5 min (recomendado)?
@@ -401,7 +416,7 @@ robô. Se um dia for feito:
 10. **Login do Chrome no Android**: aceitar como está ou encurtar (seção 10)? (v0.6: pela regra
     da seção 0, a recomendação passa a ser **aceitar como está** — encurtar exigiria detectar
     celular no login comum, com risco de errar e deslogar quem está no computador.)
-11. **Domínio definitivo** antes das passkeys: domínio próprio da prefeitura agora, ou fixar o
+11. **Domínio definitivo** antes das passkeys: (20/11: nunca da prefeitura) domínio próprio do Fábio agora, ou fixar o
     atual sabendo que trocar depois obriga todo mundo a recadastrar? (v0.4)
 12. **Fotos, voz e contribuinte**: cada um vira decisão própria **depois** do piloto, não agora?
     (v0.4, recomendado)
@@ -431,3 +446,4 @@ robô. Se um dia for feito:
 | 0.4 | 25/10/2026 | Revisão crítica trazida pelo Fábio (ChatGPT), conferida ponto a ponto no código e nas fontes. Os 5 pontos procedem: (1) "só consulta" precisa ser imposto no `autenticar()`, para todas as rotas; (2) QR não barra senha roubada → aprovação do admin obrigatória no piloto, confirmada por fora; e **achado real: `autenticar()` não confere `status` Ativo** (entra na Fase S); (3) passkey não prova rosto nem aparelho; (4) "nada fica no aparelho" vira "minimizar", medido; (5) domínio definitivo antes das passkeys, e o alerta do Supabase tem correção (05/06), então a escolha passkey do Supabase × própria vai para a Fase 0. Piloto reduzido: 2 pessoas, número exato, resumo mínimo, só leitura. |
 | 0.5 | 25/10/2026 | Segunda revisão trazida pelo Fábio (ChatGPT), os 4 pontos conferidos e procedentes: (1) regra de ouro precisada — **a primeira versão é só leitura**, e toda função que altera dado (tag, foto) exige avaliação de segurança própria; a regra cobre a sessão do Mobile, não o URBIS completo aberto no navegador do telefone; (2) frases que prometiam demais corrigidas: o QR cadastra o acesso mas não é a única forma de instalar; "sair apaga tudo" e "a foto não fica no rolo" viram tentativas medidas, não garantias; o aviso "tela para computador" é conforto, não trava; (3) "zero método sem login" virou **nenhuma rota sensível sem autenticação e autorização + lista fechada de exceções públicas**, e no piloto o CPF sai da resposta por completo; (4) a Fase 0, isolada e sem dado real, pode correr antes ou junto da Fase S (que segue obrigatória antes de liberar a usuários), e o PIN de 6 dígitos como plano B foi retirado. |
 | 0.6 | 25/10/2026 | Nova seção 0, regra acima de todas, pedido do Fábio: **o Mobile não pode atrapalhar o URBIS em NADA; a prioridade é o Mac/PC**. Portão novo em toda fase ("o computador continua igual"); itens da Fase S que tocam o computador listados com o efeito de cada um; CSP entra primeiro só avisando; sessão de 30 dias e saída por inatividade do computador ficam como estão; decisão 10 recomendada como "aceitar". Mesma regra no CLAUDE.md. |
+| 0.7 | 20/11/2026 | Decisões 1-10 e 12 registradas (aceitas as recomendações); 11: domínio nunca será da prefeitura (programa é do Fábio/servidores), falta escolher qual domínio dele. Só texto, nada implementado |
