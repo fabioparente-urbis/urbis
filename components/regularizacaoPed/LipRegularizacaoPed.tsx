@@ -30,6 +30,7 @@ import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
+import BotaoRefazerCondicoes from "@/components/urbi/BotaoRefazerCondicoes";
 import AlertaFluxo from "@/components/regularizacaoPed/AlertaFluxo";
 // Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — um componente por
 // slot (Regularização e Aceite SEI), cada um atrás do seu próprio interruptor (default
@@ -399,6 +400,13 @@ export default function LipRegularizacaoPed() {
       .catch(() => { /* fica no rótulo estático */ });
     return () => { vivo = false; };
   }, []);
+
+  // Condições bloqueantes do URBI (18/11/2026): abrir o LIP RECALCULA e grava o retrato que a
+  // Pilha mostra (ícone do URBI). Uma vez por processo aberto; erro não atrapalha a ficha.
+  useEffect(() => {
+    if (!idUrl) return;
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(decodeURIComponent(idUrl))}&registrar=lip`, { credentials: "include" }).catch(() => {});
+  }, [idUrl]);
 
   useEffect(() => {
     if (!modalDI || !assuntoIdRef.current) return;
@@ -2628,6 +2636,7 @@ export default function LipRegularizacaoPed() {
           com a origem de cada um, e a triagem por evidência. Nunca escreve
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
+      {idUrl && <BotaoRefazerCondicoes codigo={decodeURIComponent(idUrl)} />}
 
       {/* ORGANIZADOR DE PDF SEI REMOVIDO DO SLOT 1 E 2 — 11/09/2026, decisão do Fábio.
           Substituído pela tela própria `/fatiador-sei` (Fase 6 do plano de leitura de PDF), que

@@ -60,9 +60,20 @@ export async function autenticar(
   }
   const { data: usuario, error } = await supabaseAdmin
     .from("usuarios")
-    .select("id, perfil, perfis, gerencia")
+    .select("id, perfil, perfis, gerencia, status")
     .eq("email", authData.user.email)
     .maybeSingle();
+  if (!error && usuario && usuario.status !== "Ativo") {
+    // Mesma regra do login (app/api/auth/login/route.ts): quem não está "Ativo" não entra. Sem esta
+    // conferência, usuário inativado continuava passando em TODAS as rotas enquanto a sessão do
+    // Supabase vivesse (achado da revisão do plano Mobile, v0.4). Medido 21/11/2026: os 6 usuários
+    // estão "Ativo", então para quem trabalha hoje nada muda.
+    console.error("[autenticar] usuario inativo barrado:", usuario.id, "| status:", usuario.status);
+    return NextResponse.json(
+      { ok: false, erro: "USUARIO_INATIVO" },
+      { status: 401 },
+    );
+  }
   if (error || !usuario) {
     console.error("[autenticar] usuario nao encontrado por email:", authData.user.email, "| erro:", error?.message);
     return NextResponse.json(
@@ -110,10 +121,11 @@ export async function resolverUsuarioIdPorCookie(cookieHeader: string): Promise<
   if (authError || !authData?.user?.email) return null;
   const { data: usuario } = await supabaseAdmin
     .from("usuarios")
-    .select("id")
+    .select("id, status")
     .eq("email", authData.user.email)
     .maybeSingle();
-  return usuario?.id ?? null;
+  if (!usuario || usuario.status !== "Ativo") return null; // inativo: igual a sessão que não valida
+  return usuario.id ?? null;
 }
 
 /** Aplica renovação do cookie urbis_id na response (estende por mais 8h). */

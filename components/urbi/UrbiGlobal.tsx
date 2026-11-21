@@ -214,8 +214,10 @@ export default function UrbiGlobal() {
     });
   }, [estadoFinal, processoCodigo, registrar]);
 
+  // 18/11/2026: as fichas próprias do LIP dos Slots 1-4 (/lip-*, desde 16/10) faltavam aqui — na
+  // ficha o URBI não sabia o processo e nunca avisava condição bloqueante. Slot 5 fora (sem pedido).
   useEffect(() => {
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|lip-regularizacao-sei|lip-aceite-sei|lip-regularizacao-ped|lip-aceite-ped|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     processoIdRef.current = codigo;
     // Mesmo valor do ref, mas em state — é o que vira prop de UrbiChat (ref não
@@ -364,7 +366,7 @@ export default function UrbiGlobal() {
     // Slot 5, assuntoId nunca era resolvido (ficava null), mesmo processoCodigo (regex abaixo,
     // idêntico ao de derivação de processoCodigo) estando correto. Corrigido pra cobrir os
     // mesmos 4 padrões de rota.
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|lip-regularizacao-sei|lip-aceite-sei|lip-regularizacao-ped|lip-aceite-ped|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     if (!codigo) { setAssuntoId(null); return; }
     fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)

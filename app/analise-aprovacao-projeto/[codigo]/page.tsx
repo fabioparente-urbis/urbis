@@ -2605,6 +2605,23 @@ export default function AnaliseAprovacaoProjeto() {
     if (salvarAgora) void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
+  /** "Limpar Todas as Abas" (18/11/2026, pedido do Fábio) — o mesmo que o "Limpar Aba" faz,
+   *  em todos os grupos de uma vez, com confirmação. Observações não são apagadas. */
+  function limparTodasAbas() {
+    const ids = [...porGrupo.values()].flat().map((i) => i.id);
+    const marcadas = ids.filter((id) => estadoRef.current.marcas[id] !== undefined).length;
+    if (marcadas === 0) { window.alert("Nenhum item marcado em nenhuma aba. Nada para limpar."); return; }
+    if (!window.confirm(
+      `Limpar TODAS as abas desta análise?\n\nSerão apagadas as marcações de ${marcadas} item(ns) em ${porGrupo.size} aba(s).\n\nAs observações escritas não são apagadas. Continuar?`
+    )) return;
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
+    for (const id of ids) { delete novasMarcas[id]; delete novasFontes[id]; }
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes });
+    notificar(`Todas as abas limpas: ${marcadas} item(ns).`);
+    void salvar(novasMarcas, novasFontes, observacoes, true);
+  }
+
   async function preencherDoLip() {
     setLendoLip(true);
     setProposta(null);
@@ -3933,6 +3950,10 @@ export default function AnaliseAprovacaoProjeto() {
                 <button onClick={() => marcarGrupo(abaAtual, null)}
                   className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                   🧹 Limpar Aba
+                </button>
+                <button onClick={limparTodasAbas}
+                  className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                  🧹 Limpar Todas as Abas
                 </button>
                 <span className="text-base font-bold text-[#DC2626] self-center">
                   {stats[abaAtual]?.respondidos ?? 0}/{stats[abaAtual]?.total ?? 0} respondidos

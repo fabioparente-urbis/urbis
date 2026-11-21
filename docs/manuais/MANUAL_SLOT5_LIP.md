@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.59
-**Data:** 2026-11-19
+**Versão:** 1.60
+**Data:** 2026-11-21
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1378,8 +1378,9 @@ Código: `lib/offline/`, `components/offline/SeloOffline.tsx`; prova: `scripts/t
 
 | Versão | Data | Mudança |
 |---|---|---|
-| 1.59 | 2026-11-19 | Sem mudança na ficha. Conferido: o URBIS OFFLINE chegou também ao checklist do MAC (seção 32 do `MANUAL_SLOT5_MAC.md`); a fila genérica ganhou PUT e conferência por item |
-| 1.58 | 2026-11-19 | Seção 32: URBIS OFFLINE Etapa 1 — salvar na fila local, abrir pela cópia, selo 🟡/🔴 e conflito, na ficha do LIP |
+| 1.60 | 2026-11-21 | Sem mudança na ficha. Conferido: o URBIS OFFLINE chegou também ao checklist do MAC (seção 32 do `MANUAL_SLOT5_MAC.md`); a fila genérica ganhou PUT e conferência por item |
+| 1.59 | 2026-11-21 | Seção 32: URBIS OFFLINE Etapa 1 — salvar na fila local, abrir pela cópia, selo 🟡/🔴 e conflito, na ficha do LIP |
+| 1.58 | 2026-11-18 | Sem mudança no LIP. Conferido: o MAC ganhou o botão "Limpar Todas as Abas" (ver `MANUAL_SLOT5_MAC.md` v1.59). |
 | 1.57 | 2026-11-18 | Sem mudança no LIP. Conferido: o despacho interno do MAC agora também grava a tag na Pilha e a análise no MRP (ver `MANUAL_SLOT5_MAC.md` v1.58). |
 | 1.56 | 2026-11-18 | Sem mudança no LIP. Conferido: o botão "⏹ Parar leitura" já existia aqui e agora também existe no MAC (ver `MANUAL_SLOT5_MAC.md` v1.57). |
 | 1.55 | 2026-11-17 | Ao emitir despacho no MAC, o Excel do LIP também é baixado (depois do Excel do MAC). Ver `MANUAL_SLOT5_MAC.md` v1.56 seção 8.5. |

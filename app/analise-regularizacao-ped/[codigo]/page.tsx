@@ -832,6 +832,31 @@ export default function MacPage() {
     });
   }
 
+  function limparTodasAbas() {
+    const ids = checklistItens.map((i) => i.id);
+    const marcados = ids.filter((id) => itens[id] !== undefined && itens[id] !== null).length;
+    const abas = new Set(checklistItens.map((i) => i.grupo)).size;
+    if (marcados === 0) {
+      window.alert("Nenhum item marcado em nenhuma aba. Nada para limpar.");
+      return;
+    }
+    const ok = window.confirm(
+      `Limpar TODAS as abas desta análise?\n\n` +
+      `Serão apagadas as marcações de ${marcados} item(ns) em ${abas} aba(s), ` +
+      `junto com as fontes e os aceites da IA desses itens.\n\n` +
+      `As observações escritas não são apagadas. Continuar?`
+    );
+    if (!ok) return;
+    const apagar = (prev: Record<string, unknown>) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { delete novo[id]; });
+      return novo;
+    };
+    setItens((prev) => apagar(prev) as typeof prev);
+    setFontes((prev) => apagar(prev) as typeof prev);
+    setAceites((prev) => apagar(prev) as typeof prev);
+  }
+
   async function confirmarModelo() {
     if (!modeloSelecionado) return;
     await carregarItensModelo(modeloSelecionado.id);
@@ -1032,7 +1057,7 @@ export default function MacPage() {
   useEffect(() => {
     if (!codigo) return;
     let vivo = true;
-    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}&registrar=mac`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!vivo || !j?.ok) return;
@@ -2447,6 +2472,10 @@ export default function MacPage() {
               <button onClick={() => limparGrupo(grupoAtual)}
                 className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
+              </button>
+              <button onClick={() => limparTodasAbas()}
+                className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                🧹 Limpar Todas as Abas
               </button>
               <button onClick={() => aceitarTodasIA(grupoAtual)}
                 className="flex items-center gap-1.5 bg-[#F0FDF4] hover:bg-[#16A34A] hover:text-white border border-[#16A34A] text-[#16A34A] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
