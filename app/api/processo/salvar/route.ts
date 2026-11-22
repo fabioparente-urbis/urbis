@@ -153,6 +153,25 @@ export async function POST(req: NextRequest) {
       // Sem isso, o processo recem-criado nasceria com analista_id=null
       // e sumiria da lista do proprio criador (que e Analista, nao irrestrito).
       const dataProtocoloInicial = extrairDataProtocolo(dados ?? {});
+      // O número do processo é ÚNICO no banco (processos_codigo_unique), qualquer que seja o tipo.
+      // Se já existe com outro tipo — inclusive na Lixeira — o INSERT falharia com um erro de
+      // banco ilegível; aqui o analista recebe o motivo e o que fazer.
+      const { data: outroTipo } = await supabaseAdmin
+        .from("processos")
+        .select("tipo_processo, excluido_em")
+        .eq("codigo", id)
+        .neq("tipo_processo", tipoProcesso)
+        .limit(1)
+        .maybeSingle();
+      if (outroTipo) {
+        return NextResponse.json({
+          ok: false,
+          erro: `Já existe um processo com este número cadastrado como "${outroTipo.tipo_processo}"` +
+            (outroTipo.excluido_em ? " (ele está na Lixeira)" : "") +
+            `. O mesmo número não pode existir em dois tipos: ` +
+            (outroTipo.excluido_em ? "apague-o de vez em Admin → Lixeira ou restaure-o e peça para converter o tipo." : "abra-o pelo tipo em que foi cadastrado."),
+        }, { status: 409 });
+      }
       const { data, error } = await supabaseAdmin
         .from("processos")
         .insert([{

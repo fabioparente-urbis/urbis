@@ -58,7 +58,7 @@ function escapeHtml(s: string): string {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo, numero_analise } = body;
+    const { codigo, tipoProcesso, numeroDespacho, data, destino, corpo, numero_analise, analise_id } = body;
 
     const { data: proc } = await supabase
       .from("processos")
@@ -249,7 +249,7 @@ export async function POST(req: NextRequest) {
         tipo_processo: tipoNoBanco || String(tipoProcesso || "slot_04"),
         tipo_despacho: "interno",
         numero_despacho: String(numeroDespacho ?? ""),
-        analise_id: null,
+        analise_id: typeof analise_id === "string" && analise_id ? analise_id : null,
         numero_revisao: null,
         cookie_header: req.headers.get("cookie") ?? "",
       });

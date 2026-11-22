@@ -94,9 +94,22 @@ export function interpretarRespostaMac(
   const mapaItens: Record<string, any> =
     dadosMac && typeof dadosMac.itens === "object" && dadosMac.itens !== null ? dadosMac.itens : dadosMac ?? {};
   const documentos: any[] = Array.isArray(dadosMac?.documentos) ? dadosMac.documentos : [];
-  const incompatibilidades: string[] = Array.isArray(dadosMac?.incompatibilidades)
-    ? dadosMac.incompatibilidades.filter(Boolean).map(String)
-    : [];
+  /* Prompt P3_MAC com PROVA (05/11/2026): incompatibilidade pode vir como objeto
+   * {texto, documento, sei, pagina, trecho}; item conforme/não conforme sem prova volta em branco.
+   * Aqui não há o PDF para conferir o rodapé (a rota do MAC confere) — só se exige a prova. */
+  const temProva = (p: any) =>
+    !!p && typeof p === "object" && String(p.sei ?? "").replace(/\D/g, "") !== "" &&
+    String(p.pagina ?? "").replace(/\D/g, "") !== "" && String(p.trecho ?? "").trim() !== "";
+  const provas: Record<string, any> = dadosMac && typeof dadosMac.provas === "object" && dadosMac.provas ? dadosMac.provas : {};
+  const incompatibilidades: string[] = (Array.isArray(dadosMac?.incompatibilidades) ? dadosMac.incompatibilidades : [])
+    .filter(Boolean)
+    .map((x: any) => {
+      if (typeof x === "string") return x;
+      const t = String(x?.texto ?? "").trim();
+      if (!t) return null;
+      return temProva(x) ? `${t} (${x.documento ?? "Documento"}, SEI ${x.sei}, pág. ${x.pagina})` : `[sem prova — conferir] ${t}`;
+    })
+    .filter((x: string | null): x is string => !!x);
   const STATUS_VALIDOS = new Set<StatusItem>(["conforme", "nao_conforme", "nao_aplica", null]);
   const idsValidos = new Set(checklistItens.map((i) => i.id));
   const itens: Record<string, StatusItem> = {};
@@ -111,6 +124,7 @@ export function interpretarRespostaMac(
       else if (v === "nao_aplica" || v === "não_aplica") status = "nao_aplica";
     }
     if (!STATUS_VALIDOS.has(status)) status = null;
+    if ((status === "conforme" || status === "nao_conforme") && Object.keys(provas).length && !temProva(provas[id])) status = null;
     itens[id] = status;
     fontes[id] = "p2";
   }

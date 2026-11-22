@@ -125,6 +125,52 @@ relacionadas registra uma entrada por mudança, não um resumo genérico no fim.
 O item fica **aberto** por padrão — resolver é ação do Fábio pela tela (`/admin/configuracoes`,
 aba OBS COD), depois de conferir que funcionou. Não marcar como resolvido no registro.
 
+### 📱 MOBILE — pensar no celular em toda mudança (regra suprema, declarada em 2026-10-25)
+
+Pedido do Fábio: "toda vez que eu criar ou modificar algo, já pensar nas implicações do mobile...
+vou esquecer, mas você vai me lembrar sempre". Plano de referência: `docs/URBIS_MOBILE_PLANO.md`.
+
+**⛔ ACIMA DE TUDO — o Mobile não pode atrapalhar o URBIS em NADA** (Fábio, 25/10/2026: "não
+pode atrapalhar a utilização do URBIS em NADA! a prioridade NÃO É O MOBILE... é no Mac/PC").
+- **A prioridade é sempre o URBIS no Mac/PC.** Nenhuma tarefa de Mobile passa na frente de
+  defeito, pedido ou trabalho do computador.
+- **Nenhuma mudança feita por causa do Mobile pode mudar o que o analista vê ou faz no
+  computador**: telas, botões, velocidade, login, tempo de sessão, fluxo de trabalho, documentos.
+  O Mobile vive na área própria (`/m`, `/api/mobile/*`) e **se acomoda ao computador, nunca o
+  contrário**.
+- Se alguma trava de segurança pensada para o Mobile exigir mexer em algo comum (login, sessão,
+  `autenticar()`), avisar o efeito no computador **antes**, em linguagem simples, e só fazer com
+  autorização. Na dúvida, o computador ganha e o Mobile espera ou muda de desenho.
+- O Mobile **não pode pesar no servidor nem no banco** a ponto de deixar o URBIS do computador
+  lento (lição do Radar, 22/09).
+- A linha "📱 Mobile:" é lembrete curto, não trava: ela nunca atrasa nem complica uma entrega do
+  computador.
+
+**Vale mesmo antes de o mobile existir** e mesmo quando o pedido não fala de celular. Toda tarefa
+que crie ou modifique tela, rota, tabela, documento, permissão ou login passa por esta conferência,
+e **a resposta final ao Fábio sempre traz uma linha "📱 Mobile:"** com o resultado — ainda que seja
+"sem impacto no mobile". Ele não precisa lembrar de pedir.
+
+Conferir, nesta ordem:
+1. **Segurança:** a mudança abre rota sensível sem autenticação e autorização, cria rota pública
+   fora da lista fechada de exceções, devolve campo a mais (CPF, nome, endereço) ou enfraquece
+   sessão/login? Se sim, avisar ANTES de implementar — o mobile depende da Fase S do plano.
+2. **Celular vê?** O dado novo deveria aparecer na consulta do celular (plano: seção 5 e "Camada 5" da seção 4)?
+   Se sim, anotar como pendência do mobile; se for dado pessoal, dizer como mascarar.
+3. **Celular nunca faz:** a mudança cria ação de emitir, consumir número, apagar, configurar ou
+   marcar checklist? Essas ficam **só no computador** — nunca expor em `/api/mobile/*`. A
+   primeira versão do Mobile é **só leitura**: qualquer função que altere dado pelo celular
+   (tag, foto, outra) precisa de avaliação de segurança própria, aprovada pelo Fábio, antes.
+4. **Rotas do mobile:** se mexeu em tabela comum lida pelo celular (`processos`, MDP, MRP, MAP,
+   MHD, tags), conferir que as rotas `/api/mobile/*` (quando existirem) continuam certas.
+5. **Tela:** tela nova do computador aberta no celular deve mostrar "esta tela é para computador",
+   não quebrar.
+6. **Sessão e aparelho:** mudança em login, logout, inativação de usuário ou cookies precisa
+   derrubar também as sessões do celular (tabela de aparelhos do plano, camada 4).
+
+Se a mudança afeta o plano, atualizar `docs/URBIS_MOBILE_PLANO.md` (seção certa + Histórico de
+versões + Versão/Data no cabeçalho) na mesma tarefa.
+
 ### ⛔ Slot 5 — manuais versionados (regra suprema, declarada em 2026-08-25)
 
 **Toda modificação, ampliação, alteração ou expansão do Slot 5 obriga a atualizar, versionar e

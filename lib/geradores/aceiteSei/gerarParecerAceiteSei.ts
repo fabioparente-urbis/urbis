@@ -77,7 +77,7 @@ export type DadosIndeferimentoAceite = {
   assinante?: Assinante;
   gerente?: Assinante;
   diretora?: Assinante;
-  numeroParecer?: string;
+  numeroParecer?: string; numeroProcessoFisico?: string;
   /** Vem de `assuntos.nome_documento` — "Alvará de Aceite". */
   assunto?: string;
   data?: string;
@@ -92,7 +92,7 @@ export async function gerarIndeferimentoAceiteSei(dados: DadosIndeferimentoAceit
   const children: Paragraph[] = [];
 
   children.push(vazio(160));
-  children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));
@@ -163,7 +163,7 @@ export type DadosArquivamentoAceite = {
   assinante?: Assinante;
   gerente?: Assinante;
   diretora?: Assinante;
-  numeroParecer?: string;
+  numeroParecer?: string; numeroProcessoFisico?: string;
   assunto?: string;
   data?: string;
 };
@@ -176,7 +176,7 @@ export async function gerarArquivamentoAceiteSei(dados: DadosArquivamentoAceite)
   const children: Paragraph[] = [];
 
   children.push(vazio(160));
-  children.push(p([txt("Processo / Projeto:  "), txt(dados.processo, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
+  children.push(p([txt("SEI:  "), txt(dados.processo, { bold: true }), txt("    |    Processo Físico:  "), txt(dados.numeroProcessoFisico || "—", { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Interessado:  "), txt(dados.interessado, { bold: true })], { align: AlignmentType.LEFT, after: 80 }));
   children.push(p([txt("Assunto:  "), txt(dados.assunto || "APROVAÇÃO DE PROJETO", { bold: true })], { align: AlignmentType.LEFT, after: 200 }));
   children.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 0, after: 200 }, children: [txt(`PARECER Nº   ${dados.numeroParecer || "___"}   |   ${ano}`, { bold: true, size: 22 })] }));

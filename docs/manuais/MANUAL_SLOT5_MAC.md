@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.50
-**Data:** 2026-10-19
+**Versão:** 1.61
+**Data:** 2026-11-21
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -91,12 +91,25 @@ tela de MAC própria, se for para manter paridade com o Slot 1/2).
   falta responder (`ESTADO_GRUPO`)
 - Botões ✅ ❌ ⬜ 🧹 na própria linha do índice, para marcar o grupo inteiro sem precisar abrir
   (`marcarGrupo(grupo, status, salvarAgora)`, salva na hora quando acionado pelo índice)
+- **🧹 Limpar Todas as Abas** (18/11/2026), ao lado do "🧹 Limpar Aba" dentro do grupo aberto: apaga
+  as marcações de todos os grupos da análise aberta, depois de confirmar quantos itens serão
+  apagados; observações não são apagadas; salva na hora (`limparTodasAbas()`). Mesmo botão nos
+  MACs dos Slots 1-4.
 - Numeração **"ÍTEM 1..48"** (a aba de observações é o **"item 49"**) — vocabulário exato pedido
   pelo Fábio: "ÍTEM" com acento, "SUB ITEM" sem, dentro de cada grupo
 
 Dentro de cada item aberto: texto da exigência, botões Conforme/Não Conforme/Não se Aplica, campo
 de observação sempre visível (não expansível — decisão do Fábio), vínculos com BIP (lei/artigo) e
 LIP (campo de origem).
+
+### 3.1.1 Abertura da tela — já na análise seguinte (23/10/2026)
+
+Ao entrar no MAC, a tela abre **na análise posterior à anterior** quando a última análise já foi
+emitida (tem despacho ou parecer), não está indeferida/arquivada e ainda há vaga no limite do slot
+(coluna "Análises" do admin). Isso roda **depois** dos filtros automáticos, que continuam gravando na
+análise anterior. Usa o mesmo caminho do botão da próxima análise (`iniciarNovaAnalise`: nasce em
+branco, herdando só os "não se aplica", e a linha é criada no banco). Se a última não foi emitida, foi
+indeferida ou o limite foi atingido, abre na última, como antes.
 
 ### 3.2 Ícone de origem por item
 
@@ -113,6 +126,10 @@ depois mostram o ícone certo.
 Os números do painel (Conforme/Não Conforme/N.A./Pendentes/por filtro/por IA/por você) são
 clicáveis — abrem a lista dos itens daquele balde; clicar num item da lista manda para o grupo dele
 e destaca por 2 segundos.
+
+**Despacho interno** (18/11/2026): além do MDP e do MRP (agora com o número da análise aberta), grava a tag "Com despacho interno" no processo, com a análise aberta — o card da Pilha mostra.
+
+**Parar leitura** (18/11/2026): enquanto o LER PASTA (IA) roda, a barra de progresso mostra o botão vermelho "⏹ Parar leitura". Ele cancela a chamada no navegador e nada é aplicado nos itens (aviso "Leitura interrompida"). O servidor pode concluir a chamada ao Gemini por conta própria, então o custo já gasto não volta.
 
 **LER PASTA (IA) com progresso real**: a rota (`app/api/mac/slot-05/ler-pasta/route.ts`) usa
 NDJSON (mesmo formato de `/api/lip/ler-pasta`) — evento por fase (catalogando → enviando cada PDF
@@ -830,7 +847,10 @@ Limpeza pendente, nunca pedida explicitamente.
 
 ---
 
-### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026)
+### 8.5 Emitir despacho baixa o Excel do MAC (25/09/2026) e o do LIP (17/11/2026)
+
+Desde 17/11/2026, logo depois do Excel do MAC a tela baixa também o Excel do LIP do processo (vale nos 5 slots).
+
 
 Regra copiada do Slot 1 a pedido do Fábio: "MAC só finaliza com a exportação de documento". Em
 `emitirDespacho()` (`analise-aprovacao-projeto/[codigo]/page.tsx`), logo depois que o `.docx` do
@@ -1494,10 +1514,41 @@ pôde ser verificado" para verificado de fato, com processo real (50724).
 
 ---
 
+## 31. "Enviou no SEI?" — confirmação após emitir (13/11/2026)
+
+Depois de emitir despacho, despacho interno ou parecer de indeferimento, a tela do MAC mostra um
+pop-up piscando "Enviou no SEI?" com o botão **SIM** (componente `components/mdp/AvisoEnviadoSei.tsx`).
+O clique grava dia e hora do servidor em `mdp_registros.enviado_sei_em` (rota `POST /api/mdp/enviado-sei`;
+só quem emitiu ou o Administrador confirma). Dá para fechar com "responder depois": fica pendente.
+Registros anteriores à migration `2026_11_13c_mdp_enviado_sei.sql` foram marcados como tratados.
+O Laudo não entra. O Slot 1 ainda não usa isto (aguarda autorização).
+
+## 32. URBIS OFFLINE — marcar o checklist sem servidor (19/11/2026)
+
+O checklist do MAC do Slot 5 passa a guardar o que você marca quando o servidor, o banco ou a internet caem.
+- **Salvar:** marcação, fonte e observações de uma análise **que já existe** são guardadas neste computador e reenviadas sozinhas (mesma rota `PUT /api/mac/slot-05/analise`) quando a conexão volta.
+- **Abrir:** sem resposta do servidor, o checklist abre pela cópia do último acesso (180 dias), com as pendências por cima. Nesse modo os filtros automáticos e a abertura da análise seguinte não rodam, e o aviso diz isso.
+- **Selo** ao lado de "Sair": 🟡 aguardando / 🔴 precisa de você. Conflito = o item mudou no servidor enquanto esperava; você escolhe manter o seu ou usar o do servidor (para ver o do servidor, recarregue a página).
+- **Continua exigindo servidor:** criar análise nova, emitir despacho/parecer, numerar, Preencher do LIP, Ler Pasta, indeferir/concluir. A fila só cobre marcações e observações; conflito é conferido só nos itens marcados (não nas observações).
+- Detalhes comuns (backup, logout, sessão expirada) em `MANUAL_SLOT5_LIP.md` seção 32.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.61 | 2026-11-21 | Seção 32: URBIS OFFLINE no checklist — marcações guardadas na fila local, abertura pela cópia, selo e conflito por item |
+| 1.60 | 2026-11-21 | Sem mudança no MAC. Conferido: o URBIS OFFLINE Etapa 1 entrou só na ficha do LIP (seção 32 do `MANUAL_SLOT5_LIP.md`); o checklist do MAC ainda NÃO usa a fila local e continua exigindo servidor para salvar |
+| 1.59 | 2026-11-18 | Seção 3.1: botão **🧹 Limpar Todas as Abas** ao lado do "Limpar Aba" — limpa as marcações de todos os grupos, com confirmação; observações ficam. Mesmo botão nos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.58). |
+| 1.58 | 2026-11-18 | Despacho interno do Slot 5 passa a gravar a tag "Com despacho interno" no card da Pilha (com a análise aberta) e a mandar o número da análise ao MRP — igual aos Slots 1-4 (seção 8). Aviso grande do URBI dispensado volta ao reentrar no MAC. O Slot 5 continua gravando a análise ao entrar (filtros automáticos), de propósito. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.57). |
+| 1.57 | 2026-11-18 | LER PASTA (IA) ganhou o botão vermelho **⏹ Parar leitura**, na barra de progresso (igual ao do LIP): cancela a chamada em voo e nada é aplicado nos itens. Mesmo botão nos MACs dos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.56). |
+| 1.56 | 2026-11-17 | Seção 8.5: emitir despacho baixa também o Excel do LIP (5 slots). LIP conferido (`MANUAL_SLOT5_LIP.md` v1.55). |
+| 1.55 | 2026-11-13 | Seção 31: pop-up "Enviou no SEI?" após emitir despacho/parecer; registra dia e hora. LIP ajustado (`MANUAL_SLOT5_LIP.md` v1.54). |
+| 1.54 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.53, seção 30.1), o S1 passou a recusar processo de outro slot antes de gastar a IA. |
+| 1.53 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.52, seção 30), entrou o botão "⏹ Parar leitura" no LER PASTA/LER PROCESSO. |
+| 1.52 | 2026-11-05 | Conferido: o MAC não mudou. Do lado do LIP (`MANUAL_SLOT5_LIP.md` v1.51), o botão do painel de coordenadas passou de "Ver no Google Maps" para "Ver no Google Earth". |
+| 1.51 | 2026-10-23 | Seção 3.1.1: o MAC abre já na análise seguinte quando a última foi emitida, não é indeferida/arquivada e há vaga no limite (igual nos Slots 1, 2, 3 e 4) |
 | 1.50 | 2026-10-19 | Seção 8.8: quantidade de análises configurável por slot no admin (1 a 10, coluna "Análises" na tabela de Assuntos de /admin/configuracoes); a penúltima (aviso) é a N-1 e a última a N; rota de criar análise respeita o limite. Limite da tabela de 5 etapas registrado. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.49. |
 | 1.49 | 2026-10-19 | Seção 3 (caixa no topo): novo botão **← Pilha de Processo**, depois de 🚪 Sair (igual ao do LIP), leva direto à Pilha de Processos (`/processos`), salvando a análise antes de sair. Mesmo botão nos MACs dos Slots 1 a 4. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.48. |
 | 1.48 | 2026-10-16 | Seção 3 (caixa no topo), 4.3 e 8.2: com o LIP do Slot 5 virando programa próprio, os botões de voltar ao LIP abrem `/lip-aprovacao-projeto/<id>`, a legenda de foto usa a rota do Slot 5, a outorga roda na rota de salvar própria e o despacho interno do LIP sai só pela rota do Slot 5. Lado LIP: `MANUAL_SLOT5_LIP.md` v1.47. |

@@ -1,4 +1,5 @@
 "use client";
+import CaixaMarcoTemporal from "@/components/urbi/CaixaMarcoTemporal";
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { perfilDe } from "@/lib/numeracao";
 import { filtrosDoAssunto, type FiltroMac } from "@/lib/macFiltros";
@@ -80,6 +81,18 @@ export default function MacPage() {
   const progressoP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
   const [timerP2, setTimerP2] = useState(0);
   const timerP2Ref = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Botão "Parar leitura" do MAC (igual ao do LIP): cancela a chamada em voo; nada é aplicado nos itens.
+  const abortP2Ref = useRef<AbortController | null>(null);
+  const pararP2Ref = useRef(false);
+  function novoAbortP2(): AbortSignal {
+    pararP2Ref.current = false;
+    abortP2Ref.current = new AbortController();
+    return abortP2Ref.current.signal;
+  }
+  function pararLeituraMac() {
+    pararP2Ref.current = true;
+    abortP2Ref.current?.abort();
+  }
   const inputP2Ref = useRef<HTMLInputElement>(null);
   // LER ARQUIVOS INDIVIDUAIS do MAC — mesma ideia do VCP do LIP: em vez de um
   // PDF único (que só cabe se o processo inteiro estiver compactado), o
@@ -356,6 +369,8 @@ export default function MacPage() {
         setObservacoes("");
         setObservacoesPorAba({});
         setAnaliseAtual(null);
+        // Sem análise em tela, a próxima gravação tem que poder criar de novo.
+        criandoAnaliseRef.current = false;
       }
     } else if (jsonLista.ok && analiseAtual?.id) {
       // Excluiu outra análise: recarrega a que está em tela, senão ela fica
@@ -442,6 +457,25 @@ export default function MacPage() {
         setNovaAnalise(false);
       } else {
         await carregarItensModelo("00000000-0000-0000-0000-000000000001");
+      }
+
+      // Pedido do Fábio (23/10/2026): ao entrar no MAC, já abrir na análise
+      // SEGUINTE quando a última já foi emitida (despacho/parecer) e ainda há
+      // vaga no limite do slot. Análise não emitida, indeferida/arquivada ou no
+      // limite: continua abrindo na última, como antes. É o mesmo caminho do botão
+      // da próxima análise (gravação pelo autosave).
+      const maisRecente = [...json.data].sort((a: any, b: any) => b.numero_analise - a.numero_analise)[0];
+      const emitida = !!(maisRecente?.numero_despacho || maisRecente?.numero_parecer);
+      const encerrada = ["indeferido", "arquivado"].includes(String(maisRecente?.status ?? ""));
+      if (maisRecente?.modelo_id && emitida && !encerrada) {
+        let limite = limiteAnalises;
+        try {
+          const rl = await fetch("/api/mac/limite-analises", { cache: "no-store" });
+          const jl = await rl.json();
+          const n = Number(jl?.data?.["regularizacao"]);
+          if (jl?.ok && n >= 1) limite = n;
+        } catch {}
+        if (json.data.length < limite) iniciarNovaAnalise(json.data, limite);
       }
     } else {
       // Sem análise — abre modal de seleção de modelo
@@ -790,6 +824,31 @@ export default function MacPage() {
     });
   }
 
+  function limparTodasAbas() {
+    const ids = checklistItens.map((i) => i.id);
+    const marcados = ids.filter((id) => itens[id] !== undefined && itens[id] !== null).length;
+    const abas = new Set(checklistItens.map((i) => i.grupo)).size;
+    if (marcados === 0) {
+      window.alert("Nenhum item marcado em nenhuma aba. Nada para limpar.");
+      return;
+    }
+    const ok = window.confirm(
+      `Limpar TODAS as abas desta análise?\n\n` +
+      `Serão apagadas as marcações de ${marcados} item(ns) em ${abas} aba(s), ` +
+      `junto com as fontes e os aceites da IA desses itens.\n\n` +
+      `As observações escritas não são apagadas. Continuar?`
+    );
+    if (!ok) return;
+    const apagar = (prev: Record<string, unknown>) => {
+      const novo = { ...prev };
+      ids.forEach((id) => { delete novo[id]; });
+      return novo;
+    };
+    setItens((prev) => apagar(prev) as typeof prev);
+    setFontes((prev) => apagar(prev) as typeof prev);
+    setAceites((prev) => apagar(prev) as typeof prev);
+  }
+
   async function confirmarModelo() {
     if (!modeloSelecionado) return;
     await carregarItensModelo(modeloSelecionado.id);
@@ -808,10 +867,18 @@ export default function MacPage() {
       .then(j => { if (j.ok) setHistoricoMac(j.eventos); })
       .finally(() => { carregandoHistoricoRef.current = false; });
   }
-  async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false) {
+  async function salvarSilencioso(status = "em_andamento", skipStateUpdate = false, forcar = false) {
     setStatusSalvo("salvando");
     try {
       if (novaAnalise || !analiseAtual) {
+        // Entrar no MAC e sair sem fazer nada NÃO grava análise vazia (pedido do Fábio, 18/11/2026):
+        // sem isto, só escolher o checklist já criava a análise no banco, e ao voltar o MAC abria nela
+        // direto — sem perguntar o checklist de novo. Só grava quando há algo preenchido.
+        if (!forcar && status === "em_andamento" && Object.keys(itens || {}).length === 0 && !(observacoes || "").trim()
+            && Object.keys(observacoesPorAba || {}).length === 0 && Object.keys(fontes || {}).length === 0) {
+          setStatusSalvo("");
+          return;
+        }
         // Trava de concorrência: se já há um POST de análise nova em curso,
         // não dispara outro (evita criar duas análises com o mesmo número).
         // Ao criar com sucesso, a trava permanece — os próximos saves caem no
@@ -897,7 +964,14 @@ export default function MacPage() {
     setSalvando(true);
     try {
       if (novaAnalise || !analiseAtual) {
-        const res = await fetch("/api/analise-regularizacao", {
+        // Mesma trava do salvarSilencioso(). Sem ela, "Deferir tudo" mexia nos itens, o autosave
+        // disparava 400ms depois com a análise ainda não criada e o processo ganhava DUAS análises
+        // de um clique só (26.5.000008654-7, 18/11/2026: nasceram a 3 e a 4 juntas).
+        if (criandoAnaliseRef.current) { mostrarToast("Aguarde: a análise está sendo criada."); return; }
+        criandoAnaliseRef.current = true;
+        let res: Response;
+        try {
+          res = await fetch("/api/analise-regularizacao", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -912,9 +986,14 @@ export default function MacPage() {
             numero_revisao: numeroRevisao,
             historico_analises: historicoAnalises,
           }),
-        });
-        const json = await res.json();
-        if (!json.ok) { mostrarToast("Erro: " + json.erro); return; }
+          });
+        } catch (e) {
+          criandoAnaliseRef.current = false;
+          throw e;
+        }
+        const json = await res.json().catch(() => null);
+        // Só libera a trava se NÃO criou — igual ao salvarSilencioso(); criada, os próximos saves vão pro PUT.
+        if (!json?.ok) { criandoAnaliseRef.current = false; mostrarToast("Erro: " + (json?.erro || "falha ao criar a análise")); return; }
         mostrarToast("Análise criada!");
         registrar({ modulo: "MAC", acao: "MAC_ANALISE_CRIADA", processo_codigo: codigo, detalhe: { numero_revisao: numeroRevisao } });
         await carregar();
@@ -970,7 +1049,7 @@ export default function MacPage() {
   useEffect(() => {
     if (!codigo) return;
     let vivo = true;
-    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" })
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}&registrar=mac`, { credentials: "include" })
       .then(r => (r.ok ? r.json() : null))
       .then(j => {
         if (!vivo || !j?.ok) return;
@@ -1186,6 +1265,11 @@ export default function MacPage() {
         }, 800);
       }
 
+      // Despacho exporta também o Excel do LIP (pedido do Fábio, 17/11/2026), depois do Excel do MAC.
+      setTimeout(() => {
+        window.open(`/api/regularizacao-sei/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=${tipoProcesso || "regularizacao"}`, "_blank");
+      }, 1600);
+
       /**
        * Backup ao concluir a análise — 08/09/2026, ideia do Fábio: "o URBI poderia recomendar
        * exportar o LIP e o MAC ao concluir uma análise pra ter backup de reserva".
@@ -1339,15 +1423,17 @@ export default function MacPage() {
     return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
   }
 
-  function iniciarNovaAnalise() {
-    if (analises.length >= limiteAnalises) {
-      mostrarToast(`Limite de ${limiteAnalises} análises atingido.`);
+  // `listaBase`/`limite` só vêm da abertura da tela, onde o state `analises` e o
+  // limite ainda estão no valor inicial (a closure de carregar() é antiga).
+  function iniciarNovaAnalise(listaBase: any[] = analises, limite: number = limiteAnalises) {
+    if (listaBase.length >= limite) {
+      mostrarToast(`Limite de ${limite} análises atingido.`);
       return;
     }
     // `analises` vem da API ordenada por numero_analise DESC, então a posição
     // final do array é a análise 1 — não a mais recente. Buscar pelo maior
     // numero_analise torna a cópia independente da ordenação.
-    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    const ultima = [...listaBase].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
     setAnaliseAtual(null);
     macCarregadoRef.current = false;
@@ -1426,12 +1512,23 @@ export default function MacPage() {
    * mas agora é um ato deliberado, com confirmação — e não o padrão silencioso.
    */
   async function copiarAnaliseAnterior(n: number) {
-    const anterior = analises.find((a) => a.numero_analise === n - 1);
-    const alvo = analises.find((a) => a.numero_analise === n);
     setModalCopiarAnalise(null);
-    if (!anterior || !alvo) return;
+    // Lê a lista fresca do servidor: o cache `analises` pode estar defasado
+    // (a análise anterior pode ter sido editada depois de carregada).
+    let lista: any[] = analises;
+    try {
+      const rl = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
+      const jl = await rl.json();
+      if (jl.ok && Array.isArray(jl.data)) lista = jl.data;
+    } catch {}
+    const anterior = lista.find((a) => a.numero_analise === n - 1);
+    const alvo = lista.find((a) => a.numero_analise === n);
+    if (!anterior || !alvo) {
+      mostrarToast(`❌ Não achei a Análise ${!anterior ? n - 1 : n} para copiar.`);
+      return;
+    }
 
-    await fetch("/api/analise-regularizacao", {
+    const resPut = await fetch("/api/analise-regularizacao", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1447,6 +1544,11 @@ export default function MacPage() {
         mac_carregado: true,
       }),
     });
+    const jsonPut = await resPut.json().catch(() => null);
+    if (!resPut.ok || !jsonPut?.ok) {
+      mostrarToast(`❌ Não foi possível copiar: ${jsonPut?.erro || resPut.status}`);
+      return;
+    }
     macCarregadoRef.current = true;
 
     const resLista = await fetch(`/api/analise-regularizacao?codigo=${encodeURIComponent(codigo)}`);
@@ -1583,7 +1685,7 @@ export default function MacPage() {
     try {
       const res = await fetch("/api/despacho-interno", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
+        body: JSON.stringify({ codigo, tipoProcesso: tipoProcesso || "regularizacao", numeroDespacho: numDI, data: dataDI, destino: destinoDI === "outro" ? destinoCustomDI : destinoDI, corpo: corpoDI, assunto_id: assuntoId, pendencias_lip: pendenciasLip, numero_analise: analiseAtual?.numero_analise, analise_id: analiseAtual?.id, padrao_id: padraoSelecionadoDI || null, padrao_titulo: padroesDI.find(p => p.id === padraoSelecionadoDI)?.titulo || null }),
       });
       if (!res.ok) throw new Error("Erro");
       const blob = await res.blob();
@@ -1687,7 +1789,7 @@ export default function MacPage() {
       ));
       if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
       if (assuntoId) fd.append("assunto_id", assuntoId);
-      const res = await fetch("/api/regularizacao-sei/mac/p3", { method: "POST", body: fd });
+      const res = await fetch("/api/regularizacao-sei/mac/p3", { method: "POST", body: fd, signal: novoAbortP2() });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         // Mesmo achado do "LER PROCESSO" (08/09/2026, linha ~2388): Railway serve por HTTP/2,
@@ -1750,6 +1852,7 @@ export default function MacPage() {
       registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: totalPreenchidos, arquivos: arquivos.length } });
       mostrarToast(`🤖 ${arquivos.length} arquivo(s) lido(s), ${totalPreenchidos} item(ns) sugerido(s) — revise e aceite.`);
     } catch (err: any) {
+      if (pararP2Ref.current) err = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
       const _seg = Math.round((Date.now() - _inicio) / 1000);
       const _min = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
@@ -1758,7 +1861,7 @@ export default function MacPage() {
         `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_ss}\n` +
         `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
       setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
-      mostrarToast(`Erro: ${err?.message || "falha"}`);
+      mostrarToast(pararP2Ref.current ? "⏹ Leitura interrompida." : `Erro: ${err?.message || "falha"}`);
     } finally {
       if (timerP2Ref.current) { clearInterval(timerP2Ref.current); timerP2Ref.current = null; }
       setProgressoP2(0);
@@ -1992,7 +2095,7 @@ export default function MacPage() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Pilha de Processo
             </button>
-                        <button onClick={() => salvar("em_andamento").then(() => router.push(`/lip-regularizacao-sei/${encodeURIComponent(codigo)}`))}
+                        <button onClick={() => salvarSilencioso("em_andamento").then(() => router.push(`/lip-regularizacao-sei/${encodeURIComponent(codigo)}`))}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
@@ -2186,7 +2289,7 @@ export default function MacPage() {
             <p className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide mb-1">📝 Observações do MAC</p>
             <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={20}
               className="flex-1 w-full bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-vertical" />
-            <button onClick={() => salvarSilencioso().then(() => mostrarToast("✅ Observações do MAC salvas!"))}
+            <button onClick={() => salvarSilencioso("em_andamento", false, true).then(() => mostrarToast("✅ Observações do MAC salvas!"))}
               className="bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white px-4 py-2 rounded text-sm font-medium transition-colors w-fit">
               💾 Salvar Observações
             </button>
@@ -2224,6 +2327,7 @@ export default function MacPage() {
                 <span className="flex gap-2">
                   <span>{progressoP2}%</span>
                   <span className="text-[var(--text-muted)]">{String(Math.floor(timerP2/60)).padStart(2,"0")}:{String(timerP2%60).padStart(2,"0")}</span>
+                  <button type="button" onClick={pararLeituraMac} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é aplicado nos itens">⏹ Parar leitura</button>
                 </span>
               </div>
               <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
@@ -2375,6 +2479,10 @@ export default function MacPage() {
                 className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🔄 Limpar Aba
               </button>
+              <button onClick={() => limparTodasAbas()}
+                className="flex items-center gap-1.5 bg-[#F1F5F9] hover:bg-[#334155] hover:text-white border border-[#334155] text-[#334155] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                🧹 Limpar Todas as Abas
+              </button>
               <button onClick={() => aceitarTodasIA(grupoAtual)}
                 className="flex items-center gap-1.5 bg-[#F0FDF4] hover:bg-[#16A34A] hover:text-white border border-[#16A34A] text-[#16A34A] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 🤖 Aceitar todas IA
@@ -2414,7 +2522,7 @@ export default function MacPage() {
                     ));
                     if (analiseAtual?.id) fd.append("analiseId", analiseAtual.id);
                     if (assuntoId) fd.append("assunto_id", assuntoId);
-                    const res = await fetch("/api/regularizacao-sei/mac/p3", { method: "POST", body: fd });
+                    const res = await fetch("/api/regularizacao-sei/mac/p3", { method: "POST", body: fd, signal: novoAbortP2() });
                     const json = await res.json().catch(() => null);
                     if (!res.ok || !json?.ok) {
                       /* Railway serve por HTTP/2 — `res.statusText` vem SEMPRE vazio nesse
@@ -2467,6 +2575,7 @@ export default function MacPage() {
                     registrar({ modulo: "MAC", acao: "MAC_ANALISE_IA_CONCLUIDA", processo_codigo: codigo, origem: "IA", detalhe: { itens_sugeridos: total } });
                     mostrarToast(`🤖 P3 sugeriu ${total} item(ns) — revise e aceite.`);
                   } catch (err: any) {
+      if (pararP2Ref.current) err = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
                     const _tempoLeitura = Math.round((Date.now() - _inicioLeitura) / 1000);
                     const _min = String(Math.floor(_tempoLeitura / 60)).padStart(2, "0");
                     const _seg = String(_tempoLeitura % 60).padStart(2, "0");
@@ -2475,7 +2584,7 @@ export default function MacPage() {
                       `❌ Status: ERRO NA LEITURA | ${_dataLeitura} | Duração até o erro: ${_min}:${_seg} | Progresso: ${progressoP2}%\n` +
                       `⚠ Motivo: ${err?.message || "falha desconhecida"}`;
                     setObservacoes((prev: string) => prev ? prev + "\n\n" + _obsErro : _obsErro);
-                    mostrarToast(`Erro P3: ${err?.message || "falha"}`);
+                    mostrarToast(pararP2Ref.current ? "⏹ Leitura interrompida." : `Erro P3: ${err?.message || "falha"}`);
                   } finally {
                     if (progressoP2Ref.current) clearInterval(progressoP2Ref.current);
                     if (timerP2Ref.current) clearInterval(timerP2Ref.current);
@@ -2741,6 +2850,8 @@ export default function MacPage() {
             })}
           </div>
 
+          {/* Marco Temporal atendido? — Sim desliga o aviso do URBI (18/11/2026) */}
+          <CaixaMarcoTemporal codigo={codigo} />
           {/* Botão Via / Logradouro */}
           <button
             onClick={() => { void salvarSilencioso(); router.push(`/logradouro/${encodeURIComponent(codigo)}?voltar=${encodeURIComponent(`/analise-regularizacao/${codigo}`)}&rotulo=${encodeURIComponent("Voltar ao MAC")}`); }}

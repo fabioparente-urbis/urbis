@@ -39,7 +39,7 @@ function lerUrbiAbertoSalvo(pathname: string): boolean {
 export default function UrbiGlobal() {
   const [usuario, setUsuario] = useState<any>(null);
   const pathname = usePathname();
-  const [urbiAberto, setUrbiAberto] = useState<boolean>(() => lerUrbiAbertoSalvo(pathname));
+  const [urbiAberto, setUrbiAberto] = useState<boolean>(() => (pathname.startsWith("/analise-") ? false : lerUrbiAbertoSalvo(pathname)));
   const [assuntoId, setAssuntoId] = useState<string | null>(null);
   const [processoCodigo, setProcessoCodigo] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
@@ -88,7 +88,15 @@ export default function UrbiGlobal() {
     [estadoSinal, dicaRtSinal]
   );
   const { registrar } = useAuditoria();
-  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => lerOverlayDispensadoSalvo(pathname));
+  const [overlayDispensado, setOverlayDispensado] = useState<boolean>(() => {
+    // MAC (/analise-*) aberto do zero (página carregada, não troca interna): o aviso dispensado
+    // antes NÃO fica lembrado — Fábio, 18/11/2026. Cobre a ida LIP → MAC com recarga completa.
+    if (pathname.startsWith("/analise-")) {
+      try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${pathname}`); sessionStorage.removeItem(`urbi:aberto:${pathname}`); } catch {}
+      return false;
+    }
+    return lerOverlayDispensadoSalvo(pathname);
+  });
   const overlayLogadoRef = useRef<string | null>(null); // processoCodigo já logado como DETECTADA nesta tela
 
   useEffect(() => { urbiAbertoRef.current = urbiAberto; }, [urbiAberto]);
@@ -122,7 +130,24 @@ export default function UrbiGlobal() {
    */
   useEffect(() => {
     if (pathnameAnteriorRef.current !== null && pathnameAnteriorRef.current !== pathname) {
-      setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
+      // Telas do MAC (/analise-*): sair e voltar começa do zero — o aviso grande dispensado ao
+      // sair NÃO fica lembrado (pedido do Fábio, 18/11/2026). Só o MAC; o resto do sistema mantém.
+      const anterior = pathnameAnteriorRef.current;
+      if (anterior.startsWith("/analise-")) {
+        try { sessionStorage.removeItem(`urbi:bloqueioDispensado:${anterior}`); } catch {}
+      }
+      if (pathname.startsWith("/analise-")) {
+        // Entrou no MAC vindo de outra tela (ex.: LIP): tem que ser EXATAMENTE como a primeira vez —
+        // card do aviso de volta e chat do URBI fechado (aberto, o card nem aparece).
+        try {
+          sessionStorage.removeItem(`urbi:bloqueioDispensado:${pathname}`);
+          sessionStorage.removeItem(`urbi:aberto:${pathname}`);
+        } catch {}
+        setOverlayDispensado(false);
+        setUrbiAberto(false);
+      } else {
+        setOverlayDispensado(lerOverlayDispensadoSalvo(pathname));
+      }
     }
     pathnameAnteriorRef.current = pathname;
   }, [pathname]);
@@ -189,8 +214,10 @@ export default function UrbiGlobal() {
     });
   }, [estadoFinal, processoCodigo, registrar]);
 
+  // 18/11/2026: as fichas próprias do LIP dos Slots 1-4 (/lip-*, desde 16/10) faltavam aqui — na
+  // ficha o URBI não sabia o processo e nunca avisava condição bloqueante. Slot 5 fora (sem pedido).
   useEffect(() => {
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|lip-regularizacao-sei|lip-aceite-sei|lip-regularizacao-ped|lip-aceite-ped|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     processoIdRef.current = codigo;
     // Mesmo valor do ref, mas em state — é o que vira prop de UrbiChat (ref não
@@ -339,7 +366,7 @@ export default function UrbiGlobal() {
     // Slot 5, assuntoId nunca era resolvido (ficava null), mesmo processoCodigo (regex abaixo,
     // idêntico ao de derivação de processoCodigo) estando correto. Corrigido pra cobrir os
     // mesmos 4 padrões de rota.
-    const match = pathname.match(/\/(processo|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
+    const match = pathname.match(/\/(processo|lip-regularizacao-sei|lip-aceite-sei|lip-regularizacao-ped|lip-aceite-ped|analise-regularizacao|analise-aceite-sei|analise-aprovacao-projeto|analise-regularizacao-ped|analise-aceite-ped)\/([^/?]+)/);
     const codigo = match ? decodeURIComponent(match[2]) : null;
     if (!codigo) { setAssuntoId(null); return; }
     fetch(`/api/processo/carregar?id=${encodeURIComponent(codigo)}`)
@@ -347,6 +374,15 @@ export default function UrbiGlobal() {
       .then(j => { if (j?.ok) setAssuntoId(j.data?.assunto_id ?? null); })
       .catch(() => {});
   }, [pathname]);
+
+  // "urbi:revigiar" — a tela mudou algo que o Vigia lê (ex.: Marco Temporal atendido no MAC):
+  // recalcula o aviso na hora, sem esperar trocar de processo.
+  const [revigiar, setRevigiar] = useState(0);
+  useEffect(() => {
+    const h = () => setRevigiar((n) => n + 1);
+    window.addEventListener("urbi:revigiar", h);
+    return () => window.removeEventListener("urbi:revigiar", h);
+  }, []);
 
   // Sinal de cor: recalcula ao trocar de processo. Fora de uma tela de processo (Home
   // inclusive), não há cor — o avatar volta ao azul padrão.
@@ -366,7 +402,7 @@ export default function UrbiGlobal() {
       setEstadoSinal(calcularSinaleiro(avisos, acoes));
     });
     return () => { vivo = false; };
-  }, [processoCodigo]);
+  }, [processoCodigo, revigiar]);
 
   const buscarUsuario = () => {
     fetch("/api/auth/me")
@@ -695,10 +731,16 @@ export default function UrbiGlobal() {
             <div style={{ fontSize: 15, fontWeight: 700, color: "#991b1b", textAlign: "center" }}>
               Antes de continuar analisando este processo…
             </div>
-            <div style={{ fontSize: 13, color: "var(--text-primary, #334155)", textAlign: "center", lineHeight: 1.5 }}>
-              {estadoFinal.itens[0]?.titulo}
-              {estadoFinal.itens.length > 1 ? ` (+ ${estadoFinal.itens.length - 1} outro${estadoFinal.itens.length > 2 ? "s" : ""})` : ""}
-            </div>
+            {/* Mostra TODAS as condições, não "+ N outros" (Fábio, 18/11/2026). */}
+            {estadoFinal.itens.length === 1 ? (
+              <div style={{ fontSize: 13, color: "var(--text-primary, #334155)", textAlign: "center", lineHeight: 1.5 }}>
+                {estadoFinal.itens[0]?.titulo}
+              </div>
+            ) : (
+              <ul style={{ fontSize: 13, color: "var(--text-primary, #334155)", lineHeight: 1.5, margin: 0, paddingLeft: 18, textAlign: "left", width: "100%" }}>
+                {estadoFinal.itens.map((i, idx) => <li key={idx}>{i.titulo}</li>)}
+              </ul>
+            )}
             {(() => {
               const itemImovel = estadoFinal.itens.find(i => i.id === "cond_imovel_duplicado" && i.dados);
               if (!itemImovel) return null;

@@ -31,7 +31,7 @@ import { TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODELO = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const STATUS_OK = new Set(["conforme", "nao_conforme", "nao_aplica"]);
 
 /** Papéis que o Gemini precisa VER. Documentos pessoais e requerimento não decidem item do MAC.

@@ -30,6 +30,9 @@ export type OpcaoFiltro = {
   /** Só quando `alvo === "triagem"`: a chave de FiltrosPilha que esta opção escreve. */
   chave?: string;
   valor: unknown;
+  /** Não aparece no painel (filtro retirado da tela em 18/11/2026), mas se chegar pela URL — o
+   *  URBI ainda pode pedir pela conversa — vira etiqueta removível, nunca filtro invisível. */
+  oculto?: boolean;
 };
 
 /** Etiqueta do que está ativo agora, montada pelo pai a partir do estado real. */
@@ -81,7 +84,7 @@ export default function CaixaFiltros({
     const t = normalizar(texto);
     const casa = (o: OpcaoFiltro) =>
       !t || normalizar(o.rotulo).includes(t) || normalizar(o.grupo).includes(t);
-    return catalogo.filter((o) => casa(o) && !idsAtivos.has(o.id));
+    return catalogo.filter((o) => !o.oculto && casa(o) && !idsAtivos.has(o.id));
   }, [catalogo, texto, idsAtivos]);
 
   /** Mesmas opções, agrupadas para exibição — preserva a ordem do catálogo. */
@@ -139,7 +142,7 @@ export default function CaixaFiltros({
   }
 
   return (
-    <div ref={containerRef} className="relative mb-6">
+    <div ref={containerRef} className="relative flex-1 min-w-0">
       <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-card)] px-3 py-2.5 focus-within:ring-2 focus-within:ring-[var(--accent)]">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[var(--text-muted)] text-sm select-none">🔍</span>
@@ -164,12 +167,13 @@ export default function CaixaFiltros({
 
           <input
             ref={inputRef}
+            id="pilha-busca"
             value={texto}
             onChange={(e) => { setTexto(e.target.value); setAberto(true); }}
             onFocus={() => setAberto(true)}
             onKeyDown={aoTeclar}
             placeholder={ativos.length === 0
-              ? "Filtrar ou buscar por SEI, interessado, nº de despacho..."
+              ? "Filtrar ou buscar por SEI, interessado, nº de despacho...  ( / )"
               : "Adicionar filtro..."}
             className="flex-1 min-w-[180px] bg-transparent text-sm text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none py-1" />
 

@@ -1,9 +1,11 @@
+import { pendentesSei } from "@/lib/mdpEnviadoSei";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
 import { exigirUsuarioAtivo } from "@/lib/autorizacao";
+import { lerCondicoesParaPilha } from "@/lib/urbi/condicoesProcesso";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
-import { situacaoGeral, situacaoLip, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
+import { situacaoGeral, situacaoLip, lipFinalizadoValeComoCompleto, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +15,9 @@ const supabase = createClient(
 // Sentinela usada para forcar lista vazia quando a gerencia nao possui
 // analistas cadastrados (evita 'in' com array vazio retornar resultados
 // indesejados pelo driver). UUID nulo nao colidirá com nenhum id real.
+/** Teto da lista. Antes cortava em 200 sem avisar; agora a resposta diz `cortado: true`. */
+const LIMITE_PILHA = 200; // mesmo teto de antes — subir pesa no banco (lição do Radar)
+
 const SENTINELA_ID_VAZIO = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(req: NextRequest) {
@@ -44,7 +49,7 @@ export async function GET(req: NextRequest) {
       // e aparece em /admin/lixeira, de onde pode voltar.
       .is("excluido_em", null)
       .order("atualizado_em", { ascending: false })
-      .limit(200);
+      .limit(LIMITE_PILHA + 1);
 
     // A busca por interessado e numero de despacho depende de campos dentro
     // de jsonb (dados.proprietario / tags[].numero_despacho), que o filtro
@@ -91,22 +96,21 @@ export async function GET(req: NextRequest) {
     const { data, error } = await query;
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
 
-    let resultado = data ?? [];
+    const cortado = (data ?? []).length > LIMITE_PILHA;
+    let resultado = (data ?? []).slice(0, LIMITE_PILHA);
     if (buscaLimpa) {
+      const palavrasBusca = buscaLimpa.split(/\s+/).filter(Boolean);
       resultado = resultado.filter((p: any) => {
         const codigo = (p.codigo || "").toLowerCase();
         const numeroSei = (p.numero_sei || "").toLowerCase();
         const interessado = (p.dados?.proprietario?.valor || "").toLowerCase();
+        const processoFisico = String(p.dados?.processoFisico?.valor || "").toLowerCase();
         const tags = Array.isArray(p.tags) ? p.tags : [];
-        const temDespachoBatendo = tags.some((t: any) =>
-          (t.numero_despacho || "").toLowerCase().includes(buscaLimpa)
-        );
-        return (
-          codigo.includes(buscaLimpa) ||
-          numeroSei.includes(buscaLimpa) ||
-          interessado.includes(buscaLimpa) ||
-          temDespachoBatendo
-        );
+        const despachos = tags.map((t: any) => (t.numero_despacho || "").toLowerCase()).join(" ");
+        // Cada palavra digitada precisa aparecer em algum campo (em qualquer
+        // ordem): "maria cristina araujo" acha "MARIA CRISTINA DE ARAUJO".
+        const alvo = [codigo, numeroSei, interessado, processoFisico, despachos].join(" | ");
+        return palavrasBusca.every((w) => alvo.includes(w));
       });
     }
 
@@ -204,6 +208,8 @@ export async function GET(req: NextRequest) {
      * — é o que a tag da Pilha tem em mãos pra decidir se vira link ou não. Sem isso a tag levaria
      * o analista pra uma tela vazia, que é pior do que não levar a lugar nenhum.
      */
+    // "Enviou no SEI?": códigos com despacho/parecer emitido e não confirmado (Slots 2-5).
+    const naoEnviadoSei = new Set((await pendentesSei(codigos)).map((x) => x.processo_codigo));
     const documentosMdpPorCodigo = new Map<string, string[]>();
     if (codigos.length > 0) {
       const { data: linhasMdp } = await supabase
@@ -274,6 +280,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Condições bloqueantes do URBI (18/11/2026) — só LÊ o retrato gravado ao abrir LIP/MAC.
+    const condicoesPorCodigo = await lerCondicoesParaPilha(codigos);
+
     resultado = resultado.map((p: any) => {
       const entrada: EntradaVigia = {
         processo: {
@@ -294,7 +303,8 @@ export async function GET(req: NextRequest) {
       // da Pilha quer ver LIP e MAC lado a lado, não só o resumo.
       const sitGeral = situacaoGeral(campos, ultimaPassada, tags, p.lip_incompleto === true);
       const sitMac = situacaoMac(ultimaPassada, tags);
-      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido");
+      const sitLip = situacaoLip(campos, p.lip_incompleto === true, sitMac.classe === "Arquivado/indeferido",
+        lipFinalizadoValeComoCompleto(p.tipo_processo, p.lip_finalizado));
       return {
         ...p,
         triagem: triar(entrada).classe,
@@ -328,6 +338,8 @@ export async function GET(req: NextRequest) {
         /** Números de documento deste processo que existem no MDP — a tag da Pilha só vira link
          *  pro MDP quando o número dela está aqui. */
         documentos_mdp: documentosMdpPorCodigo.get(p.codigo) ?? [],
+        nao_enviado_sei: naoEnviadoSei.has(p.codigo),
+        condicoes_urbi: condicoesPorCodigo.get(p.codigo) ?? [],
       };
     });
 
@@ -356,7 +368,7 @@ export async function GET(req: NextRequest) {
       analista_ativo: p.analista_id ? nomePorId.get(p.analista_id)?.ativo ?? null : null,
     }));
 
-    return NextResponse.json({ ok: true, data: resultado });
+    return NextResponse.json({ ok: true, data: resultado, cortado, limite: LIMITE_PILHA });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }

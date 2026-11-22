@@ -14,8 +14,12 @@
  */
 
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
+import SeloOffline from "@/components/offline/SeloOffline";
+import { apagarCopiasDoUsuario, guardarCopia, lerCopia } from "@/lib/offline/armazem";
+import { ehQueda, enfileirar, identificarUsuario, pendenciaDoProcesso } from "@/lib/offline/fila";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import type {
   RelatorioImportado as RelatorioContraConferencia,
   AchadoImportado,
@@ -657,6 +661,28 @@ export default function AnaliseAprovacaoProjeto() {
   const [listaFiltrada, setListaFiltrada] = useState<{ titulo: string; itens: Item[] } | null>(null);
   const [itemFoco, setItemFoco] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  /* URBIS OFFLINE (Etapa 1, MAC do Slot 5): usuário deste computador + fila de salvamento do checklist.
+   * Só cobre marcar/observar numa análise que JÁ existe no banco; criar análise, emitir e filtros
+   * automáticos continuam exigindo servidor. */
+  const [uidOffline, setUidOffline] = useState<string | null>(null);
+  const uidOfflineRef = useRef<string | null>(null);
+  useEffect(() => { void identificarUsuario().then((u) => { uidOfflineRef.current = u; setUidOffline(u); }); }, []);
+  const ROTA_ANALISE = "/api/mac/slot-05/analise";
+  /** Últimos itens que o servidor CONFIRMOU, por id de análise: é a "base" do aviso de conflito. */
+  const itensSincRef = useRef<Record<string, Record<string, unknown>>>({});
+  const guardarNaFila = async (corpo: Record<string, unknown>, baseItens: Record<string, unknown>): Promise<boolean> => {
+    const uid = uidOfflineRef.current ?? (await identificarUsuario());
+    if (!uid || !corpo.id) return false;
+    try {
+      await enfileirar({
+        uid, rota: ROTA_ANALISE, metodo: "PUT", conferir: "mac", id: String(corpo.id), tipo: "mac",
+        rotaConferir: `${ROTA_ANALISE}?codigo=${encodeURIComponent(codigo)}`,
+        rotulo: `Checklist do processo ${codigo}`,
+        corpo, base: baseItens,
+      });
+      return true;
+    } catch { return false; }
+  };
   const [toast, setToast] = useState("");
   /* Contra-conferência: o analista gera um prompt, leva numa IA de fora junto com os PDFs, e traz
    * o relatório de volta. O que volta é PROPOSTA — nenhum achado marca nada sozinho. */
@@ -815,10 +841,37 @@ export default function AnaliseAprovacaoProjeto() {
     // mesma chamada — ela não grava nada, só propõe.
     (async () => {
       try {
-        const r = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" });
-        const d = await r.json();
+        let r: Response | null = null;
+        try { r = await fetch(`/api/mac/slot-05/analise?codigo=${encodeURIComponent(codigo)}`, { credentials: "include" }); } catch { r = null; }
+        const uid = uidOfflineRef.current ?? (await identificarUsuario());
+        let d: any = null;
+        let offline = false;
+        if (!r || ehQueda(r.status)) {
+          // URBIS OFFLINE: servidor/banco/internet fora → cópia guardada deste computador
+          const copia = uid ? await lerCopia(uid, "mac_slot_05", codigo) : null;
+          if (!copia) { if (!cancelado) setErro("Sem conexão com o servidor e este checklist não tem cópia guardada neste computador."); return; }
+          d = copia.dados;
+          offline = true;
+        } else {
+          d = await r.json();
+          if (d?.ok && uid) void guardarCopia(uid, "mac_slot_05", codigo, d);
+        }
         if (cancelado) return;
         if (!d.ok) { setErro(d.erro); return; }
+        // o que o analista marcou e ainda está na fila vale mais que o servidor/cópia
+        if (uid) {
+          for (const a of (d.analises ?? []) as Analise[]) {
+            itensSincRef.current[String(a.id)] = { ...((a.itens ?? {}) as Record<string, unknown>) };
+            const pend = await pendenciaDoProcesso(uid, ROTA_ANALISE, String(a.id), "mac");
+            const c = pend?.corpo as any;
+            if (pend && pend.estado !== "conflito" && c) {
+              if (c.itens) a.itens = c.itens;
+              if (c.fontes) a.fontes = c.fontes;
+              if (c.observacoes !== undefined) a.observacoes = c.observacoes;
+              if (c.observacoes_por_item) a.observacoes_por_item = c.observacoes_por_item;
+            }
+          }
+        }
 
         setItensChecklist(d.itens ?? []);
         setProcesso(d.processo ?? null);
@@ -826,6 +879,25 @@ export default function AnaliseAprovacaoProjeto() {
         setMacIncompleto(d.macIncompleto === true);
         setAnalises(d.analises ?? []);
         const atual: Analise | undefined = (d.analises ?? [])[0];
+        // Pedido do Fábio (23/10/2026): ao entrar, abre já na análise SEGUINTE quando a última foi
+        // emitida (despacho/parecer), não está indeferida/arquivada e ainda há vaga no limite.
+        // Mesmo caminho do botão da próxima análise (iniciarNovaAnalise, que grava a linha).
+        let abrirProxima: number | null = null;
+        let limiteAbertura = limiteAnalises;
+        if (atual && (atual.numero_despacho || atual.numero_parecer)
+            && !["indeferido", "arquivado"].includes(String(atual.status ?? ""))) {
+          let limite = limiteAnalises;
+          try {
+            const rl = await fetch("/api/mac/limite-analises", { cache: "no-store" });
+            const jl = await rl.json();
+            const n = Number(jl?.data?.["slot_05"]);
+            if (jl?.ok && n >= 1) limite = n;
+          } catch { /* mantém o limite padrão */ }
+          if (cancelado) return;
+          limiteAbertura = limite;
+          const maior = Math.max(...(d.analises as Analise[]).map((x) => Number(x.numero_analise) || 0));
+          if (atual.numero_analise === maior && (d.analises as Analise[]).length < limite) abrirProxima = maior + 1;
+        }
         const marcasAtuais = atual?.itens ?? {};
         aceitesRef.current = (atual?.aceites ?? {}) as Aceites;
         const decisoesSalvas: Record<string, "aceito" | "recusado"> =
@@ -848,6 +920,10 @@ export default function AnaliseAprovacaoProjeto() {
             .catch(() => null);
         }
         setCarregando(false);
+        if (offline) {
+          notificar("🟡 Sem conexão: mostrando a cópia deste computador. Filtros automáticos e emissão voltam com a conexão.");
+          return;
+        }
 
         // Roda os filtros e JÁ MARCA os recomendados como "Não se Aplica" nos itens deles.
         // O analista não precisa aceitar um a um: chega com o checklist enxuto e desfaz o que
@@ -915,6 +991,9 @@ export default function AnaliseAprovacaoProjeto() {
           // Sem aviso quando nada mudou: abrir a tela não pode gerar um toast toda vez. O painel
           // "🎛️ Ver filtros" continua mostrando o que foi avaliado.
         }
+
+        // Só depois dos filtros: eles gravam na análise `atual`, não na nova.
+        if (abrirProxima !== null && !cancelado) iniciarNovaAnalise(abrirProxima, d.analises ?? [], limiteAbertura);
       } catch (e) {
         if (!cancelado) setErro(String(e));
       } finally {
@@ -1157,11 +1236,12 @@ export default function AnaliseAprovacaoProjeto() {
     carregarHistorico(alvo.id);
   }
 
-  function iniciarNovaAnalise(n: number) {
-    if (analises.length >= limiteAnalises) { notificar(`Limite de ${limiteAnalises} análises atingido.`); return; }
+  // `listaBase` só vem da abertura da tela, onde o state `analises` da closure ainda é o inicial.
+  function iniciarNovaAnalise(n: number, listaBase: Analise[] = analises, limite: number = limiteAnalises) {
+    if (listaBase.length >= limite) { notificar(`Limite de ${limite} análises atingido.`); return; }
     // `analises` chega ordenada por numero_analise DESC; pegar pelo maior número deixa a herança
     // independente da ordenação da API.
-    const ultima = [...analises].sort((a, b) => b.numero_analise - a.numero_analise)[0];
+    const ultima = [...listaBase].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     setAnalise(null);
     analiseRef.current = null;
     criandoAnalise.current = null;
@@ -1341,6 +1421,7 @@ export default function AnaliseAprovacaoProjeto() {
       a.click();
       URL.revokeObjectURL(url);
       setModalDI(false);
+      window.dispatchEvent(new Event("urbis:documento-emitido"));
 
       registrar({
         modulo: "DESPACHO", acao: "DESPACHO_INTERNO_GERADO", processo_codigo: codigo,
@@ -1385,6 +1466,7 @@ export default function AnaliseAprovacaoProjeto() {
           processo_codigo: codigo,
           tipo_despacho: "DESPACHO_INTERNO",
           numero_despacho: numDI,
+          numero_analise: analise?.numero_analise ?? null,
           area_construida: areaParaNumero(processo?.areaTotal),
           interessado: processo?.proprietario ?? null,
           bairro: processo?.bairro ?? null,
@@ -1392,6 +1474,15 @@ export default function AnaliseAprovacaoProjeto() {
           assunto_id: ASSUNTO_ID_SLOT5,
           tipo_processo: TIPO_PROCESSO_SLOT5,
           auto_gerado: true,
+        }),
+      }).catch(() => null);
+
+      // Tag "Com despacho interno" no card da Pilha — igual aos Slots 1-4, com a análise aberta.
+      fetch("/api/processo/tag", {
+        method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          codigo,
+          tag: { tipo: "despacho_interno", numero_analise: analise?.numero_analise, numero_despacho: numDI, data: dataDI },
         }),
       }).catch(() => null);
 
@@ -1490,6 +1581,7 @@ export default function AnaliseAprovacaoProjeto() {
     resultados.forEach((r, i) => {
       if (r.status === "rejected" || !r.value.ok) falhas.push(nomes[i]);
     });
+    window.dispatchEvent(new Event("urbis:documento-emitido"));
     if (falhas.length) notificar(`⚠ Despacho emitido, mas falhou registrar em: ${falhas.join(", ")}.`);
   }
 
@@ -1713,6 +1805,7 @@ export default function AnaliseAprovacaoProjeto() {
       ]);
       const nomes = ["MRP", "MDP", "tag do processo"];
       const falhas = resultados.flatMap((x, i) => (x.status === "rejected" || !x.value.ok ? [nomes[i]] : []));
+      window.dispatchEvent(new Event("urbis:documento-emitido"));
       notificar(
         `Indeferimento (parecer nº ${numeroParecer}) baixado.`
         + (falhas.length ? ` ⚠ Falhou registrar em: ${falhas.join(", ")}.` : "")
@@ -1821,6 +1914,15 @@ export default function AnaliseAprovacaoProjeto() {
         ax.click();
         ax.remove();
       }, 800);
+      // Despacho exporta também o Excel do LIP (pedido do Fábio, 17/11/2026), depois do Excel do MAC.
+      setTimeout(() => {
+        const al = document.createElement("a");
+        al.href = `/api/aprovacao-projeto/processo/exportar-lip?codigo=${encodeURIComponent(codigo)}&tipo=slot_05`;
+        al.download = "";
+        document.body.appendChild(al);
+        al.click();
+        al.remove();
+      }, 1600);
 
       // Documento na mão: agora sim consome o número e grava data/número na análise — MAS NUNCA na
       // reemissão, onde o número já foi consumido na primeira vez (mesma regra do Slot 1).
@@ -1881,8 +1983,15 @@ export default function AnaliseAprovacaoProjeto() {
     novasObsPorItem = estadoRef.current.observacoesPorItem,
   ) => {
     setSalvando(true);
+    let alvoId: string | null = (analise ?? analiseRef.current)?.id ? String((analise ?? analiseRef.current)!.id) : null;
+    const corpoPut = () => ({
+      id: alvoId, itens: novasMarcas, fontes: novasFontes, observacoes: novasObs,
+      observacoes_por_item: novasObsPorItem,
+    });
+    const baseItens = () => ({ ...(itensSincRef.current[String(alvoId)] ?? {}) });
     try {
       const a = await garantirAnalise(novasMarcas, novasFontes);
+      alvoId = String(a.id);
       const r = await fetch("/api/mac/slot-05/analise", {
         method: "PUT", credentials: "include", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1890,8 +1999,13 @@ export default function AnaliseAprovacaoProjeto() {
           observacoes_por_item: novasObsPorItem,
         }),
       });
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.erro ?? "falha ao salvar");
+      const d = await r.json().catch(() => null);
+      if (!d?.ok && ehQueda(r.status) && await guardarNaFila(corpoPut(), baseItens())) {
+        if (!silencioso) notificar("🟡 Servidor sem resposta: guardei neste computador e envio sozinho quando voltar.");
+        return;
+      }
+      if (!d?.ok) throw new Error(d?.erro ?? "falha ao salvar");
+      itensSincRef.current[String(a.id)] = { ...novasMarcas };
       // Só o salvamento explícito vira evento: o silencioso dispara a cada clique de item e
       // encheria a auditoria de ruído (o item em si já é registrado em MAC_ITEM_MARCADO).
       if (!silencioso) {
@@ -1904,7 +2018,12 @@ export default function AnaliseAprovacaoProjeto() {
       carregarHistorico(a.id);
       if (!silencioso) notificar("✅ Salvo.");
     } catch (e: any) {
-      notificar(`Erro ao salvar: ${e?.message ?? e}`);
+      // sem conexão (fetch lançou): só dá para guardar se a análise já existe no banco
+      if (alvoId && await guardarNaFila(corpoPut(), baseItens())) {
+        if (!silencioso) notificar("🟡 Sem conexão: guardei neste computador e envio sozinho quando voltar.");
+      } else {
+        notificar(`Erro ao salvar: ${e?.message ?? e}`);
+      }
     } finally {
       setSalvando(false);
     }
@@ -2486,6 +2605,23 @@ export default function AnaliseAprovacaoProjeto() {
     if (salvarAgora) void salvar(novasMarcas, novasFontes, observacoes, true);
   }
 
+  /** "Limpar Todas as Abas" (18/11/2026, pedido do Fábio) — o mesmo que o "Limpar Aba" faz,
+   *  em todos os grupos de uma vez, com confirmação. Observações não são apagadas. */
+  function limparTodasAbas() {
+    const ids = [...porGrupo.values()].flat().map((i) => i.id);
+    const marcadas = ids.filter((id) => estadoRef.current.marcas[id] !== undefined).length;
+    if (marcadas === 0) { window.alert("Nenhum item marcado em nenhuma aba. Nada para limpar."); return; }
+    if (!window.confirm(
+      `Limpar TODAS as abas desta análise?\n\nSerão apagadas as marcações de ${marcadas} item(ns) em ${porGrupo.size} aba(s).\n\nAs observações escritas não são apagadas. Continuar?`
+    )) return;
+    const novasMarcas = { ...estadoRef.current.marcas };
+    const novasFontes = { ...estadoRef.current.fontes };
+    for (const id of ids) { delete novasMarcas[id]; delete novasFontes[id]; }
+    aplicarEstado({ marcas: novasMarcas, fontes: novasFontes });
+    notificar(`Todas as abas limpas: ${marcadas} item(ns).`);
+    void salvar(novasMarcas, novasFontes, observacoes, true);
+  }
+
   async function preencherDoLip() {
     setLendoLip(true);
     setProposta(null);
@@ -2553,7 +2689,17 @@ export default function AnaliseAprovacaoProjeto() {
    * A fase "analisando" é a chamada única ao Gemini (1-3min) — sem progresso real possível ali,
    * então uma rampa por tempo (até 92%) preenche a espera, igual à barra do LIP.
    */
+  // Botão "Parar leitura" (igual ao do LIP): cancela a chamada em voo; nada é aplicado nos itens.
+  const abortPastaRef = useRef<AbortController | null>(null);
+  const pararPastaRef = useRef(false);
+  function pararLeituraPasta() {
+    pararPastaRef.current = true;
+    abortPastaRef.current?.abort();
+  }
+
   async function lerPastaIA(arquivos: File[]) {
+    pararPastaRef.current = false;
+    abortPastaRef.current = new AbortController();
     setLendoPasta(true);
     setProgressoPasta(0);
     setTempoPasta(0);
@@ -2577,7 +2723,7 @@ export default function AnaliseAprovacaoProjeto() {
         fd.append(`arquivo_${i}`, f);
         fd.append(`caminho_${i}`, (f as any).webkitRelativePath || f.name);
       });
-      const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd });
+      const r = await fetch("/api/mac/slot-05/ler-pasta", { method: "POST", credentials: "include", body: fd, signal: abortPastaRef.current.signal });
       if (!r.body) throw new Error(`o servidor respondeu HTTP ${r.status} sem corpo`);
 
       const leitor = r.body.getReader();
@@ -2707,7 +2853,7 @@ export default function AnaliseAprovacaoProjeto() {
         );
       }
     } catch (e: any) {
-      notificar(`Erro na leitura: ${e?.message ?? e}`);
+      notificar(pararPastaRef.current ? "⏹ Leitura interrompida — nada foi aplicado." : `Erro na leitura: ${e?.message ?? e}`);
     } finally {
       pararRampa();
       if (tempoPastaRef.current) { clearInterval(tempoPastaRef.current); tempoPastaRef.current = null; }
@@ -2850,6 +2996,7 @@ export default function AnaliseAprovacaoProjeto() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <AvisoEnviadoSei codigo={codigo} modo="popup" />
       {/* ─── Barra de pendências LIP/MAC — mesmo padrão do Slot 1 ─────── */}
       {(pendenciasLip.length > 0 || naoRespondidos.length > 0) && (
         <div style={{ position: "sticky", top: 0, zIndex: 100 }}>
@@ -2922,10 +3069,11 @@ export default function AnaliseAprovacaoProjeto() {
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
-            <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            <button onClick={async () => { if (uidOffline) await apagarCopiasDoUsuario(uidOffline); await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
+            <SeloOffline uid={uidOffline} />
             <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/processos"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Pilha de Processo
@@ -3164,6 +3312,9 @@ export default function AnaliseAprovacaoProjeto() {
                   {String(Math.floor(tempoPasta / 60)).padStart(2, "0")}:{String(tempoPasta % 60).padStart(2, "0")}
                 </span>
                 <span>{progressoPasta}%</span>
+                {lendoPasta && (
+                  <button type="button" onClick={pararLeituraPasta} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é aplicado nos itens">⏹ Parar leitura</button>
+                )}
               </span>
             </div>
             <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
@@ -3799,6 +3950,10 @@ export default function AnaliseAprovacaoProjeto() {
                 <button onClick={() => marcarGrupo(abaAtual, null)}
                   className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                   🧹 Limpar Aba
+                </button>
+                <button onClick={limparTodasAbas}
+                  className="flex items-center gap-1.5 bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] border border-[var(--border)] text-[var(--text-secondary)] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                  🧹 Limpar Todas as Abas
                 </button>
                 <span className="text-base font-bold text-[#DC2626] self-center">
                   {stats[abaAtual]?.respondidos ?? 0}/{stats[abaAtual]?.total ?? 0} respondidos

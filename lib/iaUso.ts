@@ -7,6 +7,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
  */
 const PRECO_USD_POR_MILHAO: Record<string, { entrada: number; saida: number }> = {
   "gemini-2.5-flash": { entrada: 0.30, saida: 2.50 },
+  // Padrão desde 03/11/2026 (sucessor automático do 2.5 em 01/12/2026), mesma tabela de preço.
+  "gemini-3.5-flash-lite": { entrada: 0.30, saida: 2.50 },
   // Preço promocional do sucessor, MEDIDO/consultado em 10/09/2026 — dobra em 01/01/2027, quando
   // a promoção acaba. Entrou aqui junto com a Fase 2 (arquivo grande sobe para este modelo):
   // sem a linha, toda leitura de PDF grande apareceria com custo estimado nulo na Rastreabilidade.

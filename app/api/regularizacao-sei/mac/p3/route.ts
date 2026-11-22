@@ -125,7 +125,11 @@ export async function POST(req: NextRequest) {
     // corrigido antes do primeiro teste real deste modo.
     const tamanhoTotal = arquivos.reduce((soma, f) => soma + f.size, 0);
     const maiorArquivo = Math.max(...arquivos.map((f) => f.size));
-    const modelo = escolherModeloPorTamanho(maiorArquivo);
+    // 12/11/2026: o MAC do Slot 1 voltou a vir quase todo verde após o padrão global virar o
+    // 3.5-flash-lite (não medido). Até medir, o MAC do Slot 1 fica no 2.5 (que o Google desliga
+    // em 01/12/2026); arquivo grande continua escalando para o modelo de arquivo grande.
+    const modeloEscolhido = escolherModeloPorTamanho(maiorArquivo);
+    const modelo = ehModeloDeArquivoGrande(modeloEscolhido) ? modeloEscolhido : ("gemini-2.5-flash" as const);
     console.log(`[P3_MAC] Upload: ${arquivos.length} arquivo(s), ${(tamanhoTotal / 1024 / 1024).toFixed(2)}MB total, maior ${(maiorArquivo / 1024 / 1024).toFixed(2)}MB | modelo: ${modelo}`);
     if (ehModeloDeArquivoGrande(modelo)) {
       console.log(`[P3_MAC] Arquivo do lote acima de ${LIMITE_BYTES_MODELO_PADRAO / 1024 / 1024}MB — leitura escalada para ${modelo}.`);

@@ -32,7 +32,7 @@ import { contextoNbrAcessibilidade } from "@/lib/mac-motor/slot5/contextoAcessib
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const MODELO = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MODELO = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 const STATUS_OK = new Set(["conforme", "nao_conforme", "nao_aplica"]);
 
 /** Sobe o PDF para a File API do Gemini e devolve o URI. */

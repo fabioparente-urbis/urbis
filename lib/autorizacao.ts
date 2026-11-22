@@ -43,10 +43,10 @@ export async function usuarioDaRequisicao(req: NextRequest): Promise<UsuarioReq 
 
   const { data } = await supabaseAdmin
     .from("usuarios")
-    .select("id, perfis, gerencia")
+    .select("id, perfis, gerencia, status")
     .eq("email", authData.user.email)
     .maybeSingle();
-  if (!data) return null;
+  if (!data || data.status !== "Ativo") return null; // inativado não passa (mesma regra do autenticar)
 
   const perfis: string[] = data.perfis ?? [];
   return {

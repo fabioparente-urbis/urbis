@@ -12,9 +12,11 @@
 // Mudar este arquivo NÃO muda a ficha dos outros slots, e vice-versa.
 // ============================================================
 "use client";
+import CelularResponsavelTecnico from "@/components/comum/CelularResponsavelTecnico";
 import { useAuditoria } from "@/hooks/useAuditoria";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import AvisoEnviadoSei from "@/components/mdp/AvisoEnviadoSei";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { perfilDe } from "@/lib/numeracao";
@@ -28,6 +30,7 @@ import { hashCompletoBytes } from "@/lib/documentosSei/hashOrigem";
 import { utmToLatLng, pareceUTM, formatarLatLng } from "@/lib/utm";
 import { confrontarEndereco, resumoConfronto, type Confronto } from "@/lib/cadastroMapaFacil";
 import VigiaProcesso from "@/components/bdi/VigiaProcesso";
+import BotaoRefazerCondicoes from "@/components/urbi/BotaoRefazerCondicoes";
 import AlertaFluxo from "@/components/regularizacaoPed/AlertaFluxo";
 // Fase 2 do plano Documentos Vivos (docs/URBIS_PLANO_DOCUMENTOS_VIVOS.md) — um componente por
 // slot (Regularização e Aceite SEI), cada um atrás do seu próprio interruptor (default
@@ -292,6 +295,10 @@ export default function LipRegularizacaoPed() {
   const [carregandoAbas, setCarregandoAbas] = useState(true);
   const [erroCampos, setErroCampos] = useState(false);
   const [lendoLip, setLendoLip] = useState(false);
+  // Botão \"Parar leitura\": cancela o que está em voo e impede as próximas etapas.
+  const pararLeituraRef = useRef(false);
+  const abortLeituraRef = useRef<AbortController | null>(null);
+  const cancelarEsperaRef = useRef<(() => void) | null>(null);
   const [modalVCP, setModalVCP] = useState(false);
   const [lendoPasta, setLendoPasta] = useState(false);
   // proposta da leitura da pasta (slot 5): fica na tela até o analista aceitar em bloco
@@ -393,6 +400,13 @@ export default function LipRegularizacaoPed() {
       .catch(() => { /* fica no rótulo estático */ });
     return () => { vivo = false; };
   }, []);
+
+  // Condições bloqueantes do URBI (18/11/2026): abrir o LIP RECALCULA e grava o retrato que a
+  // Pilha mostra (ícone do URBI). Uma vez por processo aberto; erro não atrapalha a ficha.
+  useEffect(() => {
+    if (!idUrl) return;
+    fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(decodeURIComponent(idUrl))}&registrar=lip`, { credentials: "include" }).catch(() => {});
+  }, [idUrl]);
 
   useEffect(() => {
     if (!modalDI || !assuntoIdRef.current) return;
@@ -933,6 +947,12 @@ export default function LipRegularizacaoPed() {
     });
   }
 
+  function pararLeitura() {
+    pararLeituraRef.current = true;
+    abortLeituraRef.current?.abort();
+    cancelarEsperaRef.current?.();
+  }
+
   async function aguardarJobS3(jobId: string): Promise<any> {
     if (!jobId) throw new Error("S3: jobId ausente");
     return new Promise((resolve, reject) => {
@@ -960,6 +980,7 @@ export default function LipRegularizacaoPed() {
           console.warn(`[S3-poll] erro tentativa ${tentativas}:`, e);
         }
       }, 5000);
+      cancelarEsperaRef.current = () => { clearInterval(interval); reject(new Error("LEITURA_INTERROMPIDA")); };
     });
   }
 
@@ -1007,6 +1028,8 @@ export default function LipRegularizacaoPed() {
     let _macSugestao: "gravada" | "sem_analise_mac" | "desligado" | "falhou" | null = null;
     try {
       setLendoLip(true);
+      pararLeituraRef.current = false;
+      abortLeituraRef.current = new AbortController();
       setTempoLeitura(0);
       if (tempoLeituraRef.current) clearInterval(tempoLeituraRef.current);
       tempoLeituraRef.current = setInterval(() => setTempoLeitura(t => t + 1), 1000);
@@ -1020,6 +1043,7 @@ export default function LipRegularizacaoPed() {
 
       const resultados = [];
       for (const arquivo of arquivos) {
+        if (pararLeituraRef.current) throw new Error("LEITURA_INTERROMPIDA");
         resultados.push(await (async (arquivo) => {
           // 1.5. Fase 8 — "não pagar duas vezes": mesmo arquivo (bytes idênticos) já lido antes
           // pula S1/S2/S3 inteiros. Melhor esforço: qualquer falha aqui (rede, tabela ainda não
@@ -1067,6 +1091,7 @@ export default function LipRegularizacaoPed() {
           const tipoArquivo = arquivo.type || "application/pdf";
           const s1Res = await fetch("/api/regularizacao-ped/lip/s1", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: {
               "Content-Type": tipoArquivo,
               "X-File-Type": tipoArquivo,
@@ -1086,6 +1111,7 @@ export default function LipRegularizacaoPed() {
           mostrarToast("🗂 S2: Mapeando documentos do processo...", "info");
           const s2Res = await fetch("/api/regularizacao-ped/lip/s2", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileUri, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, codigo: idUrl, tipoProcesso: tipoUrl, tamanhoBytes: arquivo.size }),
           });
@@ -1103,6 +1129,7 @@ export default function LipRegularizacaoPed() {
           });
           const s3Init = await fetch("/api/regularizacao-ped/lip/s3", {
             method: "POST",
+            signal: abortLeituraRef.current?.signal,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fileUri, documentos, codigo: idUrl, fileName: arquivo.name, pdfBase64, assunto_id: assuntoIdRef.current, mimeType: s1Data.mimeType, tamanhoBytes: arquivo.size }),
           }).then(r => r.json());
@@ -1262,7 +1289,9 @@ export default function LipRegularizacaoPed() {
         "sucesso",
       );
     } catch (e: any) {
-      mostrarToast("❌ Erro: " + e.message, "erro");
+      const _interrompida = pararLeituraRef.current;
+      if (_interrompida) e = new Error("Leitura interrompida pelo analista (botão Parar leitura).");
+      mostrarToast(_interrompida ? "⏹ Leitura interrompida." : "❌ Erro: " + e.message, _interrompida ? "info" : "erro");
       const _seg = Math.round((Date.now() - _t0Leitura) / 1000);
       const _mm = String(Math.floor(_seg / 60)).padStart(2, "0");
       const _ss = String(_seg % 60).padStart(2, "0");
@@ -1632,7 +1661,9 @@ export default function LipRegularizacaoPed() {
     // vazio (padrão) e o analista trocar por X depois, ou vice-versa nunca
     // acontece, mas os dois indicadores respondem a coisas diferentes.
     const ehX = val.valor.trim().toUpperCase() === "X";
-    const badgeX = ehX && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
+    // "Área conforme Laudo Técnico" (areaLaudo): o interessado não é obrigado a informar a área no
+    // laudo — "X" ali só quer dizer "não citou", não é irregularidade. Sem selo vermelho (Fábio, 12/11/2026).
+    const badgeX = ehX && campo.chave !== "areaLaudo" && <span className="ml-1 text-red-600 font-bold">✕ X</span>;
     const temSugestaoVCP = vcpSugestoes[campo.chave] !== undefined && vcpSugestoes[campo.chave] !== val.valor;
     // Destaque do Laudo: só existe Laudo definido pra Regularização SEI
     // (slot 1) e Aceite SEI (slot 2) — outros slots (ex.: slot_05,
@@ -1865,7 +1896,9 @@ export default function LipRegularizacaoPed() {
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] p-4 md:p-6 text-[var(--text-primary)]">
+      <AvisoEnviadoSei codigo={idUrl} modo="faixa" />
       {toast && <Toast msg={toast.msg} tipo={toast.tipo} onClose={() => setToast(null)} />}
+      <CelularResponsavelTecnico dados={d} />
       {alertaMarco && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-[var(--bg-card)] border-2 border-red-600 rounded-xl p-6 w-full max-w-lg shadow-2xl">
@@ -2155,10 +2188,10 @@ export default function LipRegularizacaoPed() {
                 className="px-4 py-2 rounded text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >Fechar</button>
               <a
-                href={`https://maps.google.com/?q=${encodeURIComponent(conflitoMapa.coordenadas)}`}
+                href={`https://earth.google.com/web/search/${encodeURIComponent(parseCoords(conflitoMapa.coordenadas))}`}
                 target="_blank" rel="noopener noreferrer"
                 className="px-4 py-2 rounded font-bold text-sm bg-[var(--bg-secondary)] hover:bg-[var(--border)] text-[var(--text-primary)] border border-[var(--border-strong)]"
-              >📍 Ver no Google Maps</a>
+              >🌍 Ver no Google Earth</a>
               <button
                 onClick={() => {
                   navigator.clipboard?.writeText(conflitoMapa.iptu).catch(() => {});
@@ -2603,6 +2636,7 @@ export default function LipRegularizacaoPed() {
           com a origem de cada um, e a triagem por evidência. Nunca escreve
           nada no processo. */}
       {idUrl && <VigiaProcesso codigo={idUrl} />}
+      {idUrl && <BotaoRefazerCondicoes codigo={decodeURIComponent(idUrl)} />}
 
       {/* ORGANIZADOR DE PDF SEI REMOVIDO DO SLOT 1 E 2 — 11/09/2026, decisão do Fábio.
           Substituído pela tela própria `/fatiador-sei` (Fase 6 do plano de leitura de PDF), que
@@ -2689,6 +2723,9 @@ export default function LipRegularizacaoPed() {
             <span className="flex gap-2">
               <span className="text-[var(--text-muted)]">{String(Math.floor(tempoLeitura/60)).padStart(2,'0')}:{String(tempoLeitura%60).padStart(2,'0')}</span>
               <span>{progresso}%</span>
+              {(lendoLip || lendoPasta) && (
+                <button onClick={pararLeitura} className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 hover:bg-red-700 text-white" title="Interrompe a leitura em andamento; nada é gravado na ficha">⏹ Parar leitura</button>
+              )}
             </span>
           </div>
           <div className="w-full bg-[var(--bg-secondary)] rounded-full h-2">
