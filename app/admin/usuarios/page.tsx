@@ -87,6 +87,9 @@ export default function UsuariosPage() {
           ? json.data.perfis
           : (json.data?.perfil ? [json.data.perfil] : []);
         setMeuPerfis(perfis);
+        // Cosmético: quem não é Administrador não tem o que fazer aqui — a proteção de verdade é
+        // no servidor (/api/admin/usuarios recusa com 403).
+        if (!perfis.includes("Administrador")) window.location.replace("/");
       }
     } catch { /* mantem [] -> trata como nao-admin */ }
   }
@@ -128,7 +131,7 @@ export default function UsuariosPage() {
     });
   }
 
-  async function salvar() {
+  async function salvar(confirmacoes: { criarContaAcesso?: boolean } = {}) {
     if (!form.nome || !form.email) { setErro("Nome e email obrigatórios."); return; }
     if (!editando && !senha) { setErro("Senha obrigatória para novo usuário."); return; }
     try {
@@ -147,9 +150,21 @@ export default function UsuariosPage() {
           gerencia: gerenciaPayload,
           senha: senha || undefined,
           id: editando?.id,
+          ...confirmacoes,
         }),
       });
       const json = await res.json();
+      // Conflito com conta do Auth já existente: o URBIS não vincula nem reaproveita (C1). A mensagem
+      // traz os dados da conta e o procedimento de investigação — nenhuma ação automática.
+      if (!json.ok && json.code === "CONTA_CONFLITO") { setErro(json.erro); return; }
+      // Cadastro sem conta de acesso: criar uma conta NOVA só com confirmação explícita.
+      if (!json.ok && json.code === "SEM_CONTA_AUTH" && !confirmacoes.criarContaAcesso) {
+        if (confirm(`${json.erro}\n\nCriar agora a conta de acesso com a senha informada?`)) {
+          setSalvando(false);
+          return salvar({ ...confirmacoes, criarContaAcesso: true });
+        }
+        setErro(json.erro); return;
+      }
       if (!json.ok) {
         // Mensagem amigavel para a constraint unica de gerencia (item 1).
         const erroStr = String(json.erro || "");
@@ -165,9 +180,12 @@ export default function UsuariosPage() {
         } else {
           setErro(json.erro || "Erro ao salvar.");
         }
+        // Estado parcial: parte foi gravada — a lista precisa mostrar o que está no banco agora.
+        if (json.parcial) await carregar();
         return;
       }
       setModal(false); await carregar();
+      if (Array.isArray(json.avisos) && json.avisos.length) alert(json.avisos.join("\n"));
       window.dispatchEvent(new Event('urbi:refresh'));
     } finally { setSalvando(false); }
   }
@@ -182,16 +200,23 @@ export default function UsuariosPage() {
     alert(json.ok ? "✅ Email enviado!" : "❌ Erro: " + json.erro);
   }
 
-  async function excluir(u: Usuario) {
-    if (!confirm(`Excluir permanentemente "${u.nome}"? Esta ação não pode ser desfeita.`)) return;
+  // Não existe mais exclusão de usuário (D4, 21/10/2026): desativar impede o acesso e preserva
+  // identidade, autoria e histórico. Reativar é pelo Editar → Status: Ativo.
+  async function desativar(u: Usuario) {
+    if (!confirm(`Desativar "${u.nome}"?\n\nA pessoa perde o acesso imediatamente. O cadastro, as análises e o histórico continuam preservados. Para reativar, use Editar → Status: Ativo.`)) return;
     const res = await fetch("/api/admin/usuarios", {
-      method: "DELETE",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: u.id }),
+      body: JSON.stringify({ id: u.id, status: "Inativo" }),
     });
     const json = await res.json();
-    if (json.ok) await carregar();
-    else alert("❌ Erro: " + json.erro);
+    if (json.ok) {
+      await carregar();
+      if (Array.isArray(json.avisos) && json.avisos.length) alert(json.avisos.join("\n"));
+    } else {
+      if (json.parcial) await carregar();
+      alert("❌ " + json.erro);
+    }
   }
 
   function f(campo: string, valor: string) { setForm((prev) => ({ ...prev, [campo]: valor })); }
@@ -276,8 +301,8 @@ export default function UsuariosPage() {
                     <div className="flex gap-2">
                       <button onClick={() => abrirEditar(u)} className="border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">✏️ Editar</button>
                       <button onClick={() => resetarSenha(u.id, u.email)} className="border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">🔑 Senha</button>
-                      {!isAdminFixo(u) && (
-                        <button onClick={() => excluir(u)} className="border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">🗑️ Excluir</button>
+                      {!isAdminFixo(u) && u.status === "Ativo" && (
+                        <button onClick={() => desativar(u)} className="border border-red-300 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold px-2.5 py-1 rounded-md transition-colors">⛔ Desativar</button>
                       )}
                     </div>
                   </td>
@@ -300,7 +325,12 @@ export default function UsuariosPage() {
                 <div key={campo} className="flex flex-col gap-1">
                   <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{label}</label>
                   <input type={tipo} value={(form as any)[campo]} onChange={(e) => f(campo, e.target.value)}
-                    className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
+                    readOnly={campo === "email" && !!editando}
+                    className={`bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] ${campo === "email" && editando ? "opacity-60 cursor-not-allowed" : ""}`} />
+                  {/* D5: troca de e-mail exige confirmação pelo novo endereço — etapa E4. */}
+                  {campo === "email" && editando && (
+                    <span className="text-xs text-[var(--text-muted)]">A alteração de e-mail será liberada numa próxima etapa, com confirmação pelo novo endereço.</span>
+                  )}
                 </div>
               ))}
               <div className="flex flex-col gap-1">
@@ -389,13 +419,13 @@ export default function UsuariosPage() {
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-[var(--text-muted)] font-semibold uppercase tracking-wide">{editando ? "Nova senha (deixe vazio para manter)" : "Senha"}</label>
                 <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)}
-                  placeholder={editando ? "••••••••" : "Mínimo 6 caracteres"}
+                  placeholder={editando ? "••••••••" : "Mínimo 8 caracteres"}
                   className="bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]" />
               </div>
             </div>
             {erro && <div className="bg-red-900 border border-red-600 text-red-200 text-xs px-3 py-2 rounded-lg mt-4">❌ {erro}</div>}
             <div className="flex gap-3 mt-6">
-              <button onClick={salvar} disabled={salvando}
+              <button onClick={() => salvar()} disabled={salvando}
                 className="flex-1 bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:opacity-50 text-[var(--accent-fg)] font-bold py-2.5 rounded-lg text-sm transition-colors">
                 {salvando ? "Salvando..." : editando ? "💾 Salvar alterações" : "✅ Cadastrar"}
               </button>

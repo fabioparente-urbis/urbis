@@ -42,6 +42,15 @@ function expDoToken(token: string): number | null {
 export async function middleware(req: NextRequest) {
   const token = req.cookies.get("urbis_token")?.value;
   const refresh = req.cookies.get("urbis_refresh")?.value;
+
+  // Segunda camada do C1 (21/10/2026): rota administrativa sem cookie de sessão nem chega à rota.
+  // NÃO é a autenticação — ter o cookie não basta; quem valida o token no Auth, confere o
+  // cadastro ativo e o perfil é a própria rota (lib/autorizacao.ts). Isto existe para que uma
+  // rota administrativa nova que esqueça a barreira, ou uma versão antiga publicada por engano,
+  // não fique aberta a acesso anônimo.
+  if (req.nextUrl.pathname.startsWith("/api/admin/") && !token) {
+    return NextResponse.json({ ok: false, erro: "SESSAO_EXPIRADA" }, { status: 401 });
+  }
   // Sem token não há o que renovar; sem refresh (sessão aberta antes desta mudança) o analista
   // segue no fluxo antigo até o próximo login — nada quebra, só não renova ainda.
   if (!token || !refresh) return NextResponse.next();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { autenticar } from "@/lib/auth";
+import { exigirUsuarioAtivo } from "@/lib/autorizacao";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,10 +11,13 @@ const supabase = createClient(
 const PERFIS_ATRIBUEM = new Set(["administrador", "gerente"]);
 
 export async function POST(req: NextRequest) {
-  const auth = await autenticar(req);
-  if (auth instanceof NextResponse) return auth;
+  // C1 (21/10/2026): sessão validada + cadastro ATIVO + origem do URBIS. As regras de escopo da
+  // atribuição (gerente só na própria gerência, Diretora entre gerências — D2/D3) são a etapa E5;
+  // até lá a regra de perfil abaixo fica exatamente como estava.
+  const barreira = await exigirUsuarioAtivo(req, { mutacao: true });
+  if (!barreira.ok) return barreira.resposta;
 
-  const perfis = [auth.perfil, ...(auth.perfis || [])].map((p) =>
+  const perfis = barreira.usuario.perfis.map((p) =>
     String(p || "").toLowerCase(),
   );
   if (!perfis.some((p) => PERFIS_ATRIBUEM.has(p)))

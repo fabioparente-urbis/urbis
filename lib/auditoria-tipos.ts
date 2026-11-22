@@ -55,7 +55,12 @@ export type AcaoURBI =
  * reverter manualmente o Despacho Interno nº 1663 do processo
  * 24.5.000024350-0.
  */
-export type AcaoADMIN = 'NUMERACAO_ESTORNADA';
+export type AcaoADMIN =
+  | 'NUMERACAO_ESTORNADA'
+  /** Administração de contas (C1, 21/10/2026) — resumo; o registro completo fica em
+   * `admin_auditoria`, ligado pelo `detalhe.correlacao_id`. Ver lib/adminAuditoria.ts. */
+  | 'USUARIO_CRIADO' | 'USUARIO_EDITADO' | 'USUARIO_DESATIVADO' | 'USUARIO_REATIVADO'
+  | 'USUARIO_SENHA_ALTERADA' | 'USUARIO_RESET_SENHA_ENVIADO';
 
 export type AcaoAuditoria =
   | AcaoLIP | AcaoMAC | AcaoDESPACHO | AcaoLOGRADOURO | AcaoSISTEMA | AcaoURBI | AcaoADMIN;

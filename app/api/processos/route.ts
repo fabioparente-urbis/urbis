@@ -2,7 +2,7 @@ import { pendentesSei } from "@/lib/mdpEnviadoSei";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar, verificarOwnership } from "@/lib/auth";
-import { usuarioDaRequisicao, podeAcessarProcesso } from "@/lib/autorizacao";
+import { exigirUsuarioAtivo } from "@/lib/autorizacao";
 import { lerCondicoesParaPilha } from "@/lib/urbi/condicoesProcesso";
 import { triar, type EntradaVigia, type LinhaRetrabalho } from "@/lib/bdi/vigia";
 import { situacaoGeral, situacaoLip, lipFinalizadoValeComoCompleto, situacaoMac, estaFinalizado, diasDesdeFinalizacao, descontarCampoFantasmaSlot5, type ResumoCamposLip, type TagProcesso, type UltimaPassadaMac } from "@/lib/bdi/situacao";
@@ -22,9 +22,16 @@ const SENTINELA_ID_VAZIO = "00000000-0000-0000-0000-000000000000";
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await autenticar(req);
-    if (auth instanceof NextResponse) return auth;
-    const { userId, irrestrito, perfis, gerencia } = auth;
+    // Sessão validada no Auth + cadastro ATIVO (C1, 21/10/2026): conta desativada com sessão
+    // antiga deixa de ver a Pilha na hora. A gerência segue a regra de lib/auth.ts: a do perfil
+    // de gerente, senão a de lotação.
+    const barreira = await exigirUsuarioAtivo(req);
+    if (!barreira.ok) return barreira.resposta;
+    const eu = barreira.usuario;
+    const userId = eu.id;
+    const irrestrito = eu.irrestrito;
+    const perfis = eu.perfis;
+    const gerencia = eu.gerenciaDoPerfil ?? eu.gerencia;
 
     const { searchParams } = new URL(req.url);
     const busca = searchParams.get("busca") || "";
@@ -340,46 +347,92 @@ export async function GET(req: NextRequest) {
       resultado = resultado.filter((p: any) => p.situacao_geral === situacaoFiltro);
     }
 
+    // Nome do analista de cada processo (C1, 21/10/2026). A Pilha lia a lista inteira de usuários
+    // de /api/admin/usuarios só para isso. Agora o nome sai daqui, e só dos analistas dos processos
+    // que este usuário já tem direito de ver — inclusive de quem foi desativado, com a marca
+    // `analista_ativo: false`, para o processo antigo não ficar com "—".
+    const idsAnalistas = Array.from(new Set(resultado.map((p) => p.analista_id).filter(Boolean))) as string[];
+    const nomePorId = new Map<string, { nome: string; ativo: boolean }>();
+    if (idsAnalistas.length > 0) {
+      const { data: analistas } = await supabase
+        .from("usuarios")
+        .select("id, nome, status")
+        .in("id", idsAnalistas);
+      for (const a of (analistas ?? []) as { id: string; nome: string; status: string }[]) {
+        nomePorId.set(a.id, { nome: a.nome, ativo: a.status === "Ativo" });
+      }
+    }
+    resultado = resultado.map((p) => ({
+      ...p,
+      analista_nome: p.analista_id ? nomePorId.get(p.analista_id)?.nome ?? null : null,
+      analista_ativo: p.analista_id ? nomePorId.get(p.analista_id)?.ativo ?? null : null,
+    }));
+
     return NextResponse.json({ ok: true, data: resultado, cortado, limite: LIMITE_PILHA });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
   }
 }
 
+/**
+ * PUT /api/processos — marcações da ficha que a tela do processo grava direto: `lip_incompleto`,
+ * `lip_finalizado`, `laudo_campos_ocultos` (ProcessoClient.tsx).
+ *
+ * Até 21/10/2026 esta rota não tinha autenticação e também aceitava `analista_id` e `status`:
+ * qualquer pessoa na internet reatribuía qualquer processo, contornando /api/processo/atribuir.
+ * Nenhuma tela usava esses dois campos aqui. Agora (C1/P7):
+ *   · sessão validada + cadastro ativo + origem do URBIS;
+ *   · só quem enxerga o processo na Pilha pode marcá-lo (mesma regra do GET acima);
+ *   · `analista_id` e `status` são RECUSADOS com 400 — atribuição só por /api/processo/atribuir.
+ */
 export async function PUT(req: NextRequest) {
   try {
-    const { id, status, analista_id, lip_incompleto, lip_finalizado, laudo_campos_ocultos } = await req.json();
-    if (!id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    const barreira = await exigirUsuarioAtivo(req, { mutacao: true });
+    if (!barreira.ok) return barreira.resposta;
+    const eu = barreira.usuario;
 
-    // Até 18/11/2026 esta rota gravava SEM conferir quem pedia (achado no estudo da Pilha nova):
-    // qualquer requisição trocava analista ou marcava LIP finalizado. Agora: sessão válida e
-    // permissão sobre o processo (dono, gerência, Diretor/a, Administrador — podeAcessarProcesso).
-    const u = await usuarioDaRequisicao(req);
-    if (!u) return NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 });
-    const { data: alvo } = await supabase.from("processos").select("codigo").eq("id", id).maybeSingle();
-    if (!alvo) return NextResponse.json({ ok: false, erro: "Processo não encontrado." }, { status: 404 });
-    const aut = await podeAcessarProcesso(u, (alvo as any).codigo);
-    if (!aut.ok) return NextResponse.json({ ok: false, erro: aut.erro }, { status: aut.status });
-    // Trocar o analista é das chefias (mesma regra da rota /api/processo/atribuir).
-    if (analista_id !== undefined && !u.irrestrito && !u.gerenciaDoPerfil) {
-      return NextResponse.json({ ok: false, erro: "Só chefias trocam o analista." }, { status: 403 });
+    const body: unknown = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return NextResponse.json({ ok: false, erro: "Corpo inválido" }, { status: 400 });
+    const { id, lip_incompleto, lip_finalizado, laudo_campos_ocultos, analista_id, status } = body as Record<string, unknown>;
+    if (typeof id !== "string" || !id) return NextResponse.json({ ok: false, erro: "ID obrigatorio" }, { status: 400 });
+    if (analista_id !== undefined || status !== undefined) {
+      return NextResponse.json(
+        { ok: false, erro: "Atribuição e status não são alterados por esta rota. Use a atribuição da Pilha." },
+        { status: 400 },
+      );
     }
 
-    const atualizacao: any = { atualizado_em: new Date().toISOString() };
-    if (status !== undefined) atualizacao.status = status;
-    if (analista_id !== undefined) atualizacao.analista_id = analista_id;
-    if (lip_incompleto !== undefined) atualizacao.lip_incompleto = lip_incompleto;
+    const { data: proc } = await supabase
+      .from("processos").select("id, analista_id").eq("id", id).is("excluido_em", null).maybeSingle();
+    if (!proc) return NextResponse.json({ ok: false, erro: "Processo não encontrado." }, { status: 404 });
+
+    // Mesma visibilidade da Pilha (GET acima): irrestrito vê tudo; gerente, os processos dos
+    // analistas lotados na gerência; demais, só os próprios. Processo sem analista: qualquer
+    // usuário ativo (comportamento de hoje na tela do processo recém-cadastrado).
+    const dono = (proc as { analista_id: string | null }).analista_id;
+    let pode = eu.irrestrito || !dono || dono === eu.id;
+    const gerenciaGerente = eu.perfis.some((p) => p && p.startsWith("Gerência ")) ? (eu.gerenciaDoPerfil ?? eu.gerencia) : null;
+    if (!pode && gerenciaGerente) {
+      const { data: analista } = await supabase.from("usuarios").select("gerencia").eq("id", dono).maybeSingle();
+      pode = (analista as { gerencia: string | null } | null)?.gerencia === gerenciaGerente;
+    }
+    if (!pode) return NextResponse.json({ ok: false, erro: "Sem permissao para acessar este processo" }, { status: 403 });
+
+    const atualizacao: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
+    if (lip_incompleto !== undefined) atualizacao.lip_incompleto = lip_incompleto === true;
     if (lip_finalizado !== undefined) {
-      atualizacao.lip_finalizado = lip_finalizado;
-      atualizacao.lip_finalizado_em = lip_finalizado ? new Date().toISOString() : null;
+      atualizacao.lip_finalizado = lip_finalizado === true;
+      atualizacao.lip_finalizado_em = lip_finalizado === true ? new Date().toISOString() : null;
     }
-    if (Array.isArray(laudo_campos_ocultos)) atualizacao.laudo_campos_ocultos = laudo_campos_ocultos;
+    if (Array.isArray(laudo_campos_ocultos)) {
+      atualizacao.laudo_campos_ocultos = laudo_campos_ocultos.filter((c: unknown) => typeof c === "string").slice(0, 500);
+    }
 
     const { error } = await supabase.from("processos").update(atualizacao).eq("id", id);
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, erro: e.message }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ ok: false, erro: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
 

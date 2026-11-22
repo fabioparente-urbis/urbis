@@ -19,10 +19,21 @@ export async function POST(req: NextRequest) {
     if (authError || !authData.session) {
       return NextResponse.json({ ok: false, erro: "Email ou senha incorretos" }, { status: 401 });
     }
+    // O cadastro é localizado pela identidade que o Supabase AUTENTICOU — o e-mail da conta,
+    // como o Auth o guarda —, e não pelo texto digitado (22/10/2026). Antes, quem digitava o
+    // e-mail com maiúsculas tinha a senha aceita pelo Auth e recebia "Usuário não encontrado".
+    // É a mesma ligação usada por todas as rotas depois do login (lib/auth.ts, lib/autorizacao.ts),
+    // então login e rotas sempre concordam sobre quem é a pessoa.
+    const contaAuth = authData.user;
+    // Conta com e-mail não confirmado nunca é criada pelo URBIS (ele cria contas já confirmadas):
+    // vem do cadastro público do Supabase, de titularidade desconhecida — não vira cadastro.
+    if (!contaAuth?.email || !contaAuth.email_confirmed_at) {
+      return NextResponse.json({ ok: false, erro: "Usuário não encontrado no sistema" }, { status: 403 });
+    }
     const { data: usuario, error: userError } = await supabase
       .from("usuarios")
       .select("id, nome, perfil, status")
-      .eq("email", email)
+      .eq("email", contaAuth.email)
       .maybeSingle();
     if (userError || !usuario) {
       return NextResponse.json({ ok: false, erro: "Usuário não encontrado no sistema" }, { status: 403 });
@@ -33,7 +44,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("usuarios").update({ ultimo_acesso: new Date().toISOString() }).eq("id", usuario.id);
     const res = NextResponse.json({
       ok: true,
-      usuario: { id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, email },
+      usuario: { id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, email: contaAuth.email },
     });
     /**
      * 30 dias, e não mais 8 horas (08/09/2026, pedido do Fábio: "deixa esse trem logado de vez").
