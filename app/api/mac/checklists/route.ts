@@ -1,5 +1,6 @@
 // app/api/mac/checklists/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -8,6 +9,9 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  // Fase S (22/11/2026): sem sessão válida a rota não responde — o teste de rotas sem login achou esta aberta.
+  const ctxAut = await autenticar(req);
+  if (ctxAut instanceof NextResponse) return ctxAut;
   const { searchParams } = new URL(req.url);
   const analista_id = searchParams.get("analista_id");
   // Sessão 5A: filtro opcional por assunto. Se não vier, mantém compatibilidade
@@ -35,6 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Fase S (22/11/2026): sem sessão válida a rota não responde — o teste de rotas sem login achou esta aberta.
+  const ctxAut = await autenticar(req);
+  if (ctxAut instanceof NextResponse) return ctxAut;
   // Sessão 5A: aceita `assunto_id` opcional no body. Se não vier, a coluna
   // (que é nullable) fica null — o backfill da migration já preencheu os
   // modelos antigos com o slug `regularizacao`.
@@ -71,6 +78,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  // Fase S (22/11/2026): sem sessão válida a rota não responde — o teste de rotas sem login achou esta aberta.
+  const ctxAut = await autenticar(req);
+  if (ctxAut instanceof NextResponse) return ctxAut;
   const { id } = await req.json();
   const { error } = await supabase.from("mac_checklist_modelos").delete().eq("id", id);
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });

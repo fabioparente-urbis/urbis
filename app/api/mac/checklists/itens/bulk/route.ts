@@ -10,6 +10,9 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  // Fase S (22/11/2026): sem sessão válida a rota não responde — o teste de rotas sem login achou esta aberta.
+  const ctxAut = await autenticar(req);
+  if (ctxAut instanceof NextResponse) return ctxAut;
   try {
     const ctx = await autenticar(req);
     if (ctx instanceof NextResponse) return ctx;

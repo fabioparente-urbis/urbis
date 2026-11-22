@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { autenticar } from "@/lib/auth";
 import { AwsClient } from 'aws4fetch'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
+  // Fase S (22/11/2026): sem sessão válida a rota não responde — o teste de rotas sem login achou esta aberta.
+  const ctxAut = await autenticar(req);
+  if (ctxAut instanceof NextResponse) return ctxAut;
   try {
     const filename = req.headers.get('x-filename') || 'arquivo.pdf'
     const contentType = req.headers.get('content-type') || 'application/pdf'
