@@ -1,7 +1,7 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.61
-**Data:** 2026-11-21
+**Versão:** 1.62
+**Data:** 2026-11-24
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1534,10 +1534,22 @@ O checklist do MAC do Slot 5 passa a guardar o que você marca quando o servidor
 
 ---
 
+## 33. Botão ⏭️ "Pular análise" (24/11/2026)
+
+Ao lado de cada botão de análise da coluna AÇÕES há um botão **⏭️**. Serve quando a Análise N foi feita
+por outro analista ou no Excel e não deve ser refeita aqui.
+- **Dentro do MAC liga e desliga** (clique de novo desfaz). O botão da análise passa a "⏭️ Análise N (pulada)" e a **próxima análise é liberada** sem despacho da pulada. A seguinte nasce com o número certo (o servidor numera depois da maior análise existente **ou pulada**).
+- **Ao sair do MAC a marca fica fixa, sem volta** (Home, Sair, Pilha, LIP ou fechar a aba). Antes de sair, o sistema avisa e pede confirmação. O servidor recusa qualquer desfazer depois disso.
+- Só dá para pular análise que **ainda não existe**; a pulada não conta no MRP, não gera despacho e não aparece nos satélites. Dados em `mac_analises_puladas` (migration `2026_11_24_mac_analises_puladas.sql`, a aplicar), rota `/api/mac/analise-pulada`. Só computador.
+- Mesmo botão nos MACs dos Slots 1-4. Ir à tela Via / Logradouro também conta como sair do MAC.
+
+---
+
 ## Histórico de versões
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.62 | 2026-11-24 | Seção 33: botão ⏭️ Pular análise (liga/desliga no MAC, fixo ao sair; libera a próxima; numeração do servidor respeita a pulada). Mesmo botão nos Slots 1-4. LIP conferido: sem mudança |
 | 1.61 | 2026-11-21 | Seção 32: URBIS OFFLINE no checklist — marcações guardadas na fila local, abertura pela cópia, selo e conflito por item |
 | 1.60 | 2026-11-21 | Sem mudança no MAC. Conferido: o URBIS OFFLINE Etapa 1 entrou só na ficha do LIP (seção 32 do `MANUAL_SLOT5_LIP.md`); o checklist do MAC ainda NÃO usa a fila local e continua exigindo servidor para salvar |
 | 1.59 | 2026-11-18 | Seção 3.1: botão **🧹 Limpar Todas as Abas** ao lado do "Limpar Aba" — limpa as marcações de todos os grupos, com confirmação; observações ficam. Mesmo botão nos Slots 1-4. LIP conferido (`MANUAL_SLOT5_LIP.md` v1.58). |

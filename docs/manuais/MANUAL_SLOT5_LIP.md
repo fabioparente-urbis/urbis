@@ -1,7 +1,7 @@
 # Manual do LIP — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.60
-**Data:** 2026-11-21
+**Versão:** 1.61
+**Data:** 2026-11-24
 **Módulo:** LIP — Slot 5
 **Autor:** Claude (sessão Cantus)
 
@@ -1378,6 +1378,7 @@ Código: `lib/offline/`, `components/offline/SeloOffline.tsx`; prova: `scripts/t
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.61 | 2026-11-24 | Sem mudança na ficha. Conferido: o MAC ganhou o botão ⏭️ Pular análise (seção 33 do `MANUAL_SLOT5_MAC.md`); o LIP não é afetado |
 | 1.60 | 2026-11-21 | Sem mudança na ficha. Conferido: o URBIS OFFLINE chegou também ao checklist do MAC (seção 32 do `MANUAL_SLOT5_MAC.md`); a fila genérica ganhou PUT e conferência por item |
 | 1.59 | 2026-11-21 | Seção 32: URBIS OFFLINE Etapa 1 — salvar na fila local, abrir pela cópia, selo 🟡/🔴 e conflito, na ficha do LIP |
 | 1.58 | 2026-11-18 | Sem mudança no LIP. Conferido: o MAC ganhou o botão "Limpar Todas as Abas" (ver `MANUAL_SLOT5_MAC.md` v1.59). |

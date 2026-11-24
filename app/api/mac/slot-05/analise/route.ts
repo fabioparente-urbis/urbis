@@ -12,6 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { proximoNumeroComPuladas } from "@/lib/macAnalisesPuladas";
 import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
@@ -110,7 +111,9 @@ export async function POST(req: NextRequest) {
       .is("excluido_em", null)
       .order("numero_analise", { ascending: false }).limit(1);
 
-    const proximo = existentes?.length ? (existentes[0] as any).numero_analise + 1 : 1;
+    const maiorExistente = existentes?.length ? Number((existentes[0] as any).numero_analise) || 0 : 0;
+    // Análise "pulada" no MAC (feita por outro analista ou no Excel) ocupa o número dela.
+    const proximo = await proximoNumeroComPuladas(codigo, maiorExistente);
     // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
     const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
     if (proximo > limiteAnalises) {
@@ -141,7 +144,7 @@ export async function POST(req: NextRequest) {
     // retomada (proximo > 1) também gera o seu próprio ANALISE_INICIADA, com numero_analise no
     // detalhe. Servidor, aguardado — não é o registrar() client-side de outras telas, que engole
     // erro em silêncio.
-    if (proximo === 1) {
+    if (maiorExistente === 0) {
       const { error: erroInicio } = await supabaseAdmin
         .from("processos")
         .update({ analise_iniciada_em: new Date().toISOString() })
