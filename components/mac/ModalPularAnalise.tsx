@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AnalisePulada, DadosPulo } from "./usePularAnalise";
 
 /**
@@ -7,14 +7,23 @@ import type { AnalisePulada, DadosPulo } from "./usePularAnalise";
  * outro ambiente (obrigatórios — despachos e pareceres passam a mostrá-los). Se a análise já está
  * pulada, a janela edita os dados ou desfaz o pulo (só enquanto não saiu do MAC).
  */
-export default function ModalPularAnalise({ numero, atual, salvando, onSalvar, onDesfazer, onFechar }: {
+export default function ModalPularAnalise({ numero, atual, salvando, onSalvar, onDesfazer, onFechar, onExpirar }: {
   numero: number;
   atual?: AnalisePulada;
   salvando: boolean;
   onSalvar: (dados: DadosPulo) => Promise<boolean>;
   onDesfazer: () => Promise<boolean>;
   onFechar: () => void;
+  /** Passou 1 minuto sem salvar: quem chama desfaz o pulo (se já existir) e fecha. */
+  onExpirar: () => void;
 }) {
+  const [restante, setRestante] = useState(60);
+  useEffect(() => {
+    const t = setInterval(() => setRestante((r) => r - 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => { if (restante <= 0) onExpirar(); }, [restante]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [numeroDoc, setNumeroDoc] = useState(atual?.numeroDocumento ?? "");
   const [data, setData] = useState((atual?.data ?? "").slice(0, 10));
   const hoje = new Date().toISOString().slice(0, 10);
@@ -28,10 +37,11 @@ export default function ModalPularAnalise({ numero, atual, salvando, onSalvar, o
           Análise feita por outro analista ou em outro ambiente (ex.: Excel). Informe os dados dela: os despachos e pareceres vão mostrá-los.
           Ao sair do MAC a marca fica fixa.
         </p>
-        <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">Nº do despacho/parecer da Análise {numero} *</label>
+        <p className="text-[11px] text-amber-600 mb-3">⏱️ Preencha em {Math.max(restante, 0)}s ou o pulo é desfeito.</p>
+        <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">Nº do despacho ou parecer da Análise {numero} *</label>
         <input value={numeroDoc} onChange={(e) => setNumeroDoc(e.target.value)} maxLength={40} autoFocus
           className="w-full mb-3 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]" placeholder="ex.: 1692" />
-        <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">Data da Análise {numero} *</label>
+        <label className="block text-xs font-bold text-[var(--text-primary)] mb-1">Data de emissão do despacho/parecer *</label>
         <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value)}
           className="w-full mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]" />
         <div className="flex gap-2 justify-end">

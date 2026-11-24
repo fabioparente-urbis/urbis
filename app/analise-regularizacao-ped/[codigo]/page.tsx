@@ -152,6 +152,12 @@ export default function MacPage() {
   const [novaAnalise, setNovaAnalise] = useState(false);
   const { puladas, salvando: salvandoPulo, erro: erroPulo, pular: pularAnalise, desfazer: desfazerPulo, comPuladas, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
   const [modalPulo, setModalPulo] = useState<number | null>(null);
+  const abriuPuloSemDados = useRef(false);
+  useEffect(() => {
+    // Marca feita antes da regra (sem nº/data): pede os dados agora; sem resposta em 1 min, o pulo é desfeito.
+    const p = puladas.find((x) => !x.data);
+    if (p && !abriuPuloSemDados.current) { abriuPuloSemDados.current = true; setModalPulo(p.numero); }
+  }, [puladas]);
   /**
    * "MAC só inicia importando PDF ou copiando análise anterior" — 08/09/2026, pedido do Fábio.
    * `true` só depois de LER PROCESSO/LER ARQUIVOS INDIVIDUAIS terminar com sucesso, ou de copiar
@@ -2793,7 +2799,8 @@ export default function MacPage() {
           {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
           {modalPulo !== null && (
             <ModalPularAnalise numero={modalPulo} atual={puladas.find((x) => x.numero === modalPulo)} salvando={salvandoPulo}
-              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)} />
+              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)}
+              onExpirar={() => { const p = puladas.find((x) => x.numero === modalPulo); if (p && !p.data && !p.fixada) void desfazerPulo(modalPulo); setModalPulo(null); }} />
           )}
           <div className="flex flex-col gap-1.5 mb-1">
             {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
@@ -2811,7 +2818,7 @@ export default function MacPage() {
               const anterior = analises.find((a) => a.numero_analise === n - 1);
               const anteriorEmitida = !!anterior && !!(anterior.numero_despacho || anterior.numero_parecer);
               const pulada = puladas.some((x) => x.numero === n);
-              const fixa = puladas.some((x) => x.numero === n && x.fixada);
+              const fixa = puladas.some((x) => x.numero === n && x.fixada && !!x.data);
               const anteriorPulada = puladas.some((x) => x.numero === n - 1);
               const liberada = n === 1 || anteriorEmitida || anteriorPulada;
               const ativa = numeroAnaliseEmAndamento === n;

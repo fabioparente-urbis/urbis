@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "numero inválido" }, { status: 400 });
 
   const { data: atual } = await supabaseAdmin.from("mac_analises_puladas")
-    .select("fixada").eq("processo_codigo", codigo).eq("numero_analise", numero).maybeSingle();
+    .select("fixada, numero_documento").eq("processo_codigo", codigo).eq("numero_analise", numero).maybeSingle();
 
   if (body.pulada === false) {
     if ((atual as any)?.fixada)
@@ -74,11 +74,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, erro: "Informe a data da análise (dia/mês/ano válidos)." }, { status: 400 });
   if (dt.getTime() > Date.now() + 86400000)
     return NextResponse.json({ ok: false, erro: "A data da análise não pode estar no futuro." }, { status: 400 });
-  if ((atual as any)?.fixada)
+  // Fixa não muda — exceto completar os dados de uma marca antiga que ficou fixa SEM nº/data.
+  if ((atual as any)?.fixada && (atual as any)?.numero_documento)
     return NextResponse.json({ ok: false, erro: "Esta marca ficou fixa ao sair do MAC e não pode mais ser alterada." }, { status: 409 });
 
   const { error } = await supabaseAdmin.from("mac_analises_puladas").upsert(
-    { processo_codigo: codigo, numero_analise: numero, fixada: false, usuario_id: u.id,
+    { processo_codigo: codigo, numero_analise: numero, fixada: !!(atual as any)?.fixada, usuario_id: u.id,
       numero_documento: numeroDocumento, data_documento: dataDocumento },
     { onConflict: "processo_codigo,numero_analise" });
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });

@@ -52,7 +52,7 @@ export function usePularAnalise(codigo: string) {
   /** Marca (ou corrige) a análise como pulada. Nº do despacho/parecer e data são obrigatórios. Devolve true se gravou. */
   const pular = useCallback(async (numero: number, dados: DadosPulo): Promise<boolean> => {
     const atual = puladas.find((p) => p.numero === numero);
-    if (atual?.fixada) return false;
+    if (atual?.fixada && atual.numeroDocumento) return false;
     setSalvando(true); setErro("");
     try {
       const r = await fetch("/api/mac/analise-pulada", {
@@ -61,7 +61,7 @@ export function usePularAnalise(codigo: string) {
       });
       const j = await r.json();
       if (!j?.ok) { setErro(j?.erro || "Não foi possível alterar."); return false; }
-      const nova: AnalisePulada = { numero, fixada: false, numeroDocumento: dados.numeroDocumento.trim(), data: dados.data };
+      const nova: AnalisePulada = { numero, fixada: !!atual?.fixada, numeroDocumento: dados.numeroDocumento.trim(), data: dados.data };
       setPuladas((l) => [...l.filter((p) => p.numero !== numero), nova]);
       return true;
     } catch { setErro("Sem conexão: nada foi alterado."); return false; }

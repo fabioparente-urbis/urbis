@@ -548,6 +548,12 @@ export default function AnaliseAprovacaoProjeto() {
   const [modalCopiarAnalise, setModalCopiarAnalise] = useState<number | null>(null);
   const { puladas, salvando: salvandoPulo, erro: erroPulo, pular: pularAnalise, desfazer: desfazerPulo, comPuladas, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
   const [modalPulo, setModalPulo] = useState<number | null>(null);
+  const abriuPuloSemDados = useRef(false);
+  useEffect(() => {
+    // Marca feita antes da regra (sem nº/data): pede os dados agora; sem resposta em 1 min, o pulo é desfeito.
+    const p = puladas.find((x) => !x.data);
+    if (p && !abriuPuloSemDados.current) { abriuPuloSemDados.current = true; setModalPulo(p.numero); }
+  }, [puladas]);
   /* Emissão do despacho. O número vem da MESMA série dos Slots 1 e 2 (/api/numeracao/proximo):
    * `peek` só espia, `commit` consome — o commit só acontece depois do documento ficar pronto,
    * pra um erro na geração não queimar um número da faixa. */
@@ -4138,7 +4144,8 @@ export default function AnaliseAprovacaoProjeto() {
           {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
           {modalPulo !== null && (
             <ModalPularAnalise numero={modalPulo} atual={puladas.find((x) => x.numero === modalPulo)} salvando={salvandoPulo}
-              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)} />
+              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)}
+              onExpirar={() => { const p = puladas.find((x) => x.numero === modalPulo); if (p && !p.data && !p.fixada) void desfazerPulo(modalPulo); setModalPulo(null); }} />
           )}
           {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
@@ -4146,7 +4153,7 @@ export default function AnaliseAprovacaoProjeto() {
             const anterior = analises.find((a) => a.numero_analise === n - 1);
             const anteriorEmitida = !!(anterior?.numero_despacho || anterior?.numero_parecer);
             const pulada = puladas.some((x) => x.numero === n);
-            const fixa = puladas.some((x) => x.numero === n && x.fixada);
+            const fixa = puladas.some((x) => x.numero === n && x.fixada && !!x.data);
             const anteriorPulada = puladas.some((x) => x.numero === n - 1);
             const liberada = n === 1 || anteriorEmitida || anteriorPulada;
             const ativa = numeroAnaliseEmAndamento === n;
