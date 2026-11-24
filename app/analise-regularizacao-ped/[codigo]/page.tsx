@@ -20,6 +20,7 @@ import { parseAreaBR } from "@/lib/mrp";
 import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado";
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
 import { usePularAnalise } from "@/components/mac/usePularAnalise";
+import ModalPularAnalise from "@/components/mac/ModalPularAnalise";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -149,7 +150,14 @@ export default function MacPage() {
   const [historicoAberto, setHistoricoAberto] = useState<number|null>(null);
   const [historicoMac, setHistoricoMac] = useState<{momento:string;total:number;abas:string[];analista:string;itens:{aba:string;texto:string;ref:string|null;de:string|null;para:string}[]}[]>([]);
   const [novaAnalise, setNovaAnalise] = useState(false);
-  const { puladas, salvando: salvandoPulo, erro: erroPulo, alternar: alternarPulo, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
+  const { puladas, salvando: salvandoPulo, erro: erroPulo, pular: pularAnalise, desfazer: desfazerPulo, comPuladas, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
+  const [modalPulo, setModalPulo] = useState<number | null>(null);
+  const abriuPuloSemDados = useRef(false);
+  useEffect(() => {
+    // Marca feita antes da regra (sem nº/data): pede os dados agora; sem resposta em 1 min, o pulo é desfeito.
+    const p = puladas.find((x) => !x.data);
+    if (p && !abriuPuloSemDados.current) { abriuPuloSemDados.current = true; setModalPulo(p.numero); }
+  }, [puladas]);
   /**
    * "MAC só inicia importando PDF ou copiando análise anterior" — 08/09/2026, pedido do Fábio.
    * `true` só depois de LER PROCESSO/LER ARQUIVOS INDIVIDUAIS terminar com sucesso, ou de copiar
@@ -1209,11 +1217,11 @@ export default function MacPage() {
           naoConformes: naoConformesIds,
           observacoes,
           observacoesPorAba,
-          analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (capturedNumeroAnalise ?? 1)).map((a) => ({
+          analises: comPuladas(analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (capturedNumeroAnalise ?? 1)).map((a) => ({
             numero: a.numero_analise,
             data: dataDaAnalise(a),
             ultima: a.numero_analise === limiteAnalises,
-          })),
+          })), capturedNumeroAnalise ?? 1),
           analiseId: capturedAnaliseId,
           assunto_id: assuntoId,
           numero_revisao: numeroRevisao,
@@ -2789,6 +2797,11 @@ export default function MacPage() {
           {/* Botões de análise 1-5 — compactos + Limpar individual */}
           {puladas.some((x) => !x.fixada) && <p className="text-[11px] text-amber-600">⏭️ Análise pulada: ao sair do MAC a marca fica fixa, sem volta.</p>}
           {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
+          {modalPulo !== null && (
+            <ModalPularAnalise numero={modalPulo} atual={puladas.find((x) => x.numero === modalPulo)} salvando={salvandoPulo}
+              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)}
+              onExpirar={() => { const p = puladas.find((x) => x.numero === modalPulo); if (p && !p.data && !p.fixada) void desfazerPulo(modalPulo); setModalPulo(null); }} />
+          )}
           <div className="flex flex-col gap-1.5 mb-1">
             {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
               const existente = analises.find((a) => a.numero_analise === n);
@@ -2805,12 +2818,13 @@ export default function MacPage() {
               const anterior = analises.find((a) => a.numero_analise === n - 1);
               const anteriorEmitida = !!anterior && !!(anterior.numero_despacho || anterior.numero_parecer);
               const pulada = puladas.some((x) => x.numero === n);
-              const fixa = puladas.some((x) => x.numero === n && x.fixada);
+              const fixa = puladas.some((x) => x.numero === n && x.fixada && !!x.data);
               const anteriorPulada = puladas.some((x) => x.numero === n - 1);
               const liberada = n === 1 || anteriorEmitida || anteriorPulada;
               const ativa = numeroAnaliseEmAndamento === n;
               return (
                 <div key={n} className="flex gap-1 items-stretch">
+                  <div className="relative group flex-1 flex">
                   <button
                     disabled={(!liberada && !existente) || (pulada && !existente)}
                     onClick={() => selecionarOuCriarAnalise(n)}
@@ -2826,17 +2840,17 @@ export default function MacPage() {
                   >
                     {pulada ? `⏭️ Análise ${n} (pulada${fixa ? " · fixa" : ""})` : jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
                   </button>
-                  {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
+                  {/* Pular análise (feita por outro analista ou em outro ambiente): só aparece com o cursor sobre a análise. */}
                   {!jaEmitida && (liberada || pulada) && !fixa && (
                     <button
-                      disabled={salvandoPulo}
-                      onClick={() => void alternarPulo(n)}
-                      title={pulada ? `Desfazer: voltar a Análise ${n} ao normal (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou no Excel). Ao sair do MAC a marca fica fixa.`}
-                      className={`px-2 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}
+                      onClick={() => setModalPulo(n)}
+                      title={pulada ? `Análise ${n} pulada: editar dados ou desfazer (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou em outro ambiente). Ao sair do MAC a marca fica fixa.`}
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-xs border opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] bg-[var(--bg-card)] text-[var(--text-secondary)]"}`}
                     >
                       ⏭️
                     </button>
                   )}
+                  </div>
                   {/* Copiar a análise anterior — só a partir da 2ª, e só se a
                       anterior existir. A Análise 1 não tem de onde copiar. */}
                   {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (
@@ -2955,7 +2969,7 @@ export default function MacPage() {
                     processo: codigo, tipo: "indeferimento", numeroDespacho: numeroParecer,
                     naoConformes: motivos, observacoes: obs,
                     fotos: fotos.map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
-                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), assunto_id: assuntoId,
+                    analises: comPuladas(analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), analiseAtual?.numero_analise ?? 1), assunto_id: assuntoId,
                     data: dataEmissao,
                   }),
                 });
@@ -3036,7 +3050,7 @@ export default function MacPage() {
                     processo: codigo, tipo: "indeferimento", numeroDespacho: _np,
                     naoConformes: _m, observacoes: _o,
                     fotos: (_f ?? []).map((f) => ({ base64: f.dataUrl.split(",")[1], tipo: f.tipo, legenda: f.legenda })),
-                    analises: analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), assunto_id: assuntoId,
+                    analises: comPuladas(analises.slice().sort((a,b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= (analiseAtual?.numero_analise ?? 1)).map((a) => ({ numero: a.numero_analise, data: dataDaAnalise(a), ultima: a.numero_analise === limiteAnalises })), analiseAtual?.numero_analise ?? 1), assunto_id: assuntoId,
                     data: indeferimentoParaReimprimir.data || dataEmissao,
                   }),
                 });

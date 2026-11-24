@@ -1,6 +1,6 @@
 # Manual do MAC — Slot 5 (Aprovação de Projeto)
 
-**Versão:** 1.62
+**Versão:** 1.64
 **Data:** 2026-11-24
 **Módulo:** MAC — Slot 5
 **Autor:** Claude (sessão Cantus)
@@ -1541,6 +1541,7 @@ por outro analista ou no Excel e não deve ser refeita aqui.
 - **Dentro do MAC liga e desliga** (clique de novo desfaz). O botão da análise passa a "⏭️ Análise N (pulada)" e a **próxima análise é liberada** sem despacho da pulada. A seguinte nasce com o número certo (o servidor numera depois da maior análise existente **ou pulada**).
 - **Ao sair do MAC a marca fica fixa, sem volta** (Home, Sair, Pilha, LIP ou fechar a aba). Antes de sair, o sistema avisa e pede confirmação. O servidor recusa qualquer desfazer depois disso.
 - Vale para análise **vazia ou já preenchida**. A preenchida continua abrindo e dá para copiá-la para a próxima (📄); o ⏭️ só libera a seguinte sem despacho. A vazia fica fechada. Não vale para análise com despacho emitido. A pulada não conta no MRP, não gera despacho e não aparece nos satélites. Dados em `mac_analises_puladas` (migration `2026_11_24_mac_analises_puladas.sql`, a aplicar), rota `/api/mac/analise-pulada`. Só computador.
+- **Dados obrigatórios (24/11/2026):** ao clicar no ⏭️ abre uma janela pedindo o **nº do despacho/parecer** e a **data** da análise feita em outro ambiente; sem os dois não grava (o número é o do despacho ou parecer; a data é a da emissão dele). **A janela vale 1 minuto**: sem salvar nesse prazo ela fecha e o pulo é desfeito. Esses dados aparecem nos despachos ("Nª ANÁLISE: data (Despacho/Parecer nº X)") e no parecer de indeferimento (Slot 5 usa a data na tabela de etapas). O ⏭️ só aparece com o cursor sobre a análise. Marca feita antes desta regra, sem dados, não aparece nos documentos até ser preenchida (clique no ⏭️ da análise).
 - Mesmo botão nos MACs dos Slots 1-4. Ir à tela Via / Logradouro também conta como sair do MAC.
 
 ---
@@ -1549,6 +1550,8 @@ por outro analista ou no Excel e não deve ser refeita aqui.
 
 | Versão | Data | Mudança |
 |---|---|---|
+| 1.64 | 2026-11-24 | Seção 33: a janela do ⏭️ tem prazo de 1 minuto (sem salvar, desfaz o pulo); rótulos "nº do despacho ou parecer" e "data de emissão". LIP conferido: sem mudança |
+| 1.63 | 2026-11-24 | Seção 33: pular análise exige nº do despacho/parecer e data (janela), mostrados nos despachos e no indeferimento; ⏭️ só aparece com o cursor sobre a análise. LIP conferido: sem mudança |
 | 1.62 | 2026-11-24 | Seção 33 (vale também para análise preenchida): botão ⏭️ Pular análise (liga/desliga no MAC, fixo ao sair; libera a próxima; numeração do servidor respeita a pulada). Mesmo botão nos Slots 1-4. LIP conferido: sem mudança |
 | 1.61 | 2026-11-21 | Seção 32: URBIS OFFLINE no checklist — marcações guardadas na fila local, abertura pela cópia, selo e conflito por item |
 | 1.60 | 2026-11-21 | Sem mudança no MAC. Conferido: o URBIS OFFLINE Etapa 1 entrou só na ficha do LIP (seção 32 do `MANUAL_SLOT5_LIP.md`); o checklist do MAC ainda NÃO usa a fila local e continua exigindo servidor para salvar |
