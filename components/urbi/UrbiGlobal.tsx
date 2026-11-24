@@ -386,11 +386,23 @@ export default function UrbiGlobal() {
 
   // Sinal de cor: recalcula ao trocar de processo. Fora de uma tela de processo (Home
   // inclusive), não há cor — o avatar volta ao azul padrão.
+  // Refresh silencioso: mudar de tela dentro do MESMO processo (LIP → MAC) ou voltar para a aba
+  // refaz a consulta sem apagar o estado atual. Sem isso o URBI seguia mostrando condição
+  // bloqueante já corrigida (24/11/2026: "Área divergente" com as 4 áreas já iguais).
+  const codigoVigiadoRef = useRef<string | null>(null);
+  useEffect(() => {
+    const h = () => { if (document.visibilityState === "visible") setRevigiar((n) => n + 1); };
+    document.addEventListener("visibilitychange", h);
+    return () => document.removeEventListener("visibilitychange", h);
+  }, []);
+  useEffect(() => { setRevigiar((n) => n + 1); }, [pathname]);
+
   useEffect(() => {
     setDicaRtSinal(null);
-    if (!processoCodigo) { setEstadoSinal(null); return; }
+    if (!processoCodigo) { codigoVigiadoRef.current = null; setEstadoSinal(null); return; }
     let vivo = true;
-    setEstadoSinal(null);
+    if (codigoVigiadoRef.current !== processoCodigo) setEstadoSinal(null);
+    codigoVigiadoRef.current = processoCodigo;
     const codigo = processoCodigo;
     Promise.all([
       fetch(`/api/bdi/vigia?codigo=${encodeURIComponent(codigo)}`).then(r => (r.ok ? r.json() : null)).catch(() => null),
