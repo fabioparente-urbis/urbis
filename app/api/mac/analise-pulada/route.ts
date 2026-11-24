@@ -21,11 +21,11 @@ export async function GET(req: NextRequest) {
   const a = await autorizar(req, codigo);
   if (a.erro) return a.erro;
   const { data, error } = await supabaseAdmin
-    .from("mac_analises_puladas").select("numero_analise, fixada").eq("processo_codigo", codigo);
+    .from("mac_analises_puladas").select("numero_analise, fixada, numero_documento, data_documento").eq("processo_codigo", codigo);
   if (error) return NextResponse.json({ ok: true, puladas: [] }); // tabela ainda não migrada
   return NextResponse.json({
     ok: true,
-    puladas: (data ?? []).map((r: any) => ({ numero: Number(r.numero_analise), fixada: !!r.fixada })),
+    puladas: (data ?? []).map((r: any) => ({ numero: Number(r.numero_analise), fixada: !!r.fixada, numeroDocumento: r.numero_documento ?? null, data: r.data_documento ?? null })),
   });
 }
 
@@ -63,9 +63,24 @@ export async function POST(req: NextRequest) {
   // Liberdade total ao analista: pode pular análise vazia OU já preenchida (a preenchida continua abrindo e copiável).
   // O que a marca garante é só a numeração: a próxima nasce depois dela, nunca no número dela.
 
+  // Obrigatório informar o nº do despacho/parecer e a data da análise feita em outro ambiente:
+  // despachos e pareceres passam a mostrá-los (Fábio, 24/11/2026).
+  const numeroDocumento = String(body.numero_documento ?? "").trim().slice(0, 40);
+  const dataDocumento = String(body.data ?? "").trim();
+  if (!numeroDocumento)
+    return NextResponse.json({ ok: false, erro: "Informe o número do despacho/parecer da análise feita em outro ambiente." }, { status: 400 });
+  const dt = /^\d{4}-\d{2}-\d{2}$/.test(dataDocumento) ? new Date(dataDocumento + "T12:00:00Z") : null;
+  if (!dt || Number.isNaN(dt.getTime()) || dt.toISOString().slice(0, 10) !== dataDocumento)
+    return NextResponse.json({ ok: false, erro: "Informe a data da análise (dia/mês/ano válidos)." }, { status: 400 });
+  if (dt.getTime() > Date.now() + 86400000)
+    return NextResponse.json({ ok: false, erro: "A data da análise não pode estar no futuro." }, { status: 400 });
+  if ((atual as any)?.fixada)
+    return NextResponse.json({ ok: false, erro: "Esta marca ficou fixa ao sair do MAC e não pode mais ser alterada." }, { status: 409 });
+
   const { error } = await supabaseAdmin.from("mac_analises_puladas").upsert(
-    { processo_codigo: codigo, numero_analise: numero, fixada: false, usuario_id: u.id },
-    { onConflict: "processo_codigo,numero_analise", ignoreDuplicates: true });
+    { processo_codigo: codigo, numero_analise: numero, fixada: false, usuario_id: u.id,
+      numero_documento: numeroDocumento, data_documento: dataDocumento },
+    { onConflict: "processo_codigo,numero_analise" });
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

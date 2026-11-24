@@ -15,6 +15,7 @@
 
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
 import { usePularAnalise } from "@/components/mac/usePularAnalise";
+import ModalPularAnalise from "@/components/mac/ModalPularAnalise";
 import SeloOffline from "@/components/offline/SeloOffline";
 import { apagarCopiasDoUsuario, guardarCopia, lerCopia } from "@/lib/offline/armazem";
 import { ehQueda, enfileirar, identificarUsuario, pendenciaDoProcesso } from "@/lib/offline/fila";
@@ -545,7 +546,8 @@ export default function AnaliseAprovacaoProjeto() {
   const [numeroAnaliseNova, setNumeroAnaliseNova] = useState(1);
   const [modalZerarAnalise, setModalZerarAnalise] = useState<number | null>(null);
   const [modalCopiarAnalise, setModalCopiarAnalise] = useState<number | null>(null);
-  const { puladas, salvando: salvandoPulo, erro: erroPulo, alternar: alternarPulo, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
+  const { puladas, salvando: salvandoPulo, erro: erroPulo, pular: pularAnalise, desfazer: desfazerPulo, comPuladas, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
+  const [modalPulo, setModalPulo] = useState<number | null>(null);
   /* Emissão do despacho. O número vem da MESMA série dos Slots 1 e 2 (/api/numeracao/proximo):
    * `peek` só espia, `commit` consome — o commit só acontece depois do documento ficar pronto,
    * pra um erro na geração não queimar um número da faixa. */
@@ -4134,6 +4136,10 @@ export default function AnaliseAprovacaoProjeto() {
               Slot 1 em 26/08/2026) sem que nada tenha sido de fato emitido. */}
           {puladas.some((x) => !x.fixada) && <p className="text-[11px] text-amber-600">⏭️ Análise pulada: ao sair do MAC a marca fica fixa, sem volta.</p>}
           {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
+          {modalPulo !== null && (
+            <ModalPularAnalise numero={modalPulo} atual={puladas.find((x) => x.numero === modalPulo)} salvando={salvandoPulo}
+              onSalvar={(d) => pularAnalise(modalPulo, d)} onDesfazer={() => desfazerPulo(modalPulo)} onFechar={() => setModalPulo(null)} />
+          )}
           {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
             const jaEmitida = !!(existente?.numero_despacho || existente?.numero_parecer);
@@ -4146,7 +4152,8 @@ export default function AnaliseAprovacaoProjeto() {
             const ativa = numeroAnaliseEmAndamento === n;
             return (
               <div key={n} className="flex gap-1 items-stretch">
-                <button
+                <div className="relative group flex-1 flex">
+                  <button
                   disabled={(!liberada && !existente) || (pulada && !existente)}
                   onClick={() => selecionarOuCriarAnalise(n)}
                   title={existente ? `Abrir Análise ${n}` : liberada ? `Iniciar Análise ${n} (copia a anterior)` : `Conclua a Análise ${n - 1} primeiro`}
@@ -4157,14 +4164,17 @@ export default function AnaliseAprovacaoProjeto() {
                           : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border-dashed border-[var(--border)] cursor-not-allowed opacity-50"}`}>
                   {pulada ? "⏭️" : jaEmitida ? "✅" : "📋"} Análise {n}{pulada ? ` (pulada${fixa ? " · fixa" : ""})` : ""}
                 </button>
-                {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
-                {!jaEmitida && (liberada || pulada) && !fixa && (
-                  <button disabled={salvandoPulo} onClick={() => void alternarPulo(n)}
-                    title={pulada ? `Desfazer: voltar a Análise ${n} ao normal (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou no Excel). Ao sair do MAC a marca fica fixa.`}
-                    className={`px-2 rounded-lg text-xs border transition-colors disabled:opacity-50 ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>
-                    ⏭️
-                  </button>
-                )}
+                {/* Pular análise (feita por outro analista ou em outro ambiente): só aparece com o cursor sobre a análise. */}
+                  {!jaEmitida && (liberada || pulada) && !fixa && (
+                    <button
+                      onClick={() => setModalPulo(n)}
+                      title={pulada ? `Análise ${n} pulada: editar dados ou desfazer (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou em outro ambiente). Ao sair do MAC a marca fica fixa.`}
+                      className={`absolute right-1 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded text-xs border opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] bg-[var(--bg-card)] text-[var(--text-secondary)]"}`}
+                    >
+                      ⏭️
+                    </button>
+                  )}
+                  </div>
                 {/* Copiar a anterior — só a partir da 2ª. A Análise 1 não tem de onde copiar. */}
                 {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (
                   <button onClick={() => setModalCopiarAnalise(n)} title={`Copiar Análise ${n - 1} para a Análise ${n}`}

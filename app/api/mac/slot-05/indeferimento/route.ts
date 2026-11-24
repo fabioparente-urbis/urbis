@@ -16,6 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { puladasComDados } from "@/lib/macAnalisesPuladas";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
 import { TIPO_PROCESSO_SLOT5 } from "@/lib/mac-motor/slot5/constantes";
@@ -67,6 +68,14 @@ export async function POST(req: NextRequest) {
         data: a.id === (alvo as any).id ? (a.data_despacho || data) : (a.data_despacho || ""),
         despacho: a.numero_despacho ? String(a.numero_despacho) : undefined,
       }));
+    // Análises puladas no MAC (feitas em outro ambiente): entram com a data e o nº informados.
+    for (const p of await puladasComDados(codigo)) {
+      if (p.numero > Number((alvo as any).numero_analise)) continue;
+      const i = listaAnalises.findIndex((x) => x.numero === p.numero);
+      const item = { numero: p.numero, data: p.data, despacho: p.numeroDocumento };
+      if (i >= 0) listaAnalises[i] = item; else listaAnalises.push(item);
+    }
+    listaAnalises.sort((a, b) => a.numero - b.numero);
 
     // Assinatura: o usuário logado. Gerente = perfil "Gerência {gerência de quem assina}"; diretora = perfil "Diretora".
     const { data: membro } = await supabaseAdmin

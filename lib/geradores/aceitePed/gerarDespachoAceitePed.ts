@@ -139,7 +139,7 @@ export type DadosDespachoAceite = {
   naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[];
   observacoes?: string;
   observacoesPorAba?: Record<string, string>;
-  analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[];
+  analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean; despacho?: string }[];
   assinante?: Assinante;
   analista?: string;
   crea?: string;
@@ -215,8 +215,8 @@ export async function gerarDespachoAceitePed(dados: DadosDespachoAceite): Promis
 
   dados.analises.forEach((a, idx) => {
     const label = a.ultima
-      ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;`
-      : `${a.numero}ª ANÁLISE:       ${a.data}`;
+      ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;`
+      : `${a.numero}ª ANÁLISE:       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}`;
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) {

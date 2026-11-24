@@ -384,7 +384,7 @@ function fmtDataLonga(data?: string | null, comSemana = false): string {
  */
 // Penúltima = a N-1 do limite do slot (admin, coluna "Análises" em Assuntos); a rota marca `penultima`.
 // Sem a marca (chamador antigo), vale a regra de antes: a 4ª.
-function paragrafoObsPenultimaAnalise(analises: { numero: number; penultima?: boolean }[]): Paragraph | null {
+function paragrafoObsPenultimaAnalise(analises: { numero: number; penultima?: boolean; despacho?: string }[]): Paragraph | null {
   const ultimaListada = Array.isArray(analises) ? analises[analises.length - 1] : undefined;
   if (!(ultimaListada?.penultima ?? ultimaListada?.numero === 4)) return null;
   return new Paragraph({
@@ -393,7 +393,7 @@ function paragrafoObsPenultimaAnalise(analises: { numero: number; penultima?: bo
   });
 }
 
-export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
+export async function gerarDespachoRegularizacao(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean; despacho?: string }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; tipoProcesso?: string | null; corpoPersonalizado?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -418,7 +418,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   children.push(vazio(120));
   children.push(p([txt("A PARTIR DE 01°/07/2024 VIGORA O DECRETO N° 2531/2024 QUE DEFINE NOVOS PROCEDIMENTOS E AMPLIA AUTOMAÇÃO DE PROCESSOS DA ANÁLISE E APROVAÇÃO DE PROJETOS ARQUITETÔNICOS NO MUNICÍPIO DE GOIÂNIA, BEM COMO DEFINE TODAS AS ETAPAS DE ANÁLISE. PROCESSOS AUTUADOS ANTES DESTA DATA SERÃO ANALISADOS CONFORME AS NOVAS REGRAS VIGENTES.")], { after: 160 }));
   dados.analises.forEach((a, idx) => {
-    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}`;
+    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}`;
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));
@@ -475,7 +475,7 @@ export async function gerarDespachoRegularizacao(dados: { processo: string; inte
   return await Packer.toBuffer(doc) as Buffer;
 }
 
-export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
+export async function gerarDespachoAceite(dados: { processo: string; interessado: string; numeroProcessoFisico?: string; numeroDespacho: string; naoConformes: string[]; naoConformesAgrupados?: { texto: string; grupo: string; ordem: number }[]; observacoes: string; observacoesPorAba?: Record<string, string>; analises: { numero: number; data: string; ultima?: boolean; penultima?: boolean; despacho?: string }[]; analista?: string; crea?: string; setor?: string; assinante?: Assinante; gerente?: Assinante; diretora?: Assinante; responsavelTecnico?: { cau?: string | null; crea?: string | null }; data?: string; }): Promise<Buffer> {
   const logoData = getLogoData();
   const assinante: Assinante = dados.assinante || {
     nome: dados.analista || "Engº Fábio Parente Martins Santos",
@@ -499,7 +499,7 @@ export async function gerarDespachoAceite(dados: { processo: string; interessado
   });
   children.push(vazio(120));
   dados.analises.forEach((a, idx) => {
-    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}`;
+    const label = a.ultima ? `${a.numero}ª ANÁLISE (ÚLTIMA*) :       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}   – LIBERAÇÃO DE TAXA OU INDEFERIMENTO;` : `${a.numero}ª ANÁLISE:       ${a.data}${a.despacho ? ` (Despacho/Parecer nº ${a.despacho})` : ""}`;
     children.push(new Paragraph({ alignment: AlignmentType.LEFT, spacing: { before: 40, after: 40 }, indent: { left: 900 }, keepLines: true, keepNext: idx < dados.analises.length - 1, children: [txt(label, { bold: a.ultima })] }));
   });
   if (dados.analises.some((a) => a.ultima)) children.push(new Paragraph({ spacing: { before: 80, after: 160 }, indent: { left: 440 }, children: [txt("Observação: *Caso nesta etapa não seja liberada a taxa, o processo/projeto será indeferido.", { size: 18, italics: true })] }));

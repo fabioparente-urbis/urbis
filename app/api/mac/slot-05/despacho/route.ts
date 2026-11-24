@@ -15,6 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { puladasComDados } from "@/lib/macAnalisesPuladas";
 import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolverProcessoSlot5, usuarioDaRequisicao } from "@/lib/mac-motor/slot5/autorizacao";
@@ -68,6 +69,10 @@ export async function POST(req: NextRequest) {
       const i = Number(a.numero_analise) - 1;
       if (i < 0 || i > 4) continue;
       datasEtapas[i] = a.id === alvo.id ? data : (a.data_despacho || null);
+    }
+    // Análise pulada no MAC (feita em outro ambiente): vale a data informada.
+    for (const p of await puladasComDados(codigo)) {
+      if (p.numero >= 1 && p.numero <= 5 && p.numero < Number((alvo as any).numero_analise)) datasEtapas[p.numero - 1] = p.data;
     }
 
     // Exigências = itens NÃO CONFORME, na ordem do checklist. Só itens ATIVOS: uma marca presa a
