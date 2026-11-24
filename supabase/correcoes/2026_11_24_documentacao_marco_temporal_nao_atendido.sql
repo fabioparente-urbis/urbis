@@ -25,3 +25,5 @@ COMMIT;
 --     e runsItemDocumento nos geradores).
 -- UPDATE mac_checklist_itens SET ordem = 0 WHERE texto LIKE '%Para pleitear o Alvará de Regularização é obrigatorio%' AND grupo = 'Documentação';
 -- UPDATE mac_checklist_itens SET texto = 'ATENÇÃO: ' || texto WHERE texto LIKE 'Para pleitear o Alvará de Regularização é obrigatorio%' AND grupo = 'Documentação';
+--  3) correção ortográfica (24/11/2026), JÁ APLICADA: "obrigatorio" → "obrigatório", "concluidos" → "concluídos",
+--     "Está obra" → "Esta obra". Para localizar/desfazer o item agora, use o prefixo 'ATENÇÃO: Para pleitear o Alvará de Regularização é obrigatório%'.
