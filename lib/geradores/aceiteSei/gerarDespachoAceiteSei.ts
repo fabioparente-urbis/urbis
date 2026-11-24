@@ -47,6 +47,13 @@ import {
 
 export type { Assinante };
 
+/** Linha de item do despacho. Texto que começa com "ATENÇÃO:" sai com essa palavra em negrito; o resto é igual. */
+function runsItemDocumento(prefixo: string, linha: string) {
+  const m = linha.match(/^ATENÇÃO:\s*/);
+  if (!m) return [txt(`${prefixo}${linha}`, { size: 20 })];
+  return [txt(prefixo, { size: 20 }), txt("ATENÇÃO:", { size: 20, bold: true }), txt(` ${linha.slice(m[0].length)}`, { size: 20 })];
+}
+
 /**
  * Itens não conformes agrupados pelo `grupo` do checklist do Aceite.
  * Texto = exatamente `item.texto`, zero reescrita. Numeração contínua
@@ -86,7 +93,7 @@ function gerarItensAgrupados(itens: { texto: string; grupo: string; ordem: numbe
           spacing: { before: isPrimeira ? 120 : 0, after: 80, line: 260 },
           indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
           keepLines: true, keepNext: i < linhas.length - 1,
-          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+          children: runsItemDocumento(isPrimeira ? `${contador}.   ` : "    ", linha),
         }));
       });
     });

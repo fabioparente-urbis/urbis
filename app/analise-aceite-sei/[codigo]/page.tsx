@@ -18,6 +18,7 @@ import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
 import { usePularAnalise } from "@/components/mac/usePularAnalise";
 import ModalPularAnalise from "@/components/mac/ModalPularAnalise";
+import TextoItem from "@/components/mac/TextoItem";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -2379,7 +2380,7 @@ export default function MacPage() {
                     }`}>
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
-                        <p className="text-sm text-[var(--text-primary)] leading-relaxed">{item.texto}</p>
+                        <p className="text-sm text-[var(--text-primary)] leading-relaxed"><TextoItem texto={item.texto} /></p>
                         {item.ref && <p className="text-xs text-[var(--text-muted)] mt-1">{item.ref}</p>}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
