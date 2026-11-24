@@ -4147,7 +4147,7 @@ export default function AnaliseAprovacaoProjeto() {
             return (
               <div key={n} className="flex gap-1 items-stretch">
                 <button
-                  disabled={(!liberada && !existente) || pulada}
+                  disabled={(!liberada && !existente) || (pulada && !existente)}
                   onClick={() => selecionarOuCriarAnalise(n)}
                   title={existente ? `Abrir Análise ${n}` : liberada ? `Iniciar Análise ${n} (copia a anterior)` : `Conclua a Análise ${n - 1} primeiro`}
                   className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
@@ -4158,7 +4158,7 @@ export default function AnaliseAprovacaoProjeto() {
                   {pulada ? "⏭️" : jaEmitida ? "✅" : "📋"} Análise {n}{pulada ? ` (pulada${fixa ? " · fixa" : ""})` : ""}
                 </button>
                 {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
-                {!existente && (liberada || pulada) && !fixa && (
+                {!jaEmitida && (liberada || pulada) && !fixa && (
                   <button disabled={salvandoPulo} onClick={() => void alternarPulo(n)}
                     title={pulada ? `Desfazer: voltar a Análise ${n} ao normal (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou no Excel). Ao sair do MAC a marca fica fixa.`}
                     className={`px-2 rounded-lg text-xs border transition-colors disabled:opacity-50 ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>

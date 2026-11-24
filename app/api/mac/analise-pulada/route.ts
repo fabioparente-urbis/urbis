@@ -60,11 +60,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  // Não pula análise que já existe (tem itens/despacho): a marca é só para o que NÃO foi feito aqui.
-  const { data: existente } = await supabaseAdmin.from("analises_mac")
-    .select("id").eq("processo_codigo", codigo).eq("numero_analise", numero).is("excluido_em", null).limit(1);
-  if (existente?.length)
-    return NextResponse.json({ ok: false, erro: `A Análise ${numero} já existe neste processo; só dá para pular uma análise que ainda não foi aberta.` }, { status: 409 });
+  // Liberdade total ao analista: pode pular análise vazia OU já preenchida (a preenchida continua abrindo e copiável).
+  // O que a marca garante é só a numeração: a próxima nasce depois dela, nunca no número dela.
 
   const { error } = await supabaseAdmin.from("mac_analises_puladas").upsert(
     { processo_codigo: codigo, numero_analise: numero, fixada: false, usuario_id: u.id },

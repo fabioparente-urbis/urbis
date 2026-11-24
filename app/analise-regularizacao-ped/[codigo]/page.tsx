@@ -2812,7 +2812,7 @@ export default function MacPage() {
               return (
                 <div key={n} className="flex gap-1 items-stretch">
                   <button
-                    disabled={(!liberada && !existente) || pulada}
+                    disabled={(!liberada && !existente) || (pulada && !existente)}
                     onClick={() => selecionarOuCriarAnalise(n)}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                       ativa
@@ -2827,7 +2827,7 @@ export default function MacPage() {
                     {pulada ? `⏭️ Análise ${n} (pulada${fixa ? " · fixa" : ""})` : jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
                   </button>
                   {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
-                  {!existente && (liberada || pulada) && !fixa && (
+                  {!jaEmitida && (liberada || pulada) && !fixa && (
                     <button
                       disabled={salvandoPulo}
                       onClick={() => void alternarPulo(n)}
