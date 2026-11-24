@@ -1179,6 +1179,49 @@ export default function MacPage() {
     await prepararNumeracao(tipo);
   }
 
+  /**
+   * PRÉVIA DO DESPACHO (Fábio, 24/11/2026): baixa o despacho como está na tela, SEM consumir número,
+   * SEM salvar a análise, SEM as verificações de pendência e SEM registrar nada (MDP/MRP/auditoria).
+   * O número sai como "PRÉVIA" — o documento não vale como emitido.
+   */
+  const [gerandoPrevia, setGerandoPrevia] = useState(false);
+  async function gerarPreviaDespacho() {
+    setGerandoPrevia(true);
+    try {
+      const numeroAtual = analiseAtual?.numero_analise ?? numeroAnaliseNova ?? 1;
+      const res = await fetch("/api/despacho-regularizacao", {
+        credentials: "include", method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          previa: true,
+          processo: codigo,
+          tipo: "despacho",
+          numeroDespacho: "PRÉVIA",
+          naoConformes: checklistItens.filter((i) => itens[i.id] === "nao_conforme").map((i) => i.texto),
+          idsNaoConformes: checklistItens.filter((i) => itens[i.id] === "nao_conforme").map((i) => i.id),
+          modelo_id: modeloSelecionado?.id ?? analiseAtual?.modelo_id ?? null,
+          observacoes,
+          observacoesPorAba,
+          analises: comPuladas(analises.slice().sort((a, b) => a.numero_analise - b.numero_analise).filter((a) => a.numero_analise <= numeroAtual).map((a) => ({
+            numero: a.numero_analise,
+            data: dataDaAnalise(a),
+            ultima: a.numero_analise === limiteAnalises,
+          })), numeroAtual),
+          analiseId: null,
+          assunto_id: assuntoId,
+          numero_revisao: numeroRevisao,
+          data: dataEmissao,
+        }),
+      });
+      if (!res.ok) { mostrarToast("Erro ao gerar a prévia."); return; }
+      const url = URL.createObjectURL(await res.blob());
+      const a = document.createElement("a");
+      a.href = url; a.download = `PREVIA_despacho_${codigo}.docx`; a.click();
+      URL.revokeObjectURL(url);
+      mostrarToast("📝 Prévia gerada — nenhum número foi consumido e nada foi registrado.");
+    } catch { mostrarToast("Erro ao gerar a prévia."); }
+    finally { setGerandoPrevia(false); }
+  }
+
   async function gerarDespacho() {
     setGerandoDespacho(true);
     setModalDespacho(false);
@@ -2949,6 +2992,12 @@ export default function MacPage() {
             {gerandoDespacho ? "⏳ Gerando..." : analiseAtual?.numero_despacho ? `🔄 Reemitir Despacho nº ${analiseAtual.numero_despacho}` : "📄 Gerar Despacho"}
           </button>
 
+
+          <button onClick={() => void gerarPreviaDespacho()} disabled={gerandoPrevia}
+            title="Baixa o despacho como está na tela. Não consome número, não salva, não confere pendências e não registra nada."
+            className="w-full bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-50 border border-dashed border-[var(--border-strong)] text-[var(--text-secondary)] font-bold py-2 rounded-lg text-sm transition-colors">
+            {gerandoPrevia ? "⏳ Gerando prévia..." : "📝 PRÉVIA DO DESPACHO"}
+          </button>
 
           {indeferimentoPendente && (
             <button onClick={async () => {
