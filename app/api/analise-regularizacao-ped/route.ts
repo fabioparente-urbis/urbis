@@ -5,6 +5,7 @@
 // Trocas feitas: 'const TIPO = "regularizacao";' → 'const TIPO = "slot_03";'
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
+import { proximoNumeroComPuladas } from "@/lib/macAnalisesPuladas";
 import { limiteAnalisesDoSlot } from "@/lib/macLimiteAnalises";
 import { createClient } from "@supabase/supabase-js";
 import { resolverUsuarioIdPorCookie } from "@/lib/auth";
@@ -109,7 +110,9 @@ export async function POST(req: NextRequest) {
       .filter((bloco) => !bloco.trim().startsWith("━━━ LEITURA DO PROCESSO")).join("\n").trim();
     const _ocupaNumero = (a: any) => !a.excluido_em || Object.keys(a.itens || {}).length > 0
       || _obsDoAnalista(a.observacoes) !== "" || !!(a.numero_despacho || a.numero_parecer || a.numero_despacho_interno);
-    const proximoNumero = (existentes ?? []).filter(_ocupaNumero).reduce((m: number, a: any) => Math.max(m, Number(a.numero_analise) || 0), 0) + 1;
+    const maiorExistente = (existentes ?? []).filter(_ocupaNumero).reduce((m: number, a: any) => Math.max(m, Number(a.numero_analise) || 0), 0);
+    // Análise "pulada" no MAC (feita por outro analista ou no Excel) ocupa o número dela: a próxima vem depois.
+    const proximoNumero = await proximoNumeroComPuladas(processo_codigo, maiorExistente);
 
     // Limite configurável no admin (/admin/configuracoes, coluna "Análises" em Assuntos); padrão 5.
     const limiteAnalises = await limiteAnalisesDoSlot(TIPO);
@@ -158,7 +161,7 @@ export async function POST(req: NextRequest) {
 
     // Relógio do processo: só grava no 1º ciclo, e só se ainda não tiver sido
     // gravado (idempotente — reprocessar não deve mover a data pra frente).
-    if (proximoNumero === 1) {
+    if (maiorExistente === 0) {
       await supabase
         .from("processos")
         .update({ analise_iniciada_em: new Date().toISOString() })

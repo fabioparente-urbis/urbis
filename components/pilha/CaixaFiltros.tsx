@@ -81,10 +81,10 @@ export default function CaixaFiltros({
 
   /** Opções que casam com o que foi digitado, na ordem em que serão renderizadas. */
   const visiveis = useMemo(() => {
-    const t = normalizar(texto);
-    const casa = (o: OpcaoFiltro) =>
-      !t || normalizar(o.rotulo).includes(t) || normalizar(o.grupo).includes(t);
-    return catalogo.filter((o) => !o.oculto && casa(o) && !idsAtivos.has(o.id));
+    // Digitou algo → as opções somem na hora (não tampam a lista) e o Enter
+    // vira busca livre; assim nenhum filtro invisível pode ser aplicado.
+    if (texto.trim()) return [];
+    return catalogo.filter((o) => !o.oculto && !idsAtivos.has(o.id));
   }, [catalogo, texto, idsAtivos]);
 
   /** Mesmas opções, agrupadas para exibição — preserva a ordem do catálogo. */
@@ -186,7 +186,7 @@ export default function CaixaFiltros({
         </div>
       </div>
 
-      {aberto && (
+      {aberto && !texto.trim() && (
         <div className="absolute z-30 mt-1 w-full max-h-80 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-card)] shadow-lg p-2">
           {ofereceBusca && (
             <button type="button"

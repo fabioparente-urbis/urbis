@@ -21,6 +21,7 @@ import { BotaoGerarLaudoAceitePed } from "@/components/mac/aceitePed/BotaoGerarL
 import { parseAreaBR } from "@/lib/mrp";
 import { MOTIVO_IMOVEL_DUPLICADO } from "@/lib/urbi/indeferimentoImovelDuplicado";
 import { avisoModeloArquivoGrande, LIMITE_BYTES_PLATAFORMA } from "@/lib/modeloGemini";
+import { usePularAnalise } from "@/components/mac/usePularAnalise";
 
 type StatusItem = "conforme" | "nao_conforme" | "nao_aplica" | null;
 
@@ -170,6 +171,7 @@ export default function MacPage() {
   // (corrida do autosave). Ver salvarSilencioso() e iniciarNovaAnalise().
   const criandoAnaliseRef = useRef(false);
   const [novaAnalise, setNovaAnalise] = useState(false);
+  const { puladas, salvando: salvandoPulo, erro: erroPulo, alternar: alternarPulo, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
   /** "MAC só inicia importando PDF ou copiando análise anterior" — 08/09/2026, pedido do Fábio.
    *  Cópia isolada da mesma lógica do Slot 1 (regra do projeto: nunca compartilhar entre slots). */
   const macCarregadoRef = useRef(false);
@@ -1296,7 +1298,7 @@ export default function MacPage() {
     // numero_analise torna a cópia independente da ordenação.
     const ultima = [...listaBase].sort((a, b) => b.numero_analise - a.numero_analise)[0];
     criandoAnaliseRef.current = false; // libera a trava para criar a nova análise
-    setNumeroAnaliseNova(ultima ? ultima.numero_analise + 1 : 1);
+    setNumeroAnaliseNova(Math.max(ultima ? ultima.numero_analise : 0, ...puladas.map((x) => x.numero), 0) + 1);
     setAnaliseAtual(null);
     macCarregadoRef.current = false;
     // Análise nova nasce EM BRANCO, herdando apenas os "não se aplica".
@@ -1419,7 +1421,7 @@ export default function MacPage() {
     // anterior não foi emitida, mas a checagem se repete aqui — nunca criar
     // a próxima análise sem despacho/parecer da anterior.
     const anterior = analises.find((a) => a.numero_analise === n - 1);
-    if (n !== 1 && !(anterior && (anterior.numero_despacho || anterior.numero_parecer))) {
+    if (n !== 1 && !(anterior && (anterior.numero_despacho || anterior.numero_parecer)) && !puladas.some((x) => x.numero === n - 1)) {
       mostrarToast(`Emita o despacho da Análise ${n - 1} antes de abrir a Análise ${n}.`);
       return;
     }
@@ -1938,19 +1940,19 @@ export default function MacPage() {
       <div className="bg-[var(--bg-card)] border-b border-[var(--border)] px-6 py-4">
         <div className="flex items-center justify-between gap-4 mb-3">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.push("/")}
+            <button onClick={() => { if (confirmarSaidaMac()) router.push("/"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
-            <button onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            <button onClick={async () => { if (!confirmarSaidaMac()) return; await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
               className="bg-[var(--error-bg)] hover:bg-[var(--error)] hover:text-white text-[var(--error)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
-            <button onClick={() => { router.push("/processos"); }}
+            <button onClick={() => { if (confirmarSaidaMac()) router.push("/processos"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Pilha de Processo
             </button>
-                        <button onClick={() => salvarSilencioso("em_andamento").then(() => router.push(`/lip-aceite-ped/${encodeURIComponent(codigo)}`))}
+                        <button onClick={() => { if (!confirmarSaidaMac()) return; void salvarSilencioso("em_andamento").then(() => router.push(`/lip-aceite-ped/${encodeURIComponent(codigo)}`)); }}
               className="bg-[var(--primary)] hover:bg-[var(--accent-hover)] text-white font-bold px-3 py-1.5 rounded text-sm transition-colors">
               ← LIP
             </button>
@@ -2533,6 +2535,8 @@ export default function MacPage() {
           <h3 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider">Ações</h3>
 
           {/* Botões de análise 1-5 — compactos + Limpar individual */}
+          {puladas.some((x) => !x.fixada) && <p className="text-[11px] text-amber-600">⏭️ Análise pulada: ao sair do MAC a marca fica fixa, sem volta.</p>}
+          {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
           <div className="flex flex-col gap-1.5 mb-1">
             {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
               const existente = analises.find((a: any) => a.numero_analise === n);
@@ -2547,12 +2551,15 @@ export default function MacPage() {
               const jaEmitida = !!existente && !!(existente.numero_despacho || existente.numero_parecer);
               const anterior = analises.find((a: any) => a.numero_analise === n - 1);
               const anteriorEmitida = !!anterior && !!(anterior.numero_despacho || anterior.numero_parecer);
-              const liberada = n === 1 || anteriorEmitida;
+              const pulada = puladas.some((x) => x.numero === n);
+              const fixa = puladas.some((x) => x.numero === n && x.fixada);
+              const anteriorPulada = puladas.some((x) => x.numero === n - 1);
+              const liberada = n === 1 || anteriorEmitida || anteriorPulada;
               const ativa = numeroAnaliseEmAndamento === n;
               return (
                 <div key={n} className="flex gap-1 items-stretch">
                   <button
-                    disabled={!liberada && !existente}
+                    disabled={(!liberada && !existente) || (pulada && !existente)}
                     onClick={() => selecionarOuCriarAnalise(n)}
                     className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                       ativa
@@ -2564,8 +2571,19 @@ export default function MacPage() {
                             : "bg-[var(--bg-primary)] border-[var(--border)] text-slate-600 cursor-not-allowed opacity-50"
                     }`}
                   >
-                    {jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
+                    {pulada ? `⏭️ Análise ${n} (pulada${fixa ? " · fixa" : ""})` : jaEmitida ? `✅ Análise ${n}` : `📋 Análise ${n}`}
                   </button>
+                  {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
+                  {!jaEmitida && (liberada || pulada) && !fixa && (
+                    <button
+                      disabled={salvandoPulo}
+                      onClick={() => void alternarPulo(n)}
+                      title={pulada ? `Desfazer: voltar a Análise ${n} ao normal (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou no Excel). Ao sair do MAC a marca fica fixa.`}
+                      className={`px-2 py-1 rounded-lg text-xs border transition-colors disabled:opacity-50 ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}
+                    >
+                      ⏭️
+                    </button>
+                  )}
                   {/* Copiar a análise anterior — só a partir da 2ª, e só se a
                       anterior existir. A Análise 1 não tem de onde copiar. */}
                   {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (

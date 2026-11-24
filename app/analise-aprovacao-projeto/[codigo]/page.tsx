@@ -14,6 +14,7 @@
  */
 
 import { LIMITE_ANALISES_PADRAO } from "@/lib/macLimiteAnalisesSlots";
+import { usePularAnalise } from "@/components/mac/usePularAnalise";
 import SeloOffline from "@/components/offline/SeloOffline";
 import { apagarCopiasDoUsuario, guardarCopia, lerCopia } from "@/lib/offline/armazem";
 import { ehQueda, enfileirar, identificarUsuario, pendenciaDoProcesso } from "@/lib/offline/fila";
@@ -544,6 +545,7 @@ export default function AnaliseAprovacaoProjeto() {
   const [numeroAnaliseNova, setNumeroAnaliseNova] = useState(1);
   const [modalZerarAnalise, setModalZerarAnalise] = useState<number | null>(null);
   const [modalCopiarAnalise, setModalCopiarAnalise] = useState<number | null>(null);
+  const { puladas, salvando: salvandoPulo, erro: erroPulo, alternar: alternarPulo, confirmarSaida: confirmarSaidaMac } = usePularAnalise(codigo);
   /* Emissão do despacho. O número vem da MESMA série dos Slots 1 e 2 (/api/numeracao/proximo):
    * `peek` só espia, `commit` consome — o commit só acontece depois do documento ficar pronto,
    * pra um erro na geração não queimar um número da faixa. */
@@ -1318,7 +1320,7 @@ export default function AnaliseAprovacaoProjeto() {
     // anterior não foi emitida, mas a checagem se repete aqui — nunca criar
     // a próxima análise sem despacho/parecer da anterior.
     const anterior = analises.find((a) => a.numero_analise === n - 1);
-    if (n !== 1 && !(anterior?.numero_despacho || anterior?.numero_parecer)) {
+    if (n !== 1 && !(anterior?.numero_despacho || anterior?.numero_parecer) && !puladas.some((x) => x.numero === n - 1)) {
       notificar(`Emita o despacho da Análise ${n - 1} antes de abrir a Análise ${n}.`);
       return;
     }
@@ -3065,20 +3067,20 @@ export default function AnaliseAprovacaoProjeto() {
         {/* ─── Cabeçalho ─────────────────────────────────────────────── */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex flex-wrap items-center gap-2">
-            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/"); }}
+            <button onClick={() => { if (!confirmarSaidaMac()) return; void salvar(undefined, undefined, undefined, true); router.push("/"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🏠 Home
             </button>
-            <button onClick={async () => { if (uidOffline) await apagarCopiasDoUsuario(uidOffline); await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
+            <button onClick={async () => { if (!confirmarSaidaMac()) return; if (uidOffline) await apagarCopiasDoUsuario(uidOffline); await fetch("/api/auth/logout", { method: "POST" }); router.push("/login"); }}
               className="bg-red-800 hover:bg-red-700 text-red-200 px-3 py-1.5 rounded text-sm font-medium transition-colors">
               🚪 Sair
             </button>
             <SeloOffline uid={uidOffline} />
-            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push("/processos"); }}
+            <button onClick={() => { if (!confirmarSaidaMac()) return; void salvar(undefined, undefined, undefined, true); router.push("/processos"); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← Pilha de Processo
             </button>
-            <button onClick={() => { void salvar(undefined, undefined, undefined, true); router.push(`/lip-aprovacao-projeto/${encodeURIComponent(codigo)}`); }}
+            <button onClick={() => { if (!confirmarSaidaMac()) return; void salvar(undefined, undefined, undefined, true); router.push(`/lip-aprovacao-projeto/${encodeURIComponent(codigo)}`); }}
               className="bg-[var(--bg-secondary)] hover:bg-[var(--bg-card-hover)] text-[var(--text-secondary)] px-3 py-1.5 rounded text-sm font-medium transition-colors">
               ← LIP
             </button>
@@ -4130,17 +4132,22 @@ export default function AnaliseAprovacaoProjeto() {
               emitido, não pela mera existência da linha. Uma análise pode
               existir em branco (clique errado no botão, como aconteceu no
               Slot 1 em 26/08/2026) sem que nada tenha sido de fato emitido. */}
+          {puladas.some((x) => !x.fixada) && <p className="text-[11px] text-amber-600">⏭️ Análise pulada: ao sair do MAC a marca fica fixa, sem volta.</p>}
+          {erroPulo && <p className="text-[11px] text-red-500">{erroPulo}</p>}
           {Array.from({ length: Math.max(limiteAnalises, ...analises.map((a) => Number(a.numero_analise) || 0)) }, (_, i) => i + 1).map((n) => {
             const existente = analises.find((a) => a.numero_analise === n);
             const jaEmitida = !!(existente?.numero_despacho || existente?.numero_parecer);
             const anterior = analises.find((a) => a.numero_analise === n - 1);
             const anteriorEmitida = !!(anterior?.numero_despacho || anterior?.numero_parecer);
-            const liberada = n === 1 || anteriorEmitida;
+            const pulada = puladas.some((x) => x.numero === n);
+            const fixa = puladas.some((x) => x.numero === n && x.fixada);
+            const anteriorPulada = puladas.some((x) => x.numero === n - 1);
+            const liberada = n === 1 || anteriorEmitida || anteriorPulada;
             const ativa = numeroAnaliseEmAndamento === n;
             return (
               <div key={n} className="flex gap-1 items-stretch">
                 <button
-                  disabled={!liberada && !existente}
+                  disabled={(!liberada && !existente) || (pulada && !existente)}
                   onClick={() => selecionarOuCriarAnalise(n)}
                   title={existente ? `Abrir Análise ${n}` : liberada ? `Iniciar Análise ${n} (copia a anterior)` : `Conclua a Análise ${n - 1} primeiro`}
                   className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-colors ${
@@ -4148,8 +4155,16 @@ export default function AnaliseAprovacaoProjeto() {
                       : jaEmitida ? "bg-[var(--success-bg)] text-[var(--text-primary)] border-[var(--border-strong)]"
                         : existente || liberada ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-strong)] hover:bg-[var(--bg-card-hover)]"
                           : "bg-[var(--bg-secondary)] text-[var(--text-muted)] border-dashed border-[var(--border)] cursor-not-allowed opacity-50"}`}>
-                  {jaEmitida ? "✅" : "📋"} Análise {n}
+                  {pulada ? "⏭️" : jaEmitida ? "✅" : "📋"} Análise {n}{pulada ? ` (pulada${fixa ? " · fixa" : ""})` : ""}
                 </button>
+                {/* Pular análise: feita por outro analista ou no Excel. Liga/desliga aqui dentro; ao sair do MAC fica fixa. */}
+                {!jaEmitida && (liberada || pulada) && !fixa && (
+                  <button disabled={salvandoPulo} onClick={() => void alternarPulo(n)}
+                    title={pulada ? `Desfazer: voltar a Análise ${n} ao normal (só enquanto estiver neste MAC)` : `Pular a Análise ${n} (feita por outro analista ou no Excel). Ao sair do MAC a marca fica fixa.`}
+                    className={`px-2 rounded-lg text-xs border transition-colors disabled:opacity-50 ${pulada ? "border-amber-500 bg-amber-500 text-white" : "border-[var(--border-strong)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)]"}`}>
+                    ⏭️
+                  </button>
+                )}
                 {/* Copiar a anterior — só a partir da 2ª. A Análise 1 não tem de onde copiar. */}
                 {existente && n >= 2 && analises.some((a) => a.numero_analise === n - 1) && (
                   <button onClick={() => setModalCopiarAnalise(n)} title={`Copiar Análise ${n - 1} para a Análise ${n}`}
