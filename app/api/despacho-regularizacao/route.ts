@@ -5,6 +5,9 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { processo, tipo, numeroDespacho, naoConformes, observacoes, observacoesPorAba, analises, analiseId, numero_revisao, assunto_id, data, padrao_id, fotos } = body;
+    // PRÉVIA DO DESPACHO (Fábio, 24/11/2026): só gera o arquivo — não consome número, não grava
+    // ultimo_documento, não mexe no relógio do processo e não registra MRP/MDP.
+    const previa = body.previa === true;
 
     // Buscar dados do processo
     const { createClient } = await import("@supabase/supabase-js");
@@ -95,12 +98,10 @@ export async function POST(req: NextRequest) {
       | { texto: string; grupo: string; ordem: number }[]
       | undefined;
     let responsavelTecnico: { cau?: string | null; crea?: string | null } | undefined;
-    if (analiseId) {
-      const { data: analise } = await supabase
-        .from("analises_mac")
-        .select("itens, modelo_id")
-        .eq("id", analiseId)
-        .maybeSingle();
+    if (analiseId || previa) {
+      const { data: analise } = analiseId
+        ? await supabase.from("analises_mac").select("itens, modelo_id").eq("id", analiseId).maybeSingle()
+        : { data: null as { itens?: unknown; modelo_id?: string } | null };
       // CAU/CREA vêm do LIP (processos.dados) — S63
       const dadosProc = (proc as any)?.dados || {};
       const cauLip = dadosProc?.cau?.valor || null;
@@ -109,12 +110,16 @@ export async function POST(req: NextRequest) {
         responsavelTecnico = { cau: cauLip, crea: creaLip };
       }
       const mapa = (analise?.itens as Record<string, string> | null) || {};
-      const idsNaoConformes = Object.keys(mapa).filter((k) => mapa[k] === "nao_conforme");
-      if (analise?.modelo_id && idsNaoConformes.length > 0) {
+      // Na prévia valem as marcas que estão NA TELA (a análise pode nem estar salva ainda).
+      const idsNaoConformes = previa && Array.isArray(body.idsNaoConformes)
+        ? body.idsNaoConformes.map(String)
+        : Object.keys(mapa).filter((k) => mapa[k] === "nao_conforme");
+      const modeloIdItens = (analise as any)?.modelo_id ?? (previa ? body.modelo_id : null);
+      if (modeloIdItens && idsNaoConformes.length > 0) {
         const { data: itensMC } = await supabase
           .from("mac_checklist_itens")
           .select("id, texto, grupo, ordem")
-          .eq("modelo_id", analise.modelo_id)
+          .eq("modelo_id", modeloIdItens)
           .eq("ativo", true)
           .in("id", idsNaoConformes)
           .order("grupo", { ascending: true })
@@ -170,6 +175,15 @@ export async function POST(req: NextRequest) {
       buffer = await gerarIndeferimento({ processo, interessado, numeroProcessoFisico, analises: analisesParaDoc, observacoes, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data, fotos: fotosValidas });
     } else {
       buffer = await gerarArquivamento({ processo, interessado, numeroProcessoFisico, assinante, gerente, diretora, numeroParecer: numeroDespacho ?? undefined, assunto, data });
+    }
+
+    if (previa) {
+      return new NextResponse(new Uint8Array(buffer), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Disposition": `attachment; filename="PREVIA_despacho_${processo}.docx"`,
+        },
+      });
     }
 
     // Registrar último documento emitido
