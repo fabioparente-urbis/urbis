@@ -63,6 +63,13 @@ export default function MacPage() {
   const [itens, setItens] = useState<Record<string, StatusItem>>({});
   const [fontes, setFontes] = useState<Record<string, "auto" | "p2" | "manual" | null>>({});
   const [aceites, setAceites] = useState<Record<string, boolean>>({});
+  // Desfazer ações em lote (24/11/2026): guarda as 3 últimas fotos de itens/fontes/aceites tiradas
+  // ANTES de cada ação em lote. Só vive na tela — não grava nada no banco por si só.
+  const pilhaDesfazerRef = useRef<{ rotulo: string; itens: Record<string, StatusItem>; fontes: Record<string, "auto" | "p2" | "manual" | null>; aceites: Record<string, boolean> }[]>([]);
+  const [qtdDesfazer, setQtdDesfazer] = useState(0);
+  const [confirmandoVoltar, setConfirmandoVoltar] = useState(false);
+  // Trocou de análise (1ª, 2ª, 3ª…): as fotos de outra análise não servem mais.
+  useEffect(() => { pilhaDesfazerRef.current = []; setQtdDesfazer(0); setConfirmandoVoltar(false); }, [analiseAtual]);
   const [itensPendentesIA, setItensPendentesIA] = useState<any[]>([]);
   // Reemissão: gerar de novo o documento de uma análise já concluída,
   // mantendo o número que ela já tem e pegando o checklist como está
@@ -601,6 +608,25 @@ export default function MacPage() {
   }, [itens, observacoes, observacoesPorAba, fontes, aceites, analiseAtual]);
 
 
+  /** Tira a foto do estado atual antes de uma ação em lote (máx. 3 — a mais antiga sai). */
+  function guardarParaDesfazer(rotulo: string) {
+    const pilha = pilhaDesfazerRef.current;
+    pilha.push({ rotulo, itens: { ...itens }, fontes: { ...fontes }, aceites: { ...aceites } });
+    if (pilha.length > 3) pilha.shift();
+    setQtdDesfazer(pilha.length);
+  }
+
+  function voltarUltimaAcao() {
+    const foto = pilhaDesfazerRef.current.pop();
+    setQtdDesfazer(pilhaDesfazerRef.current.length);
+    setConfirmandoVoltar(false);
+    if (!foto) return;
+    setItens(foto.itens);
+    setFontes(foto.fontes);
+    setAceites(foto.aceites);
+    mostrarToast(`↩️ Voltou: "${foto.rotulo}" desfeita.`);
+  }
+
   function setItem(id: string, status: StatusItem) {
     setItens((prev) => ({ ...prev, [id]: status }));
     setFontes((prev) => ({ ...prev, [id]: "manual" }));
@@ -620,6 +646,7 @@ export default function MacPage() {
     const alvo = checklistItens.filter((i) => existentes.includes(i.grupo) && !itens[i.id]);
     if (alvo.length === 0) { mostrarToast("Esses grupos já estão respondidos."); return; }
     if (!confirm(`"${f.nome}" — marcar como NÃO SE APLICA:\n\n${existentes.map((g) => "• " + g).join("\n")}\n\n${alvo.length} item(ns). Itens já respondidos não são tocados.`)) return;
+    guardarParaDesfazer(`Filtro "${f.nome}"`);
     setItens((prev) => {
       const novo = { ...prev };
       for (const i of alvo) novo[i.id] = "nao_aplica";
@@ -682,6 +709,7 @@ export default function MacPage() {
     const alvo = checklistItens.filter((i) => !manter.has(i.grupo) && !itens[i.id]);
     if (alvo.length === 0) { mostrarToast("Nada a marcar — os outros grupos já estão respondidos."); return; }
     if (!confirm(`Marcar ${alvo.length} item(ns) de ${new Set(alvo.map(i => i.grupo)).size} grupo(s) como "não se aplica"?\n\nItens já respondidos não são tocados.`)) return;
+    guardarParaDesfazer("Marcar demais como N/A");
     setItens((prev) => {
       const novo = { ...prev };
       for (const i of alvo) novo[i.id] = "nao_aplica";
@@ -697,6 +725,7 @@ export default function MacPage() {
   }
 
   function marcarGrupo(grupo: string, status: "conforme" | "nao_conforme" | "nao_aplica") {
+    guardarParaDesfazer(`Todos ${status === "conforme" ? "Conformes" : status === "nao_conforme" ? "Não Conformes" : "N/A"} (${grupo})`);
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
       const novo = { ...prev };
@@ -788,6 +817,7 @@ export default function MacPage() {
   }
 
   function aceitarTodasIA(grupo: string) {
+    guardarParaDesfazer(`Aceitar todas IA (${grupo})`);
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setAceites((prev) => {
       const novo = { ...prev };
@@ -797,6 +827,7 @@ export default function MacPage() {
   }
 
   function recusarTodasIA(grupo: string) {
+    guardarParaDesfazer(`Recusar todas IA (${grupo})`);
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
       const novo = { ...prev };
@@ -816,6 +847,7 @@ export default function MacPage() {
   }
 
   function limparGrupo(grupo: string) {
+    guardarParaDesfazer(`Limpar Aba (${grupo})`);
     const ids = checklistItens.filter((i) => i.grupo === grupo).map((i) => i.id);
     setItens((prev) => {
       const novo = { ...prev };
@@ -849,6 +881,7 @@ export default function MacPage() {
       `As observações escritas não são apagadas. Continuar?`
     );
     if (!ok) return;
+    guardarParaDesfazer("Limpar Todas as Abas");
     const apagar = (prev: Record<string, unknown>) => {
       const novo = { ...prev };
       ids.forEach((id) => { delete novo[id]; });
@@ -2514,8 +2547,24 @@ export default function MacPage() {
             </button>
           </div>
 
+          {confirmandoVoltar && pilhaDesfazerRef.current.length > 0 && (
+            <div className="mx-6 mt-3 flex flex-wrap items-center gap-3 rounded-lg border border-[#CA8A04] bg-[#FEFCE8] px-4 py-3 text-sm text-[#713F12]" role="alertdialog">
+              <span className="flex-1 min-w-[240px]">
+                <b>Voltar para antes de “{pilhaDesfazerRef.current[pilhaDesfazerRef.current.length - 1].rotulo}”?</b>{" "}
+                A configuração atual do checklist será perdida (marcações, fontes e aceites da IA).
+              </span>
+              <button onClick={voltarUltimaAcao} className="bg-[#CA8A04] hover:bg-[#A16207] text-white text-xs font-semibold px-3 py-1.5 rounded-lg">Sim, voltar</button>
+              <button onClick={() => setConfirmandoVoltar(false)} className="bg-white border border-[#CA8A04] text-[#713F12] text-xs font-semibold px-3 py-1.5 rounded-lg">Cancelar</button>
+            </div>
+          )}
+
           <div className={`flex-1 overflow-y-auto px-6 pb-6${abaAtual === GRUPOS.length || (MUITOS_GRUPOS && verIndice) ? " hidden" : ""}`}>
             <div className="flex flex-wrap gap-2 pt-3 pb-1">
+              <button onClick={() => setConfirmandoVoltar(true)} disabled={qtdDesfazer === 0}
+                title={qtdDesfazer === 0 ? "Nenhuma ação em lote para desfazer" : "Desfaz a última ação em lote (guarda as 3 últimas)"}
+                className="flex items-center gap-1.5 bg-[#FEFCE8] hover:bg-[#CA8A04] hover:text-white border border-[#CA8A04] text-[#CA8A04] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#FEFCE8] disabled:hover:text-[#CA8A04]">
+                ↩️ Voltar{qtdDesfazer > 0 ? ` (${qtdDesfazer})` : ""}
+              </button>
               <button onClick={() => marcarGrupo(grupoAtual, "conforme")}
                 className="flex items-center gap-1.5 bg-[#ECFDF5] hover:bg-[#059669] hover:text-white border border-[#059669] text-[#059669] text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
                 ✅ Todos Conformes
