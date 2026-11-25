@@ -257,6 +257,13 @@ function subtituloSecao(titulo: string) {
   });
 }
 
+/** Linha de item do despacho. Texto que começa com "ATENÇÃO:" sai com essa palavra em negrito; o resto é igual. */
+function runsItemDocumento(prefixo: string, linha: string) {
+  const m = linha.match(/^ATENÇÃO:\s*/);
+  if (!m) return [txt(`${prefixo}${linha}`, { size: 20 })];
+  return [txt(prefixo, { size: 20 }), txt("ATENÇÃO:", { size: 20, bold: true }), txt(` ${linha.slice(m[0].length)}`, { size: 20 })];
+}
+
 /**
  * Renderiza itens não conformes agrupados pelo `grupo` vindo do checklist.
  * Texto = exatamente `item.texto` (zero reescrita). Numeração contínua entre grupos.
@@ -299,7 +306,7 @@ function gerarItensAgrupados(
           indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
           keepLines: true,
           keepNext: i < linhas.length - 1,
-          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+          children: runsItemDocumento(isPrimeira ? `${contador}.   ` : "    ", linha),
         }));
       });
     });
@@ -338,7 +345,7 @@ function gerarItens(ids: string[]) {
           indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
           keepLines: true,
           keepNext: i < linhas.length - 1,
-          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+          children: runsItemDocumento(isPrimeira ? `${contador}.   ` : "    ", linha),
         }));
       });
     });
@@ -360,7 +367,7 @@ function gerarItens(ids: string[]) {
           indent: isPrimeira ? { left: 640, hanging: 640 } : { left: 640 },
           keepLines: true,
           keepNext: i < linhas.length - 1,
-          children: [txt(isPrimeira ? `${contador}.   ${linha}` : `    ${linha}`, { size: 20 })],
+          children: runsItemDocumento(isPrimeira ? `${contador}.   ` : "    ", linha),
         }));
       });
     });

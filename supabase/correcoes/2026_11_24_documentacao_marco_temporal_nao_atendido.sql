@@ -18,3 +18,12 @@ JOIN (VALUES
 WHERE NOT EXISTS (SELECT 1 FROM mac_checklist_itens x WHERE x.modelo_id = m.id
                   AND x.texto LIKE 'Para pleitear o Alvará de Regularização é obrigatorio%');
 COMMIT;
+
+-- Ajustes feitos depois (24/11/2026, pedido do Fábio) — JÁ APLICADOS em produção:
+--  1) o item vai para o TOPO da aba Documentação (ordem 0);
+--  2) o texto começa com "ATENÇÃO: " (negrito no MAC e no despacho, via components/mac/TextoItem.tsx
+--     e runsItemDocumento nos geradores).
+-- UPDATE mac_checklist_itens SET ordem = 0 WHERE texto LIKE '%Para pleitear o Alvará de Regularização é obrigatorio%' AND grupo = 'Documentação';
+-- UPDATE mac_checklist_itens SET texto = 'ATENÇÃO: ' || texto WHERE texto LIKE 'Para pleitear o Alvará de Regularização é obrigatorio%' AND grupo = 'Documentação';
+--  3) correção ortográfica (24/11/2026), JÁ APLICADA: "obrigatorio" → "obrigatório", "concluidos" → "concluídos",
+--     "Está obra" → "Esta obra". Para localizar/desfazer o item agora, use o prefixo 'ATENÇÃO: Para pleitear o Alvará de Regularização é obrigatório%'.
